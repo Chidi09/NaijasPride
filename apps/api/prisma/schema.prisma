@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Important for Supabase connection pooling
+}
+
+// Enums matching Shared Types
+enum Quality {
+  Q480p  @map("480p")
+  Q720p  @map("720p")
+  Q1080p @map("1080p")
+  Q4K    @map("4K")
+}
+
+enum Genre {
+  Action
+  Comedy
+  Drama
+  Romance
+  Thriller
+  Horror
+  Documentary
+  Nollywood
+  Bollywood  // Added Bollywood support
+  Yoruba
+  Igbo
+  Hausa
+  Animation
+  SciFi      @map("Sci-Fi")
+  Family
+}
+
+enum ContentStatus {
+  active
+  pending
+  processing
+  deleted
+}
+
+// Models
+model Movie {
+  id              String        @id @default(uuid())
+  title           String
+  slug            String        @unique
+  description     String?
+  year            Int
+  genre           Genre[]
+  language        String        @default("English")
+  quality         Quality[]
+  durationMinutes Int?
+  rating          Float?
+  imdbId          String?
+  tmdbId          Int?
+  thumbnailUrl    String?
+  coverUrl        String?
+  
+  // JSON fields for flexible data
+  fileUrls        Json          // Record<Quality, string>
+  fileSizes       Json          // Record<Quality, number>
+  metadata        Json?         // MovieMetadata
+
+  downloadCount   Int           @default(0)
+  viewCount       Int           @default(0)
+  status          ContentStatus @default(active)
+  uploadedBy      String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  publishedAt     DateTime?
+
+  @@index([slug])
+  @@index([year])
+  @@index([status])
+}

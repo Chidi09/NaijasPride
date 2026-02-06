@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../../dist/out-tsc",
+    "types": ["node"],
+    "useDefineForClassFields": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "files": ["src/main.ts", "src/app/app.config.ts"],
+  "include": ["src/**/*.d.ts", "src/**/*.ts"]
+}

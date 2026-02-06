@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "module": "ES2022",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@naijaspride/types": ["packages/shared-types/src/index.ts"],
+      "@naijaspride/validators": ["packages/shared-validators/src/index.ts"],
+      "@naijaspride/utils": ["packages/shared-utils/src/index.ts"]
+    }
+  }
+}
