@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma, Genre as PrismaGenre, Quality as PrismaQuality } from '@prisma/client';
+import IORedis from 'ioredis';
 import { 
   MovieSearchParams, 
   CreateMovieRequest, 
@@ -6,6 +7,11 @@ import {
   MovieSummary, 
   PaginationMeta 
 } from '@naijaspride/types';
+
+// Initialize Redis connection
+const redis = new IORedis(process.env.REDIS_URL!, {
+  maxRetriesPerRequest: null,
+});
 
 export class MoviesService {
   constructor(private prisma: PrismaClient) {}
@@ -22,17 +28,51 @@ export class MoviesService {
         metadata: (data.metadata ?? {}) as Prisma.InputJsonValue,
       },
     });
+
+    // Invalidate cache on creation
+    await this.invalidateSearchCache();
+    
     return this.mapToMovie(movie);
   }
 
   async findBySlug(slug: string): Promise<Movie | null> {
+    const cacheKey = `movie:${slug}`;
+    
+    // 1. Check Redis
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`[Cache HIT] ${cacheKey}`);
+      return JSON.parse(cached);
+    }
+
+    // 2. Hit DB
     const movie = await this.prisma.movie.findUnique({ where: { slug } });
-    return movie ? this.mapToMovie(movie) : null;
+    
+    if (movie) {
+      const mapped = this.mapToMovie(movie);
+      // 3. Save to Redis (Infinite TTL, until we manually invalidate)
+      await redis.set(cacheKey, JSON.stringify(mapped));
+      console.log(`[Cache SET] ${cacheKey}`);
+      return mapped;
+    }
+    
+    return null;
   }
 
   async search(params: MovieSearchParams): Promise<{ data: MovieSummary[]; meta: PaginationMeta }> {
     const { page = 1, limit = 20, q, genre, year, quality, sortBy } = params;
     const skip = (page - 1) * limit;
+
+    // Create cache key from params
+    const paramKey = JSON.stringify({ q, genre, year, quality, sortBy, page, limit });
+    const cacheKey = `search:${Buffer.from(paramKey).toString('base64')}`;
+
+    // Check cache first
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`[Cache HIT] ${cacheKey}`);
+      return JSON.parse(cached);
+    }
 
     const where: Prisma.MovieWhereInput = {
       status: 'active',
@@ -57,7 +97,7 @@ export class MoviesService {
       }),
     ]);
 
-    return {
+    const result = {
       data: movies.map(this.mapToSummary),
       meta: {
         page,
@@ -68,6 +108,21 @@ export class MoviesService {
         hasPrev: page > 1,
       },
     };
+
+    // Cache for 1 hour
+    await redis.setex(cacheKey, 3600, JSON.stringify(result));
+    console.log(`[Cache SET] ${cacheKey} (TTL: 1h)`);
+    
+    return result;
+  }
+
+  // Helper to invalidate all search caches when data changes
+  private async invalidateSearchCache(): Promise<void> {
+    const searchKeys = await redis.keys('search:*');
+    if (searchKeys.length > 0) {
+      await redis.del(...searchKeys);
+      console.log(`[Cache INVALIDATED] ${searchKeys.length} search keys cleared`);
+    }
   }
 
   private generateSlug(title: string, year: number): string {

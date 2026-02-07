@@ -28,6 +28,13 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
           >
             <span>🎬</span> Movies
           </a>
+          <a 
+            routerLink="/admin/discovery" 
+            routerLinkActive="bg-primary text-white" 
+            class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg transition-colors"
+          >
+            <span>🕵️‍♂️</span> Discovery
+          </a>
           <a href="#" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg transition-colors opacity-50 cursor-not-allowed">
             <span>📚</span> Books (Soon)
           </a>

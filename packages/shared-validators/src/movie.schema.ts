@@ -33,4 +33,6 @@ export const createMovieSchema = z.object({
     trailerUrl: z.string().url().optional(),
     nollywood: z.boolean().optional(),
   }).optional(),
+  youtubeId: z.string().optional(),
+  isStreamOnly: z.boolean().default(false),
 });

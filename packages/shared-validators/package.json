@@ -6,10 +6,10 @@
   "types": "./src/index.ts",
   "dependencies": {
     "zod": "^3.22.4",
-    "@naijaspride/types": "*"
+    "@naijaspride/types": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
-    "@naijaspride/config": "*"
+    "@naijaspride/config": "workspace:*"
   }
 }

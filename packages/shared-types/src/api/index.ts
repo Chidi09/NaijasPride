@@ -30,6 +30,9 @@ export interface CreateMovieRequest {
   fileUrls: Record<string, string>;
   fileSizes?: Record<string, number>;
   metadata?: Partial<MovieMetadata>;
+  // Streaming fields
+  youtubeId?: string;
+  isStreamOnly?: boolean;
 }
 
 // --- Responses ---

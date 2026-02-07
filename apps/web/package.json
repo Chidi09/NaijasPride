@@ -22,8 +22,8 @@
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.3",
-    "@naijaspride/types": "*",
-    "@naijaspride/utils": "*"
+    "@naijaspride/types": "workspace:*",
+    "@naijaspride/utils": "workspace:*"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^17.2.0",
@@ -34,6 +34,6 @@
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.4.0",
-    "@naijaspride/config": "*"
+    "@naijaspride/config": "workspace:*"
   }
 }

@@ -58,7 +58,7 @@ import { Genre, Quality } from '@naijaspride/types';
           </div>
         </div>
 
-        <div class="p-4 bg-gray-50 rounded-lg space-y-4 border border-gray-200">
+         <div class="p-4 bg-gray-50 rounded-lg space-y-4 border border-gray-200">
           <h3 class="font-bold text-gray-700">Download Links</h3>
           <div formGroupName="fileUrls" class="grid grid-cols-1 gap-4">
              @for (q of selectedQualities; track q) {
@@ -70,6 +70,21 @@ import { Genre, Quality } from '@naijaspride/types';
              @if (selectedQualities.length === 0) {
                <p class="text-sm text-gray-400 italic">Select qualities above to add links.</p>
              }
+          </div>
+        </div>
+
+        <div class="p-4 bg-blue-50 rounded-lg space-y-4 border border-blue-200">
+          <h3 class="font-bold text-gray-700">Streaming Options</h3>
+          
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-700">YouTube Video ID</label>
+            <input formControlName="youtubeId" type="text" class="input-field" placeholder="e.g. dQw4w9WgXcQ">
+            <p class="text-xs text-gray-500">Enter the YouTube video ID for streaming (optional)</p>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <input formControlName="isStreamOnly" type="checkbox" class="text-primary rounded focus:ring-primary">
+            <label class="text-sm text-gray-700">Stream Only (No downloads available)</label>
           </div>
         </div>
 
@@ -135,7 +150,9 @@ export class AdminMovieCreateComponent {
     quality: [[] as string[], [Validators.required]],
     fileUrls: this.fb.group({}), // Dynamic keys
     thumbnailUrl: ['', [Validators.required]], // Temporarily required for demo
-    coverUrl: ['']
+    coverUrl: [''],
+    youtubeId: [''],
+    isStreamOnly: [false]
   });
 
   onCheckboxChange(e: any, controlName: 'genre' | 'quality') {

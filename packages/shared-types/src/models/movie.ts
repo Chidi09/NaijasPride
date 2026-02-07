@@ -26,6 +26,11 @@ export interface Movie {
   coverUrl: string | null;
   fileUrls: Record<string, string>; // Key is Quality enum string
   fileSizes: Record<string, number>;
+  
+  // Streaming fields
+  youtubeId: string | null;
+  isStreamOnly: boolean;
+  
   downloadCount: number;
   viewCount: number;
   status: ContentStatus;

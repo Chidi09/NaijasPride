@@ -6,6 +6,6 @@
   "types": "./src/index.ts",
   "devDependencies": {
     "typescript": "^5.4.0",
-    "@naijaspride/config": "*"
+    "@naijaspride/config": "workspace:*"
   }
 }
