@@ -15,6 +15,7 @@
         <span
           *ngFor="let char of brandName.split(''); let i = index"
           class="glitch-char"
+          [class.glitch-char--burgundy]="i < burgundyCount"
           [attr.data-char]="char"
           [style.visibility]="i < revealedChars() ? 'visible' : 'hidden'"
         >{{ char }}</span>

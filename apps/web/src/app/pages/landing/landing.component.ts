@@ -16,8 +16,10 @@ export class LandingComponent implements OnInit, OnDestroy {
   email = signal('');
   phase = signal<AnimPhase>('glitch');
 
-  /** Characters of "NaijasPride" revealed one-by-one */
-  readonly brandName = 'NaijasPride';
+  /** Characters of "NAIJAsPRIDE" revealed one-by-one */
+  readonly brandName = 'NAIJAsPRIDE';
+  /** First 5 characters ("NAIJA") are burgundy, rest ("sPRIDE") are white */
+  readonly burgundyCount = 5;
   revealedChars = signal(0);
   private timers: ReturnType<typeof setTimeout>[] = [];
 
