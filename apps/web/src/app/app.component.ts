@@ -12,7 +12,7 @@ import { ToastContainerComponent } from './shared/components/toast-container/toa
     <div class="min-h-screen flex flex-col bg-cinema-900 text-cinema-50">
       <app-navbar />
 
-      <main class="flex-grow pt-28">
+      <main class="flex-grow pt-16">
         <router-outlet />
       </main>
 
