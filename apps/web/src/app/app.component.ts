@@ -20,13 +20,13 @@ import { BrandLogoComponent } from './shared/components/brand-logo/brand-logo.co
           'bg-gradient-to-b from-black/80 to-transparent': !scrolled
         }"
       >
-        <div class="container mx-auto px-6 h-20 flex justify-between items-center">
+        <div class="container mx-auto px-6 h-32 md:h-44 flex justify-between items-center">
           
           <a routerLink="/" class="flex items-center group select-none">
             <app-brand-logo
               variant="full"
               alt="NaijasPride"
-              className="h-14 md:h-20 w-auto max-w-[280px] md:max-w-[400px] object-contain group-hover:opacity-90 transition-opacity"
+              className="h-28 md:h-40 w-auto max-w-[560px] md:max-w-[800px] object-contain group-hover:opacity-90 transition-opacity"
             />
           </a>
 
@@ -52,7 +52,7 @@ import { BrandLogoComponent } from './shared/components/brand-logo/brand-logo.co
         </div>
       </header>
 
-      <main class="flex-grow pt-20">
+      <main class="flex-grow pt-32 md:pt-44">
         <router-outlet />
       </main>
 
