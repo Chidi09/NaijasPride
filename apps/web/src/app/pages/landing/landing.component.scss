@@ -1,0 +1,285 @@
+/* ============================================================
+   NaijasPride - Glitch-in-the-Matrix Landing Animation
+   ============================================================ */
+
+/* --- Glitch Container --- */
+.glitch-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 85vh;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+/* Subtle scanlines overlay */
+.glitch-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 65, 0.03) 2px,
+    rgba(0, 255, 65, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* --- Individual Glitch Character --- */
+.glitch-char {
+  display: inline-block;
+  position: relative;
+  font-size: clamp(3rem, 10vw, 7rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-transform: uppercase;
+
+  /* Entry animation */
+  animation: charReveal 0.3s ease-out forwards;
+}
+
+/* Chromatic aberration via pseudo-elements */
+.glitch-char::before,
+.glitch-char::after {
+  content: attr(data-char);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.glitch-char::before {
+  color: #ff0040;
+  z-index: -1;
+  animation: glitchShiftLeft 0.8s ease-in-out infinite alternate;
+}
+
+.glitch-char::after {
+  color: #00ffff;
+  z-index: -1;
+  animation: glitchShiftRight 0.8s ease-in-out infinite alternate;
+}
+
+/* Stagger the glitch intensity per character */
+.glitch-char:nth-child(odd)::before {
+  animation-duration: 0.6s;
+}
+
+.glitch-char:nth-child(even)::after {
+  animation-duration: 0.9s;
+}
+
+/* --- Cursor blink after last revealed character --- */
+.glitch-cursor {
+  display: inline-block;
+  width: 4px;
+  height: 1em;
+  background: #00ff41;
+  margin-left: 4px;
+  vertical-align: baseline;
+  animation: cursorBlink 0.6s steps(1) infinite;
+}
+
+/* --- Screen Flicker on Full Reveal --- */
+.glitch-complete {
+  animation: screenFlicker 0.15s ease-in-out 3;
+}
+
+/* --- Dissolve Phase --- */
+.glitch-dissolve {
+  animation: dissolve 0.7s ease-in forwards;
+}
+
+/* --- Hero Reveal --- */
+.hero-reveal {
+  animation: heroFadeIn 0.8s ease-out forwards;
+}
+
+.hero-reveal-delayed {
+  opacity: 0;
+  animation: heroFadeIn 0.8s ease-out 0.15s forwards;
+}
+
+.hero-reveal-delayed-2 {
+  opacity: 0;
+  animation: heroFadeIn 0.8s ease-out 0.3s forwards;
+}
+
+/* --- Skip Button --- */
+.skip-btn {
+  position: absolute;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 50;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    color: rgba(255, 255, 255, 0.8);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* ============================================================
+   Keyframes
+   ============================================================ */
+
+@keyframes charReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) skewX(-15deg);
+    filter: blur(8px);
+  }
+  40% {
+    opacity: 0.7;
+    transform: translateY(-3px) skewX(5deg);
+    filter: blur(2px);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(1px) skewX(-2deg);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) skewX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes glitchShiftLeft {
+  0% {
+    clip-path: inset(20% 0 60% 0);
+    transform: translate(-3px, 0);
+  }
+  25% {
+    clip-path: inset(60% 0 10% 0);
+    transform: translate(2px, 1px);
+  }
+  50% {
+    clip-path: inset(10% 0 70% 0);
+    transform: translate(-1px, -1px);
+  }
+  75% {
+    clip-path: inset(40% 0 30% 0);
+    transform: translate(3px, 0);
+  }
+  100% {
+    clip-path: inset(70% 0 5% 0);
+    transform: translate(-2px, 1px);
+  }
+}
+
+@keyframes glitchShiftRight {
+  0% {
+    clip-path: inset(60% 0 20% 0);
+    transform: translate(3px, 0);
+  }
+  25% {
+    clip-path: inset(10% 0 60% 0);
+    transform: translate(-2px, -1px);
+  }
+  50% {
+    clip-path: inset(70% 0 10% 0);
+    transform: translate(1px, 1px);
+  }
+  75% {
+    clip-path: inset(30% 0 40% 0);
+    transform: translate(-3px, 0);
+  }
+  100% {
+    clip-path: inset(5% 0 70% 0);
+    transform: translate(2px, -1px);
+  }
+}
+
+@keyframes cursorBlink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+@keyframes screenFlicker {
+  0% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.85;
+    filter: brightness(1.8);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes dissolve {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+    letter-spacing: 0.04em;
+  }
+  40% {
+    opacity: 0.8;
+    transform: scale(1.05);
+    filter: blur(2px);
+    letter-spacing: 0.15em;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+    filter: blur(12px);
+    letter-spacing: 0.4em;
+  }
+}
+
+@keyframes heroFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   Reduced Motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .glitch-char,
+  .glitch-char::before,
+  .glitch-char::after,
+  .glitch-cursor,
+  .glitch-complete,
+  .glitch-dissolve,
+  .hero-reveal,
+  .hero-reveal-delayed,
+  .hero-reveal-delayed-2 {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}

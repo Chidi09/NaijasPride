@@ -1,27 +1,78 @@
 <div class="bg-black text-white overflow-x-hidden font-sans">
-  <header class="relative h-[85vh] w-full flex items-center justify-center">
+
+  <!-- ==================== PHASE 1 & 2: GLITCH + DISSOLVE ==================== -->
+  <header
+    class="relative h-[85vh] w-full flex items-center justify-center"
+    *ngIf="phase() !== 'hero'"
+  >
+    <div class="glitch-stage">
+      <!-- Glitch text container -->
+      <div
+        [class.glitch-complete]="revealedChars() === brandName.length && phase() === 'glitch'"
+        [class.glitch-dissolve]="phase() === 'dissolve'"
+        class="relative z-10 select-none"
+      >
+        <span
+          *ngFor="let char of brandName.split(''); let i = index"
+          class="glitch-char"
+          [attr.data-char]="char"
+          [style.visibility]="i < revealedChars() ? 'visible' : 'hidden'"
+        >{{ char }}</span>
+
+        <!-- Blinking cursor while typing -->
+        <span
+          class="glitch-cursor"
+          *ngIf="revealedChars() < brandName.length && phase() === 'glitch'"
+        ></span>
+      </div>
+
+      <!-- Skip button -->
+      <button
+        class="skip-btn"
+        (click)="skipAnimation()"
+        *ngIf="phase() !== 'hero'"
+      >Skip</button>
+    </div>
+  </header>
+
+  <!-- ==================== PHASE 3: HERO CONTENT ==================== -->
+  <header
+    class="relative h-[85vh] w-full flex items-center justify-center"
+    *ngIf="phase() === 'hero'"
+  >
     <div class="absolute inset-0 bg-gradient-to-br from-zinc-900 via-black to-zinc-800">
       <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/30"></div>
     </div>
 
     <div class="relative z-10 text-center max-w-4xl px-4">
-      <h1 class="text-5xl md:text-7xl font-bold mb-6 tracking-tight drop-shadow-2xl">
+      <h1 class="text-5xl md:text-7xl font-bold mb-6 tracking-tight drop-shadow-2xl hero-reveal">
         Unlimited movies, books, and <br> TV shows.
       </h1>
-      <p class="text-xl md:text-2xl mb-8 font-light text-gray-200">
+      <p class="text-xl md:text-2xl mb-8 font-light text-gray-200 hero-reveal-delayed">
         Watch anywhere. Read anytime. Cancel anytime.
       </p>
 
-      <div class="flex flex-col md:flex-row gap-4 justify-center items-center">
-        <input type="email" [(ngModel)]="email" placeholder="Email address" class="w-full md:w-96 px-6 py-4 rounded bg-black/60 border border-gray-500 text-white placeholder-gray-400 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 backdrop-blur-sm">
-        <button (click)="getStarted()" class="w-full md:w-auto px-8 py-4 bg-red-600 hover:bg-red-700 text-white text-xl font-bold rounded flex items-center gap-2 transition transform hover:scale-105">
+      <div class="flex flex-col md:flex-row gap-4 justify-center items-center hero-reveal-delayed-2">
+        <input
+          type="email"
+          [(ngModel)]="email"
+          placeholder="Email address"
+          class="w-full md:w-96 px-6 py-4 rounded bg-black/60 border border-gray-500 text-white placeholder-gray-400 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 backdrop-blur-sm"
+        >
+        <button
+          (click)="getStarted()"
+          class="w-full md:w-auto px-8 py-4 bg-red-600 hover:bg-red-700 text-white text-xl font-bold rounded flex items-center gap-2 transition transform hover:scale-105"
+        >
           Get Started <span>&rsaquo;</span>
         </button>
       </div>
-      <p class="mt-4 text-gray-400 text-sm">Ready to watch? Enter your email to create or restart your membership.</p>
+      <p class="mt-4 text-gray-400 text-sm hero-reveal-delayed-2">
+        Ready to watch? Enter your email to create or restart your membership.
+      </p>
     </div>
   </header>
 
+  <!-- ==================== REST OF THE PAGE ==================== -->
   <section class="py-16 px-8 border-t border-zinc-900 bg-zinc-950">
     <h2 class="text-2xl font-bold mb-8 pl-4 border-l-4 border-red-600">Trending Now</h2>
     <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide">
