@@ -1,11 +1,12 @@
 import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
 import { MoviesQueryService } from '../../services/movies-query.service';
 import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 import { FilterBarComponent } from '../../components/filter-bar/filter-bar.component';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
-import { MovieSearchParams } from '@naijaspride/types';
+import { Genre, MovieSearchParams } from '@naijaspride/types';
 import { WatchApiService } from '../../../watch/services/watch-api.service';
 import { AuthStateService } from '../../../../core/auth/auth-state.service';
 
@@ -88,12 +89,28 @@ export class MovieListComponent {
   private moviesService = inject(MoviesQueryService);
   private watchApi = inject(WatchApiService);
   private authState = inject(AuthStateService);
+  private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
 
   watchProgressByMovieId = signal<Record<string, number>>({});
   query = this.moviesService.getMoviesQuery(this.searchParams);
 
   constructor() {
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const slug = params.get('slug');
+        if (!slug) {
+          return;
+        }
+
+        this.searchParams.update((current) => ({
+          ...current,
+          genre: [this.mapCategorySlugToGenre(slug)],
+          page: 1,
+        }));
+      });
+
     effect(() => {
       const user = this.authState.currentUser();
       if (!user) {
@@ -145,5 +162,16 @@ export class MovieListComponent {
           // Auth/network/server errors are handled centrally via the interceptor + toasts.
         },
       });
+  }
+
+  private mapCategorySlugToGenre(slug: string): Genre {
+    const normalized = slug.trim().toLowerCase();
+    const map: Record<string, Genre> = {
+      nollywood: Genre.Nollywood,
+      bollywood: Genre.Bollywood,
+      hollywood: Genre.Hollywood,
+    };
+
+    return map[normalized] ?? Genre.Hollywood;
   }
 }

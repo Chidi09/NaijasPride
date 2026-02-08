@@ -1,15 +1,38 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, Routes } from '@angular/router';
 import { adminGuard } from './core/auth/admin.guard';
+import { AuthStateService } from './core/auth/auth-state.service';
 import { authGuard } from './core/auth/auth.guard';
+
+const guestLandingGuard = () => {
+  const authState = inject(AuthStateService);
+  const router = inject(Router);
+
+  if (authState.isAuthenticated()) {
+    return router.createUrlTree(['/browse']);
+  }
+
+  return true;
+};
 
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'movies',
-    pathMatch: 'full'
+    canActivate: [guestLandingGuard],
+    loadComponent: () => import('./pages/landing/landing.component').then(m => m.LandingComponent)
+  },
+  {
+    path: 'browse',
+    loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')
+      .then(m => m.MovieListComponent)
   },
   {
     path: 'movies',
+    loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')
+      .then(m => m.MovieListComponent)
+  },
+  {
+    path: 'category/:slug',
     loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')
       .then(m => m.MovieListComponent)
   },

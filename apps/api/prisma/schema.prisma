@@ -26,6 +26,7 @@ enum Genre {
   Documentary
   Nollywood
   Bollywood
+  Hollywood
   Yoruba
   Igbo
   Hausa

@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/auth/auth.service';
@@ -62,7 +62,7 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
     </div>
   `
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
@@ -75,6 +75,13 @@ export class LoginComponent {
 
   isLoading = false;
   error = '';
+
+  ngOnInit() {
+    const prefilledEmail = this.route.snapshot.queryParamMap.get('email');
+    if (prefilledEmail) {
+      this.form.patchValue({ email: prefilledEmail });
+    }
+  }
 
   onSubmit() {
     if (this.form.valid) {

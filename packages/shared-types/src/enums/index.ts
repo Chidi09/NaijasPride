@@ -15,6 +15,7 @@ export enum Genre {
   Documentary = 'Documentary',
   Nollywood = 'Nollywood',
   Bollywood = 'Bollywood', // Added Bollywood support
+  Hollywood = 'Hollywood',
   Yoruba = 'Yoruba',
   Igbo = 'Igbo',
   Hausa = 'Hausa',

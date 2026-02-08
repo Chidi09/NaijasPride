@@ -2,5 +2,15 @@
   "framework": null,
   "installCommand": "npm ci --legacy-peer-deps",
   "buildCommand": "npm run build:types && npm run build:web",
-  "outputDirectory": "apps/web/dist/web/browser"
+  "outputDirectory": "apps/web/dist/web",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
