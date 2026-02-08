@@ -3,13 +3,13 @@
   [ngClass]="scrolled ? 'bg-black/95 shadow-lg' : 'bg-gradient-to-b from-black/80 to-transparent'"
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="flex items-center justify-between h-20">
+      <div class="flex items-center justify-between h-28">
       <div class="flex items-center gap-8">
         <a routerLink="/" class="flex-shrink-0 cursor-pointer">
           <app-brand-logo
             variant="full"
             alt="NaijasPride"
-            className="h-14 md:h-20 w-auto max-w-[220px] md:max-w-[320px] object-contain transition hover:scale-105"
+            className="h-20 md:h-28 w-auto max-w-[300px] md:max-w-[450px] object-contain transition hover:scale-105"
           />
         </a>
 
@@ -44,13 +44,13 @@
       </div>
 
       <div class="flex items-center gap-6">
-        <div class="relative group hidden md:block">
+        <div class="relative group hidden md:flex items-center">
           <input
             type="text"
             placeholder="Titles, people, genres"
-            class="bg-black/50 border border-white/30 rounded-none px-3 py-1 text-sm w-0 group-hover:w-64 focus:w-64 transition-all duration-300 text-white placeholder-gray-400 focus:outline-none focus:border-white"
+            class="bg-black/50 border border-white/30 rounded-none pl-3 pr-10 py-2 text-sm w-0 group-hover:w-64 focus:w-64 transition-all duration-300 text-white placeholder-gray-400 focus:outline-none focus:border-white h-10"
           >
-          <span class="absolute right-0 top-1/2 -translate-y-1/2 pr-3 cursor-pointer text-white">🔍</span>
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-lg leading-none">🔍</span>
         </div>
 
         <button class="text-white hover:text-gray-300 relative hidden md:block" type="button">
