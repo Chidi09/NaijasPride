@@ -14,6 +14,8 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
+    "build:types": "npm run build --workspace @naijaspride/types && npm run build --workspace @naijaspride/utils",
+    "build:web": "npm run build --workspace web",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "db:generate": "cd apps/api && npx prisma generate",
     "db:push": "cd apps/api && npx prisma db push",

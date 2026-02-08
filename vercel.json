@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm ci --legacy-peer-deps --include=dev --workspaces --include-workspace-root",
-  "buildCommand": "npx turbo run build --filter=web",
+  "installCommand": "npm ci --legacy-peer-deps",
+  "buildCommand": "npm run build:types && npm run build:web",
   "outputDirectory": "apps/web/dist/web"
 }
