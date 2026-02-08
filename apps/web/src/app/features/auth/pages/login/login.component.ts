@@ -2,16 +2,21 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/auth/auth.service';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ToastService } from '../../../../core/services/toast.service';
+import { BrandLogoComponent } from '../../../../shared/components/brand-logo/brand-logo.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, BrandLogoComponent],
   template: `
     <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
         <div>
+          <div class="flex justify-center">
+            <app-brand-logo variant="mark" alt="NaijasPride" className="h-14 w-14 object-contain" />
+          </div>
           <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign in to NaijasPride
           </h2>
@@ -60,6 +65,8 @@ import { RouterLink } from '@angular/router';
 export class LoginComponent {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
+  private route = inject(ActivatedRoute);
+  private toast = inject(ToastService);
 
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -74,15 +81,20 @@ export class LoginComponent {
       this.isLoading = true;
       this.error = '';
       
-      this.authService.login(this.form.value as any).subscribe({
+      this.authService.login(this.form.value as any, this.getReturnUrl()).subscribe({
         next: () => {
           // Navigation handles in service
         },
         error: (err) => {
           this.isLoading = false;
           this.error = err.error?.error || 'Login failed. Please check your credentials.';
+          this.toast.error(this.error);
         }
       });
     }
+  }
+
+  private getReturnUrl() {
+    return this.route.snapshot.queryParamMap.get('returnUrl') || undefined;
   }
 }

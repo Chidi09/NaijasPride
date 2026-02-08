@@ -1,0 +1,26 @@
+{
+  "name": "NaijasPride",
+  "short_name": "NaijasPride",
+  "description": "Stream Nollywood movies, Bollywood films, and African books",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#dc2626",
+  "categories": ["entertainment", "video"],
+  "icons": [
+    {
+      "src": "assets/icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "prefer_related_applications": false
+}

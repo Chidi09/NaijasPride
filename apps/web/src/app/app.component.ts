@@ -1,30 +1,33 @@
-import { Component, inject, HostListener } from '@angular/core';
+import { Component, inject, HostListener, OnInit } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from './core/auth/auth.service';
+import { DeviceService } from './core/services/device.service';
+import { ToastContainerComponent } from './shared/components/toast-container/toast-container.component';
+import { BrandLogoComponent } from './shared/components/brand-logo/brand-logo.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule, ToastContainerComponent, BrandLogoComponent],
   template: `
     <div class="min-h-screen flex flex-col bg-cinema-900 text-cinema-50">
       
-      <header 
+      <header
         class="fixed top-0 w-full z-50 transition-all duration-500 ease-in-out"
-        [class.bg-cinema-900]="scrolled"
-        [class.bg-gradient-to-b]="!scrolled"
-        [class.from-black/80]="!scrolled"
-        [class.to-transparent]="!scrolled"
+        [ngClass]="{
+          'bg-cinema-900': scrolled,
+          'bg-gradient-to-b from-black/80 to-transparent': !scrolled
+        }"
       >
         <div class="container mx-auto px-6 h-20 flex justify-between items-center">
           
-          <a routerLink="/" class="flex items-center gap-1 group select-none">
-             <span class="text-4xl font-serif font-bold text-cinema-500 tracking-tighter group-hover:text-cinema-100 transition-colors">N</span>
-             <div class="hidden md:flex flex-col leading-none ml-1">
-               <span class="font-serif text-lg tracking-[0.2em] text-cinema-100 group-hover:text-cinema-500 transition-colors">NAIJAS</span>
-               <span class="font-sans text-[10px] font-bold tracking-[0.4em] text-cinema-500 uppercase ml-0.5">Pride</span>
-             </div>
+          <a routerLink="/" class="flex items-center group select-none">
+            <app-brand-logo
+              variant="full"
+              alt="NaijasPride"
+              className="h-8 md:h-10 w-auto max-w-[180px] md:max-w-[240px] object-contain group-hover:opacity-90 transition-opacity"
+            />
           </a>
 
           <nav class="hidden md:flex items-center gap-8">
@@ -53,12 +56,20 @@ import { AuthService } from './core/auth/auth.service';
         <router-outlet />
       </main>
 
+      <app-toast-container />
     </div>
   `
 })
-export class AppComponent { 
+export class AppComponent implements OnInit {
   scrolled = false;
   auth = inject(AuthService);
+  private deviceService = inject(DeviceService);
+
+  ngOnInit() {
+    if (this.deviceService.isTV()) {
+      document.body.classList.add('tv-mode');
+    }
+  }
 
   @HostListener('window:scroll', ['$event'])
   onWindowScroll() {
