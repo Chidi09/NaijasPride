@@ -13,7 +13,7 @@
           />
         </a>
 
-        <div class="hidden md:flex items-baseline space-x-6">
+        <div class="hidden md:flex items-baseline justify-center space-x-6 text-center">
           <a
             routerLink="/browse"
             routerLinkActive="text-white font-bold"
@@ -34,10 +34,10 @@
             <button class="text-gray-300 hover:text-white transition text-sm flex items-center gap-1">
               Categories <span class="text-[10px]">▼</span>
             </button>
-            <div class="absolute top-full left-0 mt-2 w-48 bg-black/95 border border-gray-800 rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-              <a routerLink="/category/nollywood" class="block px-4 py-3 text-sm text-gray-300 hover:bg-zinc-800 hover:text-white">Nollywood</a>
-              <a routerLink="/category/bollywood" class="block px-4 py-3 text-sm text-gray-300 hover:bg-zinc-800 hover:text-white">Bollywood</a>
-              <a routerLink="/category/hollywood" class="block px-4 py-3 text-sm text-gray-300 hover:bg-zinc-800 hover:text-white">AAA Hits</a>
+            <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-black/95 border border-gray-800 rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+              <a routerLink="/category/nollywood" class="block px-4 py-3 text-sm text-center text-gray-300 hover:bg-zinc-800 hover:text-white">Nollywood</a>
+              <a routerLink="/category/bollywood" class="block px-4 py-3 text-sm text-center text-gray-300 hover:bg-zinc-800 hover:text-white">Bollywood</a>
+              <a routerLink="/category/hollywood" class="block px-4 py-3 text-sm text-center text-gray-300 hover:bg-zinc-800 hover:text-white">AAA Hits</a>
             </div>
           </div>
         </div>
@@ -85,7 +85,7 @@
       </div>
     </div>
 
-    <div *ngIf="mobileMenuOpen()" class="md:hidden bg-black/95 border-t border-gray-800 pb-4 space-y-1">
+    <div *ngIf="mobileMenuOpen()" class="md:hidden bg-black/95 border-t border-gray-800 pb-4 space-y-1 text-center">
       <a routerLink="/browse" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 transition-colors">Home</a>
       <a routerLink="/movies" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 transition-colors">Movies</a>
       <a routerLink="/books" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 transition-colors">Books</a>

@@ -22,10 +22,10 @@ const downloadAndUpload = (magnetLink: string, movieId: string): Promise<string>
   return new Promise((resolve, reject) => {
     const client = new WebTorrent();
 
-    client.add(magnetLink, { path: '/tmp/downloads' }, (torrent) => {
+    client.add(magnetLink, { path: '/tmp/downloads' }, (torrent: any) => {
       console.log(`[Worker] Torrent metadata fetched: ${torrent.name}`);
 
-      const file = torrent.files.find((f) => f.name.endsWith('.mp4') || f.name.endsWith('.mkv'));
+      const file = torrent.files.find((f: any) => f.name.endsWith('.mp4') || f.name.endsWith('.mkv'));
       if (!file) {
         client.destroy();
         return reject(new Error('No video file found in torrent'));
@@ -47,7 +47,7 @@ const downloadAndUpload = (magnetLink: string, movieId: string): Promise<string>
       file
         .createReadStream()
         .pipe(blobStream)
-        .on('error', (err) => {
+        .on('error', (err: any) => {
           console.error(`[Worker] GCS Upload Error: ${err.message}`);
           client.destroy();
           reject(err);
@@ -66,7 +66,7 @@ const downloadAndUpload = (magnetLink: string, movieId: string): Promise<string>
         });
     });
 
-    client.on('error', (err) => {
+    client.on('error', (err: any) => {
       console.error(`[Worker] WebTorrent Error: ${getErrorMessage(err)}`);
       client.destroy();
       reject(err);
