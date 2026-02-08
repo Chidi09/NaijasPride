@@ -3,16 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "node ../../node_modules/@angular/cli/bin/ng.js serve",
-    "build": "node ../../node_modules/@angular/cli/bin/ng.js build",
-    "watch": "node ../../node_modules/@angular/cli/bin/ng.js build --watch --configuration development",
-    "test": "node ../../node_modules/@angular/cli/bin/ng.js test",
-    "lint": "node ../../node_modules/@angular/cli/bin/ng.js lint"
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "lint": "ng lint"
   },
   "dependencies": {
+    "@angular-devkit/build-angular": "^17.2.0",
     "@angular/animations": "^17.2.0",
+    "@angular/cli": "^17.2.0",
     "@angular/common": "^17.2.0",
     "@angular/compiler": "^17.2.0",
+    "@angular/compiler-cli": "^17.2.0",
     "@angular/core": "^17.2.0",
     "@angular/forms": "^17.2.0",
     "@angular/platform-browser": "^17.2.0",
@@ -23,13 +26,11 @@
     "@tanstack/angular-query-experimental": "^5.24.0",
     "axios": "^1.13.4",
     "rxjs": "~7.8.0",
+    "typescript": "^5.4.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.3"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "^17.2.0",
-    "@angular/cli": "^17.2.0",
-    "@angular/compiler-cli": "^17.2.0",
     "@naijaspride/config": "*",
     "@types/node": "^18.18.0",
     "autoprefixer": "^10.4.18",
