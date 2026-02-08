@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install --legacy-peer-deps --include=dev",
+  "installCommand": "npm install --legacy-peer-deps --production=false",
   "buildCommand": "npx turbo run build --filter=web",
   "outputDirectory": "apps/web/dist/web"
 }
