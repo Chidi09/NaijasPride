@@ -26,7 +26,7 @@ import { BrandLogoComponent } from './shared/components/brand-logo/brand-logo.co
             <app-brand-logo
               variant="full"
               alt="NaijasPride"
-              className="h-8 md:h-10 w-auto max-w-[180px] md:max-w-[240px] object-contain group-hover:opacity-90 transition-opacity"
+              className="h-14 md:h-20 w-auto max-w-[280px] md:max-w-[400px] object-contain group-hover:opacity-90 transition-opacity"
             />
           </a>
 
