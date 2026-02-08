@@ -2,5 +2,5 @@
   "framework": null,
   "installCommand": "npm ci --legacy-peer-deps",
   "buildCommand": "npm run build:types && npm run build:web",
-  "outputDirectory": "apps/web/dist/web"
+  "outputDirectory": "apps/web/dist/web/browser"
 }
