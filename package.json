@@ -1,7 +1,8 @@
 {
   "name": "naijaspride",
+  "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@8.15.0",
+  "packageManager": "npm@11.5.2",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -16,7 +17,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "db:generate": "cd apps/api && npx prisma generate",
     "db:push": "cd apps/api && npx prisma db push",
-    "db:seed": "ts-node tools/scripts/seed-db.ts"
+    "db:seed": "cd apps/api && npx ts-node ../../tools/scripts/seed-plans.ts"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

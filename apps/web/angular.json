@@ -11,21 +11,21 @@
           "standalone": true
         }
       },
-      "root": "apps/web",
-      "sourceRoot": "apps/web/src",
+      "root": "",
+      "sourceRoot": "src",
       "prefix": "app",
       "architect": {
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
             "outputPath": "dist/web",
-            "index": "apps/web/src/index.html",
-            "browser": "apps/web/src/main.ts",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
             "polyfills": ["zone.js"],
-            "tsConfig": "apps/web/tsconfig.json",
+            "tsConfig": "tsconfig.json",
             "inlineStyleLanguage": "scss",
-            "assets": ["apps/web/src/favicon.ico", "apps/web/src/assets"],
-            "styles": ["apps/web/src/styles.scss"],
+            "assets": ["src/favicon.ico", "src/assets", "src/manifest.webmanifest", "src/sw.js"],
+            "styles": ["src/styles.scss"],
             "scripts": []
           }
         },
@@ -41,7 +41,7 @@
           },
           "defaultConfiguration": "development",
           "options": {
-            "proxyConfig": "apps/web/proxy.conf.json"
+            "proxyConfig": "proxy.conf.json"
           }
         }
       }

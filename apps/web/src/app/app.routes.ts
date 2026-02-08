@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './core/auth/admin.guard';
+import { authGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
@@ -21,6 +22,7 @@ export const routes: Routes = [
   // WATCH ROOM - Streaming experience
   {
     path: 'watch/:slug',
+    canActivate: [authGuard],
     loadComponent: () => import('./features/movies/pages/watch-room/watch-room.component')
       .then(m => m.WatchRoomComponent)
   },
@@ -28,6 +30,7 @@ export const routes: Routes = [
   // PROFILE ROUTES
   {
     path: 'profile',
+    canActivate: [authGuard],
     loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component')
       .then(m => m.ProfileDashboardComponent)
   },
@@ -54,6 +57,7 @@ export const routes: Routes = [
   // PREMIUM ROUTES
   {
     path: 'premium',
+    canActivate: [authGuard],
     loadComponent: () => import('./features/premium/pages/premium-landing/premium-landing.component')
       .then(m => m.PremiumLandingComponent)
   },
@@ -67,6 +71,11 @@ export const routes: Routes = [
     children: [
       {
         path: 'movies',
+        loadComponent: () => import('./features/admin/pages/admin-movie-list/admin-movie-list.component')
+          .then(m => m.AdminMovieListComponent)
+      },
+      {
+        path: 'movies/new',
         loadComponent: () => import('./features/admin/pages/admin-movie-create/admin-movie-create.component')
           .then(m => m.AdminMovieCreateComponent)
       },

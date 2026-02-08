@@ -1,14 +1,14 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, FormArray } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AdminMoviesService } from '../../services/admin-movies.service';
 import { Genre, Quality } from '@naijaspride/types';
 
 @Component({
   selector: 'app-admin-movie-create',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
       <div class="p-6 border-b border-gray-100 flex justify-between items-center">
@@ -125,7 +125,7 @@ import { Genre, Quality } from '@naijaspride/types';
   `,
   styles: [`
     .input-field {
-      @apply w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/20 transition-shadow py-2 px-3 border;
+      @apply w-full rounded-lg border-gray-300 shadow-sm focus:border-cinema-500 focus:ring focus:ring-cinema-500/20 transition-shadow py-2 px-3 border;
     }
   `]
 })

@@ -1,13 +1,15 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs';
+import { AuthStateService, AuthUser } from './auth-state.service';
 
 interface AuthResponse {
   success: boolean;
   data: {
-    user: { email: string; name: string | null; role: string };
+    user: AuthUser;
     token: string;
+    refreshToken: string;
   };
 }
 
@@ -15,42 +17,38 @@ interface AuthResponse {
 export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
+  private authState = inject(AuthStateService);
 
-  // Signal to track if user is logged in
-  currentUser = signal<{ email: string; role: string } | null>(this.getUserFromStorage());
+  currentUser = this.authState.currentUser;
 
-  login(credentials: { email: string; password: string }) {
-    return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
+  login(credentials: { email: string; password: string }, returnUrl?: string) {
+    return this.http.post<AuthResponse>('/api/v1/auth/login', credentials).pipe(
       tap((response) => {
         if (response.success) {
-          this.setSession(response.data);
+          this.setSession(response.data, returnUrl);
         }
       })
     );
   }
 
   logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    this.currentUser.set(null);
+    this.authState.clearSession();
     this.router.navigate(['/login']);
   }
 
-  private setSession(data: AuthResponse['data']) {
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    this.currentUser.set(data.user);
-    
+  private setSession(data: AuthResponse['data'], returnUrl?: string) {
+    this.authState.setSession(data);
+
+    if (returnUrl) {
+      this.router.navigateByUrl(returnUrl);
+      return;
+    }
+
     // Redirect based on role
     if (data.user.role === 'ADMIN') {
       this.router.navigate(['/admin']);
     } else {
       this.router.navigate(['/']);
     }
-  }
-
-  private getUserFromStorage() {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
   }
 }

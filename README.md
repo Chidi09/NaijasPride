@@ -52,6 +52,34 @@ npm run start
 npm run db:push
 ```
 
+## Security Env Vars
+
+Set these in `apps/api/.env` before running auth in non-test environments:
+
+- `JWT_SECRET` (required): access-token signing secret
+- `JWT_REFRESH_SECRET` (required): refresh-token signing secret
+- `JWT_ACCESS_TOKEN_TTL` (optional, default `20m`)
+- `JWT_REFRESH_TOKEN_TTL` (optional, default `30d`)
+- `CORS_ORIGINS` (optional, comma-separated allowlist, e.g. `http://localhost:4200`)
+- `BODY_LIMIT_BYTES` (optional, default `1048576`)
+- `SENTRY_DSN` (optional): backend Sentry DSN
+- `SENTRY_ENVIRONMENT` (optional): e.g. `development`, `staging`, `production`
+- `SENTRY_RELEASE` (optional): app version/commit
+
+### CSRF Notes
+
+- CSRF validation is enforced only for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) when authentication cookies (`accessToken`/`refreshToken`) are present.
+- Bearer-token (`Authorization`) requests are not CSRF-checked.
+- Cookie-auth clients should first call `GET /api/v1/auth/csrf-token`, then send the returned token in `x-csrf-token`.
+
+### Web Sentry + SW Notes
+
+- Web Sentry reads config from `apps/web/src/index.html` meta tags:
+  - `sentry-dsn`
+  - `sentry-environment`
+  - `app-release`
+- A service worker is registered from `apps/web/src/sw.js` in secure contexts (`https` or `localhost`).
+
 ## License
 
 MIT

@@ -24,4 +24,12 @@ export class ProfileQueryService {
       },
     }));
   }
+
+  getSubscriptionQuery() {
+    return injectQuery(() => ({
+      queryKey: ['subscription'],
+      queryFn: () => lastValueFrom(this.api.getSubscription()),
+      staleTime: 60 * 1000, // 1 minute
+    }));
+  }
 }

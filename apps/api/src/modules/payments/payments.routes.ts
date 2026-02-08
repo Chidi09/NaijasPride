@@ -2,6 +2,10 @@ import { FastifyPluginAsync } from 'fastify';
 import { PaystackService } from './paystack.service';
 import { z } from 'zod';
 
+const initializePaymentSchema = z.object({
+  plan: z.enum(['monthly', 'yearly']),
+});
+
 export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new PaystackService(fastify.prisma);
 
@@ -11,14 +15,12 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
     {
       onRequest: [fastify.authenticate],
       schema: {
-        body: z.object({
-          plan: z.enum(['monthly', 'yearly']),
-        }),
+        body: initializePaymentSchema,
       },
     },
     async (req, reply) => {
-      const { plan } = req.body as any;
-      const user = (req as any).user as { email: string };
+      const { plan } = req.body as z.infer<typeof initializePaymentSchema>;
+      const user = req.user;
 
       const amount = plan === 'yearly' ? 1_200_000 : 150_000; // kobo
       const data = await service.initializeTransaction(user.email, amount);

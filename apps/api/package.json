@@ -4,47 +4,37 @@
   "private": true,
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "start": "node dist/app.js",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "db:push": "prisma db push"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.9.0",
+    "fastify": "^4.26.2",
     "@fastify/cors": "^9.0.1",
-    "@fastify/helmet": "^11.1.1",
-    "@fastify/sensible": "^5.5.0",
-    "@naijaspride/types": "workspace:*",
-    "@naijaspride/utils": "workspace:*",
-    "@naijaspride/validators": "workspace:*",
+    "@fastify/jwt": "^8.0.0",
     "@prisma/client": "^5.10.2",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "axios": "^1.6.7",
-    "bullmq": "^5.5.6",
-    "bcryptjs": "^3.0.3",
+    "bcryptjs": "^2.4.3",
+    "zod": "^3.22.4",
     "dotenv": "^16.4.5",
-    "fastify": "^4.26.1",
-    "fastify-type-provider-zod": "^1.1.9",
+    "bullmq": "^5.4.1",
+    "ioredis": "^5.3.2",
     "googleapis": "^133.0.0",
-    "ioredis": "^5.4.1",
-    "jsonwebtoken": "^9.0.3",
-    "pino-pretty": "^10.3.1",
+    "@google-cloud/storage": "^7.9.0",
+    "zeptomail": "^5.0.0",
     "rss-parser": "^3.13.0",
     "sanitize-html": "^2.11.0",
-    "zod": "^3.22.4"
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "ts-node-dev": "^2.0.0",
+    "tsc-alias": "^1.8.8",
+    "prisma": "^5.10.2",
+    "@types/node": "^20.11.24",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/sanitize-html": "^2.9.5"
   },
   "optionalDependencies": {
     "webtorrent": "^2.4.10"
-  },
-  "devDependencies": {
-    "@naijaspride/config": "workspace:*",
-    "@types/ioredis": "^4.28.10",
-    "@types/sanitize-html": "^2.11.0",
-    "@types/webtorrent": "^0.109.2",
-    "@types/node": "^20.11.24",
-    "prisma": "^5.10.2",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.0"
   }
 }

@@ -7,36 +7,57 @@ declare module 'fastify' {
   interface FastifyRequest {
     user: {
       id: string;
+      userId: string;
       email: string;
       role: 'USER' | 'ADMIN';
     };
   }
   interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void | FastifyReply>;
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-this';
+const requireEnv = (name: string) => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} environment variable is required`);
+  }
+  return value;
+};
+
+const JWT_SECRET = requireEnv('JWT_SECRET');
+
+type JwtPayload = {
+  id: string;
+  email: string;
+  role: 'USER' | 'ADMIN';
+  type?: 'access' | 'refresh';
+};
 
 export default fp(async (fastify) => {
-  
   // Define the decorator
   fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const authHeader = request.headers.authorization;
-      
-      if (!authHeader) {
-        throw new Error('No token provided');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return reply.status(401).send({ success: false, error: 'Unauthorized: Missing bearer token' });
       }
 
       const token = authHeader.replace('Bearer ', '');
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+      if (decoded.type && decoded.type !== 'access') {
+        return reply.status(401).send({ success: false, error: 'Unauthorized: Invalid token type' });
+      }
 
-      // Attach user to request so we can access it in the route
-      request.user = decoded;
-      
+      // Keep both id and userId for backward compatibility with existing routes.
+      request.user = {
+        id: decoded.id,
+        userId: decoded.id,
+        email: decoded.email,
+        role: decoded.role,
+      };
     } catch (err) {
-      reply.status(401).send({ success: false, error: 'Unauthorized: Invalid token' });
+      return reply.status(401).send({ success: false, error: 'Unauthorized: Invalid token' });
     }
   });
 });

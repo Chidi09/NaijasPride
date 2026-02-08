@@ -1,10 +1,22 @@
-import { PrismaClient, User } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { emailService } from '../../shared/services/email.service';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-this';
+const requireEnv = (name: string) => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} environment variable is required`);
+  }
+  return value;
+};
+
+const JWT_ACCESS_SECRET = requireEnv('JWT_SECRET');
+const JWT_REFRESH_SECRET = requireEnv('JWT_REFRESH_SECRET');
+
+const ACCESS_TOKEN_TTL = (process.env.JWT_ACCESS_TOKEN_TTL || '20m') as jwt.SignOptions['expiresIn'];
+const REFRESH_TOKEN_TTL = (process.env.JWT_REFRESH_TOKEN_TTL || '30d') as jwt.SignOptions['expiresIn'];
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -16,6 +28,22 @@ export const signupSchema = z.object({
   password: z.string().min(6),
   name: z.string().optional(),
 });
+
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(20),
+});
+
+type AccessPayload = {
+  id: string;
+  email: string;
+  role: 'USER' | 'ADMIN';
+  type: 'access';
+};
+
+type RefreshPayload = {
+  id: string;
+  type: 'refresh';
+};
 
 export class AuthService {
   constructor(private prisma: PrismaClient) {}
@@ -48,13 +76,49 @@ export class AuthService {
     const isValid = await bcrypt.compare(data.password, user.password);
     if (!isValid) throw new Error('Invalid credentials');
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    return this.createSession(user);
+  }
+
+  async refreshSession(refreshToken: string) {
+    let decoded: RefreshPayload;
+    try {
+      decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET as jwt.Secret) as RefreshPayload;
+    } catch {
+      throw new Error('Invalid refresh token');
+    }
+
+    if (decoded.type !== 'refresh' || !decoded.id) {
+      throw new Error('Invalid refresh token');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: decoded.id } });
+    if (!user) {
+      throw new Error('Invalid refresh token');
+    }
+
+    return this.createSession(user);
+  }
+
+  private createSession(user: { id: string; email: string; role: string; password: string }) {
+    const accessPayload: AccessPayload = {
+      id: user.id,
+      email: user.email,
+      role: user.role === 'ADMIN' ? 'ADMIN' : 'USER',
+      type: 'access',
+    };
+    const refreshPayload: RefreshPayload = {
+      id: user.id,
+      type: 'refresh',
+    };
+
+    const token = jwt.sign(accessPayload, JWT_ACCESS_SECRET as jwt.Secret, {
+      expiresIn: ACCESS_TOKEN_TTL,
+    });
+    const refreshToken = jwt.sign(refreshPayload, JWT_REFRESH_SECRET as jwt.Secret, {
+      expiresIn: REFRESH_TOKEN_TTL,
+    });
 
     const { password, ...userWithoutPass } = user;
-    return { user: userWithoutPass, token };
+    return { user: userWithoutPass, token, refreshToken };
   }
 }

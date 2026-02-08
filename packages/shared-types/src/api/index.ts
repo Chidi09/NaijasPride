@@ -13,7 +13,7 @@ export interface MovieSearchParams extends PaginationParams {
   year?: number;
   quality?: Quality;
   language?: string;
-  sortBy?: 'latest' | 'popular' | 'rating' | 'title';
+  sortBy?: 'latest' | 'popular' | 'rating' | 'title' | 'trending' | 'newest';
   nollywoodOnly?: boolean;
 }
 
@@ -25,8 +25,16 @@ export interface CreateMovieRequest {
   quality: Quality[];
   language?: string;
   durationMinutes?: number;
+  overview?: string;
+  tagline?: string;
+  tmdbRating?: number;
+  imdbRating?: number;
+  rottenTomatoes?: string;
   imdbId?: string;
   tmdbId?: number;
+  posterUrl?: string;
+  backdropUrl?: string;
+  trailerUrl?: string;
   fileUrls: Record<string, string>;
   fileSizes?: Record<string, number>;
   metadata?: Partial<MovieMetadata>;

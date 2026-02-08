@@ -9,6 +9,13 @@ export interface MovieMetadata {
   nollywood?: boolean;
 }
 
+export interface CastMember {
+  id: string;
+  name: string;
+  character: string | null;
+  photoUrl: string | null;
+}
+
 export interface Movie {
   id: string;
   title: string;
@@ -20,10 +27,16 @@ export interface Movie {
   quality: Quality[];
   durationMinutes: number | null;
   rating: number | null;
+  tmdbRating: number | null;
+  imdbRating: number | null;
+  rottenTomatoes: string | null;
   imdbId: string | null;
   tmdbId: number | null;
   thumbnailUrl: string | null;
   coverUrl: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  trailerUrl: string | null;
   fileUrls: Record<string, string>; // Key is Quality enum string
   fileSizes: Record<string, number>;
   
@@ -39,6 +52,9 @@ export interface Movie {
   updatedAt: string;
   publishedAt: string | null;
   metadata: MovieMetadata;
+  overview: string | null;
+  tagline: string | null;
+  cast: CastMember[];
 }
 
 export interface MovieSummary {

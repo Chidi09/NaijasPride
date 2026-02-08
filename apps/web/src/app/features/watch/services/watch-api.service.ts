@@ -1,5 +1,5 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
 
 export interface WatchHistoryItem {
   id: string;
@@ -15,26 +15,41 @@ export interface WatchHistoryItem {
   };
 }
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class WatchApiService {
   private http = inject(HttpClient);
 
   saveProgress(movieId: string, progress: number, duration: number) {
     return this.http.post<{ status: string; message: string }>(
-      '/api/watch/progress', 
-      { movieId, progress, duration }
+      "/api/v1/watch/progress",
+      { movieId, progress, duration },
     );
   }
 
   getProgress(movieId: string) {
-    return this.http.get<{ status: string; data: { progress: number; duration: number; progressPercentage: number } }>(
-      `/api/watch/progress/${movieId}`
-    );
+    return this.http.get<{
+      status: string;
+      data: { progress: number; duration: number; progressPercentage: number };
+    }>(`/api/v1/watch/progress/${movieId}`);
   }
 
-  getWatchHistory() {
-    return this.http.get<{ status: string; data: WatchHistoryItem[] }>(
-      '/api/watch/history'
-    );
+  getWatchHistory(params?: { page?: number; limit?: number }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+
+    return this.http.get<{
+      status: string;
+      data: WatchHistoryItem[];
+      meta?: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+      };
+    }>(`/api/v1/watch/history${suffix}`);
   }
 }

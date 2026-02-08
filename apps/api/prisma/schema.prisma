@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // Important for Supabase connection pooling
+  directUrl = env("DIRECT_URL")
 }
 
 // Enums matching Shared Types
@@ -25,7 +25,7 @@ enum Genre {
   Horror
   Documentary
   Nollywood
-  Bollywood  // Added Bollywood support
+  Bollywood
   Yoruba
   Igbo
   Hausa
@@ -41,73 +41,128 @@ enum ContentStatus {
   deleted
 }
 
-// Models
-model Movie {
-  id              String        @id @default(uuid())
-  title           String
-  slug            String        @unique
-  description     String?
-  year            Int
-  genre           Genre[]
-  language        String        @default("English")
-  quality         Quality[]
-  durationMinutes Int?
-  rating          Float?
-  imdbId          String?
-  tmdbId          Int?
-  thumbnailUrl    String?
-  coverUrl        String?
-  
-  // JSON fields for flexible data
-  fileUrls        Json          // Record<Quality, string>
-  fileSizes       Json          // Record<Quality, number>
-  metadata        Json?         // MovieMetadata
-
-  // New Fields for Streaming
-  youtubeId       String?
-  isStreamOnly    Boolean       @default(false)
-
-  downloadCount   Int           @default(0)
-  viewCount       Int           @default(0)
-  status          ContentStatus @default(active)
-  uploadedBy      String?
-
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  publishedAt     DateTime?
-
-  // Relations
-  watchlistedBy   User[]         @relation("UserWatchlist")
-  downloads       Download[]
-  watchHistory    WatchHistory[]
-
-  @@index([slug])
-  @@index([year])
-  @@index([status])
-}
-
 // User Roles for Authentication
 enum Role {
   USER
   ADMIN
 }
 
-// User Model for Authentication
-model User {
-  id              String         @id @default(uuid())
-  email           String         @unique
-  password        String         // Hashed password
-  name            String?
-  role            Role           @default(USER)
-  isPremium       Boolean        @default(false)
+// Subscription Status
+enum SubscriptionStatus {
+  active
+  inactive
+  cancelled
+  expired
+  past_due
+}
+
+// Models
+model Movie {
+  id              String        @id @default(uuid())
+  title           String
+  slug            String        @unique
+  description     String?
+  overview        String?       @db.Text
+  tagline         String?
+  year            Int
+  genre           Genre[]
+  language        String        @default("English")
+  quality         Quality[]
+  durationMinutes Int?
+  rating          Float?
+  tmdbRating      Float?
+  imdbRating      Float?
+  rottenTomatoes  String?
+  imdbId          String?
+  tmdbId          Int?          @unique
+  thumbnailUrl    String?
+  coverUrl        String?
+  posterUrl       String?
+  backdropUrl     String?
+  trailerUrl      String?
+  fileUrls        Json
+  fileSizes       Json
+  metadata        Json?
+  youtubeId       String?
+  isStreamOnly    Boolean       @default(false)
+  downloadCount   Int           @default(0)
+  viewCount       Int           @default(0)
+  status          ContentStatus @default(active)
+  uploadedBy      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  publishedAt     DateTime?
   
   // Relations
-  watchlist       Movie[]        @relation("UserWatchlist")
-  downloadHistory Download[]
+  watchlistedBy   User[]         @relation("UserWatchlist")
+  downloads       Download[]
   watchHistory    WatchHistory[]
+  notifications   MovieNotification[]
+  cast            Cast[]
+
+  @@index([slug])
+  @@index([year])
+  @@index([status])
+}
+
+model Cast {
+  id        String @id @default(uuid())
+  name      String
+  character String?
+  photoUrl  String?
+
+  movieId   String
+  movie     Movie  @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@index([movieId])
+}
+
+// Plan Model - Corporate Grade Subscriptions
+model Plan {
+  id            String   @id @default(uuid())
+  name          String   // "Mobile", "Standard", "Family"
+  slug          String   @unique
+  price         Int      // in Naira (e.g. 1000 = ₦1,000)
+  currency      String   @default("NGN")
+  durationDays  Int      @default(30)
   
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  // Feature Flags
+  maxScreens    Int      @default(1)
+  maxQuality    String   @default("720p") // "480p", "1080p", "4k"
+  download      Boolean  @default(true)
+  ads           Boolean  @default(true)
+  priority      Int      @default(0) // for ordering
+  
+  users         User[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// User Model for Authentication
+model User {
+  id            String             @id @default(uuid())
+  email         String             @unique
+  password      String
+  name          String?
+  role          Role               @default(USER)
+  isPremium     Boolean            @default(false)
+  
+  // Subscription Details
+  planId        String?
+  plan          Plan?              @relation(fields: [planId], references: [id])
+  subStatus     SubscriptionStatus @default(inactive)
+  subStartDate  DateTime?
+  nextBillingDate DateTime?
+  
+  // Relations
+  watchlist            Movie[]       @relation("UserWatchlist")
+  downloadHistory      Download[]
+  watchHistory         WatchHistory[]
+  notifications        MovieNotification[]
+  bookProgress         BookProgress[]
+  
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 }
 
 // Download History Model
@@ -121,21 +176,37 @@ model Download {
   timestamp DateTime @default(now())
 }
 
-// NEW: Track streaming progress
+// Track streaming progress
 model WatchHistory {
   id        String   @id @default(uuid())
   user      User     @relation(fields: [userId], references: [id])
   userId    String
   movie     Movie    @relation(fields: [movieId], references: [id])
   movieId   String
-  progress  Int      @default(0) // Seconds watched
-  duration  Int      @default(0) // Total duration
+  progress  Int      @default(0)
+  duration  Int      @default(0)
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, movieId]) // One entry per user per movie
+  @@unique([userId, movieId])
 }
 
-// NEW: Store Admin RSS Feeds (e.g., YTS, Nyaa, Private Trackers)
+// Notification Logic - "Notify me when available"
+model MovieNotification {
+  id        String   @id @default(uuid())
+  userId    String
+  movieId   String
+  sent      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, movieId])
+  @@index([movieId, sent])
+}
+
+// Store Admin RSS Feeds
 model RssFeed {
   id          String   @id @default(uuid())
   name        String
@@ -156,19 +227,33 @@ model Book {
   coverUrl      String?
   downloadUrl   String?
   fileSize      Int?
-  format        String   @default("PDF") // PDF, EPUB, MOBI, etc.
+  format        String   @default("PDF")
   genre         String[]
   language      String   @default("English")
   pageCount     Int?
   rating        Float?
   publisher     String?
-  
   downloadCount Int      @default(0)
   status        ContentStatus @default(active)
-  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
+  readProgress  BookProgress[]
+
   @@index([slug])
   @@index([year])
+}
+
+// Track reading progress for books
+model BookProgress {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  page      Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
 }

@@ -2,14 +2,18 @@
   "name": "@naijaspride/validators",
   "version": "0.0.0",
   "private": true,
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "zod": "^3.22.4",
-    "@naijaspride/types": "workspace:*"
+    "@naijaspride/types": "*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
-    "@naijaspride/config": "workspace:*"
+    "@naijaspride/config": "*"
   }
 }

@@ -1,17 +1,40 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { Book, PaginationMeta } from '@naijaspride/types';
+
+type BookSearchParams = {
+  page?: number;
+  limit?: number;
+  q?: string;
+};
+
+type CreateBookInput = {
+  title: string;
+  year: number;
+  author: string;
+  description?: string;
+  isbn?: string;
+  coverUrl?: string;
+  downloadUrl?: string;
+  fileSize?: number;
+  format?: string;
+  genre?: string[];
+  language?: string;
+  pageCount?: number;
+  rating?: number;
+  publisher?: string;
+};
 
 export class BooksService {
   constructor(private prisma: PrismaClient) {}
 
-  async search(params: any): Promise<{ data: Book[]; meta: PaginationMeta }> {
+  async search(params: BookSearchParams): Promise<{ data: Book[]; meta: PaginationMeta }> {
     const { page = 1, limit = 20, q } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.BookWhereInput = q ? {
       OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { author: { contains: q, mode: 'insensitive' } }
+        { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
+        { author: { contains: q, mode: Prisma.QueryMode.insensitive } }
       ]
     } : {};
 
@@ -26,7 +49,11 @@ export class BooksService {
     ]);
 
     return {
-      data: books as Book[],
+      data: books.map((book) => ({
+        ...book,
+        createdAt: book.createdAt.toISOString(),
+        updatedAt: book.updatedAt.toISOString(),
+      })) as Book[],
       meta: {
         page,
         limit,
@@ -40,17 +67,26 @@ export class BooksService {
 
   async findBySlug(slug: string): Promise<Book | null> {
     const book = await this.prisma.book.findUnique({ where: { slug } });
-    return book as Book | null;
+    if (!book) return null;
+    return {
+      ...book,
+      createdAt: book.createdAt.toISOString(),
+      updatedAt: book.updatedAt.toISOString(),
+    } as Book;
   }
 
-  async create(data: any): Promise<Book> {
+  async create(data: CreateBookInput): Promise<Book> {
     const book = await this.prisma.book.create({
       data: {
         ...data,
         slug: this.generateSlug(data.title, data.year)
       }
     });
-    return book as Book;
+    return {
+      ...book,
+      createdAt: book.createdAt.toISOString(),
+      updatedAt: book.updatedAt.toISOString(),
+    } as Book;
   }
 
   private generateSlug(title: string, year: number): string {

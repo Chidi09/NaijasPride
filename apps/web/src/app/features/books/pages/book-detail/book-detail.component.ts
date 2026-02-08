@@ -1,5 +1,5 @@
-import { Component, inject, input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, input, OnInit, signal } from '@angular/core';
+import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Book } from '@naijaspride/types';
@@ -7,7 +7,7 @@ import { Book } from '@naijaspride/types';
 @Component({
   selector: 'app-book-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, NgOptimizedImage],
   template: `
     @if (book(); as book) {
       <div class="container mx-auto px-4 py-12">
@@ -16,11 +16,15 @@ import { Book } from '@naijaspride/types';
           <div class="md:col-span-1">
             <div class="sticky top-24">
               @if (book.coverUrl) {
-                <img 
-                  [src]="book.coverUrl" 
-                  [alt]="book.title"
-                  class="w-full rounded-lg shadow-2xl"
-                >
+                <div class="relative aspect-[2/3] w-full rounded-lg shadow-2xl overflow-hidden">
+                  <img 
+                    [ngSrc]="book.coverUrl" 
+                    [alt]="book.title"
+                    fill
+                    sizes="(min-width: 768px) 33vw, 100vw"
+                    class="object-cover"
+                  >
+                </div>
               } @else {
                 <div class="aspect-[2/3] bg-cinema-800 rounded-lg flex items-center justify-center">
                   <span class="text-6xl">📚</span>
@@ -100,18 +104,32 @@ import { Book } from '@naijaspride/types';
     }
   `
 })
-export class BookDetailComponent {
+export class BookDetailComponent implements OnInit {
   slug = input.required<string>();
   private http = inject(HttpClient);
-  
-  book = inject(HttpClient).get<{ status: string; data: Book }>(`/api/books/${this.slug()}`)
-    .subscribe({
-      next: (response) => response.data,
-      error: (error) => {
-        console.error('Error loading book:', error);
-        return null;
-      }
-    });
+
+  book = signal<Book | null>(null);
+  isLoading = signal(true);
+
+  ngOnInit() {
+    this.loadBook();
+  }
+
+  private loadBook() {
+    this.isLoading.set(true);
+    this.http.get<{ status: string; data: Book }>(`/api/v1/books/${this.slug()}`)
+      .subscribe({
+        next: (response) => {
+          this.book.set(response.data);
+          this.isLoading.set(false);
+        },
+        error: (error) => {
+          console.error('Error loading book:', error);
+          this.book.set(null);
+          this.isLoading.set(false);
+        }
+      });
+  }
   
   formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes';

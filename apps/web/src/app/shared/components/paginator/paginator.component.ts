@@ -25,7 +25,7 @@ import { CommonModule } from '@angular/common';
               [class.bg-cinema-500]="currentPage === page"
               [class.text-white]="currentPage === page"
               [class.text-gray-400]="currentPage !== page"
-              [class.hover:bg-white/5]="currentPage !== page"
+              [ngClass]="{ 'hover:bg-white/5': currentPage !== page }"
             >
               {{ page }}
             </button>

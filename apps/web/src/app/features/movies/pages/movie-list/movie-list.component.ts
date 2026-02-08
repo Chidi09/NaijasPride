@@ -1,10 +1,13 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MoviesQueryService } from '../../services/movies-query.service';
 import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 import { FilterBarComponent } from '../../components/filter-bar/filter-bar.component';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
 import { MovieSearchParams } from '@naijaspride/types';
+import { WatchApiService } from '../../../watch/services/watch-api.service';
+import { AuthStateService } from '../../../../core/auth/auth-state.service';
 
 @Component({
   selector: 'app-movie-list',
@@ -43,7 +46,10 @@ import { MovieSearchParams } from '@naijaspride/types';
       @if (query.isSuccess()) {
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           @for (movie of query.data()?.data; track movie.id) {
-            <app-movie-card [movie]="movie" />
+            <app-movie-card
+              [movie]="movie"
+              [progress]="watchProgressByMovieId()[movie.id] ?? null"
+            />
           }
         </div>
         
@@ -80,7 +86,23 @@ export class MovieListComponent {
   });
 
   private moviesService = inject(MoviesQueryService);
+  private watchApi = inject(WatchApiService);
+  private authState = inject(AuthStateService);
+  private destroyRef = inject(DestroyRef);
+
+  watchProgressByMovieId = signal<Record<string, number>>({});
   query = this.moviesService.getMoviesQuery(this.searchParams);
+
+  constructor() {
+    effect(() => {
+      const user = this.authState.currentUser();
+      if (!user) {
+        this.watchProgressByMovieId.set({});
+        return;
+      }
+      this.loadWatchProgress();
+    });
+  }
 
   // Merge new filters into existing params
   onFilterChange(changes: Partial<MovieSearchParams>) {
@@ -99,5 +121,29 @@ export class MovieListComponent {
     }));
     // Scroll to top of results
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  private loadWatchProgress() {
+    this.watchApi
+      .getWatchHistory({ page: 1, limit: 200 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const progressMap: Record<string, number> = {};
+          for (const item of response.data || []) {
+            if (!item.movie?.id || item.progressPercentage <= 0) {
+              continue;
+            }
+            progressMap[item.movie.id] = Math.max(
+              0,
+              Math.min(100, item.progressPercentage)
+            );
+          }
+          this.watchProgressByMovieId.set(progressMap);
+        },
+        error: () => {
+          // Auth/network/server errors are handled centrally via the interceptor + toasts.
+        },
+      });
   }
 }

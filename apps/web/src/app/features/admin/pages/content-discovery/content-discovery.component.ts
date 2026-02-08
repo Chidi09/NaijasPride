@@ -164,7 +164,7 @@ export class ContentDiscoveryComponent {
 
   scanYoutube() {
     this.isLoading.set(true);
-    this.http.get<{ status: string; data: YouTubeVideo[] }>('/api/admin/discovery/youtube')
+    this.http.get<{ status: string; data: YouTubeVideo[] }>('/api/v1/admin/discovery/youtube')
       .subscribe({
         next: (response) => {
           this.ytResults.set(response.data);
@@ -190,7 +190,7 @@ export class ContentDiscoveryComponent {
     if (!this.rssUrl()) return;
     
     this.isRssLoading.set(true);
-    this.http.post<{ status: string; data: RssItem[] }>('/api/admin/discovery/rss', {
+    this.http.post<{ status: string; data: RssItem[] }>('/api/v1/admin/discovery/rss', {
       url: this.rssUrl()
     }).subscribe({
       next: (response) => {
@@ -207,7 +207,7 @@ export class ContentDiscoveryComponent {
 
   importYoutube(video: YouTubeVideo) {
     this.isImporting.set(true);
-    this.http.post('/api/admin/import/youtube', {
+    this.http.post('/api/v1/admin/import/youtube', {
       title: video.title,
       youtubeId: video.youtubeId,
       description: video.description,

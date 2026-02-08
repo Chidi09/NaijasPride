@@ -5,7 +5,7 @@ import { Meta, Title } from '@angular/platform-browser';
 import { MoviesQueryService } from '../../services/movies-query.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
 import { AuthService } from '../../../../core/auth/auth.service';
-import { Quality, Movie } from '@naijaspride/types';
+import { CastMember, Quality, Movie } from '@naijaspride/types';
 
 @Component({
   selector: 'app-movie-detail',
@@ -36,14 +36,14 @@ import { Quality, Movie } from '@naijaspride/types';
           
           <div 
             class="absolute inset-0 bg-cover bg-center opacity-20 blur-xl scale-110"
-            [style.backgroundImage]="'url(' + (movie.coverUrl || movie.thumbnailUrl) + ')'"
+            [style.backgroundImage]="'url(' + getHeroBackdrop(movie) + ')'"
           ></div>
-          <div class="absolute inset-0 bg-gradient-to-t from-cinema-900 via-cinema-900/60 to-transparent"></div>
+          <div class="absolute inset-0 bg-gradient-to-t from-cinema-900 via-cinema-900/70 to-black/20"></div>
 
           <div class="relative container mx-auto px-4 py-12 md:py-20 flex flex-col md:flex-row gap-8 items-center md:items-end">
             
             <div class="w-48 md:w-64 flex-shrink-0 rounded-sm shadow-2xl overflow-hidden border-2 border-white/10">
-              <img [src]="movie.thumbnailUrl" [alt]="movie.title" class="w-full h-auto">
+              <img [src]="movie.posterUrl || movie.thumbnailUrl" [alt]="movie.title" class="w-full h-auto">
             </div>
 
             <div class="flex-grow text-center md:text-left space-y-4">
@@ -59,6 +59,9 @@ import { Quality, Movie } from '@naijaspride/types';
               </div>
 
               <h1 class="text-3xl md:text-5xl font-serif font-bold leading-tight">{{ movie.title }}</h1>
+              @if (movie.tagline) {
+                <p class="text-base md:text-lg text-gray-300 italic">{{ movie.tagline }}</p>
+              }
               
               <div class="text-gray-400 text-sm md:text-base flex flex-wrap gap-x-4 gap-y-1 justify-center md:justify-start">
                 <span>{{ getDuration(movie.durationMinutes) }}</span>
@@ -66,6 +69,18 @@ import { Quality, Movie } from '@naijaspride/types';
                 <span>{{ movie.genre.join(', ') }}</span>
                 <span>•</span>
                 <span>{{ movie.language }}</span>
+              </div>
+
+              <div class="flex flex-wrap gap-2 justify-center md:justify-start">
+                @if (movie.imdbRating) {
+                  <span class="bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-sm">IMDb {{ movie.imdbRating.toFixed(1) }}</span>
+                }
+                @if (movie.rottenTomatoes) {
+                  <span class="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-sm">Tomatometer {{ movie.rottenTomatoes }}</span>
+                }
+                @if (movie.tmdbRating) {
+                  <span class="bg-sky-500 text-white text-xs font-bold px-3 py-1 rounded-sm">TMDB {{ movie.tmdbRating.toFixed(1) }}</span>
+                }
               </div>
 
               <!-- Action Buttons -->
@@ -79,6 +94,16 @@ import { Quality, Movie } from '@naijaspride/types';
                       <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                     </svg>
                     Watch Stream
+                  </a>
+                }
+                @if (movie.trailerUrl) {
+                  <a
+                    [href]="movie.trailerUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 border border-cinema-500/60 text-cinema-100 px-6 py-3 rounded-full font-bold hover:bg-cinema-500/15 transition-colors"
+                  >
+                    Watch Trailer
                   </a>
                 }
                 
@@ -108,7 +133,7 @@ import { Quality, Movie } from '@naijaspride/types';
           <div class="lg:col-span-2 space-y-8">
             <section>
               <h3 class="text-xl font-serif font-bold text-white mb-3">Synopsis</h3>
-              <p class="text-gray-400 leading-relaxed">{{ movie.description || 'No description available.' }}</p>
+              <p class="text-gray-400 leading-relaxed">{{ movie.overview || movie.description || 'No description available.' }}</p>
             </section>
 
             <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -117,12 +142,30 @@ import { Quality, Movie } from '@naijaspride/types';
                 <p class="text-gray-500">{{ movie.metadata?.director || 'Unknown' }}</p>
               </div>
               <div>
-                <h4 class="font-bold text-white mb-2">Cast</h4>
-                <div class="flex flex-wrap gap-2">
-                  @for (actor of movie.metadata?.cast || []; track actor) {
-                    <span class="bg-cinema-800 text-gray-300 text-sm px-3 py-1 rounded-sm">{{ actor }}</span>
-                  }
-                </div>
+                <h4 class="font-bold text-white mb-2">Top Cast</h4>
+                @if ((movie.cast || []).length > 0) {
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    @for (actor of movie.cast; track actor.id) {
+                      <div class="bg-cinema-800/70 border border-white/10 rounded-lg p-3 text-center">
+                        @if (actor.photoUrl) {
+                          <img [src]="actor.photoUrl" [alt]="actor.name" class="w-14 h-14 rounded-full object-cover mx-auto mb-2 border border-white/10">
+                        } @else {
+                          <div class="w-14 h-14 rounded-full bg-cinema-700 text-cinema-200 mx-auto mb-2 flex items-center justify-center text-xs font-bold">
+                            {{ actorInitials(actor.name) }}
+                          </div>
+                        }
+                        <p class="text-sm text-white font-semibold leading-tight">{{ actor.name }}</p>
+                        <p class="text-xs text-gray-400 leading-tight">{{ actor.character || 'Cast' }}</p>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="flex flex-wrap gap-2">
+                    @for (actor of movie.metadata?.cast || []; track actor) {
+                      <span class="bg-cinema-800 text-gray-300 text-sm px-3 py-1 rounded-sm">{{ actor }}</span>
+                    }
+                  </div>
+                }
               </div>
             </section>
           </div>
@@ -259,5 +302,18 @@ export class MovieDetailComponent {
     if (gb >= 1) return `${gb.toFixed(2)} GB`;
     const mb = size / (1024 * 1024);
     return `${mb.toFixed(0)} MB`;
+  }
+
+  getHeroBackdrop(movie: Movie) {
+    return movie.backdropUrl || movie.coverUrl || movie.posterUrl || movie.thumbnailUrl || '';
+  }
+
+  actorInitials(name: string): string {
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('');
   }
 }

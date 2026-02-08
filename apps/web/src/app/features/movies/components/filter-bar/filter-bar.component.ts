@@ -21,6 +21,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
             type="text"
             [ngModel]="activeFilters.q"
             (ngModelChange)="updateFilter('q', $event)"
+            aria-label="Search movies"
             placeholder="Search..."
             class="pl-9 pr-4 py-2 bg-cinema-800 border border-white/10 rounded-sm text-sm text-white focus:ring-2 focus:ring-cinema-500 focus:border-transparent outline-none w-40 focus:w-60 transition-all placeholder-gray-600"
           />
@@ -31,6 +32,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
         <select
           [ngModel]="activeFilters.genre?.[0] || ''" 
           (ngModelChange)="updateFilter('genre', $event ? [$event] : undefined)"
+          aria-label="Filter by genre"
           class="form-select"
         >
           <option value="">All Genres</option>
@@ -42,6 +44,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
         <select
           [ngModel]="activeFilters.year || ''"
           (ngModelChange)="updateFilter('year', $event ? +$event : undefined)"
+          aria-label="Filter by year"
           class="form-select"
         >
           <option value="">All Years</option>
@@ -53,6 +56,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
         <select
           [ngModel]="activeFilters.quality || ''"
           (ngModelChange)="updateFilter('quality', $event || undefined)"
+          aria-label="Filter by quality"
           class="form-select"
         >
           <option value="">All Qualities</option>
@@ -66,6 +70,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
         <select
           [ngModel]="activeFilters.sortBy || 'latest'"
           (ngModelChange)="updateFilter('sortBy', $event)"
+          aria-label="Sort movies"
           class="form-select text-gray-400"
         >
           <option value="latest">Latest</option>
@@ -80,22 +85,22 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           <span class="text-xs text-gray-500 self-center uppercase font-bold tracking-wider mr-1">Active:</span>
           
           @if (activeFilters.genre) {
-            <button (click)="updateFilter('genre', undefined)" class="chip">
+            <button (click)="updateFilter('genre', undefined)" class="chip" aria-label="Remove genre filter">
               {{ activeFilters.genre[0] }} ✕
             </button>
           }
           @if (activeFilters.year) {
-            <button (click)="updateFilter('year', undefined)" class="chip">
+            <button (click)="updateFilter('year', undefined)" class="chip" aria-label="Remove year filter">
               {{ activeFilters.year }} ✕
             </button>
           }
           @if (activeFilters.quality) {
-            <button (click)="updateFilter('quality', undefined)" class="chip">
+            <button (click)="updateFilter('quality', undefined)" class="chip" aria-label="Remove quality filter">
               {{ activeFilters.quality }} ✕
             </button>
           }
           
-          <button (click)="resetAll()" class="text-xs text-cinema-500 hover:text-cinema-100 font-medium ml-auto transition-colors">
+          <button (click)="resetAll()" class="text-xs text-cinema-500 hover:text-cinema-100 font-medium ml-auto transition-colors" aria-label="Clear all active filters">
             Clear All
           </button>
         </div>
@@ -127,7 +132,7 @@ export class FilterBarComponent {
   currentYear = new Date().getFullYear();
   years = Array.from({ length: 20 }, (_, i) => this.currentYear - i);
 
-  updateFilter(key: keyof MovieSearchParams, value: any) {
+  updateFilter(key: keyof MovieSearchParams, value: unknown) {
     this.filterChange.emit({ [key]: value });
   }
 
@@ -146,3 +151,4 @@ export class FilterBarComponent {
     return !!(genre?.length || year || quality || q);
   }
 }
+

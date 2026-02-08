@@ -24,3 +24,92 @@ h1, h2, h3, h4, h5, h6, .brand-font {
 ::-webkit-scrollbar-thumb {
   @apply bg-cinema-700 rounded-full hover:bg-cinema-500 transition-colors;
 }
+
+/* TV Mode & Keyboard Accessibility */
+/* Enhanced focus states for remote/keyboard navigation */
+:focus {
+  outline: 4px solid #e50914;
+  outline-offset: 4px;
+  z-index: 50;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Scale up focused elements for TV visibility */
+button:focus,
+a:focus,
+[tabindex]:focus {
+  transform: scale(1.05);
+}
+
+/* Hide default browser outline but keep accessibility */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+  transform: none;
+}
+
+/* Focus-visible for keyboard users only */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 4px solid #e50914;
+  outline-offset: 4px;
+  transform: scale(1.05);
+}
+
+/* Movie cards focus state for TV navigation */
+.movie-card:focus,
+.movie-card:focus-visible {
+  @apply ring-4 ring-red-600 ring-offset-2 ring-offset-black;
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+/* Skip link for accessibility */
+.skip-link {
+  @apply absolute -top-10 left-0 bg-red-600 text-white px-4 py-2 z-[9999] transition-all;
+}
+
+.skip-link:focus {
+  @apply top-0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :focus {
+    outline: 4px solid white;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  :focus {
+    transition: none;
+  }
+}
+
+/* TV Safe Zone - Prevents edges from being cut off on TVs with overscan */
+body.tv-mode {
+  padding: 40px;
+}
+
+body.tv-mode html,
+.tv-mode {
+  font-size: 24px;
+}
+
+/* Auto-detect large screens as potential TV (fallback) */
+@media (min-width: 1920px) {
+  body.tv-mode {
+    padding: env(safe-area-inset-top, 40px) env(safe-area-inset-right, 40px)
+             env(safe-area-inset-bottom, 40px) env(safe-area-inset-left, 40px);
+  }
+}

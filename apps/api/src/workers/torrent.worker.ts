@@ -14,6 +14,9 @@ const prisma = new PrismaClient();
 const storage = new Storage();
 const bucketName = process.env.GCS_BUCKET_NAME || 'naijaspride-media';
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
 // Download a torrent and stream the main video file directly to GCS.
 const downloadAndUpload = (magnetLink: string, movieId: string): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -64,7 +67,7 @@ const downloadAndUpload = (magnetLink: string, movieId: string): Promise<string>
     });
 
     client.on('error', (err) => {
-      console.error(`[Worker] WebTorrent Error: ${err.message}`);
+      console.error(`[Worker] WebTorrent Error: ${getErrorMessage(err)}`);
       client.destroy();
       reject(err);
     });
@@ -96,8 +99,8 @@ const worker = new Worker(
       });
 
       console.log(`[Worker] Job ${job.id} SUCCESS`);
-    } catch (error: any) {
-      console.error(`[Worker] Job ${job.id} FAILED: ${error.message}`);
+    } catch (error: unknown) {
+      console.error(`[Worker] Job ${job.id} FAILED: ${getErrorMessage(error)}`);
       await prisma.movie.update({
         where: { id: movieId },
         data: { status: 'pending' },

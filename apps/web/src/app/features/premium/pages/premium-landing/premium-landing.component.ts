@@ -48,9 +48,10 @@ import { HttpClient } from '@angular/common/http';
             <div 
               (click)="selectPlan('monthly')"
               class="group cursor-pointer border p-4 transition-all duration-300 flex justify-between items-center"
-              [class.border-cinema-500]="plan === 'monthly'"
-              [class.bg-cinema-500/10]="plan === 'monthly'"
-              [class.border-white/10]="plan !== 'monthly'"
+              [ngClass]="{
+                'border-cinema-500 bg-cinema-500/10': plan === 'monthly',
+                'border-white/10': plan !== 'monthly'
+              }"
             >
               <div>
                 <p class="font-bold text-white group-hover:text-cinema-100">Monthly Pass</p>
@@ -62,9 +63,10 @@ import { HttpClient } from '@angular/common/http';
             <div 
               (click)="selectPlan('yearly')"
               class="group cursor-pointer border p-4 transition-all duration-300 flex justify-between items-center relative overflow-hidden"
-              [class.border-cinema-500]="plan === 'yearly'"
-              [class.bg-cinema-500/10]="plan === 'yearly'"
-              [class.border-white/10]="plan !== 'yearly'"
+              [ngClass]="{
+                'border-cinema-500 bg-cinema-500/10': plan === 'yearly',
+                'border-white/10': plan !== 'yearly'
+              }"
             >
               <div class="absolute top-0 right-0 bg-cinema-500 text-[9px] font-bold px-2 py-0.5 text-white uppercase">Best Value</div>
               <div>
@@ -110,7 +112,7 @@ export class PremiumLandingComponent {
     this.loading = true;
     this.error = null;
     
-    this.http.post('/api/payments/subscribe', { plan: this.plan })
+    this.http.post('/api/v1/payments/subscribe', { plan: this.plan })
       .subscribe({
         next: (response: any) => {
           this.loading = false;

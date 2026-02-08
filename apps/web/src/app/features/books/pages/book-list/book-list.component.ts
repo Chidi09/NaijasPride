@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Book, PaginationMeta } from '@naijaspride/types';
@@ -8,7 +8,7 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
 @Component({
   selector: 'app-book-list',
   standalone: true,
-  imports: [CommonModule, RouterLink, PaginatorComponent],
+  imports: [CommonModule, RouterLink, PaginatorComponent, NgOptimizedImage],
   template: `
     <div class="container mx-auto px-4 py-12">
       <div class="flex items-center justify-between mb-8">
@@ -42,8 +42,10 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
                 <div class="aspect-[2/3] relative">
                   @if (book.coverUrl) {
                     <img 
-                      [src]="book.coverUrl" 
+                      [ngSrc]="book.coverUrl" 
                       [alt]="book.title"
+                      fill
+                      sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, 50vw"
                       class="w-full h-full object-cover"
                     >
                   } @else {
@@ -97,7 +99,7 @@ export class BookListComponent {
 
   loadBooks() {
     this.isLoading.set(true);
-    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>(`/api/books?page=${this.currentPage()}`)
+    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>(`/api/v1/books?page=${this.currentPage()}`)
       .subscribe({
         next: (response) => {
           this.books.set(response.data);
