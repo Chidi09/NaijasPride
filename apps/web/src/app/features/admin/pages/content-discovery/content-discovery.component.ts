@@ -151,7 +151,7 @@ interface SearchResults {
               <p class="text-yellow-400 text-sm mt-1">Skipped (already exist): {{ importResult()!.skipped.join(', ') }}</p>
             }
             @if (importResult()!.failed.length > 0) {
-              <p class="text-red-400 text-sm mt-1">Failed: {{ importResult()!.failed.map(f => f.title).join(', ') }}</p>
+              <p class="text-red-400 text-sm mt-1">Failed: {{ getFailedTitles() }}</p>
             }
           </div>
         }
@@ -434,5 +434,11 @@ export class ContentDiscoveryComponent {
         this.isRssLoading.set(false);
       }
     });
+  }
+
+  getFailedTitles(): string {
+    const result = this.importResult();
+    if (!result || result.failed.length === 0) return '';
+    return result.failed.map((item) => item.title).join(', ');
   }
 }
