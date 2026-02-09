@@ -33,12 +33,27 @@ const mangaPagesSchema = z.object({
   chapterId: z.string().trim().min(1),
 });
 
+const saveProgressSchema = z.object({
+  mangaId: z.string().trim().min(1),
+  chapterId: z.string().trim().min(1),
+  pageIndex: z.number().int().min(0),
+  totalPages: z.number().int().min(1),
+  isCompleted: z.boolean().optional(),
+});
+
+const favoriteSchema = z.object({
+  mangaId: z.string().trim().min(1),
+  title: z.string().trim().min(1),
+  coverUrl: z.string().url().optional(),
+  status: z.string().optional(),
+});
+
 export const bookRoutes = async (
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) => {
   const booksService = new BooksService(app.prisma);
-  const mangaService = new MangaService();
+  const mangaService = new MangaService(app.prisma);
 
   // GET /api/books/manga/search?q=one+piece
   app.get('/manga/search', {
@@ -92,6 +107,146 @@ export const bookRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to fetch chapter pages',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/progress/:chapterId - Get reading progress for a chapter
+  app.get('/manga/progress/:chapterId', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const { chapterId } = request.params as { chapterId: string };
+        const userId = request.user.id;
+        const progress = await mangaService.getReadingProgress(userId, chapterId);
+        return reply.send({ status: 'success', data: progress });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to get reading progress',
+        });
+      }
+    },
+  });
+
+  // POST /api/books/manga/progress - Save reading progress
+  app.post('/manga/progress', {
+    preHandler: [app.authenticate],
+    schema: { body: saveProgressSchema },
+    handler: async (request, reply) => {
+      try {
+        const body = request.body as z.infer<typeof saveProgressSchema>;
+        const userId = request.user.id;
+        const progress = await mangaService.saveReadingProgress(
+          userId,
+          body.mangaId,
+          body.chapterId,
+          body.pageIndex,
+          body.totalPages,
+          body.isCompleted
+        );
+        return reply.send({ status: 'success', data: progress });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to save reading progress',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/history - Get user's reading history
+  app.get('/manga/history', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { limit } = request.query as { limit?: string };
+        const history = await mangaService.getUserReadingHistory(userId, limit ? parseInt(limit) : 20);
+        return reply.send({ status: 'success', data: history });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to get reading history',
+        });
+      }
+    },
+  });
+
+  // POST /api/books/manga/favorites - Add to favorites
+  app.post('/manga/favorites', {
+    preHandler: [app.authenticate],
+    schema: { body: favoriteSchema },
+    handler: async (request, reply) => {
+      try {
+        const body = request.body as z.infer<typeof favoriteSchema>;
+        const userId = request.user.id;
+        const favorite = await mangaService.addFavorite(
+          userId,
+          body.mangaId,
+          body.title,
+          body.coverUrl,
+          body.status
+        );
+        return reply.send({ status: 'success', data: favorite });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to add favorite',
+        });
+      }
+    },
+  });
+
+  // DELETE /api/books/manga/favorites/:mangaId - Remove from favorites
+  app.delete('/manga/favorites/:mangaId', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const { mangaId } = request.params as { mangaId: string };
+        const userId = request.user.id;
+        await mangaService.removeFavorite(userId, mangaId);
+        return reply.send({ status: 'success', message: 'Removed from favorites' });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to remove favorite',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/favorites - Get user's favorites
+  app.get('/manga/favorites', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const favorites = await mangaService.getUserFavorites(userId);
+        return reply.send({ status: 'success', data: favorites });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to get favorites',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/favorites/:mangaId/check - Check if manga is favorited
+  app.get('/manga/favorites/:mangaId/check', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const { mangaId } = request.params as { mangaId: string };
+        const userId = request.user.id;
+        const isFav = await mangaService.isFavorite(userId, mangaId);
+        return reply.send({ status: 'success', data: { isFavorite: isFav } });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to check favorite status',
         });
       }
     },

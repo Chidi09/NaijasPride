@@ -1,5 +1,4 @@
 import { Prisma, PrismaClient, Genre as PrismaGenre, Quality as PrismaQuality } from '@prisma/client';
-import IORedis from 'ioredis';
 import { 
   ContentStatus,
   Genre,
@@ -11,20 +10,7 @@ import {
 } from '@naijaspride/types';
 import { ZeptoMailClient } from '../notifications/zepto.client';
 import { MetadataService } from './metadata.service';
-
-// Lazy Redis connection — only connects if REDIS_URL is set
-let _redis: IORedis | null = null;
-const getRedis = (): IORedis | null => {
-  if (_redis) return _redis;
-  const url = process.env.REDIS_URL;
-  if (!url) {
-    console.warn('[Redis] REDIS_URL not set — caching disabled');
-    return null;
-  }
-  _redis = new IORedis(url, { maxRetriesPerRequest: null });
-  _redis.on('error', (err) => console.error('[Redis] Connection error:', err.message));
-  return _redis;
-};
+import { getRedis } from '../../shared/services/redis.service';
 
 export class MoviesService {
   private readonly metadataService: MetadataService;

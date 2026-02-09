@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { PrismaClient } from '@prisma/client';
+import { getRedis } from '../../shared/services/redis.service';
 
 type MangaDexSearchItem = {
   id: string;
@@ -51,6 +53,7 @@ export type MangaPagesResult = {
 
 const MANGADEX_BASE_URL = 'https://api.mangadex.org';
 const MANGADEX_COVER_URL = 'https://uploads.mangadex.org/covers';
+const CACHE_TTL_SECONDS = 3600; // 1 hour cache for MangaDex data
 
 const pickLocalized = (field?: Record<string, string>) => {
   if (!field) return '';
@@ -90,8 +93,44 @@ const detectReaderMode = (manga: MangaDexSearchItem | null): 'webtoon' | 'manga'
 };
 
 export class MangaService {
+  constructor(private prisma: PrismaClient) {}
+
+  private async getFromCache<T>(key: string): Promise<T | null> {
+    const redis = getRedis();
+    if (!redis) return null;
+    
+    try {
+      const cached = await redis.get(key);
+      if (cached) {
+        console.log(`[Manga Cache HIT] ${key}`);
+        return JSON.parse(cached);
+      }
+    } catch (e) {
+      console.error('[Manga Cache] get error:', e);
+    }
+    return null;
+  }
+
+  private async setCache(key: string, data: any, ttlSeconds = CACHE_TTL_SECONDS): Promise<void> {
+    const redis = getRedis();
+    if (!redis) return;
+    
+    try {
+      await redis.setex(key, ttlSeconds, JSON.stringify(data));
+      console.log(`[Manga Cache SET] ${key} (TTL: ${ttlSeconds}s)`);
+    } catch (e) {
+      console.error('[Manga Cache] set error:', e);
+    }
+  }
+
   async searchManga(query: string, limit = 20): Promise<MangaSummary[]> {
     if (!query.trim()) return [];
+
+    const cacheKey = `manga:search:${query.toLowerCase().trim()}:${limit}`;
+    
+    // Try cache first
+    const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
+    if (cached) return cached;
 
     try {
       const response = await axios.get(`${MANGADEX_BASE_URL}/manga`, {
@@ -105,7 +144,7 @@ export class MangaService {
       });
 
       const items = (response.data?.data || []) as MangaDexSearchItem[];
-      return items.map((manga) => {
+      const results = items.map((manga) => {
         const coverRel = manga.relationships?.find((r) => r.type === 'cover_art');
         const fileName = coverRel?.attributes?.fileName;
         return {
@@ -119,6 +158,10 @@ export class MangaService {
           tags: extractTags(manga),
         };
       });
+
+      // Cache results
+      await this.setCache(cacheKey, results, CACHE_TTL_SECONDS);
+      return results;
     } catch (error) {
       console.error('[MangaDex] search failed:', error);
       return [];
@@ -126,6 +169,12 @@ export class MangaService {
   }
 
   async getChapters(mangaId: string, translatedLanguage = 'en', limit = 100): Promise<MangaChapter[]> {
+    const cacheKey = `manga:chapters:${mangaId}:${translatedLanguage}:${limit}`;
+    
+    // Try cache first
+    const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
+    if (cached) return cached;
+
     try {
       const response = await axios.get(`${MANGADEX_BASE_URL}/manga/${mangaId}/feed`, {
         params: {
@@ -135,7 +184,7 @@ export class MangaService {
         },
       });
 
-      return (response.data?.data || []).map((chapter: any) => ({
+      const results = (response.data?.data || []).map((chapter: any) => ({
         id: chapter.id,
         chapter: chapter.attributes?.chapter || null,
         volume: chapter.attributes?.volume || null,
@@ -143,6 +192,10 @@ export class MangaService {
         pages: chapter.attributes?.pages || 0,
         publishedAt: chapter.attributes?.publishAt || null,
       }));
+
+      // Cache for longer since chapters don't change often
+      await this.setCache(cacheKey, results, CACHE_TTL_SECONDS * 2);
+      return results;
     } catch (error) {
       console.error('[MangaDex] chapter fetch failed:', error);
       return [];
@@ -150,6 +203,12 @@ export class MangaService {
   }
 
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
+    const cacheKey = `manga:pages:${chapterId}`;
+    
+    // Try cache first (pages don't change)
+    const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
+    if (cached) return cached;
+
     try {
       const [atHome, chapterMeta] = await Promise.all([
         axios.get(`${MANGADEX_BASE_URL}/at-home/server/${chapterId}`),
@@ -180,11 +239,15 @@ export class MangaService {
       const selectedFiles = readerMode === 'webtoon' && dataSaverFiles.length > 0 ? dataSaverFiles : files;
       const qualityPath = selectedFiles === dataSaverFiles ? 'data-saver' : 'data';
 
-      return {
+      const result = {
         chapterId,
         readerMode,
         pages: selectedFiles.map((file: string) => `${baseUrl}/${qualityPath}/${hash}/${file}`),
       };
+
+      // Cache for 24 hours (pages never change)
+      await this.setCache(cacheKey, result, CACHE_TTL_SECONDS * 24);
+      return result;
     } catch (error) {
       console.error('[MangaDex] page fetch failed:', error);
       return {
@@ -193,5 +256,96 @@ export class MangaService {
         pages: [],
       };
     }
+  }
+
+  // === Reading Progress Methods ===
+  
+  async getReadingProgress(userId: string, chapterId: string) {
+    return this.prisma.mangaReadingProgress.findUnique({
+      where: { userId_chapterId: { userId, chapterId } },
+    });
+  }
+
+  async saveReadingProgress(
+    userId: string,
+    mangaId: string,
+    chapterId: string,
+    pageIndex: number,
+    totalPages: number,
+    isCompleted = false
+  ) {
+    return this.prisma.mangaReadingProgress.upsert({
+      where: { userId_chapterId: { userId, chapterId } },
+      update: {
+        pageIndex,
+        totalPages,
+        isCompleted,
+        lastReadAt: new Date(),
+      },
+      create: {
+        userId,
+        mangaId,
+        chapterId,
+        pageIndex,
+        totalPages,
+        isCompleted,
+      },
+    });
+  }
+
+  async getUserReadingHistory(userId: string, limit = 20) {
+    return this.prisma.mangaReadingProgress.findMany({
+      where: { userId },
+      orderBy: { lastReadAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  async getMangaProgressForUser(userId: string, mangaId: string) {
+    return this.prisma.mangaReadingProgress.findMany({
+      where: { userId, mangaId },
+      orderBy: { lastReadAt: 'desc' },
+    });
+  }
+
+  // === Favorites Methods ===
+
+  async addFavorite(userId: string, mangaId: string, title: string, coverUrl?: string, status?: string) {
+    return this.prisma.mangaFavorite.upsert({
+      where: { userId_mangaId: { userId, mangaId } },
+      update: {
+        title,
+        coverUrl,
+        status,
+        updatedAt: new Date(),
+      },
+      create: {
+        userId,
+        mangaId,
+        title,
+        coverUrl,
+        status,
+      },
+    });
+  }
+
+  async removeFavorite(userId: string, mangaId: string) {
+    return this.prisma.mangaFavorite.deleteMany({
+      where: { userId, mangaId },
+    });
+  }
+
+  async getUserFavorites(userId: string) {
+    return this.prisma.mangaFavorite.findMany({
+      where: { userId },
+      orderBy: { addedAt: 'desc' },
+    });
+  }
+
+  async isFavorite(userId: string, mangaId: string) {
+    const count = await this.prisma.mangaFavorite.count({
+      where: { userId, mangaId },
+    });
+    return count > 0;
   }
 }
