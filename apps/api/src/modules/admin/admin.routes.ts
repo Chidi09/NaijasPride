@@ -26,6 +26,15 @@ const ImportYoutubeSchema = z.object({
   isStreamOnly: z.boolean().default(true),
 });
 
+const SearchTitlesSchema = z.object({
+  titles: z.array(z.string().min(1)).min(1).max(20),
+  suffix: z.string().optional(),
+});
+
+const BatchImportSchema = z.object({
+  items: z.array(ImportYoutubeSchema).min(1).max(50),
+});
+
 const CreateRssFeedSchema = z.object({
   name: z.string().trim().min(1).max(120),
   url: z.string().url(),
@@ -139,6 +148,101 @@ export const adminRoutes = async (
           status: "error",
           message:
             error instanceof Error ? error.message : "Failed to import movie",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/discovery/youtube/search - Search YouTube by movie titles
+  app.post("/discovery/youtube/search", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: SearchTitlesSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { titles, suffix } = request.body as z.infer<typeof SearchTitlesSchema>;
+        const results = await ytService.searchByTitles(titles, suffix || "Full Movie");
+
+        return reply.send({
+          status: "success",
+          data: results,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error ? error.message : "Failed to search YouTube",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/import/youtube/batch - Import multiple YouTube videos at once
+  app.post("/import/youtube/batch", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: BatchImportSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { items } = request.body as z.infer<typeof BatchImportSchema>;
+        const imported: string[] = [];
+        const skipped: string[] = [];
+        const failed: { title: string; error: string }[] = [];
+
+        for (const data of items) {
+          try {
+            const slug = `${data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${data.year}`;
+
+            // Check if slug or youtubeId already exists
+            const existing = await app.prisma.movie.findFirst({
+              where: { OR: [{ slug }, { youtubeId: data.youtubeId }] },
+              select: { id: true },
+            });
+
+            if (existing) {
+              skipped.push(data.title);
+              continue;
+            }
+
+            await app.prisma.movie.create({
+              data: {
+                title: data.title,
+                slug,
+                description: data.description || null,
+                year: data.year,
+                genre: (data.genre || ["Nollywood"]) as any,
+                quality: [],
+                language: "English",
+                thumbnailUrl: data.thumbnailUrl || null,
+                youtubeId: data.youtubeId,
+                isStreamOnly: data.isStreamOnly ?? true,
+                fileUrls: {},
+                fileSizes: {},
+                status: "active",
+              },
+            });
+
+            imported.push(data.title);
+          } catch (err) {
+            failed.push({
+              title: data.title,
+              error: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+        }
+
+        return reply.send({
+          status: "success",
+          data: { imported, skipped, failed },
+          message: `Imported ${imported.length}, skipped ${skipped.length}, failed ${failed.length}`,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error ? error.message : "Failed to batch import",
         });
       }
     },

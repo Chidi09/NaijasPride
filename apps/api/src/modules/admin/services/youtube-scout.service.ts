@@ -1,10 +1,17 @@
-import { google } from "googleapis";
+import { google, youtube_v3 } from "googleapis";
 import { PrismaClient } from "@prisma/client";
 
-const youtube = google.youtube({
-  version: "v3",
-  auth: process.env.YOUTUBE_API_KEY, // Get this from Google Cloud Console
-});
+// Lazy YouTube client — only initialised when first used
+let _youtube: youtube_v3.Youtube | null = null;
+const getYoutube = () => {
+  if (_youtube) return _youtube;
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) {
+    throw new Error("YOUTUBE_API_KEY environment variable is required");
+  }
+  _youtube = google.youtube({ version: "v3", auth: key });
+  return _youtube;
+};
 
 export interface YouTubeVideoResult {
   youtubeId: string;
@@ -20,7 +27,6 @@ export class YoutubeScoutService {
 
   /**
    * Batch check for existing YouTube movies to avoid N+1 queries
-   * Good Practice: Extract all IDs and query once instead of looping
    */
   async filterExistingMovies(youtubeIds: string[]): Promise<string[]> {
     const existing = await this.prisma.movie.findMany({
@@ -40,30 +46,22 @@ export class YoutubeScoutService {
    */
   async scanForMovies(): Promise<YouTubeVideoResult[]> {
     try {
-      const res = await youtube.search.list({
+      const yt = getYoutube();
+      const res = await yt.search.list({
         part: ["snippet"],
         q: "Nollywood Movie 2026 Full",
         type: ["video"],
-        videoDuration: "long", // > 20 mins
-        regionCode: "NG", // Nigeria Only
+        videoDuration: "long",
+        regionCode: "NG",
         relevanceLanguage: "en",
-        order: "viewCount", // Most popular first
+        order: "viewCount",
         publishedAfter: new Date(
           Date.now() - 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(), // Last 7 days
+        ).toISOString(),
         maxResults: 10,
       });
 
-      return (
-        res.data.items?.map((item) => ({
-          youtubeId: item.id?.videoId || "",
-          title: item.snippet?.title || "",
-          description: item.snippet?.description || "",
-          thumbnail: item.snippet?.thumbnails?.high?.url || "",
-          channel: item.snippet?.channelTitle || "",
-          publishedAt: item.snippet?.publishedAt || "",
-        })) || []
-      );
+      return this.mapResults(res.data.items);
     } catch (error) {
       console.error("[YouTube Scout] Error scanning for movies:", error);
       return [];
@@ -71,32 +69,51 @@ export class YoutubeScoutService {
   }
 
   /**
-   * Search for specific movie titles
+   * Search for a specific movie title on YouTube
    */
-  async searchByTitle(title: string): Promise<YouTubeVideoResult[]> {
+  async searchByTitle(title: string, suffix = "Full Movie"): Promise<YouTubeVideoResult[]> {
     try {
-      const res = await youtube.search.list({
+      const yt = getYoutube();
+      const res = await yt.search.list({
         part: ["snippet"],
-        q: `${title} Nollywood Full Movie`,
+        q: `${title} ${suffix}`,
         type: ["video"],
         videoDuration: "long",
-        regionCode: "NG",
         maxResults: 5,
       });
 
-      return (
-        res.data.items?.map((item) => ({
-          youtubeId: item.id?.videoId || "",
-          title: item.snippet?.title || "",
-          description: item.snippet?.description || "",
-          thumbnail: item.snippet?.thumbnails?.high?.url || "",
-          channel: item.snippet?.channelTitle || "",
-          publishedAt: item.snippet?.publishedAt || "",
-        })) || []
-      );
+      return this.mapResults(res.data.items);
     } catch (error) {
-      console.error("[YouTube Scout] Error searching by title:", error);
+      console.error(`[YouTube Scout] Error searching "${title}":`, error);
       return [];
     }
+  }
+
+  /**
+   * Batch search: look up multiple titles at once.
+   * Returns a map of searchTitle -> results[].
+   */
+  async searchByTitles(
+    titles: string[],
+    suffix = "Full Movie",
+  ): Promise<Record<string, YouTubeVideoResult[]>> {
+    const results: Record<string, YouTubeVideoResult[]> = {};
+    for (const title of titles) {
+      results[title] = await this.searchByTitle(title, suffix);
+    }
+    return results;
+  }
+
+  private mapResults(items: youtube_v3.Schema$SearchResult[] | undefined): YouTubeVideoResult[] {
+    return (
+      items?.map((item) => ({
+        youtubeId: item.id?.videoId || "",
+        title: item.snippet?.title || "",
+        description: item.snippet?.description || "",
+        thumbnail: item.snippet?.thumbnails?.high?.url || "",
+        channel: item.snippet?.channelTitle || "",
+        publishedAt: item.snippet?.publishedAt || "",
+      })) || []
+    );
   }
 }
