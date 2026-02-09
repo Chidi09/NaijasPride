@@ -65,6 +65,16 @@ export const routes: Routes = [
       .then(m => m.BookListComponent)
   },
   {
+    path: 'books/manga',
+    loadComponent: () => import('./features/books/pages/manga-library/manga-library.component')
+      .then(m => m.MangaLibraryComponent)
+  },
+  {
+    path: 'books/manga/read/:chapterId',
+    loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component')
+      .then(m => m.MangaReaderComponent)
+  },
+  {
     path: 'books/:slug',
     loadComponent: () => import('./features/books/pages/book-detail/book-detail.component')
       .then(m => m.BookDetailComponent)

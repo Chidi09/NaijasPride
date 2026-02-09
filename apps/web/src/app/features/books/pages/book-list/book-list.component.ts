@@ -18,6 +18,12 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
         </div>
         <div class="flex gap-2">
           <a 
+            routerLink="/books/manga" 
+            class="px-4 py-2 bg-[#800020] text-white rounded hover:bg-[#660019] transition-colors"
+          >
+            Manga
+          </a>
+          <a 
             routerLink="/movies" 
             class="px-4 py-2 bg-cinema-800 text-white rounded hover:bg-cinema-700 transition-colors"
           >

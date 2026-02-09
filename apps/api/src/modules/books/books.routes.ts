@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { BooksService } from './books.service';
+import { MangaService } from './manga.service';
 import { z } from 'zod';
 
 const createBookSchema = z.object({
@@ -19,11 +20,82 @@ const createBookSchema = z.object({
   publisher: z.string().trim().optional(),
 });
 
+const mangaSearchSchema = z.object({
+  q: z.string().trim().min(1),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const mangaChaptersSchema = z.object({
+  mangaId: z.string().trim().min(1),
+});
+
+const mangaPagesSchema = z.object({
+  chapterId: z.string().trim().min(1),
+});
+
 export const bookRoutes = async (
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) => {
   const booksService = new BooksService(app.prisma);
+  const mangaService = new MangaService();
+
+  // GET /api/books/manga/search?q=one+piece
+  app.get('/manga/search', {
+    schema: {
+      querystring: mangaSearchSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { q, limit } = request.query as z.infer<typeof mangaSearchSchema>;
+        const data = await mangaService.searchManga(q, limit ?? 20);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to search manga',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/:mangaId/chapters
+  app.get('/manga/:mangaId/chapters', {
+    schema: {
+      params: mangaChaptersSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { mangaId } = request.params as z.infer<typeof mangaChaptersSchema>;
+        const data = await mangaService.getChapters(mangaId);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch chapters',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/chapter/:chapterId/pages
+  app.get('/manga/chapter/:chapterId/pages', {
+    schema: {
+      params: mangaPagesSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { chapterId } = request.params as z.infer<typeof mangaPagesSchema>;
+        const data = await mangaService.getChapterPages(chapterId);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch chapter pages',
+        });
+      }
+    },
+  });
 
   // GET /api/books - Search books with pagination
   app.get('/', async (request, reply) => {
