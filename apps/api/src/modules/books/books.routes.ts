@@ -21,8 +21,18 @@ const createBookSchema = z.object({
 });
 
 const mangaSearchSchema = z.object({
-  q: z.string().trim().min(1),
+  q: z.string().trim().optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const mangaDiscoverSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(24).optional(),
+});
+
+const bookSearchSchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  q: z.string().trim().optional(),
 });
 
 const mangaChaptersSchema = z.object({
@@ -69,6 +79,25 @@ export const bookRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to search manga',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/discover?limit=12
+  app.get('/manga/discover', {
+    schema: {
+      querystring: mangaDiscoverSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { limit } = request.query as z.infer<typeof mangaDiscoverSchema>;
+        const data = await mangaService.getDiscoverManga(limit ?? 12);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to load manga discover sections',
         });
       }
     },
@@ -255,11 +284,11 @@ export const bookRoutes = async (
   // GET /api/books - Search books with pagination
   app.get('/', async (request, reply) => {
     try {
-      const { page, limit, q } = request.query as { page?: string; limit?: string; q?: string };
+      const { page, limit, q } = bookSearchSchema.parse(request.query ?? {});
       
       const result = await booksService.search({
-        page: page ? parseInt(page) : 1,
-        limit: limit ? parseInt(limit) : 20,
+        page: page ?? 1,
+        limit: limit ?? 20,
         q
       });
 

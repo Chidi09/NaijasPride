@@ -43,6 +43,12 @@ type ReadingHistory = {
   lastReadAt: string;
 };
 
+type MangaDiscoverPayload = {
+  trending: MangaSummary[];
+  recentlyUpdated: MangaSummary[];
+  newTitles: MangaSummary[];
+};
+
 @Component({
   selector: 'app-manga-library',
   standalone: true,
@@ -86,28 +92,80 @@ type ReadingHistory = {
       @if (activeTab() === 'search') {
         <div class="mb-8 rounded-xl border border-[#5f1327]/50 bg-[#120a0d]/70 p-4">
           <div class="flex flex-col gap-3 sm:flex-row">
-            <input
-              [(ngModel)]="query"
-              (keyup.enter)="search()"
-              type="text"
-              placeholder="Search manga e.g. Solo Leveling, One Piece"
-              class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020]"
-            >
-            <button
-              (click)="search()"
-              [disabled]="isLoading() || !query().trim()"
-              class="rounded-lg bg-[#800020] px-5 py-3 text-sm font-semibold text-white hover:bg-[#660019] disabled:opacity-50"
-            >
+              <input
+                [(ngModel)]="query"
+                (keyup.enter)="search()"
+                type="text"
+                placeholder="Search manga e.g. Solo Leveling, One Piece (leave blank for featured)"
+                class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020]"
+              >
+              <button
+                (click)="search()"
+                [disabled]="isLoading()"
+                class="rounded-lg bg-[#800020] px-5 py-3 text-sm font-semibold text-white hover:bg-[#660019] disabled:opacity-50"
+              >
               {{ isLoading() ? 'Searching...' : 'Search' }}
             </button>
           </div>
         </div>
 
+        @if (isDiscoverLoading()) {
+          <div class="mb-6 text-sm text-gray-400">Loading trending manga...</div>
+        }
+
+        @if (discover(); as discover) {
+          <section class="mb-8 space-y-6">
+            <div>
+              <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-base font-semibold text-[#d6b87a]">Trending Now</h2>
+                <button (click)="query.set(''); search()" class="text-xs text-[#d6b87a] hover:text-white">Use as main results</button>
+              </div>
+              <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
+                @for (manga of discover.trending; track manga.id) {
+                  <button type="button" (click)="selectManga(manga)" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] text-left hover:border-[#800020]">
+                    <div class="relative aspect-[3/4]">
+                      @if (manga.coverUrl) {
+                        <img [ngSrc]="manga.coverUrl" [alt]="manga.title" fill sizes="180px" class="object-cover">
+                      } @else {
+                        <div class="flex h-full items-center justify-center bg-zinc-800 text-3xl">📘</div>
+                      }
+                    </div>
+                    <p class="line-clamp-2 p-2 text-xs font-medium text-white">{{ manga.title }}</p>
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="grid gap-6 md:grid-cols-2">
+              <div>
+                <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Recently Updated</h3>
+                <div class="space-y-2">
+                  @for (manga of discover.recentlyUpdated.slice(0, 6); track manga.id) {
+                    <button type="button" (click)="selectManga(manga)" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
+                      {{ manga.title }}
+                    </button>
+                  }
+                </div>
+              </div>
+              <div>
+                <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Fresh Titles</h3>
+                <div class="space-y-2">
+                  @for (manga of discover.newTitles.slice(0, 6); track manga.id) {
+                    <button type="button" (click)="selectManga(manga)" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
+                      {{ manga.title }}
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+          </section>
+        }
+
         <div class="grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_1fr]">
           <section>
             <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Results</h2>
             @if (results().length === 0 && !isLoading()) {
-              <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No manga loaded yet. Search to begin.</div>
+              <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No manga found. Try another keyword.</div>
             }
             <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
               @for (manga of results(); track manga.id) {
@@ -275,6 +333,8 @@ export class MangaLibraryComponent implements OnInit {
   selectedManga = signal<MangaSummary | null>(null);
   chapters = signal<MangaChapter[]>([]);
   favoriteIds = signal<Set<string>>(new Set());
+  discover = signal<MangaDiscoverPayload | null>(null);
+  isDiscoverLoading = signal(false);
 
   // Favorites tab
   favorites = signal<MangaFavorite[]>([]);
@@ -284,15 +344,32 @@ export class MangaLibraryComponent implements OnInit {
 
   ngOnInit() {
     this.loadFavorites();
+    this.loadDiscover();
+    this.search();
+  }
+
+  loadDiscover() {
+    this.isDiscoverLoading.set(true);
+    this.http
+      .get<{ status: string; data: MangaDiscoverPayload }>('/api/v1/books/manga/discover?limit=10')
+      .subscribe({
+        next: (response) => {
+          this.discover.set(response.data);
+          this.isDiscoverLoading.set(false);
+        },
+        error: (error) => {
+          console.error('Failed to load discover manga:', error);
+          this.isDiscoverLoading.set(false);
+        },
+      });
   }
 
   search() {
     const q = this.query().trim();
-    if (!q) return;
 
     this.isLoading.set(true);
     this.http
-      .get<{ status: string; data: MangaSummary[] }>(`/api/v1/books/manga/search?q=${encodeURIComponent(q)}`)
+      .get<{ status: string; data: MangaSummary[] }>(`/api/v1/books/manga/search${q ? `?q=${encodeURIComponent(q)}` : ''}`)
       .subscribe({
         next: (response) => {
           this.results.set(response.data);

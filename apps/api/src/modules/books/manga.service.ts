@@ -51,6 +51,12 @@ export type MangaPagesResult = {
   pages: string[];
 };
 
+export type MangaDiscoverResult = {
+  trending: MangaSummary[];
+  recentlyUpdated: MangaSummary[];
+  newTitles: MangaSummary[];
+};
+
 const MANGADEX_BASE_URL = 'https://api.mangadex.org';
 const MANGADEX_COVER_URL = 'https://uploads.mangadex.org/covers';
 const CACHE_TTL_SECONDS = 3600; // 1 hour cache for MangaDex data
@@ -95,6 +101,46 @@ const detectReaderMode = (manga: MangaDexSearchItem | null): 'webtoon' | 'manga'
 export class MangaService {
   constructor(private prisma: PrismaClient) {}
 
+  private mapToSummary(items: MangaDexSearchItem[]): MangaSummary[] {
+    return items.map((manga) => {
+      const coverRel = manga.relationships?.find((r) => r.type === 'cover_art');
+      const fileName = coverRel?.attributes?.fileName;
+      return {
+        id: manga.id,
+        title: pickLocalized(manga.attributes?.title),
+        description: pickLocalized(manga.attributes?.description),
+        coverUrl: fileName ? `${MANGADEX_COVER_URL}/${manga.id}/${fileName}` : null,
+        status: manga.attributes?.status || null,
+        year: manga.attributes?.year || null,
+        originalLanguage: manga.attributes?.originalLanguage || null,
+        tags: extractTags(manga),
+      };
+    });
+  }
+
+  private async fetchCollection(cacheKey: string, limit: number, orderParam: Record<string, string>) {
+    const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const response = await axios.get(`${MANGADEX_BASE_URL}/manga`, {
+        params: {
+          limit,
+          ...orderParam,
+          'contentRating[]': ['safe', 'suggestive', 'erotica'],
+          'includes[]': 'cover_art',
+        },
+      });
+
+      const results = this.mapToSummary((response.data?.data || []) as MangaDexSearchItem[]);
+      await this.setCache(cacheKey, results, CACHE_TTL_SECONDS);
+      return results;
+    } catch (error) {
+      console.error('[MangaDex] discover fetch failed:', error);
+      return [];
+    }
+  }
+
   private async getFromCache<T>(key: string): Promise<T | null> {
     const redis = getRedis();
     if (!redis) return null;
@@ -123,10 +169,9 @@ export class MangaService {
     }
   }
 
-  async searchManga(query: string, limit = 20): Promise<MangaSummary[]> {
-    if (!query.trim()) return [];
-
-    const cacheKey = `manga:search:${query.toLowerCase().trim()}:${limit}`;
+  async searchManga(query?: string, limit = 20): Promise<MangaSummary[]> {
+    const normalizedQuery = (query || '').trim();
+    const cacheKey = `manga:search:${normalizedQuery.toLowerCase() || 'featured'}:${limit}`;
     
     // Try cache first
     const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
@@ -135,29 +180,14 @@ export class MangaService {
     try {
       const response = await axios.get(`${MANGADEX_BASE_URL}/manga`, {
         params: {
-          title: query,
           limit,
-          'order[relevance]': 'desc',
+          ...(normalizedQuery ? { title: normalizedQuery, 'order[relevance]': 'desc' } : { 'order[followedCount]': 'desc' }),
           'contentRating[]': ['safe', 'suggestive', 'erotica'],
           'includes[]': 'cover_art',
         },
       });
 
-      const items = (response.data?.data || []) as MangaDexSearchItem[];
-      const results = items.map((manga) => {
-        const coverRel = manga.relationships?.find((r) => r.type === 'cover_art');
-        const fileName = coverRel?.attributes?.fileName;
-        return {
-          id: manga.id,
-          title: pickLocalized(manga.attributes?.title),
-          description: pickLocalized(manga.attributes?.description),
-          coverUrl: fileName ? `${MANGADEX_COVER_URL}/${manga.id}/${fileName}` : null,
-          status: manga.attributes?.status || null,
-          year: manga.attributes?.year || null,
-          originalLanguage: manga.attributes?.originalLanguage || null,
-          tags: extractTags(manga),
-        };
-      });
+      const results = this.mapToSummary((response.data?.data || []) as MangaDexSearchItem[]);
 
       // Cache results
       await this.setCache(cacheKey, results, CACHE_TTL_SECONDS);
@@ -166,6 +196,17 @@ export class MangaService {
       console.error('[MangaDex] search failed:', error);
       return [];
     }
+  }
+
+  async getDiscoverManga(limit = 12): Promise<MangaDiscoverResult> {
+    const safeLimit = Math.min(24, Math.max(1, limit));
+    const [trending, recentlyUpdated, newTitles] = await Promise.all([
+      this.fetchCollection(`manga:discover:trending:${safeLimit}`, safeLimit, { 'order[followedCount]': 'desc' }),
+      this.fetchCollection(`manga:discover:updated:${safeLimit}`, safeLimit, { 'order[latestUploadedChapter]': 'desc' }),
+      this.fetchCollection(`manga:discover:new:${safeLimit}`, safeLimit, { 'order[createdAt]': 'desc' }),
+    ]);
+
+    return { trending, recentlyUpdated, newTitles };
   }
 
   async getChapters(mangaId: string, translatedLanguage = 'en', limit = 100): Promise<MangaChapter[]> {
