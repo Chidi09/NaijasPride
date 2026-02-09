@@ -5,6 +5,16 @@ import { HttpClient } from '@angular/common/http';
 import { Book, PaginationMeta } from '@naijaspride/types';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
 
+type MangaPreview = {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+};
+
+type MangaDiscoverPayload = {
+  trending: MangaPreview[];
+};
+
 @Component({
   selector: 'app-book-list',
   standalone: true,
@@ -87,6 +97,45 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
           <p class="text-lg font-serif mt-4">No books available yet.</p>
           <p class="text-gray-500">Check back soon for our growing library.</p>
         </div>
+
+        @if (isTrendingLoading()) {
+          <p class="text-sm text-gray-500 text-center -mt-10 mb-8">Loading trending manga...</p>
+        }
+
+        @if (trendingManga().length > 0) {
+          <section class="mt-6">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-xl font-serif text-white">Trending Manga Right Now</h2>
+              <a routerLink="/books/manga" class="text-sm text-[#d6b87a] hover:text-white">Open Manga Library</a>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+              @for (manga of trendingManga(); track manga.id) {
+                <a [routerLink]="['/books/manga']" class="group">
+                  <div class="bg-cinema-800 rounded-sm overflow-hidden transition-transform group-hover:scale-105">
+                    <div class="aspect-[2/3] relative">
+                      @if (manga.coverUrl) {
+                        <img
+                          [ngSrc]="manga.coverUrl"
+                          [alt]="manga.title"
+                          fill
+                          sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, 50vw"
+                          class="w-full h-full object-cover"
+                        >
+                      } @else {
+                        <div class="w-full h-full bg-cinema-700 flex items-center justify-center">
+                          <span class="text-4xl">📘</span>
+                        </div>
+                      }
+                    </div>
+                    <div class="p-3">
+                      <h3 class="text-white font-medium text-sm line-clamp-2">{{ manga.title }}</h3>
+                    </div>
+                  </div>
+                </a>
+              }
+            </div>
+          </section>
+        }
       }
     </div>
   `
@@ -98,9 +147,28 @@ export class BookListComponent {
   meta = signal<PaginationMeta | null>(null);
   isLoading = signal(true);
   currentPage = signal(1);
+  trendingManga = signal<MangaPreview[]>([]);
+  isTrendingLoading = signal(false);
 
   constructor() {
+    this.loadTrendingManga();
     this.loadBooks();
+  }
+
+  loadTrendingManga() {
+    this.isTrendingLoading.set(true);
+    this.http
+      .get<{ status: string; data: MangaDiscoverPayload }>('/api/v1/books/manga/discover?limit=10')
+      .subscribe({
+        next: (response) => {
+          this.trendingManga.set(response.data.trending || []);
+          this.isTrendingLoading.set(false);
+        },
+        error: (error) => {
+          console.error('Error loading trending manga:', error);
+          this.isTrendingLoading.set(false);
+        },
+      });
   }
 
   loadBooks() {
