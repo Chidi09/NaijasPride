@@ -20,13 +20,13 @@ if (isSentryWebEnabled()) {
 }
 
 if ('serviceWorker' in navigator) {
-  const isSecureContext = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-  if (isSecureContext) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
-        captureSentryWebException(err, { phase: 'service-worker-register' });
-        console.error('Service worker registration failed', err);
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+      .catch((err) => {
+        captureSentryWebException(err, { phase: 'service-worker-unregister' });
+        console.error('Service worker cleanup failed', err);
       });
-    });
-  }
+  });
 }
