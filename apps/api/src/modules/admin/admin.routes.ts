@@ -35,6 +35,14 @@ const BatchImportSchema = z.object({
   items: z.array(ImportYoutubeSchema).min(1).max(50),
 });
 
+const AutoImportYoutubeSchema = z.object({
+  titles: z.array(z.string().min(1)).min(1).max(50),
+  suffix: z.string().optional().default("Full Movie"),
+  genre: z.array(z.string()).optional().default(["Nollywood"]),
+  isStreamOnly: z.boolean().optional().default(true),
+  dryRun: z.boolean().optional().default(false),
+});
+
 const CreateRssFeedSchema = z.object({
   name: z.string().trim().min(1).max(120),
   url: z.string().url(),
@@ -243,6 +251,110 @@ export const adminRoutes = async (
           status: "error",
           message:
             error instanceof Error ? error.message : "Failed to batch import",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/import/youtube/auto - Search titles and import best YouTube matches
+  app.post("/import/youtube/auto", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: AutoImportYoutubeSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const {
+          titles,
+          suffix = "Full Movie",
+          genre = ["Nollywood"],
+          isStreamOnly = true,
+          dryRun = false,
+        } = request.body as z.infer<typeof AutoImportYoutubeSchema>;
+
+        const imported: string[] = [];
+        const skipped: string[] = [];
+        const notFound: string[] = [];
+        const failed: { title: string; error: string }[] = [];
+        const selected: Array<{ searchTitle: string; youtubeId: string; matchedTitle: string }> = [];
+
+        for (const title of titles) {
+          try {
+            const candidates = await ytService.searchByTitle(title, suffix);
+            if (!candidates.length) {
+              notFound.push(title);
+              continue;
+            }
+
+            // default strategy: first result
+            const best = candidates[0];
+            const year = new Date(best.publishedAt).getFullYear() || new Date().getFullYear();
+            const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
+
+            const existing = await app.prisma.movie.findFirst({
+              where: { OR: [{ slug }, { youtubeId: best.youtubeId }] },
+              select: { id: true },
+            });
+
+            selected.push({
+              searchTitle: title,
+              youtubeId: best.youtubeId,
+              matchedTitle: best.title,
+            });
+
+            if (existing) {
+              skipped.push(title);
+              continue;
+            }
+
+            if (!dryRun) {
+              await app.prisma.movie.create({
+                data: {
+                  title,
+                  slug,
+                  description: best.description || null,
+                  year,
+                  genre: genre as any,
+                  quality: [],
+                  language: "English",
+                  thumbnailUrl: best.thumbnail || null,
+                  youtubeId: best.youtubeId,
+                  isStreamOnly,
+                  fileUrls: {},
+                  fileSizes: {},
+                  status: "active",
+                },
+              });
+            }
+
+            imported.push(title);
+          } catch (err) {
+            failed.push({
+              title,
+              error: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+        }
+
+        return reply.send({
+          status: "success",
+          data: {
+            imported,
+            skipped,
+            notFound,
+            failed,
+            selected,
+            dryRun,
+          },
+          message: dryRun
+            ? `Dry run complete: ${imported.length} importable, ${skipped.length} skipped, ${notFound.length} not found, ${failed.length} failed`
+            : `Imported ${imported.length}, skipped ${skipped.length}, not found ${notFound.length}, failed ${failed.length}`,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error ? error.message : "Failed to auto-import YouTube titles",
         });
       }
     },
