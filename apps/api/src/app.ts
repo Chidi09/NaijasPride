@@ -14,6 +14,7 @@ import {
 } from "fastify-type-provider-zod";
 import { healthRoutes } from "./modules/health/health.routes";
 import { movieRoutes } from "./modules/movies/movies.routes";
+import { subtitleRoutes } from "./modules/movies/subtitles.routes";
 import { bookRoutes } from "./modules/books/books.routes";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { paymentRoutes } from "./modules/payments/payments.routes";
@@ -229,6 +230,7 @@ const buildServer = async () => {
   await app.register(healthRoutes, { prefix: `${apiPrefix}/health` });
   await app.register(authRoutes, { prefix: `${apiPrefix}/auth` }); // Auth routes
   await app.register(movieRoutes, { prefix: `${apiPrefix}/movies` });
+  await app.register(subtitleRoutes, { prefix: `${apiPrefix}/movies` });
   await app.register(bookRoutes, { prefix: `${apiPrefix}/books` });
   await app.register(paymentRoutes, { prefix: `${apiPrefix}/payments` });
   await app.register(profileRoutes, { prefix: `${apiPrefix}/profile` });
