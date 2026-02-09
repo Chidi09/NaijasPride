@@ -11,45 +11,58 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink, BrandLogoComponent],
   template: `
-    <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
+    <div class="relative min-h-screen overflow-hidden bg-[#0b0708] px-4 py-12 sm:px-6 lg:px-8">
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(128,0,32,0.24),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(214,184,122,0.14),transparent_40%)]"></div>
+      <div class="relative mx-auto w-full max-w-md rounded-2xl border border-[#5f1327]/60 bg-[#120a0d]/90 p-8 shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur-sm">
         <div>
           <div class="flex justify-center">
-            <app-brand-logo variant="mark" alt="NaijasPride" className="h-14 w-14 object-contain" />
+            <app-brand-logo variant="mark" alt="NaijasPride" className="h-16 w-16 object-contain" />
           </div>
-          <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <p class="mt-4 text-center text-xs uppercase tracking-[0.28em] text-[#d6b87a]">Welcome Back</p>
+          <h2 class="mt-3 text-center font-['Cinzel'] text-3xl font-bold text-[#f3e5d8]">
             Sign in to NaijasPride
           </h2>
-          <p class="mt-2 text-center text-sm text-gray-600">
-            Or <a href="#" class="font-medium text-primary hover:text-primary-dark">create a new account</a>
+          <p class="mt-2 text-center text-sm text-[#d7c4b6]">
+            Or create a new account
           </p>
         </div>
-        
-        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="mt-8 space-y-6">
-          <div class="rounded-md shadow-sm -space-y-px">
+
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="mt-8 space-y-5">
+          <div class="space-y-3">
             <div>
-              <label for="email-address" class="sr-only">Email address</label>
-              <input formControlName="email" type="email" required 
-                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm" 
-                placeholder="Email address">
+              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a]">Email address</label>
+              <input
+                formControlName="email"
+                type="email"
+                required
+                class="block w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
+                placeholder="Email address"
+              >
             </div>
             <div>
-              <label for="password" class="sr-only">Password</label>
-              <input formControlName="password" type="password" required 
-                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm" 
-                placeholder="Password">
+              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a]">Password</label>
+              <input
+                formControlName="password"
+                type="password"
+                required
+                class="block w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
+                placeholder="Password"
+              >
             </div>
           </div>
 
           @if (error) {
-            <div class="text-red-500 text-sm text-center bg-red-50 p-2 rounded">
+            <div class="rounded-lg border border-[#7f1d2d] bg-[#3a1118]/65 p-3 text-center text-sm text-[#ffccd4]">
               {{ error }}
             </div>
           }
 
           <div>
-            <button type="submit" [disabled]="form.invalid || isLoading" 
-              class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
+            <button
+              type="submit"
+              [disabled]="form.invalid || isLoading"
+              class="group relative flex w-full justify-center rounded-lg border border-[#992143] bg-[#800020] px-4 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#fff5f2] transition hover:bg-[#660019] focus:outline-none focus:ring-2 focus:ring-[#800020]/60 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               @if (isLoading) {
                 Processing...
               } @else {
