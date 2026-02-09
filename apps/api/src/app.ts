@@ -219,6 +219,13 @@ const buildServer = async () => {
 
   // 3. Register Routes
   const apiPrefix = "/api/v1";
+  app.get("/", async () => ({
+    name: "NaijasPride API",
+    status: "ok",
+    health: `${apiPrefix}/health`,
+    docs: "/documentation",
+  }));
+
   await app.register(healthRoutes, { prefix: `${apiPrefix}/health` });
   await app.register(authRoutes, { prefix: `${apiPrefix}/auth` }); // Auth routes
   await app.register(movieRoutes, { prefix: `${apiPrefix}/movies` });
