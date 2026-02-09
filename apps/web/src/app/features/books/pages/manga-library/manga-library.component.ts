@@ -1,6 +1,6 @@
-import { CommonModule, NgOptimizedImage } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -13,15 +13,7 @@ type MangaSummary = {
   year: number | null;
   originalLanguage: string | null;
   tags: string[];
-};
-
-type MangaChapter = {
-  id: string;
-  chapter: string | null;
-  volume: string | null;
-  title: string | null;
-  pages: number;
-  publishedAt: string | null;
+  latestChapter: string | null;
 };
 
 type MangaFavorite = {
@@ -43,6 +35,12 @@ type ReadingHistory = {
   lastReadAt: string;
 };
 
+type MangaTag = {
+  id: string;
+  name: string;
+  group: string | null;
+};
+
 type MangaDiscoverPayload = {
   trending: MangaSummary[];
   recentlyUpdated: MangaSummary[];
@@ -52,86 +50,170 @@ type MangaDiscoverPayload = {
 @Component({
   selector: 'app-manga-library',
   standalone: true,
-  imports: [CommonModule, RouterLink, NgOptimizedImage, FormsModule],
+  imports: [CommonModule, RouterLink, FormsModule],
   template: `
     <div class="container mx-auto px-4 py-10">
       <div class="mb-8 flex items-center justify-between gap-3">
         <div>
           <h1 class="font-['Cinzel'] text-3xl text-white">Manga Library</h1>
-          <p class="mt-2 text-sm text-gray-400">Search MangaDex and read instantly with auto reader mode.</p>
+          <p class="mt-2 text-sm text-gray-400">Search Manga, Manhwa and Manhua with advanced filters.</p>
         </div>
         <a routerLink="/books" class="rounded border border-[#5f1327] px-4 py-2 text-sm text-[#d6b87a] hover:bg-[#5f1327]/20">Back to Books</a>
       </div>
 
-      <!-- Tab Navigation -->
       <div class="mb-6 flex gap-2 border-b border-[#5f1327]/30">
         <button
           (click)="activeTab.set('search')"
           [class]="activeTab() === 'search' ? 'border-b-2 border-[#800020] text-[#d6b87a]' : 'text-gray-400 hover:text-white'"
           class="px-4 py-2 text-sm font-medium transition"
-        >
-          Search
-        </button>
+        >Search</button>
         <button
           (click)="activeTab.set('favorites'); loadFavorites()"
           [class]="activeTab() === 'favorites' ? 'border-b-2 border-[#800020] text-[#d6b87a]' : 'text-gray-400 hover:text-white'"
           class="px-4 py-2 text-sm font-medium transition"
-        >
-          Favorites ({{ favorites().length }})
-        </button>
+        >Favorites ({{ favorites().length }})</button>
         <button
           (click)="activeTab.set('history'); loadHistory()"
           [class]="activeTab() === 'history' ? 'border-b-2 border-[#800020] text-[#d6b87a]' : 'text-gray-400 hover:text-white'"
           class="px-4 py-2 text-sm font-medium transition"
-        >
-          History
-        </button>
+        >History</button>
       </div>
 
-      <!-- Search Tab -->
       @if (activeTab() === 'search') {
         <div class="mb-8 rounded-xl border border-[#5f1327]/50 bg-[#120a0d]/70 p-4">
-          <div class="flex flex-col gap-3 sm:flex-row">
-              <input
-                [(ngModel)]="query"
-                (keyup.enter)="search()"
-                type="text"
-                placeholder="Search manga e.g. Solo Leveling, One Piece (leave blank for featured)"
-                class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020]"
-              >
-              <button
-                (click)="search()"
-                [disabled]="isLoading()"
-                class="rounded-lg bg-[#800020] px-5 py-3 text-sm font-semibold text-white hover:bg-[#660019] disabled:opacity-50"
-              >
-              {{ isLoading() ? 'Searching...' : 'Search' }}
-            </button>
+          <div class="mb-3 flex flex-col gap-3 sm:flex-row">
+            <input
+              [ngModel]="query()"
+              (ngModelChange)="query.set($event)"
+              (keyup.enter)="search()"
+              type="text"
+              placeholder="Search by title..."
+              class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020]"
+            >
+            <button
+              (click)="search()"
+              [disabled]="isLoading()"
+              class="rounded-lg bg-[#800020] px-5 py-3 text-sm font-semibold text-white hover:bg-[#660019] disabled:opacity-50"
+            >{{ isLoading() ? 'Searching...' : 'Search' }}</button>
           </div>
+
+          <button class="text-xs text-[#d6b87a] hover:text-white" (click)="showFilters.set(!showFilters())">
+            {{ showFilters() ? 'Hide Filters' : 'Show Filters' }}
+          </button>
+
+          @if (showFilters()) {
+            <div class="mt-4 grid gap-4 rounded-lg border border-[#5f1327]/40 bg-black/20 p-4 md:grid-cols-2 lg:grid-cols-3">
+              <label class="text-xs text-gray-300">
+                <span class="mb-1 block">Sort</span>
+                <select [ngModel]="sort()" (ngModelChange)="sort.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
+                  <option value="relevance">Relevance</option>
+                  <option value="followedCount">Popularity</option>
+                  <option value="latestUploadedChapter">Latest Updates</option>
+                  <option value="createdAt">Newest Titles</option>
+                  <option value="year">Year</option>
+                </select>
+              </label>
+
+              <label class="text-xs text-gray-300">
+                <span class="mb-1 block">Year</span>
+                <input type="number" [ngModel]="year()" (ngModelChange)="year.set($event || null)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
+              </label>
+
+              <label class="text-xs text-gray-300">
+                <span class="mb-1 block">Language</span>
+                <select [ngModel]="originalLanguage()" (ngModelChange)="originalLanguage.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
+                  <option value="">Any</option>
+                  <option value="ja">Japanese (Manga)</option>
+                  <option value="ko">Korean (Manhwa)</option>
+                  <option value="zh">Chinese (Manhua)</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+
+              <label class="text-xs text-gray-300">
+                <span class="mb-1 block">Status</span>
+                <select [ngModel]="status()" (ngModelChange)="status.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
+                  <option value="">Any</option>
+                  <option value="ongoing">Ongoing</option>
+                  <option value="completed">Completed</option>
+                  <option value="hiatus">Hiatus</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+
+              <label class="text-xs text-gray-300">
+                <span class="mb-1 block">Demographic</span>
+                <select [ngModel]="demographic()" (ngModelChange)="demographic.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
+                  <option value="">Any</option>
+                  <option value="shounen">Shounen</option>
+                  <option value="shoujo">Shoujo</option>
+                  <option value="seinen">Seinen</option>
+                  <option value="josei">Josei</option>
+                </select>
+              </label>
+
+              <label class="text-xs text-gray-300">
+                <span class="mb-1 block">Content Rating</span>
+                <select [ngModel]="contentRating()" (ngModelChange)="contentRating.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
+                  <option value="">Any</option>
+                  <option value="safe">Safe</option>
+                  <option value="suggestive">Suggestive</option>
+                  <option value="erotica">Erotica</option>
+                </select>
+              </label>
+
+              <div class="md:col-span-2 lg:col-span-3">
+                <p class="mb-2 text-xs text-gray-300">Tags</p>
+                <div class="max-h-56 space-y-3 overflow-auto rounded border border-zinc-700 bg-zinc-900 p-3">
+                  @for (group of groupedTags(); track group.group) {
+                    <div>
+                      <p class="mb-2 text-[11px] uppercase tracking-wide text-[#d6b87a]">{{ group.group }}</p>
+                      <div class="flex flex-wrap gap-2">
+                        @for (tag of group.items; track tag.id) {
+                          <button
+                            type="button"
+                            (click)="toggleTag(tag.id)"
+                            class="rounded border px-2 py-1 text-xs"
+                            [class.border-[#800020]]="selectedTagIds().includes(tag.id)"
+                            [class.text-[#d6b87a]]="selectedTagIds().includes(tag.id)"
+                            [class.border-zinc-700]="!selectedTagIds().includes(tag.id)"
+                            [class.text-gray-300]="!selectedTagIds().includes(tag.id)"
+                          >{{ tag.name }}</button>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <div class="md:col-span-2 lg:col-span-3 flex gap-2">
+                <button (click)="search()" class="rounded bg-[#800020] px-4 py-2 text-xs text-white hover:bg-[#660019]">Apply Filters</button>
+                <button (click)="clearFilters()" class="rounded border border-zinc-700 px-4 py-2 text-xs text-gray-200 hover:bg-zinc-800">Clear</button>
+              </div>
+            </div>
+          }
         </div>
 
         @if (isDiscoverLoading()) {
-          <div class="mb-6 text-sm text-gray-400">Loading trending manga...</div>
+          <div class="mb-6 text-sm text-gray-400">Loading discover sections...</div>
         }
 
         @if (discover(); as discover) {
           <section class="mb-8 space-y-6">
             <div>
-              <div class="mb-3 flex items-center justify-between">
-                <h2 class="text-base font-semibold text-[#d6b87a]">Trending Now</h2>
-                <button (click)="query.set(''); search()" class="text-xs text-[#d6b87a] hover:text-white">Use as main results</button>
-              </div>
+              <h2 class="mb-3 text-base font-semibold text-[#d6b87a]">Trending Now</h2>
               <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
                 @for (manga of discover.trending; track manga.id) {
-                  <button type="button" (click)="selectManga(manga)" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] text-left hover:border-[#800020]">
+                  <a [routerLink]="['/books/manga', manga.id]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] text-left hover:border-[#800020]">
                     <div class="relative aspect-[3/4]">
                       @if (manga.coverUrl) {
-                        <img [ngSrc]="manga.coverUrl" [alt]="manga.title" fill sizes="180px" class="object-cover">
+                        <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
                       } @else {
                         <div class="flex h-full items-center justify-center bg-zinc-800 text-3xl">📘</div>
                       }
                     </div>
                     <p class="line-clamp-2 p-2 text-xs font-medium text-white">{{ manga.title }}</p>
-                  </button>
+                  </a>
                 }
               </div>
             </div>
@@ -141,9 +223,12 @@ type MangaDiscoverPayload = {
                 <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Recently Updated</h3>
                 <div class="space-y-2">
                   @for (manga of discover.recentlyUpdated.slice(0, 6); track manga.id) {
-                    <button type="button" (click)="selectManga(manga)" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
-                      {{ manga.title }}
-                    </button>
+                    <a [routerLink]="['/books/manga', manga.id]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
+                      <span>{{ manga.title }}</span>
+                      @if (manga.latestChapter) {
+                        <span class="ml-2 text-xs text-[#d6b87a]">Ch. {{ manga.latestChapter }}</span>
+                      }
+                    </a>
                   }
                 </div>
               </div>
@@ -151,9 +236,12 @@ type MangaDiscoverPayload = {
                 <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Fresh Titles</h3>
                 <div class="space-y-2">
                   @for (manga of discover.newTitles.slice(0, 6); track manga.id) {
-                    <button type="button" (click)="selectManga(manga)" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
-                      {{ manga.title }}
-                    </button>
+                    <a [routerLink]="['/books/manga', manga.id]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
+                      <span>{{ manga.title }}</span>
+                      @if (manga.latestChapter) {
+                        <span class="ml-2 text-xs text-[#d6b87a]">Ch. {{ manga.latestChapter }}</span>
+                      }
+                    </a>
                   }
                 </div>
               </div>
@@ -161,124 +249,62 @@ type MangaDiscoverPayload = {
           </section>
         }
 
-        <div class="grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_1fr]">
-          <section>
-            <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Results</h2>
-            @if (results().length === 0 && !isLoading()) {
-              <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No manga found. Try another keyword.</div>
-            }
-            <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-              @for (manga of results(); track manga.id) {
-                <div
-                  class="group relative overflow-hidden rounded-lg border border-[#5f1327]/30 bg-[#120a0d] text-left transition hover:border-[#800020]"
-                >
-                  <button type="button" (click)="selectManga(manga)" class="w-full text-left">
-                    <div class="relative aspect-[3/4]">
-                      @if (manga.coverUrl) {
-                        <img [ngSrc]="manga.coverUrl" [alt]="manga.title" fill sizes="200px" class="object-cover">
-                      } @else {
-                        <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
-                      }
-                    </div>
-                    <div class="p-3">
-                      <p class="line-clamp-2 text-sm font-semibold text-white">{{ manga.title }}</p>
-                      <p class="mt-1 text-xs text-gray-400">{{ manga.year || 'Unknown year' }}</p>
-                    </div>
-                  </button>
-
-                  <!-- Favorite Button -->
-                  <button
-                    type="button"
-                    (click)="toggleFavorite(manga); $event.stopPropagation()"
-                    class="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white hover:bg-[#800020]"
-                    [title]="isFavorite(manga.id) ? 'Remove from favorites' : 'Add to favorites'"
-                  >
-                    @if (isFavorite(manga.id)) {
-                      <span class="text-yellow-400">★</span>
+        <section>
+          <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Results</h2>
+          @if (results().length === 0 && !isLoading()) {
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No manga found.</div>
+          }
+          <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+            @for (manga of results(); track manga.id) {
+              <div class="group relative overflow-hidden rounded-lg border border-[#5f1327]/30 bg-[#120a0d] transition hover:border-[#800020]">
+                <a [routerLink]="['/books/manga', manga.id]" class="block">
+                  <div class="relative aspect-[3/4]">
+                    @if (manga.coverUrl) {
+                      <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
                     } @else {
-                      <span>☆</span>
+                      <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
                     }
-                  </button>
-                </div>
-              }
-            </div>
-          </section>
-
-          <section>
-            <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Chapters</h2>
-            @if (!selectedManga()) {
-              <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">Select a manga to load chapters.</div>
-            }
-            @if (selectedManga(); as manga) {
-              <div class="mb-4 rounded-lg border border-[#5f1327]/40 bg-[#120a0d]/80 p-4">
-                <div class="flex items-start justify-between">
-                  <div>
-                    <h3 class="font-semibold text-white">{{ manga.title }}</h3>
-                    <p class="mt-2 line-clamp-4 text-xs text-gray-400">{{ manga.description || 'No description available.' }}</p>
                   </div>
-                  <button
-                    (click)="toggleFavorite(manga)"
-                    class="rounded border border-[#5f1327] px-3 py-1 text-sm"
-                    [class.bg-[#800020]]="isFavorite(manga.id)"
-                    [class.text-white]="isFavorite(manga.id)"
-                    [class.text-gray-400]="!isFavorite(manga.id)"
-                  >
-                    {{ isFavorite(manga.id) ? '★ Favorited' : '☆ Favorite' }}
-                  </button>
-                </div>
-              </div>
+                  <div class="p-3">
+                    <p class="line-clamp-2 text-sm font-semibold text-white">{{ manga.title }}</p>
+                    <p class="mt-1 text-xs text-gray-400">{{ manga.year || 'Unknown year' }}</p>
+                  </div>
+                </a>
 
-              <div class="max-h-[60vh] space-y-2 overflow-auto pr-1">
-                @for (chapter of chapters(); track chapter.id) {
-                  <a
-                    [routerLink]="['/books/manga/read', chapter.id]"
-                    [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
-                    class="block rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-sm text-gray-200 hover:border-[#800020] hover:bg-[#800020]/10"
-                  >
-                    <div class="font-medium"
-                    >Chapter {{ chapter.chapter || '?' }} <span class="text-gray-400">{{ chapter.title || '' }}</span></div>
-                    <div class="mt-1 text-xs text-gray-500">{{ chapter.pages }} pages</div>
-                  </a>
-                }
+                <button
+                  type="button"
+                  (click)="toggleFavorite(manga); $event.stopPropagation()"
+                  class="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white hover:bg-[#800020]"
+                >{{ isFavorite(manga.id) ? '★' : '☆' }}</button>
               </div>
             }
-          </section>
-        </div>
+          </div>
+        </section>
       }
 
-      <!-- Favorites Tab -->
       @if (activeTab() === 'favorites') {
         <section>
           <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Your Favorites</h2>
           @if (favorites().length === 0) {
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No favorites yet. Search and add manga to your favorites.</div>
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No favorites yet.</div>
           }
           <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
             @for (fav of favorites(); track fav.id) {
               <div class="overflow-hidden rounded-lg border border-[#5f1327]/30 bg-[#120a0d]">
-                <div class="relative aspect-[3/4]">
-                  @if (fav.coverUrl) {
-                    <img [ngSrc]="fav.coverUrl" [alt]="fav.title" fill sizes="200px" class="object-cover">
-                  } @else {
-                    <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
-                  }
-                </div>
-                <div class="p-3">
-                  <p class="line-clamp-2 text-sm font-semibold text-white">{{ fav.title }}</p>
-                  <div class="mt-2 flex gap-2">
-                    <button
-                      (click)="loadFavoriteChapters(fav)"
-                      class="flex-1 rounded bg-[#800020] px-3 py-1 text-xs text-white hover:bg-[#660019]"
-                    >
-                      Chapters
-                    </button>
-                    <button
-                      (click)="removeFavorite(fav.mangaId)"
-                      class="rounded border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20"
-                    >
-                      Remove
-                    </button>
+                <a [routerLink]="['/books/manga', fav.mangaId]" class="block">
+                  <div class="relative aspect-[3/4]">
+                    @if (fav.coverUrl) {
+                      <img [src]="fav.coverUrl" [alt]="fav.title" class="absolute inset-0 h-full w-full object-cover">
+                    } @else {
+                      <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
+                    }
                   </div>
+                  <div class="p-3">
+                    <p class="line-clamp-2 text-sm font-semibold text-white">{{ fav.title }}</p>
+                  </div>
+                </a>
+                <div class="px-3 pb-3">
+                  <button (click)="removeFavorite(fav.mangaId)" class="w-full rounded border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20">Remove</button>
                 </div>
               </div>
             }
@@ -286,12 +312,11 @@ type MangaDiscoverPayload = {
         </section>
       }
 
-      <!-- History Tab -->
       @if (activeTab() === 'history') {
         <section>
           <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Reading History</h2>
           @if (history().length === 0) {
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No reading history yet. Start reading to track your progress.</div>
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No reading history yet.</div>
           }
           <div class="space-y-3">
             @for (item of history(); track item.id) {
@@ -299,20 +324,12 @@ type MangaDiscoverPayload = {
                 <div>
                   <p class="text-sm text-white">Chapter ID: {{ item.chapterId.slice(0, 8) }}...</p>
                   <p class="mt-1 text-xs text-gray-400">Page {{ item.pageIndex + 1 }} / {{ item.totalPages }}</p>
-                  @if (item.isCompleted) {
-                    <span class="mt-1 inline-block rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-400">Completed</span>
-                  }
                 </div>
-                <div class="text-right">
-                  <p class="text-xs text-gray-500">{{ item.lastReadAt | date: 'short' }}</p>
-                  <a
-                    [routerLink]="['/books/manga/read', item.chapterId]"
-                    [queryParams]="{ mangaId: item.mangaId }"
-                    class="mt-2 inline-block rounded bg-[#800020] px-3 py-1 text-xs text-white hover:bg-[#660019]"
-                  >
-                    Continue
-                  </a>
-                </div>
+                <a
+                  [routerLink]="['/books/manga/read', item.chapterId]"
+                  [queryParams]="{ mangaId: item.mangaId }"
+                  class="rounded bg-[#800020] px-3 py-1 text-xs text-white hover:bg-[#660019]"
+                >Continue</a>
               </div>
             }
           </div>
@@ -325,114 +342,144 @@ export class MangaLibraryComponent implements OnInit {
   private http = inject(HttpClient);
 
   activeTab = signal<'search' | 'favorites' | 'history'>('search');
-
-  // Search tab
   query = signal('');
   isLoading = signal(false);
-  results = signal<MangaSummary[]>([]);
-  selectedManga = signal<MangaSummary | null>(null);
-  chapters = signal<MangaChapter[]>([]);
-  favoriteIds = signal<Set<string>>(new Set());
-  discover = signal<MangaDiscoverPayload | null>(null);
   isDiscoverLoading = signal(false);
+  showFilters = signal(false);
 
-  // Favorites tab
+  results = signal<MangaSummary[]>([]);
+  discover = signal<MangaDiscoverPayload | null>(null);
   favorites = signal<MangaFavorite[]>([]);
-
-  // History tab
+  favoriteIds = signal<Set<string>>(new Set());
   history = signal<ReadingHistory[]>([]);
+  tags = signal<MangaTag[]>([]);
+  groupedTags = computed(() => {
+    const grouped = new Map<string, MangaTag[]>();
+    for (const tag of this.tags()) {
+      const key = tag.group || 'other';
+      const list = grouped.get(key) || [];
+      list.push(tag);
+      grouped.set(key, list);
+    }
+
+    return Array.from(grouped.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([group, items]) => ({
+        group,
+        items: items.sort((x, y) => x.name.localeCompare(y.name)),
+      }));
+  });
+
+  selectedTagIds = signal<string[]>([]);
+  status = signal('');
+  originalLanguage = signal('');
+  contentRating = signal('');
+  demographic = signal('');
+  sort = signal<'relevance' | 'latestUploadedChapter' | 'followedCount' | 'createdAt' | 'year'>('relevance');
+  year = signal<number | null>(null);
 
   ngOnInit() {
     this.loadFavorites();
     this.loadDiscover();
+    this.loadTags();
     this.search();
   }
 
-  loadDiscover() {
-    this.isDiscoverLoading.set(true);
-    this.http
-      .get<{ status: string; data: MangaDiscoverPayload }>('/api/v1/books/manga/discover?limit=10')
-      .subscribe({
-        next: (response) => {
-          this.discover.set(response.data);
-          this.isDiscoverLoading.set(false);
-        },
-        error: (error) => {
-          console.error('Failed to load discover manga:', error);
-          this.isDiscoverLoading.set(false);
-        },
-      });
+  private buildSearchQuery() {
+    const params = new URLSearchParams();
+    const q = this.query().trim();
+    if (q) params.append('q', q);
+    params.append('sort', this.sort());
+    if (this.year()) params.append('year', String(this.year()));
+    if (this.status()) params.append('status', this.status());
+    if (this.originalLanguage()) params.append('originalLanguage', this.originalLanguage());
+    if (this.contentRating()) params.append('contentRating', this.contentRating());
+    if (this.demographic()) params.append('demographic', this.demographic());
+    for (const tagId of this.selectedTagIds()) params.append('tags', tagId);
+    return params.toString();
   }
 
   search() {
-    const q = this.query().trim();
-
     this.isLoading.set(true);
+    const query = this.buildSearchQuery();
     this.http
-      .get<{ status: string; data: MangaSummary[] }>(`/api/v1/books/manga/search${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+      .get<{ status: string; data: MangaSummary[] }>(`/api/v1/books/manga/search${query ? `?${query}` : ''}`)
       .subscribe({
         next: (response) => {
           this.results.set(response.data);
           this.isLoading.set(false);
-          this.selectedManga.set(null);
-          this.chapters.set([]);
-          this.updateFavoriteStatus();
         },
-        error: (error) => {
-          console.error('Failed to search manga:', error);
+        error: () => {
           this.isLoading.set(false);
         },
       });
   }
 
-  selectManga(manga: MangaSummary) {
-    this.selectedManga.set(manga);
-    this.chapters.set([]);
-    this.http
-      .get<{ status: string; data: MangaChapter[] }>(`/api/v1/books/manga/${manga.id}/chapters`)
-      .subscribe({
-        next: (response) => this.chapters.set(response.data),
-        error: (error) => console.error('Failed to load chapters:', error),
-      });
+  clearFilters() {
+    this.selectedTagIds.set([]);
+    this.status.set('');
+    this.originalLanguage.set('');
+    this.contentRating.set('');
+    this.demographic.set('');
+    this.sort.set('relevance');
+    this.year.set(null);
+    this.search();
   }
 
-  // Favorites
+  toggleTag(tagId: string) {
+    this.selectedTagIds.update((items) => items.includes(tagId) ? items.filter((id) => id !== tagId) : [...items, tagId]);
+  }
+
+  loadTags() {
+    this.http.get<{ status: string; data: MangaTag[] }>('/api/v1/books/manga/tags').subscribe({
+      next: (response) => {
+        this.tags.set(response.data.slice(0, 80));
+      },
+    });
+  }
+
+  loadDiscover() {
+    this.isDiscoverLoading.set(true);
+    this.http.get<{ status: string; data: MangaDiscoverPayload }>('/api/v1/books/manga/discover?limit=10').subscribe({
+      next: (response) => {
+        this.discover.set(response.data);
+        this.isDiscoverLoading.set(false);
+      },
+      error: () => {
+        this.isDiscoverLoading.set(false);
+      },
+    });
+  }
+
   toggleFavorite(manga: MangaSummary) {
     if (this.isFavorite(manga.id)) {
       this.removeFavorite(manga.id);
-    } else {
-      this.addFavorite(manga);
+      return;
     }
-  }
 
-  addFavorite(manga: MangaSummary) {
-    this.http
-      .post<{ status: string; data: MangaFavorite }>('/api/v1/books/manga/favorites', {
-        mangaId: manga.id,
-        title: manga.title,
-        coverUrl: manga.coverUrl,
-        status: manga.status || undefined,
-      })
-      .subscribe({
-        next: () => {
-          this.favoriteIds.update((set) => new Set(set).add(manga.id));
-          this.loadFavorites();
-        },
-        error: (error) => console.error('Failed to add favorite:', error),
-      });
+    this.http.post('/api/v1/books/manga/favorites', {
+      mangaId: manga.id,
+      title: manga.title,
+      coverUrl: manga.coverUrl,
+      status: manga.status || undefined,
+    }).subscribe({
+      next: () => {
+        this.favoriteIds.update((set) => new Set(set).add(manga.id));
+        this.loadFavorites();
+      },
+    });
   }
 
   removeFavorite(mangaId: string) {
     this.http.delete(`/api/v1/books/manga/favorites/${mangaId}`).subscribe({
       next: () => {
         this.favoriteIds.update((set) => {
-          const newSet = new Set(set);
-          newSet.delete(mangaId);
-          return newSet;
+          const next = new Set(set);
+          next.delete(mangaId);
+          return next;
         });
-        this.favorites.update((list) => list.filter((f) => f.mangaId !== mangaId));
+        this.favorites.update((list) => list.filter((item) => item.mangaId !== mangaId));
       },
-      error: (error) => console.error('Failed to remove favorite:', error),
     });
   }
 
@@ -440,53 +487,23 @@ export class MangaLibraryComponent implements OnInit {
     this.http.get<{ status: string; data: MangaFavorite[] }>('/api/v1/books/manga/favorites').subscribe({
       next: (response) => {
         this.favorites.set(response.data);
-        this.favoriteIds.set(new Set(response.data.map((f) => f.mangaId)));
+        this.favoriteIds.set(new Set(response.data.map((item) => item.mangaId)));
       },
-      error: (error) => console.error('Failed to load favorites:', error),
+      error: () => {
+        this.favorites.set([]);
+      },
     });
   }
 
-  loadFavoriteChapters(fav: MangaFavorite) {
-    const manga: MangaSummary = {
-      id: fav.mangaId,
-      title: fav.title,
-      description: '',
-      coverUrl: fav.coverUrl,
-      status: fav.status,
-      year: null,
-      originalLanguage: null,
-      tags: [],
-    };
-    this.selectManga(manga);
-    this.activeTab.set('search');
-  }
-
-  isFavorite(mangaId: string): boolean {
+  isFavorite(mangaId: string) {
     return this.favoriteIds().has(mangaId);
   }
 
-  updateFavoriteStatus() {
-    // Check each manga in results if it's favorited
-    this.results().forEach((manga) => {
-      this.http.get<{ status: string; data: { isFavorite: boolean } }>(`/api/v1/books/manga/favorites/${manga.id}/check`).subscribe({
-        next: (response) => {
-          if (response.data.isFavorite) {
-            this.favoriteIds.update((set) => new Set(set).add(manga.id));
-          }
-        },
-      });
-    });
-  }
-
-  // History
   loadHistory() {
-    this.http
-      .get<{ status: string; data: ReadingHistory[] }>('/api/v1/books/manga/history?limit=50')
-      .subscribe({
-        next: (response) => {
-          this.history.set(response.data);
-        },
-        error: (error) => console.error('Failed to load history:', error),
-      });
+    this.http.get<{ status: string; data: ReadingHistory[] }>('/api/v1/books/manga/history?limit=50').subscribe({
+      next: (response) => {
+        this.history.set(response.data);
+      },
+    });
   }
 }

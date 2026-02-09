@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { BooksService } from './books.service';
 import { MangaService } from './manga.service';
 import { z } from 'zod';
+import axios from 'axios';
 
 const createBookSchema = z.object({
   title: z.string().trim().min(1),
@@ -23,6 +24,13 @@ const createBookSchema = z.object({
 const mangaSearchSchema = z.object({
   q: z.string().trim().optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
+  tags: z.union([z.string().trim(), z.array(z.string().trim())]).optional(),
+  status: z.union([z.string().trim(), z.array(z.string().trim())]).optional(),
+  originalLanguage: z.union([z.string().trim(), z.array(z.string().trim())]).optional(),
+  contentRating: z.union([z.string().trim(), z.array(z.string().trim())]).optional(),
+  demographic: z.union([z.string().trim(), z.array(z.string().trim())]).optional(),
+  sort: z.enum(['relevance', 'latestUploadedChapter', 'followedCount', 'createdAt', 'year']).optional(),
+  year: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
 });
 
 const mangaDiscoverSchema = z.object({
@@ -43,6 +51,19 @@ const mangaPagesSchema = z.object({
   chapterId: z.string().trim().min(1),
 });
 
+const mangaCoverSchema = z.object({
+  mangaId: z.string().trim().min(1),
+  fileName: z.string().trim().min(1),
+});
+
+const mangaDetailSchema = z.object({
+  mangaId: z.string().trim().min(1),
+});
+
+const mangaSimilarQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(12).optional(),
+});
+
 const saveProgressSchema = z.object({
   mangaId: z.string().trim().min(1),
   chapterId: z.string().trim().min(1),
@@ -54,7 +75,7 @@ const saveProgressSchema = z.object({
 const favoriteSchema = z.object({
   mangaId: z.string().trim().min(1),
   title: z.string().trim().min(1),
-  coverUrl: z.string().url().optional(),
+  coverUrl: z.string().trim().min(1).optional(),
   status: z.string().optional(),
 });
 
@@ -65,6 +86,11 @@ export const bookRoutes = async (
   const booksService = new BooksService(app.prisma);
   const mangaService = new MangaService(app.prisma);
 
+  const toArray = (value?: string | string[]) => {
+    if (!value) return undefined;
+    return Array.isArray(value) ? value : [value];
+  };
+
   // GET /api/books/manga/search?q=one+piece
   app.get('/manga/search', {
     schema: {
@@ -72,13 +98,36 @@ export const bookRoutes = async (
     },
     handler: async (request, reply) => {
       try {
-        const { q, limit } = request.query as z.infer<typeof mangaSearchSchema>;
-        const data = await mangaService.searchManga(q, limit ?? 20);
+        const query = request.query as z.infer<typeof mangaSearchSchema>;
+        const data = await mangaService.searchManga(query.q, query.limit ?? 20, {
+          tags: toArray(query.tags),
+          status: toArray(query.status),
+          originalLanguage: toArray(query.originalLanguage),
+          contentRating: toArray(query.contentRating),
+          demographic: toArray(query.demographic),
+          sort: query.sort,
+          year: query.year,
+        });
         return reply.send({ status: 'success', data });
       } catch (error) {
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to search manga',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/tags
+  app.get('/manga/tags', {
+    handler: async (_request, reply) => {
+      try {
+        const data = await mangaService.getMangaTags();
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga tags',
         });
       }
     },
@@ -98,6 +147,52 @@ export const bookRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to load manga discover sections',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/:mangaId
+  app.get('/manga/:mangaId', {
+    schema: {
+      params: mangaDetailSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { mangaId } = request.params as z.infer<typeof mangaDetailSchema>;
+        const data = await mangaService.getMangaDetail(mangaId);
+        if (!data) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Manga not found',
+          });
+        }
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga detail',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/:mangaId/similar?limit=6
+  app.get('/manga/:mangaId/similar', {
+    schema: {
+      params: z.object({ mangaId: z.string().trim().min(1) }),
+      querystring: mangaSimilarQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { mangaId } = request.params as { mangaId: string };
+        const { limit } = request.query as z.infer<typeof mangaSimilarQuerySchema>;
+        const data = await mangaService.getSimilarManga(mangaId, limit ?? 6);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch similar manga',
         });
       }
     },
@@ -136,6 +231,35 @@ export const bookRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to fetch chapter pages',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/covers/:mangaId/:fileName - Proxy MangaDex covers
+  app.get('/manga/covers/:mangaId/:fileName', {
+    schema: {
+      params: mangaCoverSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { mangaId, fileName } = request.params as z.infer<typeof mangaCoverSchema>;
+        const decodedFileName = decodeURIComponent(fileName);
+        const sourceUrl = `https://uploads.mangadex.org/covers/${mangaId}/${decodedFileName}`;
+
+        const response = await axios.get<ArrayBuffer>(sourceUrl, {
+          responseType: 'arraybuffer',
+          timeout: 15000,
+        });
+
+        const contentType = response.headers['content-type'] || 'image/jpeg';
+        reply.header('content-type', contentType);
+        reply.header('cache-control', 'public, max-age=86400, s-maxage=86400');
+        return reply.send(Buffer.from(response.data));
+      } catch (error) {
+        return reply.status(404).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga cover',
         });
       }
     },

@@ -33,6 +33,7 @@ const DEFAULT_CORS_ORIGINS = [
   "https://naijaspride.vercel.app",
   "https://naijaspride.com",
   "https://www.naijaspride.com",
+  "https://naijaspride.pxxl.click",
 ];
 const CSRF_COOKIE_NAME = "np_csrf";
 const COOKIE_AUTH_NAMES = ["accessToken", "refreshToken"] as const;
@@ -159,7 +160,8 @@ const buildServer = async () => {
         return;
       }
 
-      callback(new Error("Origin not allowed"), false);
+      // Reject with false instead of throwing — avoids 500 and lets Fastify return a proper CORS rejection.
+      callback(null, false);
     },
   });
   await app.register(prismaPlugin);

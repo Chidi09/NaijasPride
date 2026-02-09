@@ -1,5 +1,5 @@
 import { Component, inject, input, OnInit, signal } from '@angular/core';
-import { CommonModule, NgOptimizedImage } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Book } from '@naijaspride/types';
@@ -7,7 +7,7 @@ import { Book } from '@naijaspride/types';
 @Component({
   selector: 'app-book-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, NgOptimizedImage],
+  imports: [CommonModule, RouterLink],
   template: `
     @if (book(); as book) {
       <div class="container mx-auto px-4 py-12">
@@ -18,11 +18,9 @@ import { Book } from '@naijaspride/types';
               @if (book.coverUrl) {
                 <div class="relative aspect-[2/3] w-full rounded-lg shadow-2xl overflow-hidden">
                   <img 
-                    [ngSrc]="book.coverUrl" 
+                    [src]="book.coverUrl" 
                     [alt]="book.title"
-                    fill
-                    sizes="(min-width: 768px) 33vw, 100vw"
-                    class="object-cover"
+                    class="absolute inset-0 w-full h-full object-cover"
                   >
                 </div>
               } @else {
