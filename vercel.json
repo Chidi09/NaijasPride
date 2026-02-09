@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "https://naijaspride.pxxl.click/api/$1"
     },
     {
       "source": "/(.*)",
