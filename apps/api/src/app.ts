@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -84,6 +85,7 @@ const sanitizeRequestBody = (body: Record<string, unknown>) => {
 
 const buildServer = async () => {
   const allowedOrigins = parseCorsOrigins();
+  const usePrettyLogger = process.env.NODE_ENV === 'development';
   const app = Fastify({
     bodyLimit: parseBodyLimit(),
     requestIdHeader: "x-request-id",
@@ -94,15 +96,17 @@ const buildServer = async () => {
       }
       return requestId || randomUUID();
     },
-    logger: {
-      transport: {
-        target: "pino-pretty",
-        options: {
-          translateTime: "HH:MM:ss Z",
-          ignore: "pid,hostname",
-        },
-      },
-    },
+    logger: usePrettyLogger
+      ? {
+          transport: {
+            target: "pino-pretty",
+            options: {
+              translateTime: "HH:MM:ss Z",
+              ignore: "pid,hostname",
+            },
+          },
+        }
+      : true,
   });
 
   // 1. Register Global Plugins
