@@ -22,6 +22,13 @@ export interface YouTubeVideoResult {
   publishedAt: string;
 }
 
+export interface YouTubeChannelDiscoveryResult {
+  requestedName: string;
+  channelId: string | null;
+  channelTitle: string;
+  videos: YouTubeVideoResult[];
+}
+
 export class YoutubeScoutService {
   constructor(private prisma: PrismaClient) {}
 
@@ -102,6 +109,72 @@ export class YoutubeScoutService {
       results[title] = await this.searchByTitle(title, suffix);
     }
     return results;
+  }
+
+  async searchByChannels(
+    channelNames: string[],
+    maxResultsPerChannel = 8,
+  ): Promise<YouTubeChannelDiscoveryResult[]> {
+    const yt = getYoutube();
+    const safeMaxResults = Math.min(20, Math.max(1, maxResultsPerChannel));
+    const output: YouTubeChannelDiscoveryResult[] = [];
+
+    for (const rawName of channelNames) {
+      const requestedName = rawName.trim();
+      if (!requestedName) continue;
+
+      try {
+        const channelRes = await yt.search.list({
+          part: ["snippet"],
+          q: requestedName,
+          type: ["channel"],
+          regionCode: "NG",
+          relevanceLanguage: "en",
+          maxResults: 3,
+        });
+
+        const bestChannel = channelRes.data.items?.[0];
+        const channelId = bestChannel?.id?.channelId || null;
+        const channelTitle = bestChannel?.snippet?.channelTitle || requestedName;
+
+        if (!channelId) {
+          output.push({
+            requestedName,
+            channelId: null,
+            channelTitle,
+            videos: [],
+          });
+          continue;
+        }
+
+        const videosRes = await yt.search.list({
+          part: ["snippet"],
+          channelId,
+          q: "Nollywood Full Movie",
+          type: ["video"],
+          videoDuration: "long",
+          order: "date",
+          maxResults: safeMaxResults,
+        });
+
+        output.push({
+          requestedName,
+          channelId,
+          channelTitle,
+          videos: this.mapResults(videosRes.data.items),
+        });
+      } catch (error) {
+        console.error(`[YouTube Scout] Error searching channel "${requestedName}":`, error);
+        output.push({
+          requestedName,
+          channelId: null,
+          channelTitle: requestedName,
+          videos: [],
+        });
+      }
+    }
+
+    return output;
   }
 
   private mapResults(items: youtube_v3.Schema$SearchResult[] | undefined): YouTubeVideoResult[] {

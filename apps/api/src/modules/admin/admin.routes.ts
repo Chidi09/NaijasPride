@@ -43,6 +43,14 @@ const AutoImportYoutubeSchema = z.object({
   dryRun: z.boolean().optional().default(false),
 });
 
+const ChannelImportYoutubeSchema = z.object({
+  channels: z.array(z.string().min(1)).min(1).max(20),
+  maxResultsPerChannel: z.number().int().min(1).max(20).optional().default(8),
+  genre: z.array(z.string()).optional().default(["Nollywood"]),
+  isStreamOnly: z.boolean().optional().default(true),
+  dryRun: z.boolean().optional().default(false),
+});
+
 const CreateRssFeedSchema = z.object({
   name: z.string().trim().min(1).max(120),
   url: z.string().url(),
@@ -355,6 +363,112 @@ export const adminRoutes = async (
           status: "error",
           message:
             error instanceof Error ? error.message : "Failed to auto-import YouTube titles",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/import/youtube/channels - Import latest long-form videos from selected channels
+  app.post("/import/youtube/channels", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: ChannelImportYoutubeSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const {
+          channels,
+          maxResultsPerChannel = 8,
+          genre = ["Nollywood"],
+          isStreamOnly = true,
+          dryRun = false,
+        } = request.body as z.infer<typeof ChannelImportYoutubeSchema>;
+
+        const discovered = await ytService.searchByChannels(
+          channels,
+          maxResultsPerChannel,
+        );
+
+        const imported: string[] = [];
+        const skipped: string[] = [];
+        const unresolvedChannels = discovered
+          .filter((entry) => !entry.channelId)
+          .map((entry) => entry.requestedName);
+        const failed: { title: string; error: string }[] = [];
+
+        for (const entry of discovered) {
+          for (const video of entry.videos) {
+            try {
+              const year =
+                new Date(video.publishedAt).getFullYear() || new Date().getFullYear();
+              const slug = `${video.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
+
+              const existing = await app.prisma.movie.findFirst({
+                where: { OR: [{ slug }, { youtubeId: video.youtubeId }] },
+                select: { id: true },
+              });
+
+              if (existing) {
+                skipped.push(video.title);
+                continue;
+              }
+
+              if (!dryRun) {
+                await app.prisma.movie.create({
+                  data: {
+                    title: video.title,
+                    slug,
+                    description: video.description || null,
+                    year,
+                    genre: genre as any,
+                    quality: [],
+                    language: "English",
+                    thumbnailUrl: video.thumbnail || null,
+                    youtubeId: video.youtubeId,
+                    isStreamOnly,
+                    fileUrls: {},
+                    fileSizes: {},
+                    status: "active",
+                  },
+                });
+              }
+
+              imported.push(video.title);
+            } catch (err) {
+              failed.push({
+                title: video.title,
+                error: err instanceof Error ? err.message : "Unknown error",
+              });
+            }
+          }
+        }
+
+        return reply.send({
+          status: "success",
+          data: {
+            imported,
+            skipped,
+            failed,
+            unresolvedChannels,
+            discovered: discovered.map((entry) => ({
+              requestedName: entry.requestedName,
+              channelId: entry.channelId,
+              channelTitle: entry.channelTitle,
+              videoCount: entry.videos.length,
+            })),
+            dryRun,
+          },
+          message: dryRun
+            ? `Dry run complete: ${imported.length} importable, ${skipped.length} skipped, ${failed.length} failed`
+            : `Imported ${imported.length}, skipped ${skipped.length}, failed ${failed.length}`,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to import from YouTube channels",
         });
       }
     },
