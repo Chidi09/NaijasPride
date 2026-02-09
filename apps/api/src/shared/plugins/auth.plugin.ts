@@ -17,15 +17,7 @@ declare module 'fastify' {
   }
 }
 
-const requireEnv = (name: string) => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} environment variable is required`);
-  }
-  return value;
-};
-
-const JWT_SECRET = requireEnv('JWT_SECRET');
+const getJwtSecret = () => process.env.JWT_SECRET;
 
 type JwtPayload = {
   id: string;
@@ -43,8 +35,14 @@ export default fp(async (fastify) => {
         return reply.status(401).send({ success: false, error: 'Unauthorized: Missing bearer token' });
       }
 
+      const jwtSecret = getJwtSecret();
+      if (!jwtSecret) {
+        request.log.error('JWT_SECRET environment variable is required');
+        return reply.status(500).send({ success: false, error: 'Server misconfigured: JWT_SECRET missing' });
+      }
+
       const token = authHeader.replace('Bearer ', '');
-      const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+      const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
       if (decoded.type && decoded.type !== 'access') {
         return reply.status(401).send({ success: false, error: 'Unauthorized: Invalid token type' });
       }

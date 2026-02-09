@@ -29,6 +29,9 @@ const DEFAULT_BODY_LIMIT_BYTES = 1_048_576; // 1 MiB
 const DEFAULT_CORS_ORIGINS = [
   "http://localhost:4200",
   "http://127.0.0.1:4200",
+  "https://naijaspride.vercel.app",
+  "https://naijaspride.com",
+  "https://www.naijaspride.com",
 ];
 const CSRF_COOKIE_NAME = "np_csrf";
 const COOKIE_AUTH_NAMES = ["accessToken", "refreshToken"] as const;

@@ -12,10 +12,19 @@ import {
 import { ZeptoMailClient } from '../notifications/zepto.client';
 import { MetadataService } from './metadata.service';
 
-// Initialize Redis connection
-const redis = new IORedis(process.env.REDIS_URL!, {
-  maxRetriesPerRequest: null,
-});
+// Lazy Redis connection — only connects if REDIS_URL is set
+let _redis: IORedis | null = null;
+const getRedis = (): IORedis | null => {
+  if (_redis) return _redis;
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    console.warn('[Redis] REDIS_URL not set — caching disabled');
+    return null;
+  }
+  _redis = new IORedis(url, { maxRetriesPerRequest: null });
+  _redis.on('error', (err) => console.error('[Redis] Connection error:', err.message));
+  return _redis;
+};
 
 export class MoviesService {
   private readonly metadataService: MetadataService;
@@ -49,12 +58,15 @@ export class MoviesService {
 
   async findBySlug(slug: string): Promise<Movie | null> {
     const cacheKey = `movie:${slug}`;
-    
+    const redis = getRedis();
+
     // 1. Check Redis
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      console.log(`[Cache HIT] ${cacheKey}`);
-      return JSON.parse(cached);
+    if (redis) {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        console.log(`[Cache HIT] ${cacheKey}`);
+        return JSON.parse(cached);
+      }
     }
 
     // 2. Hit DB
@@ -71,8 +83,10 @@ export class MoviesService {
     if (movie) {
       const mapped = this.mapToMovie(movie);
       // 3. Save to Redis (Infinite TTL, until we manually invalidate)
-      await redis.set(cacheKey, JSON.stringify(mapped));
-      console.log(`[Cache SET] ${cacheKey}`);
+      if (redis) {
+        await redis.set(cacheKey, JSON.stringify(mapped));
+        console.log(`[Cache SET] ${cacheKey}`);
+      }
       return mapped;
     }
     
@@ -86,12 +100,15 @@ export class MoviesService {
     // Create cache key from params
     const paramKey = JSON.stringify({ q, genre, year, quality, sortBy, page, limit });
     const cacheKey = `search:${Buffer.from(paramKey).toString('base64')}`;
+    const redis = getRedis();
 
     // Check cache first
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      console.log(`[Cache HIT] ${cacheKey}`);
-      return JSON.parse(cached);
+    if (redis) {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        console.log(`[Cache HIT] ${cacheKey}`);
+        return JSON.parse(cached);
+      }
     }
 
     const where: Prisma.MovieWhereInput = {
@@ -130,8 +147,10 @@ export class MoviesService {
     };
 
     // Cache for 1 hour
-    await redis.setex(cacheKey, 3600, JSON.stringify(result));
-    console.log(`[Cache SET] ${cacheKey} (TTL: 1h)`);
+    if (redis) {
+      await redis.setex(cacheKey, 3600, JSON.stringify(result));
+      console.log(`[Cache SET] ${cacheKey} (TTL: 1h)`);
+    }
     
     return result;
   }
@@ -163,7 +182,8 @@ export class MoviesService {
 
     // Invalidate cache
     await this.invalidateSearchCache();
-    await redis.del(`movie:${movie.slug}`);
+    const redis = getRedis();
+    if (redis) await redis.del(`movie:${movie.slug}`);
 
     return this.mapToMovie(movie);
   }
@@ -185,7 +205,8 @@ export class MoviesService {
     }
 
     await this.invalidateSearchCache();
-    await redis.del(`movie:${movie.slug}`);
+    const redis = getRedis();
+    if (redis) await redis.del(`movie:${movie.slug}`);
 
     return result;
   }
@@ -258,6 +279,8 @@ export class MoviesService {
 
   // Helper to invalidate all search caches when data changes
   private async invalidateSearchCache(): Promise<void> {
+    const redis = getRedis();
+    if (!redis) return;
     const searchKeys = await redis.keys('search:*');
     if (searchKeys.length > 0) {
       await redis.del(...searchKeys);

@@ -13,8 +13,6 @@ const prismaPlugin: FastifyPluginAsync = async (fastify) => {
     log: ['query', 'info', 'warn', 'error'],
   });
 
-  await prisma.$connect();
-
   fastify.decorate('prisma', prisma);
 
   fastify.addHook('onClose', async (server) => {

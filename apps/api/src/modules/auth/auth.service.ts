@@ -12,8 +12,8 @@ const requireEnv = (name: string) => {
   return value;
 };
 
-const JWT_ACCESS_SECRET = requireEnv('JWT_SECRET');
-const JWT_REFRESH_SECRET = requireEnv('JWT_REFRESH_SECRET');
+const getJwtAccessSecret = () => requireEnv('JWT_SECRET');
+const getJwtRefreshSecret = () => requireEnv('JWT_REFRESH_SECRET');
 
 const ACCESS_TOKEN_TTL = (process.env.JWT_ACCESS_TOKEN_TTL || '20m') as jwt.SignOptions['expiresIn'];
 const REFRESH_TOKEN_TTL = (process.env.JWT_REFRESH_TOKEN_TTL || '30d') as jwt.SignOptions['expiresIn'];
@@ -82,7 +82,7 @@ export class AuthService {
   async refreshSession(refreshToken: string) {
     let decoded: RefreshPayload;
     try {
-      decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET as jwt.Secret) as RefreshPayload;
+      decoded = jwt.verify(refreshToken, getJwtRefreshSecret() as jwt.Secret) as RefreshPayload;
     } catch {
       throw new Error('Invalid refresh token');
     }
@@ -111,10 +111,10 @@ export class AuthService {
       type: 'refresh',
     };
 
-    const token = jwt.sign(accessPayload, JWT_ACCESS_SECRET as jwt.Secret, {
+    const token = jwt.sign(accessPayload, getJwtAccessSecret() as jwt.Secret, {
       expiresIn: ACCESS_TOKEN_TTL,
     });
-    const refreshToken = jwt.sign(refreshPayload, JWT_REFRESH_SECRET as jwt.Secret, {
+    const refreshToken = jwt.sign(refreshPayload, getJwtRefreshSecret() as jwt.Secret, {
       expiresIn: REFRESH_TOKEN_TTL,
     });
 

@@ -3,7 +3,11 @@ import crypto from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { emailService } from '../../shared/services/email.service';
 
-const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY!;
+const getPaystackSecret = () => {
+  const key = process.env.PAYSTACK_SECRET_KEY;
+  if (!key) throw new Error('PAYSTACK_SECRET_KEY environment variable is required');
+  return key;
+};
 
 export class PaystackService {
   constructor(private prisma: PrismaClient) {}
@@ -23,7 +27,7 @@ export class PaystackService {
       },
       {
         headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET}`,
+          Authorization: `Bearer ${getPaystackSecret()}`,
           'Content-Type': 'application/json',
         },
       }
@@ -33,7 +37,7 @@ export class PaystackService {
   }
 
   verifyWebhookSignature(signature: string, body: any): boolean {
-    const hash = crypto.createHmac('sha512', PAYSTACK_SECRET).update(JSON.stringify(body)).digest('hex');
+    const hash = crypto.createHmac('sha512', getPaystackSecret()).update(JSON.stringify(body)).digest('hex');
     return hash === signature;
   }
 
