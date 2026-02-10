@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 type MangaDetail = {
@@ -27,7 +28,11 @@ type MangaChapter = {
   title: string | null;
   pages: number;
   publishedAt: string | null;
+  readableAt: string | null;
+  translatedLanguage: string | null;
   scanlationGroup: string | null;
+  externalUrl: string | null;
+  isExternal: boolean;
 };
 
 type MangaSummary = {
@@ -37,10 +42,23 @@ type MangaSummary = {
   latestChapter: string | null;
 };
 
+const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: string } | null => {
+  const separator = entityId.indexOf(':');
+  if (separator <= 0 || separator === entityId.length - 1) return null;
+  try {
+    return {
+      sourceId: entityId.slice(0, separator),
+      rawId: decodeURIComponent(entityId.slice(separator + 1)),
+    };
+  } catch {
+    return null;
+  }
+};
+
 @Component({
   selector: 'app-manga-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, FormsModule],
   template: `
     <div class="container mx-auto px-4 py-10">
       <a routerLink="/books/manga" class="mb-6 inline-block rounded border border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-[#5f1327]/20">Back to Manga Library</a>
@@ -71,6 +89,7 @@ type MangaSummary = {
           <div>
             <h1 class="text-2xl font-semibold text-white md:text-3xl">{{ manga.title }}</h1>
             <div class="mt-3 flex flex-wrap gap-2 text-xs text-gray-300">
+              <span class="rounded border border-[#5f1327] px-2 py-1 text-[#d6b87a]">{{ sourceLabel() }}</span>
               @if (manga.status) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.status }}</span> }
               @if (manga.year) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.year }}</span> }
               @if (manga.originalLanguage) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.originalLanguage }}</span> }
@@ -83,6 +102,15 @@ type MangaSummary = {
             <div class="mt-4 text-xs text-gray-400">
               @if (manga.author) { <p>Author: {{ manga.author }}</p> }
               @if (manga.artist) { <p>Artist: {{ manga.artist }}</p> }
+            </div>
+
+            <div class="mt-4">
+              <p class="mb-2 text-xs uppercase tracking-wide text-gray-400">Available chapter languages</p>
+              <div class="flex flex-wrap gap-2">
+                @for (lang of manga.availableTranslatedLanguages; track lang) {
+                  <span class="rounded border border-zinc-700 px-2 py-1 text-xs text-gray-200">{{ languageLabel(lang) }}</span>
+                }
+              </div>
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
@@ -100,10 +128,32 @@ type MangaSummary = {
         </section>
 
         <section class="mb-8 rounded-xl border border-[#5f1327]/40 bg-[#120a0d]/70 p-4">
-          <div class="mb-4 flex items-center justify-between">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 class="text-lg font-semibold text-[#d6b87a]">Chapters</h2>
-            <span class="text-xs text-gray-400">{{ isChaptersLoading() ? 'Loading...' : (chapters().length + ' loaded') }}</span>
+            <div class="flex items-center gap-3">
+              <label class="text-xs text-gray-300">
+                <span class="mr-2">Language</span>
+                <select
+                  [ngModel]="selectedLanguage()"
+                  (ngModelChange)="onLanguageChange($event)"
+                  class="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
+                >
+                  <option value="all">All</option>
+                  @if (detail(); as current) {
+                    @for (lang of current.availableTranslatedLanguages; track lang) {
+                      <option [value]="lang">{{ languageLabel(lang) }}</option>
+                    }
+                  }
+                </select>
+              </label>
+              <span class="text-xs text-gray-400">{{ isChaptersLoading() ? 'Loading...' : (chapters().length + ' loaded') }}</span>
+            </div>
           </div>
+          @if (hasExternalChapters()) {
+            <div class="mb-3 rounded border border-amber-700/50 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
+              Some chapters are hosted externally and will open on their original source.
+            </div>
+          }
           @if (!isChaptersLoading() && chapters().length === 0) {
             <p class="text-sm text-gray-400">No chapters found.</p>
           }
@@ -119,24 +169,47 @@ type MangaSummary = {
               Chapter list (newest first)
             </div>
             @for (chapter of visibleChapters(); track chapter.id) {
-              <a
-                [routerLink]="['/books/manga/read', chapter.id]"
-                [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
-                class="block rounded border border-zinc-800 bg-zinc-900/50 px-3 py-3 text-sm text-gray-200 hover:border-[#800020]"
-              >
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="font-medium">
-                    Ch. {{ chapter.chapter || '?' }}
-                    <span class="text-gray-400">{{ chapter.title || '' }}</span>
-                  </p>
-                  <span class="text-xs text-gray-500">{{ chapter.publishedAt ? (chapter.publishedAt | date: 'mediumDate') : 'Unknown date' }}</span>
-                </div>
-                <div class="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-                  <span>{{ chapter.pages }} pages</span>
-                  @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
-                  @if (chapter.scanlationGroup) { <span>{{ chapter.scanlationGroup }}</span> }
-                </div>
-              </a>
+              @if (chapter.isExternal && chapter.externalUrl) {
+                <a
+                  [href]="chapter.externalUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block rounded border border-amber-700/40 bg-amber-900/10 px-3 py-3 text-sm text-gray-200 hover:border-amber-500"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="font-medium">
+                      Ch. {{ chapter.chapter || '?' }}
+                      <span class="text-gray-400">{{ chapter.title || '' }}</span>
+                    </p>
+                    <span class="rounded border border-amber-600/50 px-2 py-0.5 text-[11px] text-amber-300">External</span>
+                  </div>
+                  <div class="mt-1 flex flex-wrap gap-3 text-xs text-gray-400">
+                    <span>{{ languageLabel(chapter.translatedLanguage) }}</span>
+                    @if (chapter.scanlationGroup) { <span>{{ chapter.scanlationGroup }}</span> }
+                    <span>Open source site</span>
+                  </div>
+                </a>
+              } @else {
+                <a
+                  [routerLink]="['/books/manga/read', chapter.id]"
+                  [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
+                  class="block rounded border border-zinc-800 bg-zinc-900/50 px-3 py-3 text-sm text-gray-200 hover:border-[#800020]"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="font-medium">
+                      Ch. {{ chapter.chapter || '?' }}
+                      <span class="text-gray-400">{{ chapter.title || '' }}</span>
+                    </p>
+                    <span class="text-xs text-gray-500">{{ chapter.publishedAt ? (chapter.publishedAt | date: 'mediumDate') : 'Unknown date' }}</span>
+                  </div>
+                  <div class="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+                    <span>{{ chapter.pages }} pages</span>
+                    <span>{{ languageLabel(chapter.translatedLanguage) }}</span>
+                    @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
+                    @if (chapter.scanlationGroup) { <span>{{ chapter.scanlationGroup }}</span> }
+                  </div>
+                </a>
+              }
             }
           </div>
           @if (hasMoreChapters()) {
@@ -205,16 +278,29 @@ export class MangaDetailComponent implements OnInit {
   isChaptersLoading = signal(false);
   isSimilarLoading = signal(false);
   showBackToTop = signal(false);
+  selectedLanguage = signal('all');
+  sourceId = signal('mangadex');
   visibleChapterCount = signal(30);
   visibleChapters = computed(() => this.chapters().slice(0, this.visibleChapterCount()));
   hasMoreChapters = computed(() => this.chapters().length > this.visibleChapterCount());
+  hasExternalChapters = computed(() => this.chapters().some((chapter) => chapter.isExternal));
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const mangaId = params.get('mangaId');
       if (!mangaId) return;
+      const parsed = parseSourceEntityId(mangaId);
+      this.sourceId.set(parsed?.sourceId || 'mangadex');
       this.loadData(mangaId);
     });
+  }
+
+  sourceLabel() {
+    const source = this.sourceId();
+    if (source === 'mangadex') return 'MangaDex';
+    if (source === 'weebcentral') return 'WeebCentral';
+    if (source === 'asura') return 'Asura';
+    return source;
   }
 
   @HostListener('window:scroll')
@@ -226,11 +312,69 @@ export class MangaDetailComponent implements OnInit {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  languageLabel(code?: string | null) {
+    const value = (code || '').toLowerCase();
+    if (!value) return 'Unknown';
+    const labels: Record<string, string> = {
+      en: 'English',
+      ja: 'Japanese',
+      ko: 'Korean',
+      zh: 'Chinese',
+      'zh-hk': 'Chinese (HK)',
+      'pt-br': 'Portuguese (BR)',
+      es: 'Spanish',
+      'es-la': 'Spanish (LATAM)',
+      fr: 'French',
+      de: 'German',
+      id: 'Indonesian',
+      it: 'Italian',
+      ru: 'Russian',
+      vi: 'Vietnamese',
+      tr: 'Turkish',
+      th: 'Thai',
+      pl: 'Polish',
+      ar: 'Arabic',
+    };
+    return labels[value] || value.toUpperCase();
+  }
+
+  onLanguageChange(language: string) {
+    this.selectedLanguage.set(language || 'all');
+    const mangaId = this.detail()?.id;
+    if (mangaId) {
+      this.loadChapters(mangaId);
+    }
+  }
+
+  private loadChapters(mangaId: string) {
+    this.isChaptersLoading.set(true);
+    const language = this.selectedLanguage();
+    const params = language && language !== 'all' ? `?language=${encodeURIComponent(language)}` : '';
+    const parsed = parseSourceEntityId(mangaId);
+    const encodedMangaId = encodeURIComponent(mangaId);
+    const endpoint = parsed
+      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/chapters${params}`
+      : `/api/v1/books/manga/${mangaId}/chapters${params}`;
+    this.http.get<{ status: string; data: MangaChapter[] }>(endpoint).subscribe({
+      next: (response) => {
+        this.chapters.set(response.data);
+        this.visibleChapterCount.set(30);
+        this.isChaptersLoading.set(false);
+      },
+      error: () => this.isChaptersLoading.set(false),
+    });
+  }
+
   private loadData(mangaId: string) {
     this.isLoading.set(true);
     this.isChaptersLoading.set(true);
     this.isSimilarLoading.set(true);
-    this.http.get<{ status: string; data: MangaDetail }>(`/api/v1/books/manga/${mangaId}`).subscribe({
+    const parsed = parseSourceEntityId(mangaId);
+    const encodedMangaId = encodeURIComponent(mangaId);
+    const detailEndpoint = parsed
+      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}`
+      : `/api/v1/books/manga/${mangaId}`;
+    this.http.get<{ status: string; data: MangaDetail }>(detailEndpoint).subscribe({
       next: (response) => {
         this.detail.set(response.data);
         this.isLoading.set(false);
@@ -240,16 +384,12 @@ export class MangaDetailComponent implements OnInit {
       },
     });
 
-    this.http.get<{ status: string; data: MangaChapter[] }>(`/api/v1/books/manga/${mangaId}/chapters`).subscribe({
-      next: (response) => {
-        this.chapters.set(response.data);
-        this.visibleChapterCount.set(30);
-        this.isChaptersLoading.set(false);
-      },
-      error: () => this.isChaptersLoading.set(false),
-    });
+    this.loadChapters(mangaId);
 
-    this.http.get<{ status: string; data: MangaSummary[] }>(`/api/v1/books/manga/${mangaId}/similar?limit=6`).subscribe({
+    const similarEndpoint = parsed
+      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/similar?limit=6`
+      : `/api/v1/books/manga/${mangaId}/similar?limit=6`;
+    this.http.get<{ status: string; data: MangaSummary[] }>(similarEndpoint).subscribe({
       next: (response) => {
         this.similar.set(response.data);
         this.isSimilarLoading.set(false);
@@ -257,10 +397,18 @@ export class MangaDetailComponent implements OnInit {
       error: () => this.isSimilarLoading.set(false),
     });
 
-    this.http.get<{ status: string; data: { isFavorite: boolean } }>(`/api/v1/books/manga/favorites/${mangaId}/check`).subscribe({
-      next: (response) => this.favorite.set(response.data.isFavorite),
-      error: () => this.favorite.set(false),
-    });
+    if (this.isAuthenticated()) {
+      this.http.get<{ status: string; data: { isFavorite: boolean } }>(`/api/v1/books/manga/favorites/${mangaId}/check`).subscribe({
+        next: (response) => this.favorite.set(response.data.isFavorite),
+        error: () => this.favorite.set(false),
+      });
+    } else {
+      this.favorite.set(false);
+    }
+  }
+
+  private isAuthenticated() {
+    return !!localStorage.getItem('token');
   }
 
   isFavorite() {
@@ -268,6 +416,10 @@ export class MangaDetailComponent implements OnInit {
   }
 
   toggleFavorite() {
+    if (!this.isAuthenticated()) {
+      return;
+    }
+
     const manga = this.detail();
     if (!manga) return;
 

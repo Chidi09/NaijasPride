@@ -11,12 +11,27 @@ type MangaPagesPayload = {
   chapterId: string;
   readerMode: ApiReaderMode;
   pages: string[];
+  externalUrl: string | null;
+  isExternal: boolean;
 };
 
 type ReadingProgress = {
   pageIndex: number;
   totalPages: number;
   isCompleted: boolean;
+};
+
+const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: string } | null => {
+  const separator = entityId.indexOf(':');
+  if (separator <= 0 || separator === entityId.length - 1) return null;
+  try {
+    return {
+      sourceId: entityId.slice(0, separator),
+      rawId: decodeURIComponent(entityId.slice(separator + 1)),
+    };
+  } catch {
+    return null;
+  }
 };
 
 @Component({
@@ -29,7 +44,7 @@ type ReadingProgress = {
         <a routerLink="/books/manga" class="rounded border border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-[#5f1327]/20">Back to Manga</a>
         <div class="text-right">
           <p class="text-sm font-semibold text-[#d6b87a]">{{ title() || 'Manga Reader' }}</p>
-          <p class="text-xs text-gray-400">Page {{ pageIndex() + 1 }} / {{ pages().length }}</p>
+          <p class="text-xs text-gray-400">{{ sourceLabel() }} - Page {{ pageIndex() + 1 }} / {{ pages().length }}</p>
         </div>
       </div>
 
@@ -55,7 +70,17 @@ type ReadingProgress = {
       }
 
       @if (!isLoading() && pages().length === 0) {
-        <div class="mx-auto max-w-4xl text-center text-gray-400">No pages found for this chapter.</div>
+        <div class="mx-auto max-w-4xl rounded border border-zinc-800 bg-zinc-900/40 p-6 text-center text-gray-300">
+          <p>No reader pages are hosted on MangaDex for this chapter.</p>
+          @if (externalUrl()) {
+            <a
+              [href]="externalUrl()"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mt-4 inline-block rounded border border-amber-700/60 bg-amber-900/20 px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/35"
+            >Open external chapter source</a>
+          }
+        </div>
       }
 
       @if (!isLoading() && selectedMode() === 'webtoon') {
@@ -121,6 +146,8 @@ export class MangaReaderComponent implements OnInit, OnDestroy {
   chapterId = signal('');
   selectedMode = signal<ReaderMode>('single');
   autoMode = signal<ApiReaderMode>('manga');
+  externalUrl = signal<string | null>(null);
+  sourceId = signal('mangadex');
 
   currentPage = computed(() => this.pages()[this.pageIndex()] || '');
   nextPage = computed(() => this.pages()[this.pageIndex() + 1] || '');
@@ -139,6 +166,8 @@ export class MangaReaderComponent implements OnInit, OnDestroy {
     this.title.set(this.route.snapshot.queryParamMap.get('title') || '');
     this.mangaId.set(mangaId);
     this.chapterId.set(chapterId || '');
+    const parsed = chapterId ? parseSourceEntityId(chapterId) : null;
+    this.sourceId.set(parsed?.sourceId || 'mangadex');
 
     if (!chapterId) {
       this.isLoading.set(false);
@@ -183,18 +212,25 @@ export class MangaReaderComponent implements OnInit, OnDestroy {
   }
 
   private loadChapter(chapterId: string, mangaId: string) {
-    this.http.get<{ status: string; data: MangaPagesPayload }>(`/api/v1/books/manga/chapter/${chapterId}/pages`).subscribe({
+    this.externalUrl.set(null);
+    const parsed = parseSourceEntityId(chapterId);
+    const endpoint = parsed
+      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapter/${encodeURIComponent(chapterId)}/pages`
+      : `/api/v1/books/manga/chapter/${chapterId}/pages`;
+    this.http.get<{ status: string; data: MangaPagesPayload }>(endpoint).subscribe({
       next: (response) => {
         this.autoMode.set(response.data.readerMode);
         this.selectedMode.set(this.inferInitialMode(response.data.readerMode));
         this.pages.set(response.data.pages);
+        this.externalUrl.set(response.data.externalUrl || null);
         this.isLoading.set(false);
 
-        if (mangaId) {
+        if (mangaId && this.isAuthenticated()) {
           this.loadProgress(chapterId);
         }
       },
       error: () => {
+        this.externalUrl.set(null);
         this.isLoading.set(false);
       },
     });
@@ -210,7 +246,7 @@ export class MangaReaderComponent implements OnInit, OnDestroy {
   }
 
   private saveProgress(pageIndex: number) {
-    if (!this.mangaId() || !this.chapterId() || this.pages().length === 0) return;
+    if (!this.isAuthenticated() || !this.mangaId() || !this.chapterId() || this.pages().length === 0) return;
     this.http.post('/api/v1/books/manga/progress', {
       mangaId: this.mangaId(),
       chapterId: this.chapterId(),
@@ -240,5 +276,17 @@ export class MangaReaderComponent implements OnInit, OnDestroy {
     this.pageIndex.set(nextIndex);
     this.progressUpdate$.next(nextIndex);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  private isAuthenticated() {
+    return !!localStorage.getItem('token');
+  }
+
+  sourceLabel() {
+    const source = this.sourceId();
+    if (source === 'mangadex') return 'MangaDex';
+    if (source === 'weebcentral') return 'WeebCentral';
+    if (source === 'asura') return 'Asura';
+    return source;
   }
 }

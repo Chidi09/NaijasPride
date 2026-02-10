@@ -47,6 +47,30 @@ type MangaDiscoverPayload = {
   newTitles: MangaSummary[];
 };
 
+type MangaSource = {
+  id: string;
+  displayName: string;
+  capabilities: {
+    supportsFilters: boolean;
+    supportsLanguages: boolean;
+    supportsSimilar: boolean;
+    supportsDiscover: boolean;
+    supportsTags: boolean;
+    supportsExternalRedirect: boolean;
+    needsAntiBot: boolean;
+  };
+};
+
+type MangaSourceHealth = {
+  sourceId: string;
+  displayName: string;
+  ok: boolean;
+  latencyMs: number;
+  message?: string;
+  circuitState: 'closed' | 'open' | 'half_open';
+  degradationReasons: string[];
+};
+
 @Component({
   selector: 'app-manga-library',
   standalone: true,
@@ -57,6 +81,32 @@ type MangaDiscoverPayload = {
         <div>
           <h1 class="font-['Cinzel'] text-3xl text-white">Manga Library</h1>
           <p class="mt-2 text-sm text-gray-400">Search Manga, Manhwa and Manhua with advanced filters.</p>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            @for (source of sources(); track source.id) {
+              <button
+                type="button"
+                (click)="setSource(source.id)"
+                class="rounded border px-2 py-1 text-[11px]"
+                [class.border-[#800020]]="selectedSource() === source.id"
+                [class.text-[#d6b87a]]="selectedSource() === source.id"
+                [class.border-zinc-700]="selectedSource() !== source.id"
+                [class.text-gray-300]="selectedSource() !== source.id"
+              >{{ source.displayName }}</button>
+            }
+          </div>
+          <div class="mt-2 flex flex-wrap gap-2">
+            @for (health of sourceHealth(); track health.sourceId) {
+              <span class="rounded border px-2 py-1 text-[11px]"
+                [class.border-emerald-700]="health.ok && health.circuitState === 'closed'"
+                [class.text-emerald-300]="health.ok && health.circuitState === 'closed'"
+                [class.border-amber-700]="health.circuitState === 'half_open'"
+                [class.text-amber-300]="health.circuitState === 'half_open'"
+                [class.border-red-700]="!health.ok || health.circuitState === 'open'"
+                [class.text-red-300]="!health.ok || health.circuitState === 'open'"
+                [attr.title]="health.degradationReasons.join(', ')"
+              >{{ health.displayName }} {{ health.latencyMs }}ms</span>
+            }
+          </div>
         </div>
         <a routerLink="/books" class="rounded border border-[#5f1327] px-4 py-2 text-sm text-[#d6b87a] hover:bg-[#5f1327]/20">Back to Books</a>
       </div>
@@ -213,6 +263,7 @@ type MangaDiscoverPayload = {
                       }
                     </div>
                     <p class="line-clamp-2 p-2 text-xs font-medium text-white">{{ manga.title }}</p>
+                    <p class="px-2 pb-2 text-[11px] text-gray-400">{{ sourceLabel(manga.id) }}</p>
                   </a>
                 }
               </div>
@@ -225,6 +276,7 @@ type MangaDiscoverPayload = {
                   @for (manga of discover.recentlyUpdated.slice(0, 6); track manga.id) {
                     <a [routerLink]="['/books/manga', manga.id]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
                       <span>{{ manga.title }}</span>
+                      <span class="ml-2 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</span>
                       @if (manga.latestChapter) {
                         <span class="ml-2 text-xs text-[#d6b87a]">Ch. {{ manga.latestChapter }}</span>
                       }
@@ -238,6 +290,7 @@ type MangaDiscoverPayload = {
                   @for (manga of discover.newTitles.slice(0, 6); track manga.id) {
                     <a [routerLink]="['/books/manga', manga.id]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
                       <span>{{ manga.title }}</span>
+                      <span class="ml-2 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</span>
                       @if (manga.latestChapter) {
                         <span class="ml-2 text-xs text-[#d6b87a]">Ch. {{ manga.latestChapter }}</span>
                       }
@@ -268,6 +321,7 @@ type MangaDiscoverPayload = {
                   <div class="p-3">
                     <p class="line-clamp-2 text-sm font-semibold text-white">{{ manga.title }}</p>
                     <p class="mt-1 text-xs text-gray-400">{{ manga.year || 'Unknown year' }}</p>
+                    <p class="mt-1 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</p>
                   </div>
                 </a>
 
@@ -349,6 +403,9 @@ export class MangaLibraryComponent implements OnInit {
 
   results = signal<MangaSummary[]>([]);
   discover = signal<MangaDiscoverPayload | null>(null);
+  sources = signal<MangaSource[]>([]);
+  sourceHealth = signal<MangaSourceHealth[]>([]);
+  selectedSource = signal('mangadex');
   favorites = signal<MangaFavorite[]>([]);
   favoriteIds = signal<Set<string>>(new Set());
   history = signal<ReadingHistory[]>([]);
@@ -379,10 +436,14 @@ export class MangaLibraryComponent implements OnInit {
   year = signal<number | null>(null);
 
   ngOnInit() {
-    this.loadFavorites();
-    this.loadDiscover();
-    this.loadTags();
-    this.search();
+    if (this.isAuthenticated()) {
+      this.loadFavorites();
+    }
+    this.loadSources();
+  }
+
+  private isAuthenticated() {
+    return !!localStorage.getItem('token');
   }
 
   private buildSearchQuery() {
@@ -399,11 +460,73 @@ export class MangaLibraryComponent implements OnInit {
     return params.toString();
   }
 
+  private sourcePath() {
+    return `/api/v1/books/manga/source/${encodeURIComponent(this.selectedSource())}`;
+  }
+
+  setSource(sourceId: string) {
+    if (sourceId === this.selectedSource()) return;
+    this.selectedSource.set(sourceId);
+    this.selectedTagIds.set([]);
+    this.loadDiscover();
+    this.loadTags();
+    this.search();
+  }
+
+  sourceLabel(entityId: string) {
+    const source = this.extractSource(entityId);
+    const matched = this.sources().find((item) => item.id === source);
+    return matched?.displayName || source || 'MangaDex';
+  }
+
+  private extractSource(entityId: string): string {
+    const separator = entityId.indexOf(':');
+    if (separator <= 0) return 'mangadex';
+    return entityId.slice(0, separator);
+  }
+
+  private loadSources() {
+    this.http.get<{ status: string; data: MangaSource[] }>('/api/v1/books/manga/sources').subscribe({
+      next: (response) => {
+        const available = response.data || [];
+        this.sources.set(available);
+        if (!available.find((source) => source.id === this.selectedSource()) && available.length > 0) {
+          this.selectedSource.set(available[0].id);
+        }
+        this.loadSourceHealth();
+        this.loadDiscover();
+        this.loadTags();
+        this.search();
+      },
+      error: () => {
+        this.sources.set([{ id: 'mangadex', displayName: 'MangaDex', capabilities: {
+          supportsFilters: true,
+          supportsLanguages: true,
+          supportsSimilar: true,
+          supportsDiscover: true,
+          supportsTags: true,
+          supportsExternalRedirect: true,
+          needsAntiBot: false,
+        } }]);
+        this.loadDiscover();
+        this.loadTags();
+        this.search();
+      },
+    });
+  }
+
+  private loadSourceHealth() {
+    this.http.get<{ status: string; data: MangaSourceHealth[] }>('/api/v1/books/manga/sources/health').subscribe({
+      next: (response) => this.sourceHealth.set(response.data || []),
+      error: () => this.sourceHealth.set([]),
+    });
+  }
+
   search() {
     this.isLoading.set(true);
     const query = this.buildSearchQuery();
     this.http
-      .get<{ status: string; data: MangaSummary[] }>(`/api/v1/books/manga/search${query ? `?${query}` : ''}`)
+      .get<{ status: string; data: MangaSummary[] }>(`${this.sourcePath()}/search${query ? `?${query}` : ''}`)
       .subscribe({
         next: (response) => {
           this.results.set(response.data);
@@ -431,16 +554,19 @@ export class MangaLibraryComponent implements OnInit {
   }
 
   loadTags() {
-    this.http.get<{ status: string; data: MangaTag[] }>('/api/v1/books/manga/tags').subscribe({
+    this.http.get<{ status: string; data: MangaTag[] }>(`${this.sourcePath()}/tags`).subscribe({
       next: (response) => {
         this.tags.set(response.data.slice(0, 80));
+      },
+      error: () => {
+        this.tags.set([]);
       },
     });
   }
 
   loadDiscover() {
     this.isDiscoverLoading.set(true);
-    this.http.get<{ status: string; data: MangaDiscoverPayload }>('/api/v1/books/manga/discover?limit=10').subscribe({
+    this.http.get<{ status: string; data: MangaDiscoverPayload }>(`${this.sourcePath()}/discover?limit=10`).subscribe({
       next: (response) => {
         this.discover.set(response.data);
         this.isDiscoverLoading.set(false);
@@ -452,6 +578,10 @@ export class MangaLibraryComponent implements OnInit {
   }
 
   toggleFavorite(manga: MangaSummary) {
+    if (!this.isAuthenticated()) {
+      return;
+    }
+
     if (this.isFavorite(manga.id)) {
       this.removeFavorite(manga.id);
       return;
@@ -471,6 +601,10 @@ export class MangaLibraryComponent implements OnInit {
   }
 
   removeFavorite(mangaId: string) {
+    if (!this.isAuthenticated()) {
+      return;
+    }
+
     this.http.delete(`/api/v1/books/manga/favorites/${mangaId}`).subscribe({
       next: () => {
         this.favoriteIds.update((set) => {
@@ -484,6 +618,12 @@ export class MangaLibraryComponent implements OnInit {
   }
 
   loadFavorites() {
+    if (!this.isAuthenticated()) {
+      this.favorites.set([]);
+      this.favoriteIds.set(new Set());
+      return;
+    }
+
     this.http.get<{ status: string; data: MangaFavorite[] }>('/api/v1/books/manga/favorites').subscribe({
       next: (response) => {
         this.favorites.set(response.data);
@@ -500,6 +640,11 @@ export class MangaLibraryComponent implements OnInit {
   }
 
   loadHistory() {
+    if (!this.isAuthenticated()) {
+      this.history.set([]);
+      return;
+    }
+
     this.http.get<{ status: string; data: ReadingHistory[] }>('/api/v1/books/manga/history?limit=50').subscribe({
       next: (response) => {
         this.history.set(response.data);
