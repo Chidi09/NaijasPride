@@ -1,16 +1,45 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, HostListener, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import {
+  AfterViewInit,
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
+import screenfull from 'screenfull';
 
 type ApiReaderMode = 'webtoon' | 'manga' | 'comic';
-type ReaderMode = 'webtoon' | 'single' | 'double' | 'rtl' | 'ltr';
+type ReaderMode = 'webtoon' | 'rtl' | 'ltr';
 
 type MangaPagesPayload = {
   chapterId: string;
   readerMode: ApiReaderMode;
   pages: string[];
+  externalUrl: string | null;
+  isExternal: boolean;
+};
+
+type MangaChapter = {
+  id: string;
+  chapter: string | null;
+  volume: string | null;
+  title: string | null;
+  pages: number;
+  publishedAt: string | null;
+  readableAt: string | null;
+  translatedLanguage: string | null;
+  scanlationGroup: string | null;
+  isOfficialTranslation?: boolean | null;
   externalUrl: string | null;
   isExternal: boolean;
 };
@@ -37,148 +66,157 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
 @Component({
   selector: 'app-manga-reader',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, FormsModule],
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
-    <div class="min-h-screen bg-black px-4 py-6 text-white">
-      <div class="mx-auto mb-4 flex w-full max-w-6xl flex-wrap items-center justify-between gap-3">
-        <a routerLink="/books/manga" class="rounded border border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-[#5f1327]/20">Back to Manga</a>
-        <div class="text-right">
-          <p class="text-sm font-semibold text-[#d6b87a]">{{ title() || 'Manga Reader' }}</p>
-          <p class="text-xs text-gray-400">{{ sourceLabel() }} - Page {{ pageIndex() + 1 }} / {{ pages().length }}</p>
-        </div>
-      </div>
-
-      <div class="mx-auto mb-6 w-full max-w-6xl rounded border border-zinc-800 bg-zinc-900/40 p-3">
-        <p class="mb-2 text-xs text-gray-400">Reading Mode</p>
-        <div class="flex flex-wrap gap-2">
-          @for (mode of modeOptions; track mode.value) {
-            <button
-              type="button"
-              (click)="setMode(mode.value)"
-              class="rounded border px-3 py-1.5 text-xs"
-              [class.border-[#800020]]="selectedMode() === mode.value"
-              [class.text-[#d6b87a]]="selectedMode() === mode.value"
-              [class.border-zinc-700]="selectedMode() !== mode.value"
-              [class.text-gray-300]="selectedMode() !== mode.value"
-            >{{ mode.label }}</button>
-          }
+    <div class="reader-shell relative h-screen w-screen overflow-hidden bg-black text-white">
+      <div
+        class="pointer-events-none fixed left-0 right-0 top-0 z-40 bg-gradient-to-b from-black/90 to-transparent px-4 py-3 transition-transform duration-300"
+        [class.-translate-y-full]="!showControls()"
+      >
+        <div class="pointer-events-auto mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
+          <a routerLink="/books/manga" class="rounded border border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-[#5f1327]/20">Back</a>
+          <div class="min-w-0 text-center">
+            <p class="truncate text-sm font-semibold text-[#d6b87a]">{{ title() || 'Reader' }}</p>
+            <div class="mt-1 flex items-center justify-center gap-2 text-[11px] text-gray-300">
+              <span>{{ sourceLabel() }}</span>
+              @if (currentChapterMeta()?.isOfficialTranslation === true) {
+                <span class="rounded border border-emerald-700/60 px-1.5 py-0.5 text-emerald-300">Official</span>
+              } @else if (currentChapterMeta()?.isOfficialTranslation === false) {
+                <span class="rounded border border-sky-700/60 px-1.5 py-0.5 text-sky-300">Community</span>
+              } @else {
+                <span class="rounded border border-zinc-600/70 px-1.5 py-0.5 text-zinc-300">Unverified</span>
+              }
+            </div>
+          </div>
+          <button type="button" (click)="toggleFullscreen()" class="rounded border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">Fullscreen</button>
         </div>
       </div>
 
       @if (isLoading()) {
-        <div class="mx-auto max-w-4xl text-center text-gray-400">Loading chapter...</div>
-      }
-
-      @if (!isLoading() && pages().length === 0) {
-        <div class="mx-auto max-w-4xl rounded border border-zinc-800 bg-zinc-900/40 p-6 text-center text-gray-300">
-          <p>No reader pages are hosted on MangaDex for this chapter.</p>
-          @if (externalUrl()) {
-            <a
-              [href]="externalUrl()"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mt-4 inline-block rounded border border-amber-700/60 bg-amber-900/20 px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/35"
-            >Open external chapter source</a>
-          }
-        </div>
-      }
-
-      @if (!isLoading() && selectedMode() === 'webtoon') {
-        <div class="mx-auto flex max-w-3xl flex-col gap-2">
-          @for (page of pages(); track page) {
-            <img [src]="page" alt="Manga page" class="h-auto w-full rounded-sm" loading="lazy">
-          }
-        </div>
-      }
-
-      @if (!isLoading() && selectedMode() === 'double') {
-        <div class="mx-auto max-w-6xl">
-          <div class="mb-4 flex items-center justify-between">
-            <button (click)="prev()" [disabled]="!canGoPrev()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Prev</button>
-            <span class="text-xs text-gray-400">Spread {{ spreadLabel() }}</span>
-            <button (click)="next()" [disabled]="!canGoNext()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Next</button>
-          </div>
-          <div class="grid gap-2 md:grid-cols-2">
-            <img [src]="currentPage()" alt="Left page" class="h-auto w-full rounded-sm">
-            @if (nextPage()) {
-              <img [src]="nextPage()" alt="Right page" class="h-auto w-full rounded-sm">
+        <div class="flex h-full items-center justify-center text-sm text-gray-300">Loading chapter...</div>
+      } @else if (pages().length === 0) {
+        <div class="flex h-full items-center justify-center px-6">
+          <div class="max-w-xl rounded border border-zinc-700 bg-zinc-900/60 p-5 text-center text-sm text-gray-300">
+            <p>No pages available in-app for this chapter.</p>
+            @if (externalUrl()) {
+              <a [href]="externalUrl()" target="_blank" rel="noopener noreferrer" class="mt-4 inline-block rounded border border-amber-700/60 px-4 py-2 text-amber-300 hover:bg-amber-900/30">Open source site</a>
             }
           </div>
         </div>
-      }
-
-      @if (!isLoading() && (selectedMode() === 'single' || selectedMode() === 'ltr' || selectedMode() === 'rtl')) {
-        <div class="mx-auto max-w-4xl">
-          <div class="mb-4 flex items-center justify-between">
-            <button (click)="prev()" [disabled]="!canGoPrev()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Prev</button>
-            <span class="text-xs text-gray-400">Page {{ pageIndex() + 1 }} / {{ pages().length }}</span>
-            <button (click)="next()" [disabled]="!canGoNext()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Next</button>
+      } @else {
+        @if (readingMode() === 'webtoon') {
+          <div #webtoonScroll class="h-full w-full overflow-y-auto overflow-x-hidden" (click)="toggleControls()" (scroll)="onWebtoonScroll()">
+            <div class="mx-auto w-full max-w-3xl">
+              @for (page of pages(); track page) {
+                <img [src]="page" alt="Manga page" loading="lazy" class="block w-full m-0 p-0 select-none" draggable="false">
+              }
+            </div>
           </div>
-          <img [src]="currentPage()" alt="Current manga page" class="mx-auto h-auto max-h-[85vh] w-auto rounded-sm" loading="eager">
-        </div>
+        } @else {
+          <div class="relative h-full w-full bg-black">
+            <swiper-container #swiperEl init="false" class="h-full w-full">
+              @for (page of pages(); track page; let i = $index) {
+                <swiper-slide class="flex h-full w-full items-center justify-center bg-black">
+                  <div class="swiper-zoom-container flex h-full w-full items-center justify-center">
+                    <img [src]="page" [alt]="'Page ' + (i + 1)" loading="lazy" class="max-h-screen max-w-full object-contain select-none" draggable="false">
+                  </div>
+                </swiper-slide>
+              }
+            </swiper-container>
+
+            <button type="button" (click)="tapZone('left')" class="absolute inset-y-0 left-0 z-20 w-1/4 bg-transparent"></button>
+            <button type="button" (click)="toggleControls()" class="absolute inset-y-0 left-1/4 z-20 w-2/4 bg-transparent"></button>
+            <button type="button" (click)="tapZone('right')" class="absolute inset-y-0 right-0 z-20 w-1/4 bg-transparent"></button>
+          </div>
+        }
       }
 
-      <div class="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 p-2 text-center text-xs text-gray-300 md:hidden">
-        {{ selectedModeLabel() }} - Page {{ pageIndex() + 1 }} / {{ pages().length }}
+      <div
+        class="pointer-events-none fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800 bg-zinc-900/95 transition-transform duration-300"
+        [class.translate-y-full]="!showControls()"
+      >
+        <div class="pointer-events-auto mx-auto w-full max-w-5xl px-4 py-4">
+          @if (readingMode() !== 'webtoon') {
+            <div class="mb-4 flex items-center gap-3">
+              <span class="w-10 text-right text-xs text-gray-300">{{ pageIndex() + 1 }}</span>
+              <input type="range" class="w-full accent-[#800020]" [min]="1" [max]="pages().length" [value]="pageIndex() + 1" (input)="onPageSlider($event)">
+              <span class="w-10 text-xs text-gray-300">{{ pages().length }}</span>
+            </div>
+          } @else {
+            <div class="mb-4 text-center text-xs text-gray-300">Page {{ pageIndex() + 1 }} / {{ pages().length }}</div>
+          }
+
+          <div class="grid grid-cols-2 gap-3 md:grid-cols-6">
+            <div class="col-span-2 rounded border border-zinc-700 bg-zinc-800/60 p-1 md:col-span-3">
+              <div class="grid grid-cols-3 gap-1">
+                <button type="button" (click)="setMode('webtoon')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'webtoon'">Webtoon</button>
+                <button type="button" (click)="setMode('rtl')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'rtl'">Manga RTL</button>
+                <button type="button" (click)="setMode('ltr')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'ltr'">Comic LTR</button>
+              </div>
+            </div>
+
+            <button type="button" (click)="goPrevChapter()" [disabled]="!prevChapterId()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Prev Ch.</button>
+            <button type="button" (click)="goNextChapter()" [disabled]="!nextChapterId()" class="rounded bg-[#800020] px-3 py-2 text-xs disabled:opacity-40">Next Ch.</button>
+            <button type="button" (click)="goPrevPage()" [disabled]="!canPrevPage()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Prev Page</button>
+            <button type="button" (click)="goNextPage()" [disabled]="!canNextPage()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Next Page</button>
+          </div>
+        </div>
       </div>
     </div>
   `,
 })
-export class MangaReaderComponent implements OnInit, OnDestroy {
+export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private destroy$ = new Subject<void>();
   private progressUpdate$ = new Subject<number>();
 
-  modeOptions: Array<{ label: string; value: ReaderMode }> = [
-    { label: 'Webtoon', value: 'webtoon' },
-    { label: 'Single Page', value: 'single' },
-    { label: 'Double Page', value: 'double' },
-    { label: 'Right-to-Left', value: 'rtl' },
-    { label: 'Left-to-Right', value: 'ltr' },
-  ];
+  @ViewChild('swiperEl') swiperEl?: ElementRef<any>;
+  @ViewChild('webtoonScroll') webtoonScroll?: ElementRef<HTMLElement>;
 
   isLoading = signal(true);
   title = signal('');
-  pages = signal<string[]>([]);
-  pageIndex = signal(0);
+  sourceId = signal('mangadex');
   mangaId = signal('');
   chapterId = signal('');
-  selectedMode = signal<ReaderMode>('single');
-  autoMode = signal<ApiReaderMode>('manga');
+  pages = signal<string[]>([]);
+  pageIndex = signal(0);
+  readingMode = signal<ReaderMode>('webtoon');
+  showControls = signal(true);
   externalUrl = signal<string | null>(null);
-  sourceId = signal('mangadex');
+  chapterList = signal<MangaChapter[]>([]);
+  prevChapterId = signal<string | null>(null);
+  nextChapterId = signal<string | null>(null);
 
-  currentPage = computed(() => this.pages()[this.pageIndex()] || '');
-  nextPage = computed(() => this.pages()[this.pageIndex() + 1] || '');
-  canGoPrev = computed(() => this.selectedMode() === 'rtl' ? this.pageIndex() < this.pages().length - 1 : this.pageIndex() > 0);
-  canGoNext = computed(() => this.selectedMode() === 'rtl' ? this.pageIndex() > 0 : this.pageIndex() < this.pages().length - 1);
-  spreadLabel = computed(() => {
-    const left = this.pageIndex() + 1;
-    const right = this.pageIndex() + 2;
-    return this.nextPage() ? `${left}-${right}` : `${left}`;
-  });
-  selectedModeLabel = computed(() => this.modeOptions.find((m) => m.value === this.selectedMode())?.label || 'Single Page');
+  currentChapterMeta = computed(() => this.chapterList().find((chapter) => chapter.id === this.chapterId()) || null);
+  canPrevPage = computed(() => (this.readingMode() === 'rtl' ? this.pageIndex() < this.pages().length - 1 : this.pageIndex() > 0));
+  canNextPage = computed(() => (this.readingMode() === 'rtl' ? this.pageIndex() > 0 : this.pageIndex() < this.pages().length - 1));
 
   ngOnInit() {
-    const chapterId = this.route.snapshot.paramMap.get('chapterId');
-    const mangaId = this.route.snapshot.queryParamMap.get('mangaId') || '';
-    this.title.set(this.route.snapshot.queryParamMap.get('title') || '');
-    this.mangaId.set(mangaId);
-    this.chapterId.set(chapterId || '');
-    const parsed = chapterId ? parseSourceEntityId(chapterId) : null;
-    this.sourceId.set(parsed?.sourceId || 'mangadex');
-
-    if (!chapterId) {
-      this.isLoading.set(false);
-      return;
-    }
-
-    this.progressUpdate$.pipe(debounceTime(1000), takeUntil(this.destroy$)).subscribe((pageIndex) => {
+    this.progressUpdate$.pipe(debounceTime(900), takeUntil(this.destroy$)).subscribe((pageIndex) => {
       this.saveProgress(pageIndex);
     });
 
-    this.loadChapter(chapterId, mangaId);
+    this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
+      const chapterId = params.get('chapterId');
+      if (!chapterId) return;
+
+      this.chapterId.set(chapterId);
+      this.title.set(this.route.snapshot.queryParamMap.get('title') || 'Reader');
+      this.mangaId.set(this.route.snapshot.queryParamMap.get('mangaId') || '');
+
+      const parsed = parseSourceEntityId(chapterId);
+      this.sourceId.set(parsed?.sourceId || 'mangadex');
+
+      this.loadChapter();
+      this.loadChapterContext();
+    });
+  }
+
+  ngAfterViewInit() {
+    setTimeout(() => this.initSwiper(), 0);
   }
 
   ngOnDestroy() {
@@ -187,106 +225,294 @@ export class MangaReaderComponent implements OnInit, OnDestroy {
     if (this.chapterId() && this.pages().length > 0) {
       this.saveProgress(this.pageIndex());
     }
+
+    if (this.swiperEl?.nativeElement?.swiper) {
+      this.swiperEl.nativeElement.swiper.destroy(true, true);
+    }
   }
 
-  @HostListener('document:keydown', ['$event'])
-  onKeydown(event: KeyboardEvent) {
+  @HostListener('window:keyup', ['$event'])
+  onKey(event: KeyboardEvent) {
     if (event.key === 'ArrowRight') {
-      this.selectedMode() === 'rtl' ? this.prev() : this.next();
-    } else if (event.key === 'ArrowLeft') {
-      this.selectedMode() === 'rtl' ? this.next() : this.prev();
+      this.readingMode() === 'rtl' ? this.goPrevPage() : this.goNextPage();
+    }
+    if (event.key === 'ArrowLeft') {
+      this.readingMode() === 'rtl' ? this.goNextPage() : this.goPrevPage();
     }
   }
 
   setMode(mode: ReaderMode) {
-    this.selectedMode.set(mode);
+    this.readingMode.set(mode);
     localStorage.setItem('np_reader_mode', mode);
+
+    if (mode !== 'webtoon') {
+      setTimeout(() => this.initSwiper(), 0);
+    }
   }
 
-  private inferInitialMode(mode: ApiReaderMode): ReaderMode {
-    const saved = localStorage.getItem('np_reader_mode') as ReaderMode | null;
-    if (saved && this.modeOptions.some((item) => item.value === saved)) return saved;
-    if (mode === 'webtoon') return 'webtoon';
-    if (mode === 'comic') return 'double';
-    return 'rtl';
+  toggleControls() {
+    this.showControls.update((current) => !current);
   }
 
-  private loadChapter(chapterId: string, mangaId: string) {
-    this.externalUrl.set(null);
-    const parsed = parseSourceEntityId(chapterId);
-    const endpoint = parsed
-      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapter/${encodeURIComponent(chapterId)}/pages`
-      : `/api/v1/books/manga/chapter/${chapterId}/pages`;
-    this.http.get<{ status: string; data: MangaPagesPayload }>(endpoint).subscribe({
-      next: (response) => {
-        this.autoMode.set(response.data.readerMode);
-        this.selectedMode.set(this.inferInitialMode(response.data.readerMode));
-        this.pages.set(response.data.pages);
-        this.externalUrl.set(response.data.externalUrl || null);
-        this.isLoading.set(false);
+  tapZone(zone: 'left' | 'right') {
+    if (zone === 'left') {
+      this.readingMode() === 'rtl' ? this.goNextPage() : this.goPrevPage();
+      return;
+    }
+    this.readingMode() === 'rtl' ? this.goPrevPage() : this.goNextPage();
+  }
 
-        if (mangaId && this.isAuthenticated()) {
-          this.loadProgress(chapterId);
-        }
-      },
-      error: () => {
-        this.externalUrl.set(null);
-        this.isLoading.set(false);
+  toggleFullscreen() {
+    if (!screenfull.isEnabled) return;
+    screenfull.toggle();
+  }
+
+  onPageSlider(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const next = Math.max(1, Math.min(this.pages().length, Number(target.value) || 1)) - 1;
+    this.setPageIndex(next, true);
+  }
+
+  onWebtoonScroll() {
+    if (this.readingMode() !== 'webtoon') return;
+    const container = this.webtoonScroll?.nativeElement;
+    if (!container || this.pages().length <= 1) return;
+
+    const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight);
+    const ratio = container.scrollTop / maxScroll;
+    const estimatedIndex = Math.round(ratio * (this.pages().length - 1));
+    if (estimatedIndex !== this.pageIndex()) {
+      this.pageIndex.set(estimatedIndex);
+      this.progressUpdate$.next(estimatedIndex);
+    }
+  }
+
+  goNextPage() {
+    if (!this.canNextPage()) return;
+    const next = this.readingMode() === 'rtl' ? this.pageIndex() - 1 : this.pageIndex() + 1;
+    this.setPageIndex(next, true);
+  }
+
+  goPrevPage() {
+    if (!this.canPrevPage()) return;
+    const next = this.readingMode() === 'rtl' ? this.pageIndex() + 1 : this.pageIndex() - 1;
+    this.setPageIndex(next, true);
+  }
+
+  goNextChapter() {
+    const next = this.nextChapterId();
+    if (!next) return;
+    this.router.navigate(['/books/manga/read', next], {
+      queryParams: {
+        mangaId: this.mangaId(),
+        title: this.title(),
       },
     });
   }
 
-  private loadProgress(chapterId: string) {
-    this.http.get<{ status: string; data: ReadingProgress | null }>(`/api/v1/books/manga/progress/${chapterId}`).subscribe({
-      next: (response) => {
-        if (!response.data) return;
-        this.pageIndex.set(Math.min(response.data.pageIndex, Math.max(0, this.pages().length - 1)));
+  goPrevChapter() {
+    const prev = this.prevChapterId();
+    if (!prev) return;
+    this.router.navigate(['/books/manga/read', prev], {
+      queryParams: {
+        mangaId: this.mangaId(),
+        title: this.title(),
       },
     });
-  }
-
-  private saveProgress(pageIndex: number) {
-    if (!this.isAuthenticated() || !this.mangaId() || !this.chapterId() || this.pages().length === 0) return;
-    this.http.post('/api/v1/books/manga/progress', {
-      mangaId: this.mangaId(),
-      chapterId: this.chapterId(),
-      pageIndex,
-      totalPages: this.pages().length,
-      isCompleted: pageIndex >= this.pages().length - 1,
-    }).subscribe();
-  }
-
-  next() {
-    const step = this.selectedMode() === 'double' ? 2 : 1;
-    const nextIndex = this.selectedMode() === 'rtl'
-      ? Math.max(0, this.pageIndex() - step)
-      : Math.min(this.pages().length - 1, this.pageIndex() + step);
-    if (nextIndex === this.pageIndex()) return;
-    this.pageIndex.set(nextIndex);
-    this.progressUpdate$.next(nextIndex);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  prev() {
-    const step = this.selectedMode() === 'double' ? 2 : 1;
-    const nextIndex = this.selectedMode() === 'rtl'
-      ? Math.min(this.pages().length - 1, this.pageIndex() + step)
-      : Math.max(0, this.pageIndex() - step);
-    if (nextIndex === this.pageIndex()) return;
-    this.pageIndex.set(nextIndex);
-    this.progressUpdate$.next(nextIndex);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  private isAuthenticated() {
-    return !!localStorage.getItem('token');
   }
 
   sourceLabel() {
     const source = this.sourceId();
     if (source === 'mangadex') return 'MangaDex';
     if (source === 'weebcentral') return 'WeebCentral';
-    if (source === 'asura') return 'Asura';
+    if (source === 'asura') return 'AsuraScans';
     return source;
+  }
+
+  private loadChapter() {
+    this.isLoading.set(true);
+    this.externalUrl.set(null);
+
+    const chapterId = this.chapterId();
+    const parsed = parseSourceEntityId(chapterId);
+    const endpoint = parsed
+      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapter/${encodeURIComponent(chapterId)}/pages`
+      : `/api/v1/books/manga/chapter/${encodeURIComponent(chapterId)}/pages`;
+
+    this.http.get<{ status: string; data: MangaPagesPayload }>(endpoint).subscribe({
+      next: (response) => {
+        this.pages.set(response.data.pages || []);
+        this.externalUrl.set(response.data.externalUrl || null);
+        this.pageIndex.set(0);
+
+        const preferred = localStorage.getItem('np_reader_mode') as ReaderMode | null;
+        if (preferred && ['webtoon', 'rtl', 'ltr'].includes(preferred)) {
+          this.readingMode.set(preferred);
+        } else if (response.data.readerMode === 'webtoon') {
+          this.readingMode.set('webtoon');
+        } else if (response.data.readerMode === 'comic') {
+          this.readingMode.set('ltr');
+        } else {
+          this.readingMode.set('rtl');
+        }
+
+        this.isLoading.set(false);
+
+        if (this.mangaId() && this.isAuthenticated()) {
+          this.loadProgress(chapterId);
+        }
+
+        if (this.readingMode() !== 'webtoon') {
+          setTimeout(() => this.initSwiper(), 0);
+        }
+      },
+      error: () => {
+        this.isLoading.set(false);
+      },
+    });
+  }
+
+  private loadChapterContext() {
+    const mangaId = this.mangaId();
+    if (!mangaId) {
+      this.chapterList.set([]);
+      this.prevChapterId.set(null);
+      this.nextChapterId.set(null);
+      return;
+    }
+
+    const parsed = parseSourceEntityId(mangaId);
+    const endpoint = parsed
+      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodeURIComponent(mangaId)}/chapters?limit=500`
+      : `/api/v1/books/manga/${encodeURIComponent(mangaId)}/chapters?limit=500`;
+
+    this.http.get<{ status: string; data: MangaChapter[] }>(endpoint).subscribe({
+      next: (response) => {
+        const chapters = response.data || [];
+        this.chapterList.set(chapters);
+        this.resolveAdjacentChapters(chapters);
+      },
+      error: () => {
+        this.chapterList.set([]);
+        this.prevChapterId.set(null);
+        this.nextChapterId.set(null);
+      },
+    });
+  }
+
+  private resolveAdjacentChapters(chapters: MangaChapter[]) {
+    const currentId = this.chapterId();
+    const index = chapters.findIndex((chapter) => chapter.id === currentId);
+    if (index < 0) {
+      this.prevChapterId.set(null);
+      this.nextChapterId.set(null);
+      return;
+    }
+
+    const isDescending = this.inferDescendingOrder(chapters);
+    const nextIndex = isDescending ? index - 1 : index + 1;
+    const prevIndex = isDescending ? index + 1 : index - 1;
+
+    this.nextChapterId.set(chapters[nextIndex]?.id || null);
+    this.prevChapterId.set(chapters[prevIndex]?.id || null);
+  }
+
+  private inferDescendingOrder(chapters: MangaChapter[]): boolean {
+    const parseNumber = (chapter: MangaChapter) => {
+      const value = Number(chapter.chapter || '');
+      return Number.isFinite(value) ? value : null;
+    };
+    const first = chapters[0] ? parseNumber(chapters[0]) : null;
+    const second = chapters[1] ? parseNumber(chapters[1]) : null;
+    if (first === null || second === null) return true;
+    return first > second;
+  }
+
+  private initSwiper() {
+    if (this.readingMode() === 'webtoon') return;
+
+    const element = this.swiperEl?.nativeElement;
+    if (!element || this.pages().length === 0) return;
+
+    if (element.swiper) {
+      element.swiper.destroy(true, true);
+    }
+
+    Object.assign(element, {
+      direction: 'horizontal',
+      slidesPerView: 1,
+      spaceBetween: 0,
+      speed: 250,
+      threshold: 12,
+      resistanceRatio: 0.85,
+      centeredSlides: false,
+      watchSlidesProgress: true,
+      lazy: true,
+      zoom: { maxRatio: 3, minRatio: 1 },
+      observer: true,
+      observeParents: true,
+      allowTouchMove: true,
+      grabCursor: true,
+      on: {
+        slideChange: (swiper: any) => {
+          const next = Number(swiper.activeIndex) || 0;
+          this.pageIndex.set(next);
+          this.progressUpdate$.next(next);
+        },
+      },
+    });
+
+    element.setAttribute('dir', this.readingMode() === 'rtl' ? 'rtl' : 'ltr');
+    element.initialize();
+
+    if (this.pageIndex() > 0) {
+      element.swiper.slideTo(this.pageIndex(), 0);
+    }
+  }
+
+  private setPageIndex(nextIndex: number, syncSwiper = false) {
+    const clamped = Math.min(Math.max(nextIndex, 0), Math.max(this.pages().length - 1, 0));
+    if (clamped === this.pageIndex()) return;
+
+    this.pageIndex.set(clamped);
+    this.progressUpdate$.next(clamped);
+
+    if (this.readingMode() !== 'webtoon' && syncSwiper && this.swiperEl?.nativeElement?.swiper) {
+      this.swiperEl.nativeElement.swiper.slideTo(clamped);
+    }
+  }
+
+  private loadProgress(chapterId: string) {
+    this.http.get<{ status: string; data: ReadingProgress | null }>(`/api/v1/books/manga/progress/${chapterId}`).subscribe({
+      next: (response) => {
+        if (!response.data) return;
+        const index = Math.min(response.data.pageIndex, Math.max(0, this.pages().length - 1));
+        this.pageIndex.set(index);
+        if (this.readingMode() !== 'webtoon') {
+          setTimeout(() => {
+            if (this.swiperEl?.nativeElement?.swiper) {
+              this.swiperEl.nativeElement.swiper.slideTo(index, 0);
+            }
+          }, 0);
+        }
+      },
+    });
+  }
+
+  private saveProgress(pageIndex: number) {
+    if (!this.isAuthenticated() || !this.mangaId() || !this.chapterId() || this.pages().length === 0) return;
+    this.http
+      .post('/api/v1/books/manga/progress', {
+        mangaId: this.mangaId(),
+        chapterId: this.chapterId(),
+        pageIndex,
+        totalPages: this.pages().length,
+        isCompleted: pageIndex >= this.pages().length - 1,
+      })
+      .subscribe();
+  }
+
+  private isAuthenticated() {
+    return !!localStorage.getItem('token');
   }
 }

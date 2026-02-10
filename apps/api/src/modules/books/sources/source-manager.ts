@@ -1,6 +1,7 @@
 import { MangaSourceRegistry } from './source-registry';
 import { buildSourceEntityId, parseSourceEntityId } from './source-id';
 import { sourceMetrics } from './observability/source-metrics';
+import { FetchGatewayHealth, FetchGateway } from './fetch/fetch-gateway';
 import { CircuitBreaker } from './resilience/circuit-breaker';
 import { withRetry } from './resilience/retry';
 import {
@@ -28,16 +29,20 @@ type SourceHealth = {
     parseEmptyPages: number;
     errors: number;
   };
+  solver: FetchGatewayHealth['flaresolverr'];
 };
 
 export class MangaSourceManager {
   private readonly circuitBreakers = new Map<string, CircuitBreaker>();
   private readonly lastErrors = new Map<string, string>();
+  private readonly fetchGateway: FetchGateway;
 
   constructor(
     private readonly registry: MangaSourceRegistry,
-    private readonly defaultSourceId = 'mangadex'
+    private readonly defaultSourceId = 'mangadex',
+    fetchGateway?: FetchGateway
   ) {
+    this.fetchGateway = fetchGateway || new FetchGateway();
     for (const source of this.registry.list()) {
       this.circuitBreakers.set(source.id, this.createBreakerForSource(source.id));
     }
@@ -61,6 +66,7 @@ export class MangaSourceManager {
 
   async getHealthStatus(): Promise<SourceHealth[]> {
     const sources = this.registry.list();
+    const fetchHealth = await this.fetchGateway.getHealth();
     const health = await Promise.all(
       sources.map(async (source) => {
         const breaker = this.getBreaker(source.id);
@@ -87,10 +93,15 @@ export class MangaSourceManager {
           circuitState: breaker.getState(),
           degradationReasons,
           metrics: sourceMetrics.getSourceSnapshot(source.id),
+          solver: fetchHealth.flaresolverr,
         };
       })
     );
     return health;
+  }
+
+  async getFetchGatewayHealth(): Promise<FetchGatewayHealth> {
+    return this.fetchGateway.getHealth();
   }
 
   async searchManga(query?: string, limit = 20, filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {

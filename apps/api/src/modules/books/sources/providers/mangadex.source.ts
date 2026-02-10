@@ -357,6 +357,7 @@ export class MangaDexSource implements MangaSource {
 
       const results = (response.data?.data || []).map((chapter: any) => {
         const scanlationGroup = (chapter.relationships || []).find((r: any) => r.type === 'scanlation_group');
+        const hasScanlationGroup = !!scanlationGroup?.id;
         return {
           id: chapter.id,
           chapter: chapter.attributes?.chapter || null,
@@ -367,6 +368,7 @@ export class MangaDexSource implements MangaSource {
           readableAt: chapter.attributes?.readableAt || null,
           translatedLanguage: chapter.attributes?.translatedLanguage || null,
           scanlationGroup: scanlationGroup?.attributes?.name || null,
+          isOfficialTranslation: hasScanlationGroup ? false : true,
           externalUrl: chapter.attributes?.externalUrl || null,
           isExternal: !!chapter.attributes?.externalUrl,
         } as MangaChapter;

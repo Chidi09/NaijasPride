@@ -44,6 +44,7 @@ export type MangaChapter = {
   readableAt: string | null;
   translatedLanguage: string | null;
   scanlationGroup: string | null;
+  isOfficialTranslation?: boolean | null;
   externalUrl: string | null;
   isExternal: boolean;
 };

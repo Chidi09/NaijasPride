@@ -26,8 +26,10 @@
     "@tanstack/angular-query-experimental": "^5.24.0",
     "axios": "^1.13.4",
     "rxjs": "~7.8.0",
-    "typescript": "^5.4.0",
+    "screenfull": "^6.0.2",
+    "swiper": "^12.1.0",
     "tslib": "^2.3.0",
+    "typescript": "^5.4.0",
     "zone.js": "~0.14.3"
   },
   "devDependencies": {

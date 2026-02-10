@@ -405,7 +405,7 @@ export class MangaLibraryComponent implements OnInit {
   discover = signal<MangaDiscoverPayload | null>(null);
   sources = signal<MangaSource[]>([]);
   sourceHealth = signal<MangaSourceHealth[]>([]);
-  selectedSource = signal('mangadex');
+  selectedSource = signal('weebcentral');
   favorites = signal<MangaFavorite[]>([]);
   favoriteIds = signal<Set<string>>(new Set());
   history = signal<ReadingHistory[]>([]);
@@ -436,6 +436,11 @@ export class MangaLibraryComponent implements OnInit {
   year = signal<number | null>(null);
 
   ngOnInit() {
+    const savedSource = localStorage.getItem('np_manga_source');
+    if (savedSource) {
+      this.selectedSource.set(savedSource);
+    }
+
     if (this.isAuthenticated()) {
       this.loadFavorites();
     }
@@ -467,6 +472,7 @@ export class MangaLibraryComponent implements OnInit {
   setSource(sourceId: string) {
     if (sourceId === this.selectedSource()) return;
     this.selectedSource.set(sourceId);
+    localStorage.setItem('np_manga_source', sourceId);
     this.selectedTagIds.set([]);
     this.loadDiscover();
     this.loadTags();
@@ -491,7 +497,10 @@ export class MangaLibraryComponent implements OnInit {
         const available = response.data || [];
         this.sources.set(available);
         if (!available.find((source) => source.id === this.selectedSource()) && available.length > 0) {
-          this.selectedSource.set(available[0].id);
+          const preferred = ['weebcentral', 'asura', 'mangadex'];
+          const selected = preferred.find((sourceId) => available.some((source) => source.id === sourceId)) || available[0].id;
+          this.selectedSource.set(selected);
+          localStorage.setItem('np_manga_source', selected);
         }
         this.loadSourceHealth();
         this.loadDiscover();

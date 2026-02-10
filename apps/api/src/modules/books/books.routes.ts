@@ -167,8 +167,8 @@ export const bookRoutes = async (
   app.get('/manga/sources/health', {
     handler: async (_request, reply) => {
       try {
-        const data = await mangaService.getSourceHealth();
-        return reply.send({ status: 'success', data });
+        const { sources, solver } = await mangaService.getSourceHealth();
+        return reply.send({ status: 'success', data: sources, meta: { solver } });
       } catch (error) {
         return reply.status(500).send({
           status: 'error',

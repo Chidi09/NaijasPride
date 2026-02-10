@@ -1,7 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { AsuraSource } from './sources/providers/asura.source';
+import { MadaraSource } from './sources/providers/madara.source';
+import { MangaReaderSource } from './sources/providers/mangareader.source';
 import { MangaDexSource } from './sources/providers/mangadex.source';
+import { MangabuddySource } from './sources/providers/mangabuddy.source';
+import { MmrcmsSource } from './sources/providers/mmrcms.source';
 import { WeebCentralSource } from './sources/providers/weebcentral.source';
+import { WpComicsSource } from './sources/providers/wpcomics.source';
+import { ZeistMangaSource } from './sources/providers/zeistmanga.source';
 import { MangaSourceManager } from './sources/source-manager';
 import { MangaSourceRegistry } from './sources/source-registry';
 import {
@@ -27,7 +33,7 @@ export type {
 const parseEnabledSources = (): Set<string> => {
   const raw = process.env.MANGA_SOURCES_ENABLED;
   if (!raw || !raw.trim()) {
-    return new Set(['mangadex', 'weebcentral']);
+    return new Set(['weebcentral', 'asura', 'mangabuddy', 'mangadex']);
   }
 
   return new Set(
@@ -38,12 +44,28 @@ const parseEnabledSources = (): Set<string> => {
   );
 };
 
+type ConfiguredSource = {
+  id: string;
+  displayName: string;
+  baseUrl: string;
+  listPath?: string;
+  tagPath?: string;
+  seriesFeedLabel?: string;
+  maxResults?: number;
+  updatedCoverSuffix?: string;
+};
+
 export class MangaService {
   private readonly sourceManager: MangaSourceManager;
 
   constructor(private prisma: PrismaClient) {
     const registry = new MangaSourceRegistry();
     const enabledSources = parseEnabledSources();
+    const madaraSources = this.parseMadaraSources();
+    const mangaReaderSources = this.parseMangaReaderSources();
+    const zeistMangaSources = this.parseZeistMangaSources();
+    const wpComicsSources = this.parseWpComicsSources();
+    const mmrcmsSources = this.parseMmrcmsSources();
 
     if (enabledSources.has('mangadex')) {
       registry.register(new MangaDexSource());
@@ -57,11 +79,175 @@ export class MangaService {
       registry.register(new AsuraSource());
     }
 
-    if (!registry.has('mangadex')) {
+    if (enabledSources.has('mangabuddy')) {
+      registry.register(new MangabuddySource());
+    }
+
+    for (const source of madaraSources) {
+      if (!this.isSourceEnabled(enabledSources, source.id, 'madara')) continue;
+      registry.register(
+        new MadaraSource({
+          id: source.id,
+          displayName: source.displayName,
+          baseUrl: source.baseUrl,
+        })
+      );
+    }
+
+    for (const source of mangaReaderSources) {
+      if (!this.isSourceEnabled(enabledSources, source.id, 'mangareader')) continue;
+      registry.register(
+        new MangaReaderSource({
+          id: source.id,
+          displayName: source.displayName,
+          baseUrl: source.baseUrl,
+          listPath: source.listPath,
+        })
+      );
+    }
+
+    for (const source of zeistMangaSources) {
+      if (!this.isSourceEnabled(enabledSources, source.id, 'zeistmanga')) continue;
+      registry.register(
+        new ZeistMangaSource({
+          id: source.id,
+          displayName: source.displayName,
+          baseUrl: source.baseUrl,
+          seriesFeedLabel: source.seriesFeedLabel,
+          maxResults: source.maxResults,
+        })
+      );
+    }
+
+    for (const source of wpComicsSources) {
+      if (!this.isSourceEnabled(enabledSources, source.id, 'wpcomics')) continue;
+      registry.register(
+        new WpComicsSource({
+          id: source.id,
+          displayName: source.displayName,
+          baseUrl: source.baseUrl,
+          listPath: source.listPath,
+        })
+      );
+    }
+
+    for (const source of mmrcmsSources) {
+      if (!this.isSourceEnabled(enabledSources, source.id, 'mmrcms')) continue;
+      registry.register(
+        new MmrcmsSource({
+          id: source.id,
+          displayName: source.displayName,
+          baseUrl: source.baseUrl,
+          listPath: source.listPath,
+          tagPath: source.tagPath,
+          updatedCoverSuffix: source.updatedCoverSuffix,
+        })
+      );
+    }
+
+    if (registry.list().length === 0) {
       registry.register(new MangaDexSource());
     }
 
-    this.sourceManager = new MangaSourceManager(registry, 'mangadex');
+    this.sourceManager = new MangaSourceManager(registry, this.resolveDefaultSourceId(registry));
+  }
+
+  private resolveDefaultSourceId(registry: MangaSourceRegistry): string {
+    const configuredDefault = (process.env.MANGA_DEFAULT_SOURCE || '').trim().toLowerCase();
+    if (configuredDefault && registry.has(configuredDefault)) {
+      return configuredDefault;
+    }
+
+    const preferredOrder = ['weebcentral', 'asura', 'mangadex'];
+    for (const sourceId of preferredOrder) {
+      if (registry.has(sourceId)) {
+        return sourceId;
+      }
+    }
+
+    return registry.list()[0]?.id || 'mangadex';
+  }
+
+  private parseConfiguredSources(raw: string | undefined): ConfiguredSource[] {
+    if (!raw || !raw.trim()) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Array<{
+        id?: string;
+        displayName?: string;
+        baseUrl?: string;
+        listPath?: string;
+        tagPath?: string;
+        seriesFeedLabel?: string;
+        maxResults?: number;
+        updatedCoverSuffix?: string;
+      }>;
+      if (!Array.isArray(parsed)) return [];
+
+      const result: ConfiguredSource[] = [];
+
+      for (const entry of parsed) {
+        const id = (entry.id || '').trim().toLowerCase();
+        const displayName = (entry.displayName || '').trim();
+        const baseUrl = (entry.baseUrl || '').trim();
+        if (!id || !displayName || !baseUrl) continue;
+        if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) continue;
+
+        const configured: ConfiguredSource = {
+          id,
+          displayName,
+          baseUrl,
+        };
+
+        if (typeof entry.listPath === 'string' && entry.listPath.trim()) {
+          configured.listPath = entry.listPath.trim();
+        }
+        if (typeof entry.tagPath === 'string' && entry.tagPath.trim()) {
+          configured.tagPath = entry.tagPath.trim();
+        }
+        if (typeof entry.seriesFeedLabel === 'string' && entry.seriesFeedLabel.trim()) {
+          configured.seriesFeedLabel = entry.seriesFeedLabel.trim();
+        }
+        if (typeof entry.maxResults === 'number' && Number.isFinite(entry.maxResults) && entry.maxResults > 0) {
+          configured.maxResults = Math.floor(entry.maxResults);
+        }
+        if (typeof entry.updatedCoverSuffix === 'string' && entry.updatedCoverSuffix.trim()) {
+          configured.updatedCoverSuffix = entry.updatedCoverSuffix.trim();
+        }
+
+        result.push(configured);
+      }
+
+      return result;
+    } catch {
+      return [];
+    }
+  }
+
+  private parseMadaraSources(): ConfiguredSource[] {
+    return this.parseConfiguredSources(process.env.MADARA_SOURCES_JSON);
+  }
+
+  private parseMangaReaderSources(): ConfiguredSource[] {
+    return this.parseConfiguredSources(process.env.MANGAREADER_SOURCES_JSON);
+  }
+
+  private parseZeistMangaSources(): ConfiguredSource[] {
+    return this.parseConfiguredSources(process.env.ZEISTMANGA_SOURCES_JSON);
+  }
+
+  private parseWpComicsSources(): ConfiguredSource[] {
+    return this.parseConfiguredSources(process.env.WPCOMICS_SOURCES_JSON);
+  }
+
+  private parseMmrcmsSources(): ConfiguredSource[] {
+    return this.parseConfiguredSources(process.env.MMRCMS_SOURCES_JSON);
+  }
+
+  private isSourceEnabled(enabledSources: Set<string>, sourceId: string, familyId: string): boolean {
+    return enabledSources.has(sourceId) || enabledSources.has(familyId);
   }
 
   getSources() {
@@ -69,7 +255,9 @@ export class MangaService {
   }
 
   getSourceHealth() {
-    return this.sourceManager.getHealthStatus();
+    return Promise.all([this.sourceManager.getHealthStatus(), this.sourceManager.getFetchGatewayHealth()]).then(
+      ([sources, solver]) => ({ sources, solver })
+    );
   }
 
   async searchManga(query?: string, limit = 20, filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {

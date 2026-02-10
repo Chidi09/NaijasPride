@@ -1,4 +1,5 @@
 import { bootstrapApplication } from '@angular/platform-browser';
+import { register } from 'swiper/element/bundle';
 import { AppComponent } from './app/app.component';
 import { appConfig } from './app/app.config';
 import {
@@ -8,6 +9,7 @@ import {
 } from './app/core/services/sentry-web.service';
 
 initSentryWebHandlers();
+register();
 
 bootstrapApplication(AppComponent, appConfig)
   .catch((err) => {

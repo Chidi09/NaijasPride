@@ -1,0 +1,33 @@
+services:
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+      TZ: ${TZ:-Africa/Lagos}
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - flaresolverr
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-20m}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-30d}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://naijaspride.vercel.app}
+      BODY_LIMIT_BYTES: ${BODY_LIMIT_BYTES:-1048576}
+      MANGA_SOURCES_ENABLED: ${MANGA_SOURCES_ENABLED:-mangadex,weebcentral,asura}
+      FLARESOLVERR_URL: http://flaresolverr:8191
+      FLARESOLVERR_SESSION_MAX_AGE_MS: ${FLARESOLVERR_SESSION_MAX_AGE_MS:-1800000}
+      MANGA_SOURCE_ASURA_CB_FAILURES: ${MANGA_SOURCE_ASURA_CB_FAILURES:-5}
+      MANGA_SOURCE_ASURA_CB_RECOVERY_MS: ${MANGA_SOURCE_ASURA_CB_RECOVERY_MS:-30000}

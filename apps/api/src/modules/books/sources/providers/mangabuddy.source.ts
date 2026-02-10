@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
-import { sourceMetrics } from '../observability/source-metrics';
 import { BaseHtmlSource } from '../base/base-html.source';
+import { sourceMetrics } from '../observability/source-metrics';
 import {
   MangaChapter,
   MangaDetail,
@@ -12,17 +12,17 @@ import {
 } from '../types';
 import { summarizeSourceError } from '../utils/error-summary';
 
-const BASE_URL = 'https://weebcentral.com';
+const BASE_URL = 'https://mangabuddy.com';
 
-export class WeebCentralSource extends BaseHtmlSource {
-  readonly id = 'weebcentral';
-  readonly displayName = 'WeebCentral';
+export class MangabuddySource extends BaseHtmlSource {
+  readonly id = 'mangabuddy';
+  readonly displayName = 'MangaBuddy';
   readonly capabilities = {
     supportsFilters: false,
     supportsLanguages: true,
     supportsSimilar: false,
     supportsDiscover: true,
-    supportsTags: false,
+    supportsTags: true,
     supportsExternalRedirect: true,
     needsAntiBot: false,
   } as const;
@@ -30,7 +30,7 @@ export class WeebCentralSource extends BaseHtmlSource {
   constructor() {
     super({
       baseUrl: BASE_URL,
-      cachePrefix: 'weebcentral',
+      cachePrefix: 'mangabuddy',
       defaultCacheTtlSeconds: 600,
     });
   }
@@ -44,23 +44,33 @@ export class WeebCentralSource extends BaseHtmlSource {
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml('/search/data', { q: normalized });
+      const html = await this.fetchHtml('/search', { q: normalized });
       const $ = cheerio.load(html);
-      const seen = new Set<string>();
       const results: MangaSummary[] = [];
+      const seen = new Set<string>();
 
-      $('a[href*="/series/"]').each((_idx, el) => {
+      $('.book-item, .book-detailed-item, a[href^="/"]').each((_idx, el) => {
         if (results.length >= limit) return;
-        const href = $(el).attr('href');
-        const id = href ? this.normalizePath(href, '/series') : null;
-        if (!id || seen.has(id)) return;
+
+        const link = $(el).is('a') ? $(el) : $(el).find('a[href^="/"]').first();
+        const href = link.attr('href');
+        if (!href || href.startsWith('/search') || href.startsWith('/genres') || href.startsWith('/top')) return;
+
+        const id = this.normalizePath(href, '/');
+        if (seen.has(id) || id.split('/').length !== 2) return;
         seen.add(id);
 
         results.push({
           id,
-          title: this.strip($(el).find('h3, h4, .title').first().text()) || this.strip($(el).text()) || 'Unknown Title',
-          description: this.strip($(el).find('p, .description').first().text()),
-          coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src') || null),
+          title:
+            this.strip(link.find('.title').text()) ||
+            this.strip($(el).find('.book-detailed-item-title, h3, h2').first().text()) ||
+            this.strip(link.text()) ||
+            'Unknown Title',
+          description: this.strip($(el).find('.summary, .description').first().text()),
+          coverUrl:
+            this.toAbsoluteUrl($(el).find('img').first().attr('data-src')) ||
+            this.toAbsoluteUrl($(el).find('img').first().attr('src')),
           status: null,
           year: null,
           originalLanguage: null,
@@ -72,7 +82,7 @@ export class WeebCentralSource extends BaseHtmlSource {
       await this.setCache(cacheKey, results);
       return results;
     } catch (error) {
-      console.error(`[WeebCentral] search failed: ${summarizeSourceError(error)}`);
+      console.error(`[MangaBuddy] search failed: ${summarizeSourceError(error)}`);
       return [];
     }
   }
@@ -84,23 +94,33 @@ export class WeebCentralSource extends BaseHtmlSource {
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml('/');
+      const html = await this.fetchHtml('/latest');
       const $ = cheerio.load(html);
       const cards: MangaSummary[] = [];
       const seen = new Set<string>();
 
-      $('a[href*="/series/"]').each((_idx, el) => {
+      $('.book-item, .book-detailed-item, a[href^="/"]').each((_idx, el) => {
         if (cards.length >= safeLimit) return;
-        const href = $(el).attr('href');
-        const id = href ? this.normalizePath(href, '/series') : null;
-        if (!id || seen.has(id)) return;
+
+        const link = $(el).is('a') ? $(el) : $(el).find('a[href^="/"]').first();
+        const href = link.attr('href');
+        if (!href || href.startsWith('/search') || href.startsWith('/genres') || href.startsWith('/top')) return;
+
+        const id = this.normalizePath(href, '/');
+        if (seen.has(id) || id.split('/').length !== 2) return;
         seen.add(id);
 
         cards.push({
           id,
-          title: this.strip($(el).find('h3, h4, .title').first().text()) || this.strip($(el).text()) || 'Unknown Title',
-          description: this.strip($(el).find('p, .description').first().text()),
-          coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src') || null),
+          title:
+            this.strip(link.find('.title').text()) ||
+            this.strip($(el).find('.book-detailed-item-title, h3, h2').first().text()) ||
+            this.strip(link.text()) ||
+            'Unknown Title',
+          description: this.strip($(el).find('.summary, .description').first().text()),
+          coverUrl:
+            this.toAbsoluteUrl($(el).find('img').first().attr('data-src')) ||
+            this.toAbsoluteUrl($(el).find('img').first().attr('src')),
           status: null,
           year: null,
           originalLanguage: null,
@@ -118,17 +138,40 @@ export class WeebCentralSource extends BaseHtmlSource {
       await this.setCache(cacheKey, payload);
       return payload;
     } catch (error) {
-      console.error(`[WeebCentral] discover failed: ${summarizeSourceError(error)}`);
+      console.error(`[MangaBuddy] discover failed: ${summarizeSourceError(error)}`);
       return { trending: [], recentlyUpdated: [], newTitles: [] };
     }
   }
 
   async getMangaTags(): Promise<MangaTag[]> {
-    return [];
+    const cacheKey = this.buildCacheKey('tags');
+    const cached = await this.getFromCache<MangaTag[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const html = await this.fetchHtml('/');
+      const $ = cheerio.load(html);
+      const tags: MangaTag[] = [];
+      const seen = new Set<string>();
+
+      $('a[href^="/genres/"]').each((_idx, el) => {
+        const href = $(el).attr('href') || '';
+        const id = href.replace('/genres/', '').trim();
+        const name = this.strip($(el).text());
+        if (!id || !name || seen.has(id)) return;
+        seen.add(id);
+        tags.push({ id, name, group: 'genre' });
+      });
+
+      await this.setCache(cacheKey, tags, this.defaultCacheTtlSeconds * 12);
+      return tags;
+    } catch {
+      return [];
+    }
   }
 
   async getMangaDetail(mangaId: string): Promise<MangaDetail | null> {
-    const seriesPath = this.normalizePath(mangaId, '/series');
+    const seriesPath = this.normalizePath(mangaId, '/');
     const cacheKey = this.buildCacheKey('detail', seriesPath);
     const cached = await this.getFromCache<MangaDetail>(cacheKey);
     if (cached) return cached;
@@ -145,26 +188,27 @@ export class WeebCentralSource extends BaseHtmlSource {
           'Unknown Title',
         description:
           this.strip($('meta[property="og:description"]').attr('content')) ||
-          this.strip($('.description, .synopsis, .summary').first().text()),
+          this.strip($('.summary, .book-summary, .book-detailed-item').first().text()),
         coverUrl:
           this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
-          this.toAbsoluteUrl($('img').first().attr('src') || null),
+          this.toAbsoluteUrl($('.book-cover img, .book-detail img, img').first().attr('data-src')) ||
+          this.toAbsoluteUrl($('.book-cover img, .book-detail img, img').first().attr('src')),
         status: this.strip($('*:contains("Status")').first().parent().text()) || null,
         year: null,
         originalLanguage: null,
-        tags: $('.tag, .genre a, a[href*="genre"]').map((_idx, el) => this.strip($(el).text())).get().filter(Boolean),
-        latestChapter: null,
-        author: null,
+        tags: $('a[href^="/genres/"]').map((_idx, el) => this.strip($(el).text())).get().filter(Boolean),
+        latestChapter: this.strip($('.latest-chapter a').first().text()) || null,
+        author: this.strip($('*:contains("Authors")').first().parent().text()) || null,
         artist: null,
         contentRating: null,
         publicationDemographic: null,
         availableTranslatedLanguages: [],
       };
 
-      await this.setCache(cacheKey, detail, this.defaultCacheTtlSeconds * 3);
+      await this.setCache(cacheKey, detail, this.defaultCacheTtlSeconds * 2);
       return detail;
     } catch (error) {
-      console.error(`[WeebCentral] detail failed: ${summarizeSourceError(error)}`);
+      console.error(`[MangaBuddy] detail failed: ${summarizeSourceError(error)}`);
       return null;
     }
   }
@@ -174,7 +218,7 @@ export class WeebCentralSource extends BaseHtmlSource {
   }
 
   async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
-    const seriesPath = this.normalizePath(mangaId, '/series');
+    const seriesPath = this.normalizePath(mangaId, '/');
     const languageKey = translatedLanguage?.trim()?.toLowerCase() || 'all';
     const cacheKey = this.buildCacheKey('chapters', seriesPath, languageKey, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
@@ -183,19 +227,19 @@ export class WeebCentralSource extends BaseHtmlSource {
     try {
       const html = await this.fetchHtml(seriesPath);
       const $ = cheerio.load(html);
-      const results: MangaChapter[] = [];
+      const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('a[href*="/chapter/"]').each((_idx, el) => {
-        if (results.length >= limit) return;
+      $('a[href*="/chapter-"]').each((_idx, el) => {
+        if (chapters.length >= limit) return;
 
         const href = $(el).attr('href');
-        const chapterPath = href ? this.normalizePath(href, '/chapter') : null;
+        const chapterPath = href ? this.normalizePath(href, '/') : null;
         if (!chapterPath || seen.has(chapterPath)) return;
         seen.add(chapterPath);
 
         const text = this.strip($(el).text());
-        const chapterMatch = text.match(/chapter\s*([\d.]+)/i);
+        const chapterMatch = text.match(/chapter\s*[:\-]?\s*([\d.]+)/i);
         const langMatch = text.match(/\b(EN|JP|KR|CN|ES|PT|FR|DE|ID|TH|VI|TR|RU)\b/i);
         const chapterLanguage = langMatch?.[1]?.toLowerCase() || null;
 
@@ -203,7 +247,7 @@ export class WeebCentralSource extends BaseHtmlSource {
           return;
         }
 
-        results.push({
+        chapters.push({
           id: chapterPath,
           chapter: chapterMatch?.[1] || null,
           volume: null,
@@ -218,25 +262,35 @@ export class WeebCentralSource extends BaseHtmlSource {
         });
       });
 
-      await this.setCache(cacheKey, results);
-      return results;
+      await this.setCache(cacheKey, chapters);
+      return chapters;
     } catch (error) {
-      console.error(`[WeebCentral] chapter fetch failed: ${summarizeSourceError(error)}`);
+      console.error(`[MangaBuddy] chapter fetch failed: ${summarizeSourceError(error)}`);
       return [];
     }
   }
 
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
-    const chapterPath = this.normalizePath(chapterId, '/chapter');
+    const chapterPath = this.normalizePath(chapterId, '/');
     const cacheKey = this.buildCacheKey('pages', chapterPath);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
-    if (cached && cached.pages.length > 0) return cached;
+    if (cached && (cached.pages.length > 0 || cached.externalUrl)) return cached;
 
     try {
       const html = await this.fetchHtml(chapterPath);
       const pages = this.extractChapterImageUrls(html);
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);
+        const externalResult: MangaPagesResult = {
+          chapterId: chapterPath,
+          readerMode: 'manga',
+          pages: [],
+          externalUrl: `${BASE_URL}${chapterPath}`,
+          isExternal: true,
+        };
+
+        await this.setCache(cacheKey, externalResult, this.defaultCacheTtlSeconds * 2);
+        return externalResult;
       }
 
       const result: MangaPagesResult = {
@@ -250,13 +304,13 @@ export class WeebCentralSource extends BaseHtmlSource {
       await this.setCache(cacheKey, result, this.defaultCacheTtlSeconds * 2);
       return result;
     } catch (error) {
-      console.error(`[WeebCentral] page fetch failed: ${summarizeSourceError(error)}`);
+      console.error(`[MangaBuddy] page fetch failed: ${summarizeSourceError(error)}`);
       return {
         chapterId: chapterPath,
         readerMode: 'manga',
         pages: [],
-        externalUrl: null,
-        isExternal: false,
+        externalUrl: `${BASE_URL}${chapterPath}`,
+        isExternal: true,
       };
     }
   }
@@ -268,11 +322,12 @@ export class WeebCentralSource extends BaseHtmlSource {
         sourceId: this.id,
         timeoutMs: 10_000,
       });
+
       const ok = response.status >= 200 && response.status < 500;
       return {
         ok,
         latencyMs: Date.now() - startedAt,
-        message: ok ? undefined : `WeebCentral status ${response.status}`,
+        message: ok ? undefined : `MangaBuddy status ${response.status}`,
       };
     } catch (error) {
       return {

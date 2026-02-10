@@ -13,8 +13,19 @@ const isCloudflareChallenge = (response: FetchResponse): boolean => {
   return (
     body.includes('cdn-cgi/challenge-platform') ||
     body.includes('cf-browser-verification') ||
-    body.includes('just a moment...')
+    body.includes('just a moment...') ||
+    body.includes('attention required') ||
+    body.includes('sorry, you have been blocked')
   );
+};
+
+export type FetchGatewayHealth = {
+  availableFetchers: Array<'direct' | 'flaresolverr'>;
+  flaresolverr: {
+    configured: boolean;
+    ok: boolean;
+    message?: string;
+  };
 };
 
 export class FetchGateway {
@@ -22,6 +33,49 @@ export class FetchGateway {
 
   constructor(fetchers?: SourceFetcher[]) {
     this.fetchers = fetchers || [new DirectHttpFetcher(), new FlareSolverrFetcher()];
+  }
+
+  async getHealth(): Promise<FetchGatewayHealth> {
+    const availableFetchers = this.fetchers
+      .filter((fetcher) => fetcher.canHandle('https://example.com'))
+      .map((fetcher) => fetcher.id);
+
+    const flaresolverrFetcher = this.fetchers.find(
+      (fetcher): fetcher is FlareSolverrFetcher => fetcher instanceof FlareSolverrFetcher
+    );
+
+    if (!flaresolverrFetcher) {
+      return {
+        availableFetchers,
+        flaresolverr: {
+          configured: false,
+          ok: false,
+          message: 'FlareSolverr fetcher is not registered',
+        },
+      };
+    }
+
+    const configured = flaresolverrFetcher.canHandle();
+    if (!configured) {
+      return {
+        availableFetchers,
+        flaresolverr: {
+          configured: false,
+          ok: false,
+          message: 'FLARESOLVERR_URL is not configured',
+        },
+      };
+    }
+
+    const health = await flaresolverrFetcher.checkHealth();
+    return {
+      availableFetchers,
+      flaresolverr: {
+        configured: true,
+        ok: health.ok,
+        message: health.message,
+      },
+    };
   }
 
   async get(url: string, options: FetchRequestOptions = {}): Promise<FetchResponse> {

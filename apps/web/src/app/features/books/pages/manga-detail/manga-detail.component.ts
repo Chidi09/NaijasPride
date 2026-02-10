@@ -31,6 +31,7 @@ type MangaChapter = {
   readableAt: string | null;
   translatedLanguage: string | null;
   scanlationGroup: string | null;
+  isOfficialTranslation?: boolean | null;
   externalUrl: string | null;
   isExternal: boolean;
 };
@@ -186,6 +187,13 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                   <div class="mt-1 flex flex-wrap gap-3 text-xs text-gray-400">
                     <span>{{ languageLabel(chapter.translatedLanguage) }}</span>
                     @if (chapter.scanlationGroup) { <span>{{ chapter.scanlationGroup }}</span> }
+                    @if (chapter.isOfficialTranslation === true) {
+                      <span class="rounded border border-emerald-700/60 px-1.5 py-0.5 text-emerald-300">Official</span>
+                    } @else if (chapter.isOfficialTranslation === false) {
+                      <span class="rounded border border-sky-700/60 px-1.5 py-0.5 text-sky-300">Community</span>
+                    } @else {
+                      <span class="rounded border border-zinc-600/70 px-1.5 py-0.5 text-zinc-300">Unverified</span>
+                    }
                     <span>Open source site</span>
                   </div>
                 </a>
@@ -205,6 +213,13 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                   <div class="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
                     <span>{{ chapter.pages }} pages</span>
                     <span>{{ languageLabel(chapter.translatedLanguage) }}</span>
+                    @if (chapter.isOfficialTranslation === true) {
+                      <span class="rounded border border-emerald-700/60 px-1.5 py-0.5 text-emerald-300">Official</span>
+                    } @else if (chapter.isOfficialTranslation === false) {
+                      <span class="rounded border border-sky-700/60 px-1.5 py-0.5 text-sky-300">Community</span>
+                    } @else {
+                      <span class="rounded border border-zinc-600/70 px-1.5 py-0.5 text-zinc-300">Unverified</span>
+                    }
                     @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
                     @if (chapter.scanlationGroup) { <span>{{ chapter.scanlationGroup }}</span> }
                   </div>
