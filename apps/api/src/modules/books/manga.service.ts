@@ -57,6 +57,21 @@ type ConfiguredSource = {
 
 export class MangaService {
   private readonly sourceManager: MangaSourceManager;
+  private sourceHealthCache:
+    | {
+        expiresAt: number;
+        data: {
+          sources: Awaited<ReturnType<MangaSourceManager['getHealthStatus']>>;
+          solver: Awaited<ReturnType<MangaSourceManager['getFetchGatewayHealth']>>;
+        };
+      }
+    | null = null;
+  private sourceHealthInFlight:
+    | Promise<{
+        sources: Awaited<ReturnType<MangaSourceManager['getHealthStatus']>>;
+        solver: Awaited<ReturnType<MangaSourceManager['getFetchGatewayHealth']>>;
+      }>
+    | null = null;
 
   constructor(private prisma: PrismaClient) {
     const registry = new MangaSourceRegistry();
@@ -255,9 +270,35 @@ export class MangaService {
   }
 
   getSourceHealth() {
-    return Promise.all([this.sourceManager.getHealthStatus(), this.sourceManager.getFetchGatewayHealth()]).then(
-      ([sources, solver]) => ({ sources, solver })
-    );
+    const now = Date.now();
+    if (this.sourceHealthCache && this.sourceHealthCache.expiresAt > now) {
+      return Promise.resolve(this.sourceHealthCache.data);
+    }
+
+    if (this.sourceHealthInFlight) {
+      return this.sourceHealthInFlight;
+    }
+
+    const ttlMsRaw = Number.parseInt(process.env.MANGA_SOURCE_HEALTH_CACHE_MS || '30000', 10);
+    const ttlMs = Number.isFinite(ttlMsRaw) && ttlMsRaw > 0 ? ttlMsRaw : 30_000;
+
+    this.sourceHealthInFlight = Promise.all([
+      this.sourceManager.getHealthStatus(),
+      this.sourceManager.getFetchGatewayHealth(),
+    ])
+      .then(([sources, solver]) => {
+        const data = { sources, solver };
+        this.sourceHealthCache = {
+          expiresAt: Date.now() + ttlMs,
+          data,
+        };
+        return data;
+      })
+      .finally(() => {
+        this.sourceHealthInFlight = null;
+      });
+
+    return this.sourceHealthInFlight;
   }
 
   async searchManga(query?: string, limit = 20, filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
