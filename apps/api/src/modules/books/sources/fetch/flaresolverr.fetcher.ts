@@ -90,13 +90,17 @@ export class FlareSolverrFetcher implements SourceFetcher {
     const session = options.sourceId ? `np-${options.sourceId}` : 'np-default';
     await this.ensureSession(session);
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       cmd: 'request.get',
       url,
       maxTimeout: options.timeoutMs ?? 60000,
       session,
-      headers: options.headers || {},
     };
+
+    const requestHeaders = options.headers || {};
+    if (Object.keys(requestHeaders).length > 0) {
+      payload.headers = requestHeaders;
+    }
 
     const data = await this.call<FlareSolverrResponse>(payload, Math.max(65000, (options.timeoutMs ?? 60000) + 5000));
     if (!data || data.status !== 'ok' || !data.solution) {

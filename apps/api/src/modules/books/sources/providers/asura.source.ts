@@ -39,6 +39,57 @@ export class AsuraSource extends BaseHtmlSource {
     });
   }
 
+  private titleFromSeriesPath(id: string): string {
+    const slug = id.split('/').filter(Boolean).pop() || '';
+    const normalized = decodeURIComponent(slug)
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (value) => value.toUpperCase())
+      .trim();
+    return normalized || 'Unknown Title';
+  }
+
+  private extractSeriesTitle($: cheerio.CheerioAPI, el: any, id: string): string {
+    const titleFromNode = this.strip($(el).find('h1, h2, h3, h4, .title, .series-title').first().text());
+    const titleFromAttr = this.strip($(el).attr('title'));
+    const titleFromImageAlt = this.strip($(el).find('img').first().attr('alt')).replace(/\s+cover$/i, '');
+    const titleFromText = this.strip($(el).text()).replace(/\s+(chapter|episode|ch\.)\s*\d.*$/i, '');
+
+    return titleFromNode || titleFromAttr || titleFromImageAlt || titleFromText || this.titleFromSeriesPath(id);
+  }
+
+  private addSeriesCard(map: Map<string, MangaSummary>, $: cheerio.CheerioAPI, el: any, limit: number): void {
+    if (map.size >= limit) return;
+    const href = $(el).attr('href');
+    const id = href ? this.normalizePath(href, '/series') : null;
+    if (!id) return;
+
+    const nextCard: MangaSummary = {
+      id,
+      title: this.extractSeriesTitle($, el, id),
+      description: this.strip($(el).find('p, .description, .summary').first().text()),
+      coverUrl:
+        this.toAbsoluteUrl($(el).find('img').first().attr('src') || null) ||
+        this.toAbsoluteUrl($(el).find('img').first().attr('data-src') || null),
+      status: null,
+      year: null,
+      originalLanguage: null,
+      tags: [],
+      latestChapter: null,
+    };
+
+    const existing = map.get(id);
+    if (!existing) {
+      map.set(id, nextCard);
+      return;
+    }
+
+    const existingUnknown = existing.title === 'Unknown Title';
+    const nextKnown = nextCard.title !== 'Unknown Title';
+    if (existingUnknown && nextKnown) {
+      map.set(id, { ...existing, ...nextCard });
+    }
+  }
+
   private mapAsuraApiResults(payload: unknown, limit: number): MangaSummary[] {
     const data = payload as {
       data?: unknown;
@@ -143,7 +194,10 @@ export class AsuraSource extends BaseHtmlSource {
 
   async searchManga(query?: string, limit = 20, _filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
     const normalized = this.strip(query);
-    if (!normalized) return [];
+    if (!normalized) {
+      const discover = await this.getDiscoverManga(Math.min(limit, 20));
+      return discover.trending.slice(0, limit);
+    }
 
     const cacheKey = this.buildCacheKey('search', normalized.toLowerCase(), limit);
     const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
@@ -156,33 +210,17 @@ export class AsuraSource extends BaseHtmlSource {
         return internalApiResults;
       }
 
-      const html = await this.fetchHtml('/search', { q: normalized });
+      const html = await this.fetchHtml('/series', { page: 1, name: normalized });
       const $ = cheerio.load(html);
-      const results: MangaSummary[] = [];
-      const seen = new Set<string>();
+      const map = new Map<string, MangaSummary>();
 
       $('a[href*="/series/"]').each((_idx, el) => {
-        if (results.length >= limit) return;
-        const title = this.strip($(el).text());
-        if (!title.toLowerCase().includes(normalized.toLowerCase())) return;
-
-        const href = $(el).attr('href');
-        const id = href ? this.normalizePath(href, '/series') : null;
-        if (!id || seen.has(id)) return;
-        seen.add(id);
-
-        results.push({
-          id,
-          title,
-          description: '',
-          coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src') || null),
-          status: null,
-          year: null,
-          originalLanguage: null,
-          tags: [],
-          latestChapter: null,
-        });
+        this.addSeriesCard(map, $, el, Math.max(limit * 3, 50));
       });
+
+      const results = Array.from(map.values())
+        .filter((entry) => entry.title.toLowerCase().includes(normalized.toLowerCase()))
+        .slice(0, limit);
 
       await this.setCache(cacheKey, results);
       return results;
@@ -199,30 +237,14 @@ export class AsuraSource extends BaseHtmlSource {
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml('/');
+      const html = await this.fetchHtml('/series', { page: 1 });
       const $ = cheerio.load(html);
-
-      const cards: MangaSummary[] = [];
-      const seen = new Set<string>();
+      const map = new Map<string, MangaSummary>();
       $('a[href*="/series/"]').each((_idx, el) => {
-        if (cards.length >= safeLimit) return;
-        const href = $(el).attr('href');
-        const id = href ? this.normalizePath(href, '/series') : null;
-        if (!id || seen.has(id)) return;
-        seen.add(id);
-
-        cards.push({
-          id,
-          title: this.strip($(el).find('h3, h4, .title').first().text()) || this.strip($(el).text()) || 'Unknown Title',
-          description: this.strip($(el).find('p, .description').first().text()),
-          coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src') || null),
-          status: null,
-          year: null,
-          originalLanguage: null,
-          tags: [],
-          latestChapter: null,
-        });
+        this.addSeriesCard(map, $, el, safeLimit * 4);
       });
+
+      const cards = Array.from(map.values()).slice(0, safeLimit);
 
       const payload: MangaDiscoverResult = {
         trending: cards.slice(0, safeLimit),
@@ -254,7 +276,10 @@ export class AsuraSource extends BaseHtmlSource {
 
       const detail: MangaDetail = {
         id: seriesPath,
-        title: this.strip($('h1').first().text()) || 'Unknown Title',
+        title:
+          this.strip($('h1').first().text()) ||
+          this.strip($('meta[property="og:title"]').attr('content')) ||
+          this.titleFromSeriesPath(seriesPath),
         description:
           this.strip($('meta[property="og:description"]').attr('content')) ||
           this.strip($('.description, .summary, .synopsis').first().text()),

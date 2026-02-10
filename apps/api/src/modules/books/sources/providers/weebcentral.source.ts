@@ -35,39 +35,85 @@ export class WeebCentralSource extends BaseHtmlSource {
     });
   }
 
+  private titleFromSeriesPath(id: string): string {
+    const slug = id.split('/').filter(Boolean).pop() || '';
+    const normalized = decodeURIComponent(slug)
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (value) => value.toUpperCase())
+      .trim();
+    return normalized || 'Unknown Title';
+  }
+
+  private extractSeriesTitle($: cheerio.CheerioAPI, el: any, id: string): string {
+    const titleFromNode = this.strip($(el).find('h1, h2, h3, h4, .title, .series-title').first().text());
+    const titleFromAttr = this.strip($(el).attr('title'));
+    const titleFromImageAlt = this.strip($(el).find('img').first().attr('alt')).replace(/\s+cover$/i, '');
+    const titleFromText = this.strip($(el).text()).replace(/\s+(chapter|episode|ch\.)\s*\d.*$/i, '');
+
+    return titleFromNode || titleFromAttr || titleFromImageAlt || titleFromText || this.titleFromSeriesPath(id);
+  }
+
+  private addSeriesCard(
+    map: Map<string, MangaSummary>,
+    $: cheerio.CheerioAPI,
+    el: any,
+    limit: number
+  ): void {
+    if (map.size >= limit) return;
+    const href = $(el).attr('href');
+    const id = href ? this.normalizePath(href, '/series') : null;
+    if (!id) return;
+
+    const nextCard: MangaSummary = {
+      id,
+      title: this.extractSeriesTitle($, el, id),
+      description: this.strip($(el).find('p, .description, .summary').first().text()),
+      coverUrl:
+        this.toAbsoluteUrl($(el).find('img').first().attr('src') || null) ||
+        this.toAbsoluteUrl($(el).find('img').first().attr('data-src') || null),
+      status: null,
+      year: null,
+      originalLanguage: null,
+      tags: [],
+      latestChapter: null,
+    };
+
+    const existing = map.get(id);
+    if (!existing) {
+      map.set(id, nextCard);
+      return;
+    }
+
+    const existingUnknown = existing.title === 'Unknown Title';
+    const nextKnown = nextCard.title !== 'Unknown Title';
+    if (existingUnknown && nextKnown) {
+      map.set(id, { ...existing, ...nextCard });
+    }
+  }
+
   async searchManga(query?: string, limit = 20, _filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
     const normalized = this.strip(query);
-    if (!normalized) return [];
+    if (!normalized) {
+      const discover = await this.getDiscoverManga(Math.min(limit, 20));
+      return discover.trending.slice(0, limit);
+    }
 
     const cacheKey = this.buildCacheKey('search', normalized.toLowerCase(), limit);
     const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml('/search/data', { q: normalized });
+      const html = await this.fetchHtml('/');
       const $ = cheerio.load(html);
-      const seen = new Set<string>();
-      const results: MangaSummary[] = [];
+      const map = new Map<string, MangaSummary>();
 
       $('a[href*="/series/"]').each((_idx, el) => {
-        if (results.length >= limit) return;
-        const href = $(el).attr('href');
-        const id = href ? this.normalizePath(href, '/series') : null;
-        if (!id || seen.has(id)) return;
-        seen.add(id);
-
-        results.push({
-          id,
-          title: this.strip($(el).find('h3, h4, .title').first().text()) || this.strip($(el).text()) || 'Unknown Title',
-          description: this.strip($(el).find('p, .description').first().text()),
-          coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src') || null),
-          status: null,
-          year: null,
-          originalLanguage: null,
-          tags: [],
-          latestChapter: null,
-        });
+        this.addSeriesCard(map, $, el, Math.max(limit * 3, 50));
       });
+
+      const results = Array.from(map.values())
+        .filter((entry) => entry.title.toLowerCase().includes(normalized.toLowerCase()))
+        .slice(0, limit);
 
       await this.setCache(cacheKey, results);
       return results;
@@ -86,28 +132,13 @@ export class WeebCentralSource extends BaseHtmlSource {
     try {
       const html = await this.fetchHtml('/');
       const $ = cheerio.load(html);
-      const cards: MangaSummary[] = [];
-      const seen = new Set<string>();
+      const map = new Map<string, MangaSummary>();
 
       $('a[href*="/series/"]').each((_idx, el) => {
-        if (cards.length >= safeLimit) return;
-        const href = $(el).attr('href');
-        const id = href ? this.normalizePath(href, '/series') : null;
-        if (!id || seen.has(id)) return;
-        seen.add(id);
-
-        cards.push({
-          id,
-          title: this.strip($(el).find('h3, h4, .title').first().text()) || this.strip($(el).text()) || 'Unknown Title',
-          description: this.strip($(el).find('p, .description').first().text()),
-          coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src') || null),
-          status: null,
-          year: null,
-          originalLanguage: null,
-          tags: [],
-          latestChapter: null,
-        });
+        this.addSeriesCard(map, $, el, safeLimit * 4);
       });
+
+      const cards = Array.from(map.values()).slice(0, safeLimit);
 
       const payload: MangaDiscoverResult = {
         trending: cards.slice(0, safeLimit),
@@ -142,7 +173,7 @@ export class WeebCentralSource extends BaseHtmlSource {
         title:
           this.strip($('h1').first().text()) ||
           this.strip($('meta[property="og:title"]').attr('content')) ||
-          'Unknown Title',
+          this.titleFromSeriesPath(seriesPath),
         description:
           this.strip($('meta[property="og:description"]').attr('content')) ||
           this.strip($('.description, .synopsis, .summary').first().text()),
@@ -186,11 +217,11 @@ export class WeebCentralSource extends BaseHtmlSource {
       const results: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('a[href*="/chapter/"]').each((_idx, el) => {
+      $('a[href*="/chapters/"]').each((_idx, el) => {
         if (results.length >= limit) return;
 
         const href = $(el).attr('href');
-        const chapterPath = href ? this.normalizePath(href, '/chapter') : null;
+        const chapterPath = href ? this.normalizePath(href, '/chapters') : null;
         if (!chapterPath || seen.has(chapterPath)) return;
         seen.add(chapterPath);
 
@@ -227,7 +258,7 @@ export class WeebCentralSource extends BaseHtmlSource {
   }
 
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
-    const chapterPath = this.normalizePath(chapterId, '/chapter');
+    const chapterPath = this.normalizePath(chapterId, '/chapters');
     const cacheKey = this.buildCacheKey('pages', chapterPath);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
     if (cached && cached.pages.length > 0) return cached;
