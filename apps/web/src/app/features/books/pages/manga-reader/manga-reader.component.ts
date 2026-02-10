@@ -200,7 +200,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     });
 
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
-      const chapterId = params.get('chapterId');
+      const chapterId = this.fromRouteParam(params.get('chapterId'));
       if (!chapterId) return;
 
       this.chapterId.set(chapterId);
@@ -514,5 +514,14 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private isAuthenticated() {
     return !!localStorage.getItem('token');
+  }
+
+  private fromRouteParam(value: string | null): string | null {
+    if (!value) return null;
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
   }
 }

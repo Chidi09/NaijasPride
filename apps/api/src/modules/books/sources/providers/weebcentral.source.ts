@@ -50,7 +50,13 @@ export class WeebCentralSource extends BaseHtmlSource {
     const titleFromImageAlt = this.strip($(el).find('img').first().attr('alt')).replace(/\s+cover$/i, '');
     const titleFromText = this.strip($(el).text()).replace(/\s+(chapter|episode|ch\.)\s*\d.*$/i, '');
 
-    return titleFromNode || titleFromAttr || titleFromImageAlt || titleFromText || this.titleFromSeriesPath(id);
+    const candidates = [titleFromNode, titleFromAttr, titleFromImageAlt, titleFromText].filter(Boolean);
+    const cleaned = candidates.find((value) => {
+      const lowered = value.toLowerCase();
+      return lowered !== 'poster' && lowered !== 'manga' && lowered !== 'manhwa' && lowered.length > 2;
+    });
+
+    return cleaned || this.titleFromSeriesPath(id);
   }
 
   private addSeriesCard(

@@ -109,7 +109,7 @@ type MangaDiscoverPayload = {
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
               @for (manga of trendingManga(); track manga.id) {
-                <a [routerLink]="['/books/manga', manga.id]" class="group">
+                <a [routerLink]="['/books/manga', toRouteParam(manga.id)]" class="group">
                   <div class="bg-cinema-800 rounded-sm overflow-hidden transition-transform group-hover:scale-105">
                     <div class="aspect-[2/3] relative">
                       @if (manga.coverUrl) {
@@ -191,5 +191,9 @@ export class BookListComponent {
     this.currentPage.set(page);
     this.loadBooks();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  toRouteParam(value: string) {
+    return encodeURIComponent(value);
   }
 }

@@ -199,7 +199,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                 </a>
               } @else {
                 <a
-                  [routerLink]="['/books/manga/read', chapter.id]"
+                  [routerLink]="['/books/manga/read', toRouteParam(chapter.id)]"
                   [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
                   class="block rounded border border-zinc-800 bg-zinc-900/50 px-3 py-3 text-sm text-gray-200 hover:border-[#800020]"
                 >
@@ -250,7 +250,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
           @if (!isSimilarLoading()) {
             <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               @for (item of similar(); track item.id) {
-                <a [routerLink]="['/books/manga', item.id]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] hover:border-[#800020]">
+                <a [routerLink]="['/books/manga', toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] hover:border-[#800020]">
                   <div class="relative aspect-[3/4]">
                     @if (item.coverUrl) {
                       <img [src]="item.coverUrl" [alt]="item.title" class="absolute inset-0 h-full w-full object-cover">
@@ -302,12 +302,25 @@ export class MangaDetailComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
-      const mangaId = params.get('mangaId');
+      const mangaId = this.fromRouteParam(params.get('mangaId'));
       if (!mangaId) return;
       const parsed = parseSourceEntityId(mangaId);
       this.sourceId.set(parsed?.sourceId || 'mangadex');
       this.loadData(mangaId);
     });
+  }
+
+  toRouteParam(value: string) {
+    return encodeURIComponent(value);
+  }
+
+  private fromRouteParam(value: string | null): string | null {
+    if (!value) return null;
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
   }
 
   sourceLabel() {
