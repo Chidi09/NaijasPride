@@ -37,6 +37,30 @@ const mangaDiscoverSchema = z.object({
   limit: z.coerce.number().int().min(1).max(24).optional(),
 });
 
+const sourceParamSchema = z.object({
+  source: z.string().trim().min(1),
+});
+
+const sourceMangaParamSchema = z.object({
+  source: z.string().trim().min(1),
+  mangaId: z.string().trim().min(1),
+});
+
+const sourceChapterParamSchema = z.object({
+  source: z.string().trim().min(1),
+  chapterId: z.string().trim().min(1),
+});
+
+const SCRAPE_RATE_LIMIT = {
+  max: 40,
+  timeWindow: '1 minute',
+};
+
+const SCRAPE_RATE_LIMIT_HEAVY = {
+  max: 20,
+  timeWindow: '1 minute',
+};
+
 const bookSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -45,6 +69,11 @@ const bookSearchSchema = z.object({
 
 const mangaChaptersSchema = z.object({
   mangaId: z.string().trim().min(1),
+});
+
+const mangaChaptersQuerySchema = z.object({
+  language: z.string().trim().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
 const mangaPagesSchema = z.object({
@@ -93,6 +122,7 @@ export const bookRoutes = async (
 
   // GET /api/books/manga/search?q=one+piece
   app.get('/manga/search', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
     schema: {
       querystring: mangaSearchSchema,
     },
@@ -118,6 +148,199 @@ export const bookRoutes = async (
     },
   });
 
+  // GET /api/books/manga/sources
+  app.get('/manga/sources', {
+    handler: async (_request, reply) => {
+      try {
+        const data = mangaService.getSources();
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga sources',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/sources/health
+  app.get('/manga/sources/health', {
+    handler: async (_request, reply) => {
+      try {
+        const data = await mangaService.getSourceHealth();
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga source health',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/search?q=...
+  app.get('/manga/source/:source/search', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: sourceParamSchema,
+      querystring: mangaSearchSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source } = request.params as z.infer<typeof sourceParamSchema>;
+        const query = request.query as z.infer<typeof mangaSearchSchema>;
+        const data = await mangaService.searchMangaBySource(source, query.q, query.limit ?? 20, {
+          tags: toArray(query.tags),
+          status: toArray(query.status),
+          originalLanguage: toArray(query.originalLanguage),
+          contentRating: toArray(query.contentRating),
+          demographic: toArray(query.demographic),
+          sort: query.sort,
+          year: query.year,
+        });
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to search manga source',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/discover?limit=12
+  app.get('/manga/source/:source/discover', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: sourceParamSchema,
+      querystring: mangaDiscoverSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source } = request.params as z.infer<typeof sourceParamSchema>;
+        const { limit } = request.query as z.infer<typeof mangaDiscoverSchema>;
+        const data = await mangaService.getDiscoverMangaBySource(source, limit ?? 12);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to load source discover sections',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/tags
+  app.get('/manga/source/:source/tags', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: sourceParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source } = request.params as z.infer<typeof sourceParamSchema>;
+        const data = await mangaService.getMangaTagsBySource(source);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga source tags',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/:mangaId
+  app.get('/manga/source/:source/:mangaId', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: sourceMangaParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source, mangaId } = request.params as z.infer<typeof sourceMangaParamSchema>;
+        const data = await mangaService.getMangaDetailBySource(source, mangaId);
+        if (!data) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Manga not found',
+          });
+        }
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga detail',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/:mangaId/similar?limit=6
+  app.get('/manga/source/:source/:mangaId/similar', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: sourceMangaParamSchema,
+      querystring: mangaSimilarQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source, mangaId } = request.params as z.infer<typeof sourceMangaParamSchema>;
+        const { limit } = request.query as z.infer<typeof mangaSimilarQuerySchema>;
+        const data = await mangaService.getSimilarMangaBySource(source, mangaId, limit ?? 6);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch similar manga',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/:mangaId/chapters
+  app.get('/manga/source/:source/:mangaId/chapters', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      params: sourceMangaParamSchema,
+      querystring: mangaChaptersQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source, mangaId } = request.params as z.infer<typeof sourceMangaParamSchema>;
+        const { language, limit } = request.query as z.infer<typeof mangaChaptersQuerySchema>;
+        const normalizedLanguage = language?.toLowerCase() === 'all' ? undefined : language;
+        const data = await mangaService.getChaptersBySource(source, mangaId, normalizedLanguage, limit ?? 200);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch source chapters',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/chapter/:chapterId/pages
+  app.get('/manga/source/:source/chapter/:chapterId/pages', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      params: sourceChapterParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source, chapterId } = request.params as z.infer<typeof sourceChapterParamSchema>;
+        const data = await mangaService.getChapterPagesBySource(source, chapterId);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch source chapter pages',
+        });
+      }
+    },
+  });
+
   // GET /api/books/manga/tags
   app.get('/manga/tags', {
     handler: async (_request, reply) => {
@@ -135,6 +358,7 @@ export const bookRoutes = async (
 
   // GET /api/books/manga/discover?limit=12
   app.get('/manga/discover', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
     schema: {
       querystring: mangaDiscoverSchema,
     },
@@ -154,6 +378,7 @@ export const bookRoutes = async (
 
   // GET /api/books/manga/:mangaId
   app.get('/manga/:mangaId', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
     schema: {
       params: mangaDetailSchema,
     },
@@ -179,6 +404,7 @@ export const bookRoutes = async (
 
   // GET /api/books/manga/:mangaId/similar?limit=6
   app.get('/manga/:mangaId/similar', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
     schema: {
       params: z.object({ mangaId: z.string().trim().min(1) }),
       querystring: mangaSimilarQuerySchema,
@@ -200,13 +426,17 @@ export const bookRoutes = async (
 
   // GET /api/books/manga/:mangaId/chapters
   app.get('/manga/:mangaId/chapters', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
     schema: {
       params: mangaChaptersSchema,
+      querystring: mangaChaptersQuerySchema,
     },
     handler: async (request, reply) => {
       try {
         const { mangaId } = request.params as z.infer<typeof mangaChaptersSchema>;
-        const data = await mangaService.getChapters(mangaId);
+        const { language, limit } = request.query as z.infer<typeof mangaChaptersQuerySchema>;
+        const normalizedLanguage = language?.toLowerCase() === 'all' ? undefined : language;
+        const data = await mangaService.getChapters(mangaId, normalizedLanguage, limit ?? 200);
         return reply.send({ status: 'success', data });
       } catch (error) {
         return reply.status(500).send({
@@ -219,6 +449,7 @@ export const bookRoutes = async (
 
   // GET /api/books/manga/chapter/:chapterId/pages
   app.get('/manga/chapter/:chapterId/pages', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
     schema: {
       params: mangaPagesSchema,
     },

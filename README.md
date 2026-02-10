@@ -66,6 +66,13 @@ Set these in `apps/api/.env` before running auth in non-test environments:
 - `SENTRY_ENVIRONMENT` (optional): e.g. `development`, `staging`, `production`
 - `SENTRY_RELEASE` (optional): app version/commit
 
+### Manga Source Env Vars
+
+- `MANGA_SOURCES_ENABLED` (optional): comma-separated list, e.g. `mangadex,weebcentral,asura`
+- `FLARESOLVERR_URL` (optional): required to improve reliability for Cloudflare-protected sources (e.g. `http://flaresolverr:8191`)
+- `MANGA_SOURCE_<SOURCE>_CB_FAILURES` (optional): circuit breaker failure threshold per source, e.g. `MANGA_SOURCE_ASURA_CB_FAILURES=5`
+- `MANGA_SOURCE_<SOURCE>_CB_RECOVERY_MS` (optional): circuit breaker recovery window per source, e.g. `MANGA_SOURCE_ASURA_CB_RECOVERY_MS=30000`
+
 ### CSRF Notes
 
 - CSRF validation is enforced only for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) when authentication cookies (`accessToken`/`refreshToken`) are present.
