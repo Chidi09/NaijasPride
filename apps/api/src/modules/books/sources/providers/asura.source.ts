@@ -3,6 +3,7 @@ import { getRedis } from '../../../../shared/services/redis.service';
 import { FetchGateway } from '../fetch/fetch-gateway';
 import { sourceMetrics } from '../observability/source-metrics';
 import { extractChapterImageUrls } from '../parsers/html-parsers';
+import { summarizeSourceError } from '../utils/error-summary';
 import {
   MangaChapter,
   MangaDetail,
@@ -129,7 +130,7 @@ export class AsuraSource implements MangaSource {
       await this.setCache(cacheKey, results, CACHE_TTL_SECONDS);
       return results;
     } catch (error) {
-      console.error('[Asura] search failed:', error);
+      console.error(`[Asura] search failed: ${summarizeSourceError(error)}`);
       return [];
     }
   }
@@ -175,7 +176,7 @@ export class AsuraSource implements MangaSource {
       await this.setCache(cacheKey, payload, CACHE_TTL_SECONDS);
       return payload;
     } catch (error) {
-      console.error('[Asura] discover failed:', error);
+      console.error(`[Asura] discover failed: ${summarizeSourceError(error)}`);
       return { trending: [], recentlyUpdated: [], newTitles: [] };
     }
   }
@@ -220,7 +221,7 @@ export class AsuraSource implements MangaSource {
       await this.setCache(cacheKey, detail, CACHE_TTL_SECONDS * 2);
       return detail;
     } catch (error) {
-      console.error('[Asura] detail failed:', error);
+      console.error(`[Asura] detail failed: ${summarizeSourceError(error)}`);
       return null;
     }
   }
@@ -276,7 +277,7 @@ export class AsuraSource implements MangaSource {
       await this.setCache(cacheKey, chapters, CACHE_TTL_SECONDS);
       return chapters;
     } catch (error) {
-      console.error('[Asura] chapter fetch failed:', error);
+      console.error(`[Asura] chapter fetch failed: ${summarizeSourceError(error)}`);
       return [];
     }
   }
@@ -318,7 +319,7 @@ export class AsuraSource implements MangaSource {
       await this.setCache(cacheKey, result, CACHE_TTL_SECONDS * 2);
       return result;
     } catch (error) {
-      console.error('[Asura] page fetch failed:', error);
+      console.error(`[Asura] page fetch failed: ${summarizeSourceError(error)}`);
       return {
         chapterId: chapterPath,
         readerMode: 'manga',
@@ -347,7 +348,7 @@ export class AsuraSource implements MangaSource {
       return {
         ok: false,
         latencyMs: Date.now() - startedAt,
-        message: error instanceof Error ? error.message : 'Asura health check failed',
+        message: summarizeSourceError(error),
       };
     }
   }

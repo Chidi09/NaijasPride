@@ -1,6 +1,7 @@
 import { DirectHttpFetcher } from './direct-http.fetcher';
 import { FlareSolverrFetcher } from './flaresolverr.fetcher';
 import { sourceMetrics } from '../observability/source-metrics';
+import { summarizeSourceError } from '../utils/error-summary';
 import { FetchRequestOptions, FetchResponse, SourceFetcher } from './types';
 
 const isCloudflareChallenge = (response: FetchResponse): boolean => {
@@ -49,7 +50,7 @@ export class FetchGateway {
           return fallbackResponse;
         }
       } catch (error) {
-        console.warn(`[FetchGateway] fallback ${fallback.id} failed:`, error);
+        console.warn(`[FetchGateway] fallback ${fallback.id} failed: ${summarizeSourceError(error)}`);
         sourceMetrics.incrementError(sourceId);
       }
     }

@@ -1,8 +1,9 @@
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { getRedis } from '../../../../shared/services/redis.service';
+import { FetchGateway } from '../fetch/fetch-gateway';
 import { sourceMetrics } from '../observability/source-metrics';
 import { extractChapterImageUrls } from '../parsers/html-parsers';
+import { summarizeSourceError } from '../utils/error-summary';
 import {
   MangaChapter,
   MangaDetail,
@@ -63,6 +64,34 @@ export class WeebCentralSource implements MangaSource {
     needsAntiBot: false,
   } as const;
 
+  constructor(private readonly fetchGateway = new FetchGateway()) {}
+
+  private async fetchHtml(path: string, params?: Record<string, string | number | undefined>): Promise<string> {
+    const url = new URL(path, WEEBCENTRAL_BASE_URL);
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null) continue;
+        url.searchParams.set(key, String(value));
+      }
+    }
+
+    const response = await this.fetchGateway.get(url.toString(), {
+      sourceId: this.id,
+      timeoutMs: 20_000,
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`WeebCentral upstream status ${response.status} at ${url.pathname}`);
+    }
+
+    const body = response.body || '';
+    if (body.toLowerCase().includes('sorry, you have been blocked')) {
+      throw new Error('WeebCentral blocked this request (Cloudflare)');
+    }
+
+    return body;
+  }
+
   private async getFromCache<T>(key: string): Promise<T | null> {
     const redis = getRedis();
     if (!redis) return null;
@@ -93,12 +122,8 @@ export class WeebCentralSource implements MangaSource {
     if (cached) return cached;
 
     try {
-      const response = await axios.get(`${WEEBCENTRAL_BASE_URL}/search/data`, {
-        params: { q: normalized },
-        timeout: 15000,
-      });
-
-      const $ = cheerio.load(String(response.data || ''));
+      const html = await this.fetchHtml('/search/data', { q: normalized });
+      const $ = cheerio.load(html);
       const seen = new Set<string>();
       const results: MangaSummary[] = [];
 
@@ -129,7 +154,7 @@ export class WeebCentralSource implements MangaSource {
       await this.setCache(cacheKey, results, CACHE_TTL_SECONDS);
       return results;
     } catch (error) {
-      console.error('[WeebCentral] search failed:', error);
+      console.error(`[WeebCentral] search failed: ${summarizeSourceError(error)}`);
       return [];
     }
   }
@@ -141,8 +166,8 @@ export class WeebCentralSource implements MangaSource {
     if (cached) return cached;
 
     try {
-      const response = await axios.get(WEEBCENTRAL_BASE_URL, { timeout: 15000 });
-      const $ = cheerio.load(String(response.data || ''));
+      const html = await this.fetchHtml('/');
+      const $ = cheerio.load(html);
 
       const cards: MangaSummary[] = [];
       const seen = new Set<string>();
@@ -175,7 +200,7 @@ export class WeebCentralSource implements MangaSource {
       await this.setCache(cacheKey, payload, CACHE_TTL_SECONDS);
       return payload;
     } catch (error) {
-      console.error('[WeebCentral] discover failed:', error);
+      console.error(`[WeebCentral] discover failed: ${summarizeSourceError(error)}`);
       return { trending: [], recentlyUpdated: [], newTitles: [] };
     }
   }
@@ -191,8 +216,8 @@ export class WeebCentralSource implements MangaSource {
     if (cached) return cached;
 
     try {
-      const response = await axios.get(`${WEEBCENTRAL_BASE_URL}${seriesPath}`, { timeout: 15000 });
-      const $ = cheerio.load(String(response.data || ''));
+      const html = await this.fetchHtml(seriesPath);
+      const $ = cheerio.load(html);
 
       const title =
         strip($('h1').first().text()) ||
@@ -230,7 +255,7 @@ export class WeebCentralSource implements MangaSource {
       await this.setCache(cacheKey, detail, CACHE_TTL_SECONDS * 3);
       return detail;
     } catch (error) {
-      console.error('[WeebCentral] detail failed:', error);
+      console.error(`[WeebCentral] detail failed: ${summarizeSourceError(error)}`);
       return null;
     }
   }
@@ -247,8 +272,8 @@ export class WeebCentralSource implements MangaSource {
     if (cached) return cached;
 
     try {
-      const response = await axios.get(`${WEEBCENTRAL_BASE_URL}${seriesPath}`, { timeout: 15000 });
-      const $ = cheerio.load(String(response.data || ''));
+      const html = await this.fetchHtml(seriesPath);
+      const $ = cheerio.load(html);
       const results: MangaChapter[] = [];
       const seen = new Set<string>();
 
@@ -287,7 +312,7 @@ export class WeebCentralSource implements MangaSource {
       await this.setCache(cacheKey, results, CACHE_TTL_SECONDS);
       return results;
     } catch (error) {
-      console.error('[WeebCentral] chapter fetch failed:', error);
+      console.error(`[WeebCentral] chapter fetch failed: ${summarizeSourceError(error)}`);
       return [];
     }
   }
@@ -299,8 +324,7 @@ export class WeebCentralSource implements MangaSource {
     if (cached && cached.pages.length > 0) return cached;
 
     try {
-      const response = await axios.get(`${WEEBCENTRAL_BASE_URL}${chapterPath}`, { timeout: 20000 });
-      const html = String(response.data || '');
+      const html = await this.fetchHtml(chapterPath);
       const pages = extractChapterImageUrls(html, toAbsoluteUrl);
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);
@@ -316,7 +340,7 @@ export class WeebCentralSource implements MangaSource {
       await this.setCache(cacheKey, result, CACHE_TTL_SECONDS * 2);
       return result;
     } catch (error) {
-      console.error('[WeebCentral] page fetch failed:', error);
+      console.error(`[WeebCentral] page fetch failed: ${summarizeSourceError(error)}`);
       return {
         chapterId: chapterPath,
         readerMode: 'manga',
@@ -330,16 +354,21 @@ export class WeebCentralSource implements MangaSource {
   async healthCheck(): Promise<{ ok: boolean; latencyMs: number; message?: string }> {
     const startedAt = Date.now();
     try {
-      await axios.get(WEEBCENTRAL_BASE_URL, { timeout: 10000 });
+      const response = await this.fetchGateway.get(WEEBCENTRAL_BASE_URL, {
+        sourceId: this.id,
+        timeoutMs: 10_000,
+      });
+      const ok = response.status >= 200 && response.status < 500;
       return {
-        ok: true,
+        ok,
         latencyMs: Date.now() - startedAt,
+        message: ok ? undefined : `WeebCentral status ${response.status}`,
       };
     } catch (error) {
       return {
         ok: false,
         latencyMs: Date.now() - startedAt,
-        message: error instanceof Error ? error.message : 'WeebCentral health check failed',
+        message: summarizeSourceError(error),
       };
     }
   }
