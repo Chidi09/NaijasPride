@@ -35,6 +35,46 @@ export class MangabuddySource extends BaseHtmlSource {
     });
   }
 
+  private extractSeriesId(href: string): string | null {
+    const trimmed = href.trim();
+    if (!trimmed) return null;
+
+    const pathname = this.normalizePath(trimmed, '/').replace(/^\/+|\/+$/g, '');
+    if (!pathname) return null;
+    if (pathname.startsWith('search') || pathname.startsWith('genres') || pathname.startsWith('top')) return null;
+    if (pathname.includes('chapter-')) return null;
+    return pathname;
+  }
+
+  private extractChapterId(href: string): string | null {
+    const trimmed = href.trim();
+    if (!trimmed) return null;
+    const pathname = this.normalizePath(trimmed, '/').replace(/^\/+|\/+$/g, '');
+    if (!pathname) return null;
+    return pathname;
+  }
+
+  private coerceSeriesId(value: string): string | null {
+    const trimmed = value.trim().replace(/^\/+|\/+$/g, '');
+    if (!trimmed) return null;
+    if (trimmed.includes('chapter-')) return null;
+    return this.extractSeriesId(trimmed) || trimmed;
+  }
+
+  private coerceChapterId(value: string): string | null {
+    const trimmed = value.trim().replace(/^\/+|\/+$/g, '');
+    if (!trimmed) return null;
+    return this.extractChapterId(trimmed) || trimmed;
+  }
+
+  private toSeriesPath(seriesId: string): string {
+    return `/${seriesId}`;
+  }
+
+  private toChapterPath(chapterId: string): string {
+    return `/${chapterId}`;
+  }
+
   async searchManga(query?: string, limit = 20, _filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
     const normalized = this.strip(query);
     if (!normalized) return [];
@@ -56,8 +96,8 @@ export class MangabuddySource extends BaseHtmlSource {
         const href = link.attr('href');
         if (!href || href.startsWith('/search') || href.startsWith('/genres') || href.startsWith('/top')) return;
 
-        const id = this.normalizePath(href, '/');
-        if (seen.has(id) || id.split('/').length !== 2) return;
+        const id = this.extractSeriesId(href);
+        if (!id || seen.has(id)) return;
         seen.add(id);
 
         results.push({
@@ -106,8 +146,8 @@ export class MangabuddySource extends BaseHtmlSource {
         const href = link.attr('href');
         if (!href || href.startsWith('/search') || href.startsWith('/genres') || href.startsWith('/top')) return;
 
-        const id = this.normalizePath(href, '/');
-        if (seen.has(id) || id.split('/').length !== 2) return;
+        const id = this.extractSeriesId(href);
+        if (!id || seen.has(id)) return;
         seen.add(id);
 
         cards.push({
@@ -171,8 +211,11 @@ export class MangabuddySource extends BaseHtmlSource {
   }
 
   async getMangaDetail(mangaId: string): Promise<MangaDetail | null> {
-    const seriesPath = this.normalizePath(mangaId, '/');
-    const cacheKey = this.buildCacheKey('detail', seriesPath);
+    const seriesId = this.coerceSeriesId(mangaId);
+    if (!seriesId) return null;
+
+    const seriesPath = this.toSeriesPath(seriesId);
+    const cacheKey = this.buildCacheKey('detail', seriesId);
     const cached = await this.getFromCache<MangaDetail>(cacheKey);
     if (cached) return cached;
 
@@ -181,7 +224,7 @@ export class MangabuddySource extends BaseHtmlSource {
       const $ = cheerio.load(html);
 
       const detail: MangaDetail = {
-        id: seriesPath,
+        id: seriesId,
         title:
           this.strip($('h1').first().text()) ||
           this.strip($('meta[property="og:title"]').attr('content')) ||
@@ -218,9 +261,12 @@ export class MangabuddySource extends BaseHtmlSource {
   }
 
   async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
-    const seriesPath = this.normalizePath(mangaId, '/');
+    const seriesId = this.coerceSeriesId(mangaId);
+    if (!seriesId) return [];
+
+    const seriesPath = this.toSeriesPath(seriesId);
     const languageKey = translatedLanguage?.trim()?.toLowerCase() || 'all';
-    const cacheKey = this.buildCacheKey('chapters', seriesPath, languageKey, limit);
+    const cacheKey = this.buildCacheKey('chapters', seriesId, languageKey, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
@@ -234,9 +280,9 @@ export class MangabuddySource extends BaseHtmlSource {
         if (chapters.length >= limit) return;
 
         const href = $(el).attr('href');
-        const chapterPath = href ? this.normalizePath(href, '/') : null;
-        if (!chapterPath || seen.has(chapterPath)) return;
-        seen.add(chapterPath);
+        const chapterId = href ? this.coerceChapterId(href) : null;
+        if (!chapterId || seen.has(chapterId)) return;
+        seen.add(chapterId);
 
         const text = this.strip($(el).text());
         const chapterMatch = text.match(/chapter\s*[:\-]?\s*([\d.]+)/i);
@@ -248,7 +294,7 @@ export class MangabuddySource extends BaseHtmlSource {
         }
 
         chapters.push({
-          id: chapterPath,
+          id: chapterId,
           chapter: chapterMatch?.[1] || null,
           volume: null,
           title: text || null,
@@ -271,8 +317,19 @@ export class MangabuddySource extends BaseHtmlSource {
   }
 
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
-    const chapterPath = this.normalizePath(chapterId, '/');
-    const cacheKey = this.buildCacheKey('pages', chapterPath);
+    const chapterRawId = this.coerceChapterId(chapterId);
+    if (!chapterRawId) {
+      return {
+        chapterId,
+        readerMode: 'manga',
+        pages: [],
+        externalUrl: null,
+        isExternal: false,
+      };
+    }
+
+    const chapterPath = this.toChapterPath(chapterRawId);
+    const cacheKey = this.buildCacheKey('pages', chapterRawId);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
     if (cached && (cached.pages.length > 0 || cached.externalUrl)) return cached;
 
@@ -282,7 +339,7 @@ export class MangabuddySource extends BaseHtmlSource {
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
-          chapterId: chapterPath,
+          chapterId: chapterRawId,
           readerMode: 'manga',
           pages: [],
           externalUrl: `${BASE_URL}${chapterPath}`,
@@ -294,7 +351,7 @@ export class MangabuddySource extends BaseHtmlSource {
       }
 
       const result: MangaPagesResult = {
-        chapterId: chapterPath,
+        chapterId: chapterRawId,
         readerMode: 'manga',
         pages,
         externalUrl: null,
@@ -306,7 +363,7 @@ export class MangabuddySource extends BaseHtmlSource {
     } catch (error) {
       console.error(`[MangaBuddy] page fetch failed: ${summarizeSourceError(error)}`);
       return {
-        chapterId: chapterPath,
+        chapterId: chapterRawId,
         readerMode: 'manga',
         pages: [],
         externalUrl: `${BASE_URL}${chapterPath}`,

@@ -302,7 +302,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   goNextChapter() {
     const next = this.nextChapterId();
     if (!next) return;
-    this.router.navigate(['/books/manga/read', next], {
+    this.router.navigate(['/books/manga/read', this.toRouteParam(next)], {
       queryParams: {
         mangaId: this.mangaId(),
         title: this.title(),
@@ -313,7 +313,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   goPrevChapter() {
     const prev = this.prevChapterId();
     if (!prev) return;
-    this.router.navigate(['/books/manga/read', prev], {
+    this.router.navigate(['/books/manga/read', this.toRouteParam(prev)], {
       queryParams: {
         mangaId: this.mangaId(),
         title: this.title(),
@@ -326,6 +326,8 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     if (source === 'mangadex') return 'MangaDex';
     if (source === 'weebcentral') return 'WeebCentral';
     if (source === 'asura') return 'AsuraScans';
+    if (source === 'bato') return 'Bato.To';
+    if (source === 'manhwatop') return 'ManhwaTop';
     return source;
   }
 
@@ -335,9 +337,13 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const chapterId = this.chapterId();
     const parsed = parseSourceEntityId(chapterId);
-    const endpoint = parsed
-      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapter/${encodeURIComponent(chapterId)}/pages`
-      : `/api/v1/books/manga/chapter/${encodeURIComponent(chapterId)}/pages`;
+    if (!parsed) {
+      this.pages.set([]);
+      this.isLoading.set(false);
+      return;
+    }
+
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapter/${encodeURIComponent(chapterId)}/pages`;
 
     this.http.get<{ status: string; data: MangaPagesPayload }>(endpoint).subscribe({
       next: (response) => {
@@ -382,9 +388,14 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const parsed = parseSourceEntityId(mangaId);
-    const endpoint = parsed
-      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodeURIComponent(mangaId)}/chapters?limit=500`
-      : `/api/v1/books/manga/${encodeURIComponent(mangaId)}/chapters?limit=500`;
+    if (!parsed) {
+      this.chapterList.set([]);
+      this.prevChapterId.set(null);
+      this.nextChapterId.set(null);
+      return;
+    }
+
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodeURIComponent(mangaId)}/chapters?limit=500`;
 
     this.http.get<{ status: string; data: MangaChapter[] }>(endpoint).subscribe({
       next: (response) => {
@@ -514,6 +525,10 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private isAuthenticated() {
     return !!localStorage.getItem('token');
+  }
+
+  private toRouteParam(value: string) {
+    return encodeURIComponent(value);
   }
 
   private fromRouteParam(value: string | null): string | null {

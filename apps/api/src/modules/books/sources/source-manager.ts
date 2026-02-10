@@ -181,8 +181,9 @@ export class MangaSourceManager {
   ): Promise<MangaChapter[]> {
     const source = this.resolveSource(sourceId);
     const sourceMangaId = this.toSourceRawId(source.id, mangaId);
+    const effectiveLanguage = translatedLanguage || (source.id === 'mangadex' ? 'en' : undefined);
     const result = await this.runWithResilience(source, 'chapters', () =>
-      source.getChapters(sourceMangaId, translatedLanguage, limit)
+      source.getChapters(sourceMangaId, effectiveLanguage, limit)
     );
     return this.withSourceOnChapters(source.id, result);
   }

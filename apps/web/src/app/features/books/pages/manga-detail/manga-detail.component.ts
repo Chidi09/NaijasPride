@@ -293,7 +293,7 @@ export class MangaDetailComponent implements OnInit {
   isChaptersLoading = signal(false);
   isSimilarLoading = signal(false);
   showBackToTop = signal(false);
-  selectedLanguage = signal('all');
+  selectedLanguage = signal('en');
   sourceId = signal('mangadex');
   visibleChapterCount = signal(30);
   visibleChapters = computed(() => this.chapters().slice(0, this.visibleChapterCount()));
@@ -328,6 +328,8 @@ export class MangaDetailComponent implements OnInit {
     if (source === 'mangadex') return 'MangaDex';
     if (source === 'weebcentral') return 'WeebCentral';
     if (source === 'asura') return 'Asura';
+    if (source === 'bato') return 'Bato.To';
+    if (source === 'manhwatop') return 'ManhwaTop';
     return source;
   }
 
@@ -367,7 +369,7 @@ export class MangaDetailComponent implements OnInit {
   }
 
   onLanguageChange(language: string) {
-    this.selectedLanguage.set(language || 'all');
+    this.selectedLanguage.set(language || 'en');
     const mangaId = this.detail()?.id;
     if (mangaId) {
       this.loadChapters(mangaId);
@@ -379,10 +381,15 @@ export class MangaDetailComponent implements OnInit {
     const language = this.selectedLanguage();
     const params = language && language !== 'all' ? `?language=${encodeURIComponent(language)}` : '';
     const parsed = parseSourceEntityId(mangaId);
+    if (!parsed) {
+      this.chapters.set([]);
+      this.visibleChapterCount.set(30);
+      this.isChaptersLoading.set(false);
+      return;
+    }
+
     const encodedMangaId = encodeURIComponent(mangaId);
-    const endpoint = parsed
-      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/chapters${params}`
-      : `/api/v1/books/manga/${mangaId}/chapters${params}`;
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/chapters${params}`;
     this.http.get<{ status: string; data: MangaChapter[] }>(endpoint).subscribe({
       next: (response) => {
         this.chapters.set(response.data);
@@ -398,10 +405,19 @@ export class MangaDetailComponent implements OnInit {
     this.isChaptersLoading.set(true);
     this.isSimilarLoading.set(true);
     const parsed = parseSourceEntityId(mangaId);
+    if (!parsed) {
+      this.detail.set(null);
+      this.chapters.set([]);
+      this.similar.set([]);
+      this.isLoading.set(false);
+      this.isChaptersLoading.set(false);
+      this.isSimilarLoading.set(false);
+      this.favorite.set(false);
+      return;
+    }
+
     const encodedMangaId = encodeURIComponent(mangaId);
-    const detailEndpoint = parsed
-      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}`
-      : `/api/v1/books/manga/${mangaId}`;
+    const detailEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}`;
     this.http.get<{ status: string; data: MangaDetail }>(detailEndpoint).subscribe({
       next: (response) => {
         this.detail.set(response.data);
@@ -414,9 +430,7 @@ export class MangaDetailComponent implements OnInit {
 
     this.loadChapters(mangaId);
 
-    const similarEndpoint = parsed
-      ? `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/similar?limit=6`
-      : `/api/v1/books/manga/${mangaId}/similar?limit=6`;
+    const similarEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/similar?limit=6`;
     this.http.get<{ status: string; data: MangaSummary[] }>(similarEndpoint).subscribe({
       next: (response) => {
         this.similar.set(response.data);

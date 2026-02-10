@@ -44,6 +44,38 @@ export class WeebCentralSource extends BaseHtmlSource {
     return normalized || 'Unknown Title';
   }
 
+  private extractSeriesId(href: string): string | null {
+    const match = href.match(/\/series\/([A-Z0-9]{26})(?:\/|$)/i);
+    return match ? match[1] : null;
+  }
+
+  private extractChapterId(href: string): string | null {
+    const match = href.match(/\/chapters\/([A-Z0-9]{26})(?:\/|$)/i);
+    return match ? match[1] : null;
+  }
+
+  private coerceSeriesId(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^[A-Z0-9]{26}$/i.test(trimmed)) return trimmed;
+    return this.extractSeriesId(trimmed);
+  }
+
+  private coerceChapterId(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^[A-Z0-9]{26}$/i.test(trimmed)) return trimmed;
+    return this.extractChapterId(trimmed);
+  }
+
+  private toSeriesPath(seriesId: string): string {
+    return `/series/${seriesId}`;
+  }
+
+  private toChapterPath(chapterId: string): string {
+    return `/chapters/${chapterId}`;
+  }
+
   private extractSeriesTitle($: cheerio.CheerioAPI, el: any, id: string): string {
     const titleFromNode = this.strip($(el).find('h1, h2, h3, h4, .title, .series-title').first().text());
     const titleFromAttr = this.strip($(el).attr('title'));
@@ -67,7 +99,7 @@ export class WeebCentralSource extends BaseHtmlSource {
   ): void {
     if (map.size >= limit) return;
     const href = $(el).attr('href');
-    const id = href ? this.normalizePath(href, '/series') : null;
+    const id = href ? this.extractSeriesId(href) : null;
     if (!id) return;
 
     const nextCard: MangaSummary = {
@@ -165,8 +197,11 @@ export class WeebCentralSource extends BaseHtmlSource {
   }
 
   async getMangaDetail(mangaId: string): Promise<MangaDetail | null> {
-    const seriesPath = this.normalizePath(mangaId, '/series');
-    const cacheKey = this.buildCacheKey('detail', seriesPath);
+    const seriesId = this.coerceSeriesId(mangaId);
+    if (!seriesId) return null;
+
+    const seriesPath = this.toSeriesPath(seriesId);
+    const cacheKey = this.buildCacheKey('detail', seriesId);
     const cached = await this.getFromCache<MangaDetail>(cacheKey);
     if (cached) return cached;
 
@@ -175,11 +210,11 @@ export class WeebCentralSource extends BaseHtmlSource {
       const $ = cheerio.load(html);
 
       const detail: MangaDetail = {
-        id: seriesPath,
+        id: seriesId,
         title:
           this.strip($('h1').first().text()) ||
           this.strip($('meta[property="og:title"]').attr('content')) ||
-          this.titleFromSeriesPath(seriesPath),
+          this.titleFromSeriesPath(seriesId),
         description:
           this.strip($('meta[property="og:description"]').attr('content')) ||
           this.strip($('.description, .synopsis, .summary').first().text()),
@@ -211,9 +246,12 @@ export class WeebCentralSource extends BaseHtmlSource {
   }
 
   async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
-    const seriesPath = this.normalizePath(mangaId, '/series');
+    const seriesId = this.coerceSeriesId(mangaId);
+    if (!seriesId) return [];
+
+    const seriesPath = this.toSeriesPath(seriesId);
     const languageKey = translatedLanguage?.trim()?.toLowerCase() || 'all';
-    const cacheKey = this.buildCacheKey('chapters', seriesPath, languageKey, limit);
+    const cacheKey = this.buildCacheKey('chapters', seriesId, languageKey, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
@@ -227,9 +265,9 @@ export class WeebCentralSource extends BaseHtmlSource {
         if (results.length >= limit) return;
 
         const href = $(el).attr('href');
-        const chapterPath = href ? this.normalizePath(href, '/chapters') : null;
-        if (!chapterPath || seen.has(chapterPath)) return;
-        seen.add(chapterPath);
+        const chapterId = href ? this.coerceChapterId(href) : null;
+        if (!chapterId || seen.has(chapterId)) return;
+        seen.add(chapterId);
 
         const text = this.strip($(el).text());
         const chapterMatch = text.match(/chapter\s*([\d.]+)/i);
@@ -241,7 +279,7 @@ export class WeebCentralSource extends BaseHtmlSource {
         }
 
         results.push({
-          id: chapterPath,
+          id: chapterId,
           chapter: chapterMatch?.[1] || null,
           volume: null,
           title: text || null,
@@ -264,8 +302,19 @@ export class WeebCentralSource extends BaseHtmlSource {
   }
 
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
-    const chapterPath = this.normalizePath(chapterId, '/chapters');
-    const cacheKey = this.buildCacheKey('pages', chapterPath);
+    const chapterRawId = this.coerceChapterId(chapterId);
+    if (!chapterRawId) {
+      return {
+        chapterId,
+        readerMode: 'manga',
+        pages: [],
+        externalUrl: null,
+        isExternal: false,
+      };
+    }
+
+    const chapterPath = this.toChapterPath(chapterRawId);
+    const cacheKey = this.buildCacheKey('pages', chapterRawId);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
     if (cached && cached.pages.length > 0) return cached;
 
@@ -277,7 +326,7 @@ export class WeebCentralSource extends BaseHtmlSource {
       }
 
       const result: MangaPagesResult = {
-        chapterId: chapterPath,
+        chapterId: chapterRawId,
         readerMode: 'manga',
         pages,
         externalUrl: null,
@@ -289,7 +338,7 @@ export class WeebCentralSource extends BaseHtmlSource {
     } catch (error) {
       console.error(`[WeebCentral] page fetch failed: ${summarizeSourceError(error)}`);
       return {
-        chapterId: chapterPath,
+        chapterId: chapterRawId,
         readerMode: 'manga',
         pages: [],
         externalUrl: null,

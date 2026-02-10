@@ -23,6 +23,9 @@
             "browser": "src/main.ts",
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.json",
+            "optimization": {
+              "fonts": false
+            },
             "inlineStyleLanguage": "scss",
             "assets": ["src/favicon.ico", "src/assets", "src/manifest.webmanifest", "src/sw.js"],
             "styles": ["src/styles.scss"],

@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { WeebCentralSource } from './weebcentral.source';
+
+const SERIES_ID = '01JJ2D2B46DZ8QYPVGNVC63V3E';
+const CHAPTER_ID = '01KH3X48WCP664NG6DNS7TQTB8';
+
+test('WeebCentralSource extracts and coerces series IDs to ULID format', () => {
+  const source = new WeebCentralSource() as any;
+
+  assert.equal(source.extractSeriesId(`/series/${SERIES_ID}/Absolute-Sword-Sense`), SERIES_ID);
+  assert.equal(source.extractSeriesId(`https://weebcentral.com/series/${SERIES_ID}`), SERIES_ID);
+  assert.equal(source.coerceSeriesId(SERIES_ID), SERIES_ID);
+  assert.equal(source.coerceSeriesId(`/series/${SERIES_ID}/Absolute-Sword-Sense`), SERIES_ID);
+  assert.equal(source.toSeriesPath(SERIES_ID), `/series/${SERIES_ID}`);
+});
+
+test('WeebCentralSource extracts and coerces chapter IDs to ULID format', () => {
+  const source = new WeebCentralSource() as any;
+
+  assert.equal(source.extractChapterId(`/chapters/${CHAPTER_ID}`), CHAPTER_ID);
+  assert.equal(source.extractChapterId(`https://weebcentral.com/chapters/${CHAPTER_ID}/`), CHAPTER_ID);
+  assert.equal(source.coerceChapterId(CHAPTER_ID), CHAPTER_ID);
+  assert.equal(source.coerceChapterId(`/chapters/${CHAPTER_ID}`), CHAPTER_ID);
+  assert.equal(source.toChapterPath(CHAPTER_ID), `/chapters/${CHAPTER_ID}`);
+});
+
+test('WeebCentralSource rejects non-ULID series/chapter inputs', () => {
+  const source = new WeebCentralSource() as any;
+
+  assert.equal(source.coerceSeriesId('/series/not-a-ulid/some-title'), null);
+  assert.equal(source.coerceChapterId('/chapters/123'), null);
+});

@@ -157,8 +157,10 @@ export class BookListComponent {
 
   loadTrendingManga() {
     this.isTrendingLoading.set(true);
+    const sourceId = this.resolveTrendingSourceId();
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(sourceId)}/discover?limit=10`;
     this.http
-      .get<{ status: string; data: MangaDiscoverPayload }>('/api/v1/books/manga/discover?limit=10')
+      .get<{ status: string; data: MangaDiscoverPayload }>(endpoint)
       .subscribe({
         next: (response) => {
           this.trendingManga.set(response.data.trending || []);
@@ -169,6 +171,11 @@ export class BookListComponent {
           this.isTrendingLoading.set(false);
         },
       });
+  }
+
+  private resolveTrendingSourceId(): string {
+    const savedSource = localStorage.getItem('np_manga_source')?.trim().toLowerCase();
+    return savedSource || 'weebcentral';
   }
 
   loadBooks() {
