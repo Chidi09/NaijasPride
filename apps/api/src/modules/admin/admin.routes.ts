@@ -5,6 +5,7 @@ import {
 } from "fastify";
 import { YoutubeScoutService } from "./services/youtube-scout.service";
 import { RssScoutService } from "./services/rss-scout.service";
+import { TMDBMetadataService } from "./services/tmdb-metadata.service";
 import { z } from "zod";
 
 // Validation schemas
@@ -62,6 +63,7 @@ export const adminRoutes = async (
 ) => {
   const ytService = new YoutubeScoutService(app.prisma);
   const rssService = new RssScoutService();
+  const tmdbService = new TMDBMetadataService(app.prisma);
   const parsePositiveInt = (value?: string) => {
     if (!value) return undefined;
     const parsed = Number.parseInt(value, 10);
@@ -154,6 +156,11 @@ export const adminRoutes = async (
           },
         });
 
+        // Enrich with TMDB metadata in background (don't wait for it)
+        tmdbService.enrichMovieFromTMDB(movie.id, data.title, data.year).catch(err => {
+          console.error(`[TMDB] Failed to enrich ${data.title}:`, err);
+        });
+
         return reply.send({
           status: "success",
           data: movie,
@@ -222,7 +229,7 @@ export const adminRoutes = async (
               continue;
             }
 
-            await app.prisma.movie.create({
+            const movie = await app.prisma.movie.create({
               data: {
                 title: data.title,
                 slug,
@@ -238,6 +245,11 @@ export const adminRoutes = async (
                 fileSizes: {},
                 status: "active",
               },
+            });
+
+            // Enrich with TMDB metadata in background
+            tmdbService.enrichMovieFromTMDB(movie.id, data.title, data.year).catch(err => {
+              console.error(`[TMDB] Failed to enrich ${data.title}:`, err);
             });
 
             imported.push(data.title);
@@ -316,7 +328,7 @@ export const adminRoutes = async (
             }
 
             if (!dryRun) {
-              await app.prisma.movie.create({
+              const movie = await app.prisma.movie.create({
                 data: {
                   title,
                   slug,
@@ -332,6 +344,11 @@ export const adminRoutes = async (
                   fileSizes: {},
                   status: "active",
                 },
+              });
+
+              // Enrich with TMDB metadata in background
+              tmdbService.enrichMovieFromTMDB(movie.id, title, year).catch(err => {
+                console.error(`[TMDB] Failed to enrich ${title}:`, err);
               });
             }
 
@@ -414,7 +431,7 @@ export const adminRoutes = async (
               }
 
               if (!dryRun) {
-                await app.prisma.movie.create({
+                const movie = await app.prisma.movie.create({
                   data: {
                     title: video.title,
                     slug,
@@ -430,6 +447,11 @@ export const adminRoutes = async (
                     fileSizes: {},
                     status: "active",
                   },
+                });
+
+                // Enrich with TMDB metadata in background
+                tmdbService.enrichMovieFromTMDB(movie.id, video.title, year).catch(err => {
+                  console.error(`[TMDB] Failed to enrich ${video.title}:`, err);
                 });
               }
 
