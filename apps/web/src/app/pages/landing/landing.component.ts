@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { MovieSummary } from '@naijaspride/types';
 
 type AnimPhase = 'glitch' | 'dissolve' | 'hero';
 
@@ -23,7 +25,12 @@ export class LandingComponent implements OnInit, OnDestroy {
   revealedChars = signal(0);
   private timers: ReturnType<typeof setTimeout>[] = [];
 
+  // YouTube movies
+  youtubeMovies = signal<MovieSummary[]>([]);
+  isLoadingYoutube = signal(true);
+
   private router = inject(Router);
+  private http = inject(HttpClient);
 
   ngOnInit() {
     // Check if user prefers reduced motion
@@ -34,14 +41,41 @@ export class LandingComponent implements OnInit, OnDestroy {
     if (prefersReduced) {
       this.revealedChars.set(this.brandName.length);
       this.phase.set('hero');
-      return;
+    } else {
+      this.startSequence();
     }
 
-    this.startSequence();
+    // Load YouTube movies
+    this.loadYoutubeMovies();
   }
 
   ngOnDestroy() {
     this.timers.forEach(clearTimeout);
+  }
+
+  private loadYoutubeMovies() {
+    this.http.get<{
+      status: string;
+      data: {
+        movies: MovieSummary[];
+        pagination: { total: number };
+      };
+    }>('/api/v1/movies', {
+      params: {
+        isStreamOnly: 'true',
+        limit: '10',
+        sortBy: 'latest',
+      },
+    }).subscribe({
+      next: (response) => {
+        this.youtubeMovies.set(response.data.movies);
+        this.isLoadingYoutube.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading YouTube movies:', error);
+        this.isLoadingYoutube.set(false);
+      },
+    });
   }
 
   getStarted() {
@@ -61,8 +95,8 @@ export class LandingComponent implements OnInit, OnDestroy {
   }
 
   private startSequence() {
-    const charDelay = 180;   // ms between each character
-    const holdTime = 600;    // ms to hold completed name
+    const charDelay = 180; // ms between each character
+    const holdTime = 600; // ms to hold completed name
     const dissolveTime = 700; // ms for dissolve animation
 
     // Phase 1: Reveal characters one-by-one with glitch

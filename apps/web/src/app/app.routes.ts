@@ -32,6 +32,11 @@ export const routes: Routes = [
       .then(m => m.MovieListComponent)
   },
   {
+    path: 'movies/youtube',
+    loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component')
+      .then(m => m.StreamOnlyMoviesComponent)
+  },
+  {
     path: 'category/:slug',
     loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')
       .then(m => m.MovieListComponent)

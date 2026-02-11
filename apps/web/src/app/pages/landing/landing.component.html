@@ -73,8 +73,63 @@
     </div>
   </header>
 
-  <!-- ==================== REST OF THE PAGE ==================== -->
+  <!-- ==================== YOUTUBE NOLLYWOOD CAROUSEL ==================== -->
   <section class="py-16 px-8 border-t border-zinc-900 bg-zinc-950">
+    <div class="flex items-center justify-between mb-8">
+      <h2 class="text-2xl font-bold pl-4 border-l-4 border-[#800020]">Trending Nollywood on YouTube</h2>
+      <a routerLink="/movies/youtube" class="text-[#800020] hover:text-[#660019] font-semibold text-sm flex items-center gap-1">
+        View All <span>&rsaquo;</span>
+      </a>
+    </div>
+
+    <!-- Dynamic YouTube Movies Carousel -->
+    <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" *ngIf="youtubeMovies().length > 0">
+      <div *ngFor="let movie of youtubeMovies()"
+           [routerLink]="['/movies', movie.slug]"
+           class="min-w-[280px] group cursor-pointer">
+        <!-- Thumbnail -->
+        <div class="aspect-video bg-zinc-800 rounded-lg overflow-hidden relative">
+          <img *ngIf="movie.thumbnailUrl || movie.coverUrl || movie.posterUrl"
+               [src]="movie.thumbnailUrl || movie.coverUrl || movie.posterUrl"
+               [alt]="movie.title"
+               class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+          <div *ngIf="!movie.thumbnailUrl && !movie.coverUrl && !movie.posterUrl"
+               class="w-full h-full flex items-center justify-center bg-zinc-700">
+            <span class="text-4xl">🎬</span>
+          </div>
+          <!-- YouTube Badge -->
+          <div class="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+            YouTube
+          </div>
+          <!-- Duration -->
+          <div *ngIf="movie.durationMinutes" class="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
+            {{ movie.durationMinutes }} min
+          </div>
+        </div>
+        <!-- Info -->
+        <div class="mt-3">
+          <h3 class="text-white font-semibold text-sm line-clamp-2 group-hover:text-[#d6b87a] transition">{{ movie.title }}</h3>
+          <div class="flex items-center gap-2 mt-1 text-xs text-gray-400">
+            <span *ngIf="movie.rating" class="text-green-400">{{ movie.rating }}% Match</span>
+            <span>{{ movie.year }}</span>
+            <span *ngIf="movie.genre?.length">• {{ movie.genre[0] }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="flex gap-4 overflow-x-auto pb-8" *ngIf="isLoadingYoutube()">
+      <div *ngFor="let i of [1,2,3,4,5]" class="min-w-[280px]">
+        <div class="aspect-video bg-zinc-800 rounded-lg animate-pulse"></div>
+        <div class="mt-3 h-4 bg-zinc-800 rounded w-3/4 animate-pulse"></div>
+        <div class="mt-1 h-3 bg-zinc-800 rounded w-1/2 animate-pulse"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== REGULAR TRENDING SECTION ==================== -->
+  <section class="py-16 px-8 border-t border-zinc-900 bg-black">
     <h2 class="text-2xl font-bold mb-8 pl-4 border-l-4 border-[#800020]">Trending Now</h2>
     <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide">
       <div *ngFor="let i of [1,2,3,4,5,6]" class="min-w-[200px] h-[300px] bg-zinc-800 rounded-lg hover:scale-105 transition duration-300 relative group cursor-pointer overflow-hidden">
