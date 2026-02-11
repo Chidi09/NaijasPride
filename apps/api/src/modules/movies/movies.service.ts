@@ -358,6 +358,9 @@ export class MoviesService {
     rating: number | null;
     thumbnailUrl: string | null;
     downloadCount: number;
+    viewCount: number;
+    isStreamOnly: boolean;
+    youtubeId: string | null;
   }): MovieSummary {
     return {
       id: raw.id,
@@ -369,7 +372,10 @@ export class MoviesService {
       rating: raw.rating,
       thumbnailUrl: raw.thumbnailUrl,
       downloadCount: raw.downloadCount,
+      viewCount: raw.viewCount,
       nollywood: raw.genre.includes('Nollywood' as PrismaGenre),
+      isStreamOnly: raw.isStreamOnly,
+      youtubeId: raw.youtubeId,
     };
   }
 }

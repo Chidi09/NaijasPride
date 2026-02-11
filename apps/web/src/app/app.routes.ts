@@ -32,9 +32,15 @@ export const routes: Routes = [
       .then(m => m.MovieListComponent)
   },
   {
-    path: 'movies/youtube',
+    path: 'movies/stream',
     loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component')
       .then(m => m.StreamOnlyMoviesComponent)
+  },
+  // Legacy redirect
+  {
+    path: 'movies/youtube',
+    redirectTo: 'movies/stream',
+    pathMatch: 'full'
   },
   {
     path: 'category/:slug',
@@ -47,10 +53,9 @@ export const routes: Routes = [
       .then(m => m.MovieDetailComponent)
   },
   
-  // WATCH ROOM - Streaming experience
+  // WATCH ROOM - Streaming experience (now open to guests)
   {
     path: 'watch/:slug',
-    canActivate: [authGuard],
     loadComponent: () => import('./features/movies/pages/watch-room/watch-room.component')
       .then(m => m.WatchRoomComponent)
   },
@@ -66,6 +71,11 @@ export const routes: Routes = [
   // BOOK ROUTES
   {
     path: 'books',
+    loadComponent: () => import('./features/books/pages/book-hub/book-hub.component')
+      .then(m => m.BookHubComponent)
+  },
+  {
+    path: 'books/all',
     loadComponent: () => import('./features/books/pages/book-list/book-list.component')
       .then(m => m.BookListComponent)
   },

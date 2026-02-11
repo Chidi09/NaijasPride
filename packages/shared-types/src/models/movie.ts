@@ -60,12 +60,15 @@ export interface Movie {
 export interface MovieSummary {
   id: string;
   title: string;
-  slug: string;
+  slug: string | null;
   year: number;
   genre: Genre[];
   quality: Quality[];
   rating: number | null;
   thumbnailUrl: string | null;
   downloadCount: number;
+  viewCount: number;
   nollywood: boolean;
+  isStreamOnly: boolean;
+  youtubeId?: string | null;
 }

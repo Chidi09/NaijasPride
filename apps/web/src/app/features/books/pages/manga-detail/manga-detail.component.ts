@@ -324,7 +324,6 @@ export class MangaDetailComponent implements OnInit {
     if (source === 'mangadex') return 'MangaDex';
     if (source === 'weebcentral') return 'WeebCentral';
     if (source === 'asura') return 'Asura';
-    if (source === 'bato') return 'Bato.To';
     if (source === 'manhwatop') return 'ManhwaTop';
     return source;
   }

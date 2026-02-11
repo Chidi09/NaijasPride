@@ -33,6 +33,16 @@ import { MovieSummary } from '@naijaspride/types';
           </div>
         }
 
+        @if (movie.isStreamOnly) {
+          <div class="absolute top-2 left-2 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg">
+            ▶ STREAM
+          </div>
+        } @else {
+          <div class="absolute top-2 left-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg">
+            📥 DOWNLOAD
+          </div>
+        }
+
         @if (progressPercent > 0) {
           <div class="absolute inset-x-0 bottom-0 h-1 bg-black/60">
             <div

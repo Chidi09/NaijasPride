@@ -53,11 +53,20 @@ export class ManhwaTopSource extends MadaraBaseSource {
         if (!id || seen.has(id)) return;
         seen.add(id);
 
+        // Fix: Try multiple image attributes for lazy loading
+        const img = $(el).find('img').first();
+        const coverUrl = this.toAbsoluteUrl(
+          img.attr('data-src') ||
+          img.attr('data-lazy-src') ||
+          img.attr('data-original') ||
+          img.attr('src')
+        );
+
         cards.push({
           id,
           title: this.strip(link.text()) || 'Unknown Title',
           description: this.strip($(el).find('.summary, .description, .excerpt').first().text()),
-          coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src') || $(el).find('img').first().attr('data-src')),
+          coverUrl,
           status: null,
           year: null,
           originalLanguage: null,
@@ -90,22 +99,29 @@ export class ManhwaTopSource extends MadaraBaseSource {
       const html = await this.fetchHtml(seriesPath);
       const $ = cheerio.load(html);
 
-      // ManhwaTop specific selectors
+      // Fix: More robust selectors with fallbacks
       const detail: MangaDetail = {
         id: seriesPath,
         title:
+          this.strip($('meta[property="og:title"]').attr('content')) ||
           this.strip($('.post-title h1').first().text()) ||
           this.strip($('h1').first().text()) ||
-          this.strip($('meta[property="og:title"]').attr('content')) ||
           'Unknown Title',
         description:
-          this.strip($('.description-summary .summary__content, .summary__content, .manga-excerpt').first().text()) ||
-          this.strip($('meta[property="og:description"]').attr('content')),
+          this.strip($('meta[property="og:description"]').attr('content')) ||
+          this.strip($('.description-summary .summary__content').first().text()) ||
+          this.strip($('.summary__content').first().text()) ||
+          this.strip($('.manga-excerpt').first().text()) ||
+          this.strip($('.summary-content').first().text()) ||
+          this.strip($('.post-content_item:contains("Description") .summary-content').first().text()),
         coverUrl:
-          this.toAbsoluteUrl($('.summary_image img').first().attr('src')) ||
-          this.toAbsoluteUrl($('.manga-thumb img').first().attr('src')) ||
           this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
-          this.toAbsoluteUrl($('img').first().attr('src')),
+          this.toAbsoluteUrl($('.summary_image img').attr('data-src')) ||
+          this.toAbsoluteUrl($('.summary_image img').attr('src')) ||
+          this.toAbsoluteUrl($('.manga-thumb img').attr('data-src')) ||
+          this.toAbsoluteUrl($('.manga-thumb img').attr('src')) ||
+          this.toAbsoluteUrl($('.profile-manga img').first().attr('data-src')) ||
+          this.toAbsoluteUrl($('.profile-manga img').first().attr('src')),
         status: null,
         year: null,
         originalLanguage: null,
@@ -137,9 +153,30 @@ export class ManhwaTopSource extends MadaraBaseSource {
     try {
       const html = await this.fetchHtml(seriesPath);
       const $ = cheerio.load(html);
-      const mangaNodeId = this.strip($('#manga-chapters-holder').attr('data-id'));
+      
+      // Try multiple selectors to find manga ID
+      let mangaNodeId = this.strip($('#manga-chapters-holder').attr('data-id'));
+      
+      // Fallback: Try to extract from script tags
+      if (!mangaNodeId) {
+        const scripts = $('script').map((i, el) => $(el).html()).get().filter(Boolean);
+        for (const script of scripts) {
+          const match = script.match(/manga_id["']?\s*:\s*["']?(\d+)["']?/);
+          if (match) {
+            mangaNodeId = match[1];
+            break;
+          }
+        }
+      }
+      
+      // Fallback: Try to find in data attributes
+      if (!mangaNodeId) {
+        mangaNodeId = this.strip($('[data-manga-id]').attr('data-manga-id')) ||
+                     this.strip($('[data-post-id]').attr('data-post-id'));
+      }
 
       if (!mangaNodeId) {
+        console.warn(`[ManhwaTop] Could not extract mangaNodeId for ${mangaId}, falling back to default method`);
         return super.getChapters(mangaId, _translatedLanguage, limit);
       }
 

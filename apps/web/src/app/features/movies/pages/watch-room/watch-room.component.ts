@@ -42,6 +42,7 @@ import { RouterLink } from "@angular/router";
             <app-video-player
               [youtubeId]="m.youtubeId"
               [movieId]="m.id"
+              [movie]="m"
               [config]="playerConfig"
               (playerReady)="onPlayerReady()"
             >

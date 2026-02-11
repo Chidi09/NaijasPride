@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { AsuraSource } from './sources/providers/asura.source';
-import { BatoSource } from './sources/providers/bato.source';
 import { ManhwaTopSource } from './sources/providers/manhwatop.source';
 import { MangaDexSource } from './sources/providers/mangadex.source';
 import { MangabuddySource } from './sources/providers/mangabuddy.source';
@@ -52,7 +51,6 @@ export class MangaService {
     registry.register(new MangaDexSource());
     registry.register(new WeebCentralSource());
     registry.register(new AsuraSource());
-    registry.register(new BatoSource());
     registry.register(new MangabuddySource());
     registry.register(new ManhwaTopSource());
 
@@ -64,7 +62,7 @@ export class MangaService {
   }
 
   private resolveDefaultSourceId(registry: MangaSourceRegistry): string {
-    const preferredOrder = ['weebcentral', 'asura', 'bato', 'manhwatop', 'mangabuddy', 'mangadex'];
+    const preferredOrder = ['weebcentral', 'asura', 'manhwatop', 'mangabuddy', 'mangadex'];
     for (const sourceId of preferredOrder) {
       if (registry.has(sourceId)) {
         return sourceId;

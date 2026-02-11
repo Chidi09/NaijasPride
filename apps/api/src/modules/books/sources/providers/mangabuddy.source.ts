@@ -1,4 +1,3 @@
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { BaseHtmlSource } from '../base/base-html.source';
 import { sourceMetrics } from '../observability/source-metrics';
@@ -284,38 +283,66 @@ export class MangabuddySource extends BaseHtmlSource {
       const seriesHtml = await this.fetchHtml(`/${mangaId}`);
       const $series = cheerio.load(seriesHtml);
       
-      // Kotatsu: script:containsData(bookSlug)
-      const scriptTag = $series('script:contains("bookSlug")').first().html();
-      if (!scriptTag) {
-        console.error('[MangaBuddy] Could not find bookSlug');
+      // Improved: Try multiple methods to extract bookSlug
+      let bookSlug: string | null = null;
+      
+      // Method 1: Look for bookSlug in all script tags with multiple patterns
+      $series('script').each((_idx, el) => {
+        if (bookSlug) return;
+        const script = $series(el).html() || '';
+        
+        // Try multiple regex patterns
+        const patterns = [
+          /bookSlug\s*[:=]\s*["']([^"']+)["']/,
+          /["']bookSlug["']\s*:\s*["']([^"']+)["']/,
+          /bookSlug\s*:\s*["']([^"']+)["']/,
+        ];
+        
+        for (const pattern of patterns) {
+          const match = script.match(pattern);
+          if (match && match[1]) {
+            bookSlug = match[1];
+            return;
+          }
+        }
+      });
+      
+      // Method 2: Try to find in data attributes
+      if (!bookSlug) {
+        bookSlug = $series('[data-book-slug]').attr('data-book-slug') ??
+                   $series('[data-slug]').attr('data-slug') ??
+                   null;
+      }
+      
+      // Method 3: Try to construct from the URL
+      if (!bookSlug) {
+        // If mangaId looks like a slug, use it directly
+        if (mangaId && !mangaId.includes(':')) {
+          bookSlug = mangaId;
+        }
+      }
+
+      if (!bookSlug) {
+        console.error('[MangaBuddy] Could not extract bookSlug for:', mangaId);
         return [];
       }
 
-      const slugMatch = scriptTag.match(/bookSlug\s*=\s*["']([^"']+)["']/);
-      if (!slugMatch) {
-        console.error('[MangaBuddy] Could not extract bookSlug');
-        return [];
-      }
-
-      const bookSlug = slugMatch[1];
-
-      // Kotatsu: GET /api/manga/{slug}/chapters?source=detail
-      const apiUrl = `${BASE_URL}/api/manga/${bookSlug}/chapters?source=detail`;
-      const response = await axios.get(apiUrl, {
-        timeout: 20_000,
+      // Use fetchGateway instead of raw axios for better error handling and FlareSolverr support
+      const apiUrl = `/api/manga/${bookSlug}/chapters?source=detail`;
+      const response = await this.fetchGateway.get(apiUrl, {
+        sourceId: this.id,
+        timeoutMs: 20_000,
         headers: {
           'Accept': 'text/html, */*',
           'Referer': `${BASE_URL}/${mangaId}`,
         },
       });
 
-      const chapterHtml = typeof response.data === 'string' ? response.data : '';
+      const chapterHtml = response.body || '';
       const $chapters = cheerio.load(chapterHtml);
       const chapters: MangaChapter[] = [];
 
       // Kotatsu: ul#chapter-list li
-      // Kotatsu: selectChapter = "ul#chapter-list li"
-      // Kotatsu: selectDate = "div .chapter-update"
       $chapters('ul#chapter-list li').each((index, el) => {
         if (chapters.length >= limit) return;
 
@@ -384,12 +411,15 @@ export class MangabuddySource extends BaseHtmlSource {
       const seen = new Set<string>();
 
       // Method 1: Kotatsu HTML parsing - div#chapter-images img
+      // Improved: Better CDN URL transformation with duplicate prevention
       $('div#chapter-images img').each((_idx, el) => {
         const src = $(el).attr('src');
         if (src && !seen.has(src)) {
           seen.add(src);
-          // Transform to CDN URL if needed
-          if (src.includes('/manga')) {
+          // Transform to CDN URL if needed, but avoid double transformation
+          if (src.includes(IMAGE_CDN)) {
+            pages.push(src);
+          } else if (src.includes('/manga')) {
             const cleanUrl = src.replace(/^.*?\/manga/i, '');
             pages.push(`${IMAGE_CDN}/manga${cleanUrl}`);
           } else {
@@ -399,8 +429,10 @@ export class MangabuddySource extends BaseHtmlSource {
       });
 
       // Method 2: Kotatsu JS parsing - chapImages regex
+      // Improved: Prevent double transformation by checking if already CDN URL
       const regexPages = /chapImages\s*=\s*['"](.*?)['"]/;
       $('script').each((_idx, el) => {
+        if (pages.length > 0) return; // Skip if we already have pages from Method 1
         const script = $(el).html() || '';
         const match = regexPages.exec(script);
         if (match && match[1]) {
@@ -408,8 +440,15 @@ export class MangabuddySource extends BaseHtmlSource {
           urls.forEach(url => {
             if (url && !seen.has(url)) {
               seen.add(url);
-              const cleanUrl = url.replace(/^.*?\/manga/i, '');
-              pages.push(`${IMAGE_CDN}/manga${cleanUrl}`);
+              // Only transform if not already a CDN URL
+              if (url.includes(IMAGE_CDN)) {
+                pages.push(url);
+              } else if (url.includes('/manga')) {
+                const cleanUrl = url.replace(/^.*?\/manga/i, '');
+                pages.push(`${IMAGE_CDN}/manga${cleanUrl}`);
+              } else {
+                pages.push(url);
+              }
             }
           });
         }

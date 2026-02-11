@@ -328,7 +328,6 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     if (source === 'mangadex') return 'MangaDex';
     if (source === 'weebcentral') return 'WeebCentral';
     if (source === 'asura') return 'AsuraScans';
-    if (source === 'bato') return 'Bato.To';
     if (source === 'manhwatop') return 'ManhwaTop';
     return source;
   }

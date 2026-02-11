@@ -4,7 +4,10 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 import { debounceTime, takeUntil } from 'rxjs/operators';
 import { WatchApiService } from '../../../features/watch/services/watch-api.service';
+import { AnonymousWatchService } from '../../../core/services/anonymous-watch.service';
+import { AuthStateService } from '../../../core/auth/auth-state.service';
 import { BrandLogoComponent } from '../brand-logo/brand-logo.component';
+import { MovieSummary } from '@naijaspride/types';
 
 interface VideoPlayerConfig {
   movieId?: string;
@@ -166,6 +169,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   @Input() youtubeId?: string | null;
   @Input() videoUrl?: string | null;
   @Input() movieId?: string;
+  @Input() movie?: MovieSummary; // For anonymous progress tracking
   @Input() config: VideoPlayerConfig = {
     showSkipButtons: true,
     autoResume: true,
@@ -177,6 +181,8 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
 
   private sanitizer = inject(DomSanitizer);
   private watchApi = inject(WatchApiService);
+  private anonymousWatch = inject(AnonymousWatchService);
+  private authState = inject(AuthStateService);
   private destroy$ = new Subject<void>();
   private progressUpdate = new Subject<number>();
   
@@ -190,6 +196,10 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   // Subtitle state
   subtitleTrackUrl: string | null = null;
   showSubtitles = true;
+
+  private get isAuthenticated(): boolean {
+    return this.authState.isAuthenticated();
+  }
 
   ngOnInit() {
     this.progressUpdate.pipe(
@@ -280,14 +290,24 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   private loadSavedProgress() {
     if (!this.movieId || !this.config.autoResume) return;
     
-    this.watchApi.getProgress(this.movieId).pipe(
-      takeUntil(this.destroy$)
-    ).subscribe(response => {
-      if (response.data && response.data.progress > 30) {
-        this.savedProgress = response.data.progress;
+    if (this.isAuthenticated) {
+      // Use API for authenticated users
+      this.watchApi.getProgress(this.movieId).pipe(
+        takeUntil(this.destroy$)
+      ).subscribe(response => {
+        if (response.data && response.data.progress > 30) {
+          this.savedProgress = response.data.progress;
+          this.showResumeDialog = true;
+        }
+      });
+    } else {
+      // Use localStorage for anonymous users
+      const progress = this.anonymousWatch.getProgress(this.movieId);
+      if (progress && progress.lastPosition > 30) {
+        this.savedProgress = progress.lastPosition;
         this.showResumeDialog = true;
       }
-    });
+    }
   }
 
   resumeFromSaved() {
@@ -344,9 +364,17 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   private saveProgress(progress: number) {
     if (!this.movieId || !this.config.saveProgress) return;
     
-    this.watchApi.saveProgress(this.movieId, progress, Math.floor(this.duration)).subscribe({
-      error: (err) => console.error('Failed to save progress:', err)
-    });
+    if (this.isAuthenticated) {
+      // Save to API for authenticated users
+      this.watchApi.saveProgress(this.movieId, progress, Math.floor(this.duration)).subscribe({
+        error: (err) => console.error('Failed to save progress:', err)
+      });
+    } else if (this.movie) {
+      // Save to localStorage for anonymous users
+      const percentage = this.duration > 0 ? (progress / this.duration) * 100 : 0;
+      const completed = percentage >= 95;
+      this.anonymousWatch.saveProgress(this.movie, percentage, progress, Math.floor(this.duration), completed);
+    }
   }
 
   formatTime(seconds: number): string {
