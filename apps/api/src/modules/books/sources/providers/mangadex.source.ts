@@ -340,38 +340,81 @@ export class MangaDexSource implements MangaSource {
 
   async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
     const languageKey = translatedLanguage?.trim() ? translatedLanguage.trim().toLowerCase() : 'all';
-    const cacheKey = `manga:chapters:${mangaId}:${languageKey}:${limit}`;
+    const cacheKey = `manga:chapters:${mangaId}:${languageKey}:all`;
 
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const response = await axios.get(`${MANGADEX_BASE_URL}/manga/${mangaId}/feed`, {
+      // Fetch all chapters with pagination (Kotatsu-style)
+      const allChapters: any[] = [];
+      let offset = 0;
+      const pageSize = 500; // Maximum allowed by MangaDex
+      let total = 0;
+
+      // First request to get total count
+      const firstResponse = await axios.get(`${MANGADEX_BASE_URL}/manga/${mangaId}/feed`, {
         params: {
           ...(translatedLanguage?.trim() ? { translatedLanguage: [translatedLanguage.trim()] } : {}),
-          order: { chapter: 'desc' },
-          limit,
+          'order[volume]': 'asc',
+          'order[chapter]': 'asc',
+          limit: pageSize,
+          offset: 0,
           'includes[]': 'scanlation_group',
+          'contentRating[]': ['safe', 'suggestive', 'erotica', 'pornographic'],
         },
       });
 
-      const results = (response.data?.data || []).map((chapter: any) => {
-        const scanlationGroup = (chapter.relationships || []).find((r: any) => r.type === 'scanlation_group');
-        const scanlatorName = scanlationGroup?.attributes?.name || null;
-        // Generate chapter number if missing (Kotatsu-style)
-        const chapterNum = chapter.attributes?.chapter || '1';
-        return {
-          id: chapter.id,
-          chapter: chapterNum,
-          volume: chapter.attributes?.volume || null,
-          title: chapter.attributes?.title || null,
-          publishedAt: chapter.attributes?.publishAt || null,
-          branch: scanlatorName,
-          scanlationGroup: scanlatorName,
-          externalUrl: chapter.attributes?.externalUrl || null,
-          isExternal: !!chapter.attributes?.externalUrl,
-        } as MangaChapter;
-      });
+      if (firstResponse.data?.data) {
+        allChapters.push(...firstResponse.data.data);
+        total = firstResponse.data.total || 0;
+      }
+
+      // Fetch remaining pages if needed
+      while (allChapters.length < total && allChapters.length < 10000) {
+        offset += pageSize;
+        const response = await axios.get(`${MANGADEX_BASE_URL}/manga/${mangaId}/feed`, {
+          params: {
+            ...(translatedLanguage?.trim() ? { translatedLanguage: [translatedLanguage.trim()] } : {}),
+            'order[volume]': 'asc',
+            'order[chapter]': 'asc',
+            limit: pageSize,
+            offset,
+            'includes[]': 'scanlation_group',
+            'contentRating[]': ['safe', 'suggestive', 'erotica', 'pornographic'],
+          },
+        });
+
+        if (response.data?.data && response.data.data.length > 0) {
+          allChapters.push(...response.data.data);
+        } else {
+          break;
+        }
+
+        // Safety check to avoid infinite loops
+        if (offset > 20000) break;
+      }
+
+      // Filter and map chapters (Kotatsu-style: filter out externalUrl chapters)
+      const results = allChapters
+        .filter((chapter: any) => !chapter.attributes?.externalUrl)
+        .map((chapter: any) => {
+          const scanlationGroup = (chapter.relationships || []).find((r: any) => r.type === 'scanlation_group');
+          const scanlatorName = scanlationGroup?.attributes?.name || null;
+          // Generate chapter number if missing (Kotatsu-style)
+          const chapterNum = chapter.attributes?.chapter || '1';
+          return {
+            id: chapter.id,
+            chapter: chapterNum,
+            volume: chapter.attributes?.volume || null,
+            title: chapter.attributes?.title || null,
+            publishedAt: chapter.attributes?.publishAt || null,
+            branch: scanlatorName,
+            scanlationGroup: scanlatorName,
+            externalUrl: null,
+            isExternal: false,
+          } as MangaChapter;
+        });
 
       await this.setCache(cacheKey, results, CACHE_TTL_SECONDS * 2);
       return results;
