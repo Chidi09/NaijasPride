@@ -20,7 +20,7 @@ export class BatoSource extends BaseHtmlSource {
   readonly displayName = 'Bato.To';
   readonly capabilities = {
     supportsFilters: false,
-    supportsLanguages: true,
+    supportsLanguages: false,
     supportsSimilar: false,
     supportsDiscover: true,
     supportsTags: false,
@@ -250,13 +250,12 @@ export class BatoSource extends BaseHtmlSource {
     return [];
   }
 
-  async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
+  async getChapters(mangaId: string, _translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
     const seriesId = this.coerceSeriesId(mangaId);
     if (!seriesId) return [];
 
     const seriesPath = this.toSeriesPath(seriesId);
-    const languageKey = translatedLanguage?.trim()?.toLowerCase() || 'all';
-    const cacheKey = this.buildCacheKey('chapters', seriesId, languageKey, limit);
+    const cacheKey = this.buildCacheKey('chapters', seriesId, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
@@ -276,24 +275,20 @@ export class BatoSource extends BaseHtmlSource {
         seen.add(chapterId);
 
         const text = this.strip(link.text());
-        const chapterMatch = text.match(/chapter\s*[:\-]?\s*([\d.]+)/i);
-        const langMatch = text.match(/\b(EN|JP|KR|CN|ES|PT|FR|DE|ID|TH|VI|TR|RU)\b/i);
-        const chapterLanguage = langMatch?.[1]?.toLowerCase() || null;
-
-        if (translatedLanguage && chapterLanguage && chapterLanguage !== translatedLanguage.toLowerCase()) {
-          return;
+        let chapterNumber = _idx + 1;
+        const chapterMatch = text.match(/\b(\d+(?:\.\d+)?)\b/);
+        if (chapterMatch) {
+          chapterNumber = parseFloat(chapterMatch[1]);
         }
 
         chapters.push({
           id: chapterId,
-          chapter: chapterMatch?.[1] || null,
+          chapter: String(chapterNumber),
           volume: null,
           title: text || null,
-          pages: 0,
           publishedAt: null,
-          readableAt: null,
-          translatedLanguage: chapterLanguage,
           scanlationGroup: null,
+          branch: null,
           externalUrl: null,
           isExternal: false,
         });
@@ -413,7 +408,7 @@ export class BatoSource extends BaseHtmlSource {
     if (!rawChapterId) {
       return {
         chapterId,
-        readerMode: 'manga',
+        readerMode: 'standard',
         pages: [],
         externalUrl: null,
         isExternal: false,
@@ -434,7 +429,7 @@ export class BatoSource extends BaseHtmlSource {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
           chapterId: rawChapterId,
-          readerMode: 'manga',
+        readerMode: 'standard',
           pages: [],
           externalUrl: `${BASE_URL}${chapterPath}`,
           isExternal: true,
@@ -445,7 +440,7 @@ export class BatoSource extends BaseHtmlSource {
 
       const result: MangaPagesResult = {
         chapterId: rawChapterId,
-        readerMode: 'manga',
+        readerMode: 'standard',
         pages: fallbackPages,
         externalUrl: null,
         isExternal: false,
@@ -457,7 +452,7 @@ export class BatoSource extends BaseHtmlSource {
       console.error(`[Bato] page fetch failed: ${summarizeSourceError(error)}`);
       return {
         chapterId: rawChapterId,
-        readerMode: 'manga',
+        readerMode: 'standard',
         pages: [],
         externalUrl: `${BASE_URL}${chapterPath}`,
         isExternal: true,

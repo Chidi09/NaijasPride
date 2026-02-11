@@ -78,8 +78,8 @@ const toProxyCoverUrl = (coverUrl: string | null): string | null => {
   return `/api/v1/books/manga/covers/${mangaId}/${encodeURIComponent(fileName)}`;
 };
 
-const detectReaderMode = (manga: MangaDexSearchItem | null): 'webtoon' | 'manga' | 'comic' => {
-  if (!manga) return 'manga';
+const detectReaderMode = (manga: MangaDexSearchItem | null): 'webtoon' | 'reversed' | 'standard' => {
+  if (!manga) return 'reversed'; // Default to reversed (manga mode)
 
   const tags = extractTags(manga).map((t) => t.toLowerCase());
   const title = pickLocalized(manga.attributes?.title).toLowerCase();
@@ -96,10 +96,10 @@ const detectReaderMode = (manga: MangaDexSearchItem | null): 'webtoon' | 'manga'
   }
 
   if (originalLanguage === 'en' || tags.includes('full color')) {
-    return 'comic';
+    return 'standard'; // Western comics read LTR
   }
 
-  return 'manga';
+  return 'reversed'; // Japanese manga read RTL
 };
 
 export class MangaDexSource implements MangaSource {
@@ -357,18 +357,17 @@ export class MangaDexSource implements MangaSource {
 
       const results = (response.data?.data || []).map((chapter: any) => {
         const scanlationGroup = (chapter.relationships || []).find((r: any) => r.type === 'scanlation_group');
-        const hasScanlationGroup = !!scanlationGroup?.id;
+        const scanlatorName = scanlationGroup?.attributes?.name || null;
+        // Generate chapter number if missing (Kotatsu-style)
+        const chapterNum = chapter.attributes?.chapter || '1';
         return {
           id: chapter.id,
-          chapter: chapter.attributes?.chapter || null,
+          chapter: chapterNum,
           volume: chapter.attributes?.volume || null,
           title: chapter.attributes?.title || null,
-          pages: chapter.attributes?.pages || 0,
           publishedAt: chapter.attributes?.publishAt || null,
-          readableAt: chapter.attributes?.readableAt || null,
-          translatedLanguage: chapter.attributes?.translatedLanguage || null,
-          scanlationGroup: scanlationGroup?.attributes?.name || null,
-          isOfficialTranslation: hasScanlationGroup ? false : true,
+          branch: scanlatorName,
+          scanlationGroup: scanlatorName,
           externalUrl: chapter.attributes?.externalUrl || null,
           isExternal: !!chapter.attributes?.externalUrl,
         } as MangaChapter;
@@ -396,7 +395,7 @@ export class MangaDexSource implements MangaSource {
       if (externalUrl) {
         const externalResult: MangaPagesResult = {
           chapterId,
-          readerMode: 'manga',
+          readerMode: 'reversed',
           pages: [],
           externalUrl,
           isExternal: true,
@@ -444,7 +443,7 @@ export class MangaDexSource implements MangaSource {
       console.error('[MangaDex] page fetch failed:', error);
       return {
         chapterId,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages: [],
         externalUrl: null,
         isExternal: false,

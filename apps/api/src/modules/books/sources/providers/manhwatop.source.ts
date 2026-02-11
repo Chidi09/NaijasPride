@@ -18,10 +18,9 @@ export class ManhwaTopSource extends MadaraBaseSource {
     });
   }
 
-  async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
+  async getChapters(mangaId: string, _translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
     const seriesPath = this.normalizePath(mangaId, '/');
-    const languageKey = translatedLanguage?.trim()?.toLowerCase() || 'all';
-    const cacheKey = this.buildCacheKey('chapters', seriesPath, languageKey, limit);
+    const cacheKey = this.buildCacheKey('chapters', seriesPath, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
@@ -31,7 +30,7 @@ export class ManhwaTopSource extends MadaraBaseSource {
       const mangaNodeId = this.strip($('#manga-chapters-holder').attr('data-id'));
 
       if (!mangaNodeId) {
-        return super.getChapters(mangaId, translatedLanguage, limit);
+        return super.getChapters(mangaId, _translatedLanguage, limit);
       }
 
       const body = new URLSearchParams({
@@ -63,24 +62,20 @@ export class ManhwaTopSource extends MadaraBaseSource {
         seen.add(chapterPath);
 
         const title = this.strip(chapterDoc(el).text());
-        const chapterMatch = title.match(/chapter\s*([\d.]+)/i);
-        const langMatch = title.match(/\b(EN|JP|KR|CN|ES|PT|FR|DE|ID|TH|VI|TR|RU)\b/i);
-        const chapterLanguage = langMatch?.[1]?.toLowerCase() || null;
-
-        if (translatedLanguage && chapterLanguage && chapterLanguage !== translatedLanguage.toLowerCase()) {
-          return;
+        let chapterNumber = _idx + 1;
+        const chapterMatch = title.match(/\b(\d+(?:\.\d+)?)\b/);
+        if (chapterMatch) {
+          chapterNumber = parseFloat(chapterMatch[1]);
         }
 
         chapters.push({
           id: chapterPath,
-          chapter: chapterMatch?.[1] || null,
+          chapter: String(chapterNumber),
           volume: null,
           title: title || null,
-          pages: 0,
           publishedAt: null,
-          readableAt: null,
-          translatedLanguage: chapterLanguage,
           scanlationGroup: null,
+          branch: null,
           externalUrl: null,
           isExternal: false,
         });
@@ -90,7 +85,7 @@ export class ManhwaTopSource extends MadaraBaseSource {
       return chapters;
     } catch (error) {
       console.error(`[ManhwaTop] chapter fetch failed: ${summarizeSourceError(error)}`);
-      return super.getChapters(mangaId, translatedLanguage, limit);
+      return super.getChapters(mangaId, _translatedLanguage, limit);
     }
   }
 }

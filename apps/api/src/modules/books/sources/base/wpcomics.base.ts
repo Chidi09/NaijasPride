@@ -14,7 +14,7 @@ import { BaseHtmlSource } from './base-html.source';
 export abstract class WpComicsBaseSource extends BaseHtmlSource {
   readonly capabilities = {
     supportsFilters: true,
-    supportsLanguages: true,
+    supportsLanguages: false,
     supportsSimilar: false,
     supportsDiscover: true,
     supportsTags: true,
@@ -172,7 +172,7 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
       const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('div.list-chapter li.row:not(.heading) a, #nt_listchapter nav ul li:not(.heading) a').each((_idx, el) => {
+      $('div.list-chapter li.row:not(.heading) a, #nt_listchapter nav ul li:not(.heading) a').each((index, el) => {
         if (chapters.length >= limit) return;
 
         const href = $(el).attr('href');
@@ -191,14 +191,15 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
 
         chapters.push({
           id: chapterPath,
-          chapter: chapterMatch?.[1] || null,
+          chapter: (() => {
+            const match = text.match(/\b(\d+(?:\.\d+)?)\b/);
+            return match ? match[1] : String(index + 1);
+          })(),
           volume: null,
           title: text || null,
-          pages: 0,
           publishedAt: null,
-          readableAt: null,
-          translatedLanguage: chapterLanguage,
           scanlationGroup: null,
+          branch: null,
           externalUrl: null,
           isExternal: false,
         });
@@ -224,7 +225,7 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
           chapterId: chapterPath,
-          readerMode: 'manga',
+          readerMode: 'reversed',
           pages: [],
           externalUrl: `${this.baseUrl}${chapterPath}`,
           isExternal: true,
@@ -235,7 +236,7 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
 
       const result: MangaPagesResult = {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages,
         externalUrl: null,
         isExternal: false,
@@ -246,7 +247,7 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
     } catch {
       return {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages: [],
         externalUrl: `${this.baseUrl}${chapterPath}`,
         isExternal: true,

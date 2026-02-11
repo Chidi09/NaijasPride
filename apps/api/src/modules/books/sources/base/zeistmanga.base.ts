@@ -22,7 +22,7 @@ type BloggerEntry = {
 export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
   readonly capabilities = {
     supportsFilters: true,
-    supportsLanguages: true,
+    supportsLanguages: false,
     supportsSimilar: false,
     supportsDiscover: true,
     supportsTags: true,
@@ -213,7 +213,7 @@ export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
           chapterId: chapterPath,
-          readerMode: 'manga',
+          readerMode: 'reversed',
           pages: [],
           externalUrl: `${this.baseUrl}${chapterPath}`,
           isExternal: true,
@@ -224,7 +224,7 @@ export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
 
       const result: MangaPagesResult = {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages,
         externalUrl: null,
         isExternal: false,
@@ -235,7 +235,7 @@ export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
     } catch {
       return {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages: [],
         externalUrl: `${this.baseUrl}${chapterPath}`,
         isExternal: true,
@@ -332,7 +332,7 @@ export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
     const chapters: MangaChapter[] = [];
     const seen = new Set<string>();
 
-    for (const entry of entries) {
+    for (const [index, entry] of entries.entries()) {
       const href = this.getEntryAlternateLink(entry);
       const chapterPath = href ? this.normalizePath(href, '/') : null;
       if (!chapterPath || seen.has(chapterPath)) continue;
@@ -349,14 +349,15 @@ export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
 
       chapters.push({
         id: chapterPath,
-        chapter: chapterMatch?.[1] || null,
+        chapter: (() => {
+          const match = title.match(/\b(\d+(?:\.\d+)?)\b/);
+          return match ? match[1] : String(index + 1);
+        })(),
         volume: null,
         title: title || null,
-        pages: 0,
         publishedAt: entry.published?.$t || null,
-        readableAt: null,
-        translatedLanguage: chapterLanguage,
         scanlationGroup: null,
+        branch: null,
         externalUrl: null,
         isExternal: false,
       });
@@ -371,7 +372,7 @@ export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
     const chapters: MangaChapter[] = [];
     const seen = new Set<string>();
 
-    $('#myUL a, #latest a, #chapterlist a, a[href*="chapter"], a[href*="capitulo"], a[href*="chap"]').each((_idx, el) => {
+    $('#myUL a, #latest a, #chapterlist a, a[href*="chapter"], a[href*="capitulo"], a[href*="chap"]').each((index, el) => {
       if (chapters.length >= limit) return;
 
       const href = $(el).attr('href');
@@ -392,14 +393,15 @@ export abstract class ZeistMangaBaseSource extends BaseHtmlSource {
 
       chapters.push({
         id: chapterPath,
-        chapter: chapterMatch?.[1] || null,
+        chapter: (() => {
+          const match = text.match(/\b(\d+(?:\.\d+)?)\b/);
+          return match ? match[1] : String(index + 1);
+        })(),
         volume: null,
         title: text,
-        pages: 0,
         publishedAt: null,
-        readableAt: null,
-        translatedLanguage: chapterLanguage,
         scanlationGroup: null,
+        branch: null,
         externalUrl: null,
         isExternal: false,
       });

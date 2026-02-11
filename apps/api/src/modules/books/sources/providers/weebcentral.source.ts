@@ -19,7 +19,7 @@ export class WeebCentralSource extends BaseHtmlSource {
   readonly displayName = 'WeebCentral';
   readonly capabilities = {
     supportsFilters: false,
-    supportsLanguages: true,
+    supportsLanguages: false,
     supportsSimilar: false,
     supportsDiscover: true,
     supportsTags: false,
@@ -209,6 +209,33 @@ export class WeebCentralSource extends BaseHtmlSource {
       const html = await this.fetchHtml(seriesPath);
       const $ = cheerio.load(html);
 
+      // Kotatsu extracts description from: li:has(strong:contains(Description)) > p
+      const descriptionFromLi = this.strip($('li:has(strong:contains("Description")) p').text());
+
+      // Extract status from the detail list item
+      const statusFromLi = this.strip($('li:has(strong:contains("Status")) a').first().text());
+
+      // Extract author from detail list
+      const authorFromLi = this.strip($('li:has(strong:contains("Author")) a').first().text());
+
+      // Extract artist from detail list
+      const artistFromLi = this.strip($('li:has(strong:contains("Artist")) a').first().text());
+
+      // Extract tags/genres from the detail list
+      const tags: string[] = [];
+      $('li:has(strong:contains("Tags")) a, li:has(strong:contains("Genre")) a').each((_idx, el) => {
+        const tag = this.strip($(el).text());
+        if (tag) tags.push(tag);
+      });
+
+      // Fall back to generic selectors if the specific ones don't match
+      if (tags.length === 0) {
+        $('.tag, .genre a, a[href*="genre"]').each((_idx, el) => {
+          const tag = this.strip($(el).text());
+          if (tag) tags.push(tag);
+        });
+      }
+
       const detail: MangaDetail = {
         id: seriesId,
         title:
@@ -216,18 +243,20 @@ export class WeebCentralSource extends BaseHtmlSource {
           this.strip($('meta[property="og:title"]').attr('content')) ||
           this.titleFromSeriesPath(seriesId),
         description:
+          descriptionFromLi ||
           this.strip($('meta[property="og:description"]').attr('content')) ||
           this.strip($('.description, .synopsis, .summary').first().text()),
         coverUrl:
           this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
+          this.toAbsoluteUrl($('picture img, img.series-cover, img[alt*="cover"]').first().attr('src') || null) ||
           this.toAbsoluteUrl($('img').first().attr('src') || null),
-        status: this.strip($('*:contains("Status")').first().parent().text()) || null,
+        status: statusFromLi || null,
         year: null,
         originalLanguage: null,
-        tags: $('.tag, .genre a, a[href*="genre"]').map((_idx, el) => this.strip($(el).text())).get().filter(Boolean),
+        tags,
         latestChapter: null,
-        author: null,
-        artist: null,
+        author: authorFromLi || null,
+        artist: artistFromLi || null,
         contentRating: null,
         publicationDemographic: null,
         availableTranslatedLanguages: [],
@@ -245,23 +274,40 @@ export class WeebCentralSource extends BaseHtmlSource {
     return [];
   }
 
-  async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
+  async getChapters(mangaId: string, _translatedLanguage?: string, limit = 200): Promise<MangaChapter[]> {
     const seriesId = this.coerceSeriesId(mangaId);
     if (!seriesId) return [];
 
-    const seriesPath = this.toSeriesPath(seriesId);
-    const languageKey = translatedLanguage?.trim()?.toLowerCase() || 'all';
-    const cacheKey = this.buildCacheKey('chapters', seriesId, languageKey, limit);
+    const cacheKey = this.buildCacheKey('chapters', seriesId, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml(seriesPath);
-      const $ = cheerio.load(html);
+      // First fetch the series page to check for a "full-chapter-list" button.
+      // Kotatsu checks: #chapter-list > button[hx-get*=full-chapter-list]
+      const seriesHtml = await this.fetchHtml(this.toSeriesPath(seriesId));
+      let chapterHtml = seriesHtml;
+      const $series = cheerio.load(seriesHtml);
+
+      const fullListButton = $series('button[hx-get*="full-chapter-list"], a[href*="full-chapter-list"]').first();
+      const fullListUrl = fullListButton.attr('hx-get') || fullListButton.attr('href');
+
+      if (fullListUrl) {
+        // Fetch the full chapter list endpoint
+        try {
+          chapterHtml = await this.fetchHtml(fullListUrl);
+        } catch {
+          // Fall back to the series page chapters if full list fails
+          chapterHtml = seriesHtml;
+        }
+      }
+
+      const $ = cheerio.load(chapterHtml);
       const results: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('a[href*="/chapters/"]').each((_idx, el) => {
+      // Kotatsu: chapters are in div[x-data] > a, reversed order
+      $('div[x-data] > a[href*="/chapters/"]').each((index, el) => {
         if (results.length >= limit) return;
 
         const href = $(el).attr('href');
@@ -269,25 +315,40 @@ export class WeebCentralSource extends BaseHtmlSource {
         if (!chapterId || seen.has(chapterId)) return;
         seen.add(chapterId);
 
-        const text = this.strip($(el).text());
-        const chapterMatch = text.match(/chapter\s*([\d.]+)/i);
-        const langMatch = text.match(/\b(EN|JP|KR|CN|ES|PT|FR|DE|ID|TH|VI|TR|RU)\b/i);
-        const chapterLanguage = langMatch?.[1]?.toLowerCase() || null;
+        // Kotatsu extracts chapter name from: span.flex > span
+        const chapterNameSpan = this.strip($(el).find('span.flex span, span span').first().text());
+        const fallbackText = this.strip($(el).text());
+        const displayText = chapterNameSpan || fallbackText;
 
-        if (translatedLanguage && chapterLanguage && chapterLanguage !== translatedLanguage.toLowerCase()) {
-          return;
+        // Kotatsu chapter number extraction: (?<!S)\b(\d+(\.\d+)?)\b
+        // Also matches volume: (?:S|vol(?:ume)?)\s*(\d+)
+        let chapterNumber = index + 1; // Default: index-based
+        const chapterMatch = displayText.match(/\b(\d+(?:\.\d+)?)\b/);
+        const volMatch = displayText.match(/(?:vol(?:ume)?|S)\s*(\d+)/i);
+        if (chapterMatch) {
+          chapterNumber = parseFloat(chapterMatch[1]);
         }
+
+        // Extract volume
+        const volume = volMatch ? volMatch[1] : null;
+
+        // Extract date from time[datetime] inside the chapter link
+        const timeEl = $(el).find('time[datetime]').first();
+        const publishedAt = timeEl.attr('datetime') || null;
+
+        // Kotatsu: scanlator from SVG stroke color
+        // #d8b4fe = Official, others = null
+        const svgStroke = $(el).find('svg').attr('stroke');
+        const scanlator = svgStroke === '#d8b4fe' ? 'Official' : null;
 
         results.push({
           id: chapterId,
-          chapter: chapterMatch?.[1] || null,
-          volume: null,
-          title: text || null,
-          pages: 0,
-          publishedAt: null,
-          readableAt: null,
-          translatedLanguage: chapterLanguage,
-          scanlationGroup: null,
+          chapter: chapterNumber.toString(),
+          volume,
+          title: displayText || null,
+          publishedAt,
+          branch: scanlator,
+          scanlationGroup: scanlator,
           externalUrl: null,
           isExternal: false,
         });
@@ -306,28 +367,44 @@ export class WeebCentralSource extends BaseHtmlSource {
     if (!chapterRawId) {
       return {
         chapterId,
-        readerMode: 'manga',
+        readerMode: 'webtoon',
         pages: [],
         externalUrl: null,
         isExternal: false,
       };
     }
 
-    const chapterPath = this.toChapterPath(chapterRawId);
     const cacheKey = this.buildCacheKey('pages', chapterRawId);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
     if (cached && cached.pages.length > 0) return cached;
 
     try {
-      const html = await this.fetchHtml(chapterPath);
-      const pages = this.extractChapterImageUrls(html);
+      // Use Kotatsu's approach: fetch the long-strip reader endpoint which
+      // returns only the actual chapter images in a scrollable section.
+      const html = await this.fetchHtml(`/chapters/${chapterRawId}/images`, {
+        is_prev: 'False',
+        reading_style: 'long_strip',
+      });
+      const $ = cheerio.load(html);
+      const pages: string[] = [];
+
+      // Select only images inside the scrollable reader section.
+      // Kotatsu uses: section[x-data~=scroll] > img
+      $('section img').each((_idx, el) => {
+        const src = $(el).attr('src') || $(el).attr('data-src');
+        const absolute = this.toAbsoluteUrl(src || null);
+        if (absolute && /\.(jpg|jpeg|png|webp|avif)(\?|$)/i.test(absolute)) {
+          pages.push(absolute);
+        }
+      });
+
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);
       }
 
       const result: MangaPagesResult = {
         chapterId: chapterRawId,
-        readerMode: 'manga',
+        readerMode: 'webtoon',
         pages,
         externalUrl: null,
         isExternal: false,
@@ -339,7 +416,7 @@ export class WeebCentralSource extends BaseHtmlSource {
       console.error(`[WeebCentral] page fetch failed: ${summarizeSourceError(error)}`);
       return {
         chapterId: chapterRawId,
-        readerMode: 'manga',
+        readerMode: 'webtoon',
         pages: [],
         externalUrl: null,
         isExternal: false,

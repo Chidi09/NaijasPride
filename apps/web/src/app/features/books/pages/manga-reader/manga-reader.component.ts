@@ -18,8 +18,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
 import screenfull from 'screenfull';
 
-type ApiReaderMode = 'webtoon' | 'manga' | 'comic';
-type ReaderMode = 'webtoon' | 'rtl' | 'ltr';
+type ApiReaderMode = 'webtoon' | 'reversed' | 'standard' | 'double-page';
+type ReaderMode = ApiReaderMode;
 
 type MangaPagesPayload = {
   chapterId: string;
@@ -31,15 +31,12 @@ type MangaPagesPayload = {
 
 type MangaChapter = {
   id: string;
-  chapter: string | null;
+  chapter: string;
   volume: string | null;
   title: string | null;
-  pages: number;
   publishedAt: string | null;
-  readableAt: string | null;
-  translatedLanguage: string | null;
+  branch: string | null;
   scanlationGroup: string | null;
-  isOfficialTranslation?: boolean | null;
   externalUrl: string | null;
   isExternal: boolean;
 };
@@ -80,12 +77,8 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
             <p class="truncate text-sm font-semibold text-[#d6b87a]">{{ title() || 'Reader' }}</p>
             <div class="mt-1 flex items-center justify-center gap-2 text-[11px] text-gray-300">
               <span>{{ sourceLabel() }}</span>
-              @if (currentChapterMeta()?.isOfficialTranslation === true) {
-                <span class="rounded border border-emerald-700/60 px-1.5 py-0.5 text-emerald-300">Official</span>
-              } @else if (currentChapterMeta()?.isOfficialTranslation === false) {
-                <span class="rounded border border-sky-700/60 px-1.5 py-0.5 text-sky-300">Community</span>
-              } @else {
-                <span class="rounded border border-zinc-600/70 px-1.5 py-0.5 text-zinc-300">Unverified</span>
+              @if (currentChapterMeta()?.branch) {
+                <span>• {{ currentChapterMeta()?.branch }}</span>
               }
             </div>
           </div>
@@ -149,10 +142,11 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
 
           <div class="grid grid-cols-2 gap-3 md:grid-cols-6">
             <div class="col-span-2 rounded border border-zinc-700 bg-zinc-800/60 p-1 md:col-span-3">
-              <div class="grid grid-cols-3 gap-1">
+              <div class="grid grid-cols-4 gap-1">
+                <button type="button" (click)="setMode('standard')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'standard'">Standard</button>
+                <button type="button" (click)="setMode('reversed')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'reversed'">Reversed</button>
+                <button type="button" (click)="setMode('double-page')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'double-page'">Double</button>
                 <button type="button" (click)="setMode('webtoon')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'webtoon'">Webtoon</button>
-                <button type="button" (click)="setMode('rtl')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'rtl'">Manga RTL</button>
-                <button type="button" (click)="setMode('ltr')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'ltr'">Comic LTR</button>
               </div>
             </div>
 
@@ -191,8 +185,8 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   nextChapterId = signal<string | null>(null);
 
   currentChapterMeta = computed(() => this.chapterList().find((chapter) => chapter.id === this.chapterId()) || null);
-  canPrevPage = computed(() => (this.readingMode() === 'rtl' ? this.pageIndex() < this.pages().length - 1 : this.pageIndex() > 0));
-  canNextPage = computed(() => (this.readingMode() === 'rtl' ? this.pageIndex() > 0 : this.pageIndex() < this.pages().length - 1));
+  canPrevPage = computed(() => (this.readingMode() === 'reversed' ? this.pageIndex() < this.pages().length - 1 : this.pageIndex() > 0));
+  canNextPage = computed(() => (this.readingMode() === 'reversed' ? this.pageIndex() > 0 : this.pageIndex() < this.pages().length - 1));
 
   ngOnInit() {
     this.progressUpdate$.pipe(debounceTime(900), takeUntil(this.destroy$)).subscribe((pageIndex) => {
@@ -234,10 +228,10 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   @HostListener('window:keyup', ['$event'])
   onKey(event: KeyboardEvent) {
     if (event.key === 'ArrowRight') {
-      this.readingMode() === 'rtl' ? this.goPrevPage() : this.goNextPage();
+      this.readingMode() === 'reversed' ? this.goPrevPage() : this.goNextPage();
     }
     if (event.key === 'ArrowLeft') {
-      this.readingMode() === 'rtl' ? this.goNextPage() : this.goPrevPage();
+      this.readingMode() === 'reversed' ? this.goNextPage() : this.goPrevPage();
     }
   }
 
@@ -256,10 +250,10 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   tapZone(zone: 'left' | 'right') {
     if (zone === 'left') {
-      this.readingMode() === 'rtl' ? this.goNextPage() : this.goPrevPage();
+      this.readingMode() === 'reversed' ? this.goNextPage() : this.goPrevPage();
       return;
     }
-    this.readingMode() === 'rtl' ? this.goPrevPage() : this.goNextPage();
+    this.readingMode() === 'reversed' ? this.goPrevPage() : this.goNextPage();
   }
 
   toggleFullscreen() {
@@ -289,13 +283,13 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   goNextPage() {
     if (!this.canNextPage()) return;
-    const next = this.readingMode() === 'rtl' ? this.pageIndex() - 1 : this.pageIndex() + 1;
+    const next = this.readingMode() === 'reversed' ? this.pageIndex() - 1 : this.pageIndex() + 1;
     this.setPageIndex(next, true);
   }
 
   goPrevPage() {
     if (!this.canPrevPage()) return;
-    const next = this.readingMode() === 'rtl' ? this.pageIndex() + 1 : this.pageIndex() - 1;
+    const next = this.readingMode() === 'reversed' ? this.pageIndex() + 1 : this.pageIndex() - 1;
     this.setPageIndex(next, true);
   }
 
@@ -352,14 +346,18 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         this.pageIndex.set(0);
 
         const preferred = localStorage.getItem('np_reader_mode') as ReaderMode | null;
-        if (preferred && ['webtoon', 'rtl', 'ltr'].includes(preferred)) {
+        if (preferred && ['webtoon', 'reversed', 'standard', 'double-page'].includes(preferred)) {
           this.readingMode.set(preferred);
         } else if (response.data.readerMode === 'webtoon') {
           this.readingMode.set('webtoon');
-        } else if (response.data.readerMode === 'comic') {
-          this.readingMode.set('ltr');
+        } else if (response.data.readerMode === 'standard') {
+          this.readingMode.set('standard');
+        } else if (response.data.readerMode === 'reversed') {
+          this.readingMode.set('reversed');
+        } else if (response.data.readerMode === 'double-page') {
+          this.readingMode.set('double-page');
         } else {
-          this.readingMode.set('rtl');
+          this.readingMode.set('standard');
         }
 
         this.isLoading.set(false);
@@ -473,7 +471,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       },
     });
 
-    element.setAttribute('dir', this.readingMode() === 'rtl' ? 'rtl' : 'ltr');
+    element.setAttribute('dir', this.readingMode() === 'reversed' ? 'rtl' : 'ltr');
     element.initialize();
 
     if (this.pageIndex() > 0) {

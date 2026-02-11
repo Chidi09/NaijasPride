@@ -14,7 +14,7 @@ import { sourceMetrics } from '../observability/source-metrics';
 export abstract class MadaraBaseSource extends BaseHtmlSource {
   readonly capabilities = {
     supportsFilters: false,
-    supportsLanguages: true,
+    supportsLanguages: false,
     supportsSimilar: false,
     supportsDiscover: true,
     supportsTags: false,
@@ -177,7 +177,7 @@ export abstract class MadaraBaseSource extends BaseHtmlSource {
       const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('li.wp-manga-chapter a, .listing-chapters_wrap a').each((_idx, el) => {
+      $('li.wp-manga-chapter a, .listing-chapters_wrap a').each((index, el) => {
         if (chapters.length >= limit) return;
 
         const href = $(el).attr('href');
@@ -196,14 +196,15 @@ export abstract class MadaraBaseSource extends BaseHtmlSource {
 
         chapters.push({
           id: chapterPath,
-          chapter: chapterMatch?.[1] || null,
+          chapter: (() => {
+            const match = title.match(/\b(\d+(?:\.\d+)?)\b/);
+            return match ? match[1] : String(index + 1);
+          })(),
           volume: null,
           title: title || null,
-          pages: 0,
           publishedAt: null,
-          readableAt: null,
-          translatedLanguage: chapterLanguage,
           scanlationGroup: null,
+          branch: null,
           externalUrl: null,
           isExternal: false,
         });
@@ -229,7 +230,7 @@ export abstract class MadaraBaseSource extends BaseHtmlSource {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
           chapterId: chapterPath,
-          readerMode: 'manga',
+          readerMode: 'reversed',
           pages: [],
           externalUrl: `${this.baseUrl}${chapterPath}`,
           isExternal: true,
@@ -240,7 +241,7 @@ export abstract class MadaraBaseSource extends BaseHtmlSource {
 
       const result: MangaPagesResult = {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages,
         externalUrl: null,
         isExternal: false,
@@ -251,7 +252,7 @@ export abstract class MadaraBaseSource extends BaseHtmlSource {
     } catch {
       return {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages: [],
         externalUrl: `${this.baseUrl}${chapterPath}`,
         isExternal: true,

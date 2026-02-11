@@ -14,7 +14,7 @@ import { BaseHtmlSource } from './base-html.source';
 export abstract class MmrcmsBaseSource extends BaseHtmlSource {
   readonly capabilities = {
     supportsFilters: true,
-    supportsLanguages: true,
+    supportsLanguages: false,
     supportsSimilar: false,
     supportsDiscover: true,
     supportsTags: true,
@@ -185,7 +185,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
       const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('ul.chapters > li:not(.btn) a').each((_idx, el) => {
+      $('ul.chapters > li:not(.btn) a').each((index, el) => {
         if (chapters.length >= limit) return;
         const href = $(el).attr('href');
         const chapterPath = href ? this.normalizePath(href, '/') : null;
@@ -205,14 +205,15 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
 
         chapters.push({
           id: chapterPath,
-          chapter: chapterMatch?.[1] || null,
+          chapter: (() => {
+            const match = text.match(/\b(\d+(?:\.\d+)?)\b/);
+            return match ? match[1] : String(index + 1);
+          })(),
           volume: null,
           title: text || null,
-          pages: 0,
           publishedAt,
-          readableAt: null,
-          translatedLanguage: chapterLanguage,
           scanlationGroup: null,
+          branch: null,
           externalUrl: null,
           isExternal: false,
         });
@@ -238,7 +239,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
           chapterId: chapterPath,
-          readerMode: 'manga',
+          readerMode: 'reversed',
           pages: [],
           externalUrl: `${this.baseUrl}${chapterPath}`,
           isExternal: true,
@@ -249,7 +250,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
 
       const result: MangaPagesResult = {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages,
         externalUrl: null,
         isExternal: false,
@@ -260,7 +261,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
     } catch {
       return {
         chapterId: chapterPath,
-        readerMode: 'manga',
+        readerMode: 'reversed',
         pages: [],
         externalUrl: `${this.baseUrl}${chapterPath}`,
         isExternal: true,

@@ -36,22 +36,21 @@ export type MangaDetail = MangaSummary & {
 
 export type MangaChapter = {
   id: string;
-  chapter: string | null;
+  chapter: string; // Always have a chapter number (extracted or generated)
   volume: string | null;
   title: string | null;
-  pages: number;
-  publishedAt: string | null;
-  readableAt: string | null;
-  translatedLanguage: string | null;
-  scanlationGroup: string | null;
-  isOfficialTranslation?: boolean | null;
+  // Removed: pages count (not used by Kotatsu)
+  publishedAt: string | null; // ISO date from time[datetime]
+  branch: string | null; // Translation group/branch (e.g., "Official", "Group Name")
+  scanlationGroup: string | null; // Same as branch for compatibility
   externalUrl: string | null;
   isExternal: boolean;
 };
 
 export type MangaPagesResult = {
   chapterId: string;
-  readerMode: 'webtoon' | 'manga' | 'comic';
+  // Kotatsu reader modes: standard (ltr), reversed (rtl/manga), double-page, webtoon
+  readerMode: 'standard' | 'reversed' | 'double-page' | 'webtoon';
   pages: string[];
   externalUrl: string | null;
   isExternal: boolean;

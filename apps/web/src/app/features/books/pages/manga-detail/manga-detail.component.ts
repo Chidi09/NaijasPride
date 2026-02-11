@@ -26,12 +26,9 @@ type MangaChapter = {
   chapter: string | null;
   volume: string | null;
   title: string | null;
-  pages: number;
   publishedAt: string | null;
-  readableAt: string | null;
-  translatedLanguage: string | null;
+  branch: string | null;
   scanlationGroup: string | null;
-  isOfficialTranslation?: boolean | null;
   externalUrl: string | null;
   isExternal: boolean;
 };
@@ -105,14 +102,16 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
               @if (manga.artist) { <p>Artist: {{ manga.artist }}</p> }
             </div>
 
-            <div class="mt-4">
-              <p class="mb-2 text-xs uppercase tracking-wide text-gray-400">Available chapter languages</p>
-              <div class="flex flex-wrap gap-2">
-                @for (lang of manga.availableTranslatedLanguages; track lang) {
-                  <span class="rounded border border-zinc-700 px-2 py-1 text-xs text-gray-200">{{ languageLabel(lang) }}</span>
-                }
+            @if (supportsLanguages() && manga.availableTranslatedLanguages.length > 0) {
+              <div class="mt-4">
+                <p class="mb-2 text-xs uppercase tracking-wide text-gray-400">Available chapter languages</p>
+                <div class="flex flex-wrap gap-2">
+                  @for (lang of manga.availableTranslatedLanguages; track lang) {
+                    <span class="rounded border border-zinc-700 px-2 py-1 text-xs text-gray-200">{{ languageLabel(lang) }}</span>
+                  }
+                </div>
               </div>
-            </div>
+            }
 
             <div class="mt-4 flex flex-wrap gap-2">
               @for (tag of manga.tags; track tag) {
@@ -132,21 +131,23 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 class="text-lg font-semibold text-[#d6b87a]">Chapters</h2>
             <div class="flex items-center gap-3">
-              <label class="text-xs text-gray-300">
-                <span class="mr-2">Language</span>
-                <select
-                  [ngModel]="selectedLanguage()"
-                  (ngModelChange)="onLanguageChange($event)"
-                  class="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
-                >
-                  <option value="all">All</option>
-                  @if (detail(); as current) {
-                    @for (lang of current.availableTranslatedLanguages; track lang) {
-                      <option [value]="lang">{{ languageLabel(lang) }}</option>
+              @if (supportsLanguages()) {
+                <label class="text-xs text-gray-300">
+                  <span class="mr-2">Language</span>
+                  <select
+                    [ngModel]="selectedLanguage()"
+                    (ngModelChange)="onLanguageChange($event)"
+                    class="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
+                  >
+                    <option value="all">All</option>
+                    @if (detail(); as current) {
+                      @for (lang of current.availableTranslatedLanguages; track lang) {
+                        <option [value]="lang">{{ languageLabel(lang) }}</option>
+                      }
                     }
-                  }
-                </select>
-              </label>
+                  </select>
+                </label>
+              }
               <span class="text-xs text-gray-400">{{ isChaptersLoading() ? 'Loading...' : (chapters().length + ' loaded') }}</span>
             </div>
           </div>
@@ -177,22 +178,19 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                   rel="noopener noreferrer"
                   class="block rounded border border-amber-700/40 bg-amber-900/10 px-3 py-3 text-sm text-gray-200 hover:border-amber-500"
                 >
-                  <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center justify-between gap-2">
                     <p class="font-medium">
-                      Ch. {{ chapter.chapter || '?' }}
-                      <span class="text-gray-400">{{ chapter.title || '' }}</span>
+                      Ch. {{ chapter.chapter }}
+                      <span class="text-gray-400">{{ chapter.title }}</span>
                     </p>
                     <span class="rounded border border-amber-600/50 px-2 py-0.5 text-[11px] text-amber-300">External</span>
                   </div>
-                  <div class="mt-1 flex flex-wrap gap-3 text-xs text-gray-400">
-                    <span>{{ languageLabel(chapter.translatedLanguage) }}</span>
-                    @if (chapter.scanlationGroup) { <span>{{ chapter.scanlationGroup }}</span> }
-                    @if (chapter.isOfficialTranslation === true) {
-                      <span class="rounded border border-emerald-700/60 px-1.5 py-0.5 text-emerald-300">Official</span>
-                    } @else if (chapter.isOfficialTranslation === false) {
-                      <span class="rounded border border-sky-700/60 px-1.5 py-0.5 text-sky-300">Community</span>
-                    } @else {
-                      <span class="rounded border border-zinc-600/70 px-1.5 py-0.5 text-zinc-300">Unverified</span>
+                  <div class="mt-1 flex items-center gap-2 text-xs text-gray-400">
+                    @if (chapter.branch) {
+                      <span>{{ chapter.branch }}</span>
+                    }
+                    @if (chapter.volume) {
+                      <span>Vol. {{ chapter.volume }}</span>
                     }
                     <span>Open source site</span>
                   </div>
@@ -203,25 +201,22 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                   [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
                   class="block rounded border border-zinc-800 bg-zinc-900/50 px-3 py-3 text-sm text-gray-200 hover:border-[#800020]"
                 >
-                  <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center justify-between gap-2">
                     <p class="font-medium">
-                      Ch. {{ chapter.chapter || '?' }}
-                      <span class="text-gray-400">{{ chapter.title || '' }}</span>
+                      Ch. {{ chapter.chapter }}
+                      <span class="text-gray-400">{{ chapter.title }}</span>
                     </p>
-                    <span class="text-xs text-gray-500">{{ chapter.publishedAt ? (chapter.publishedAt | date: 'mediumDate') : 'Unknown date' }}</span>
+                    <span class="text-xs text-gray-500">
+                      {{ chapter.publishedAt ? (chapter.publishedAt | date: 'MMM d, y') : '' }}
+                    </span>
                   </div>
-                  <div class="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-                    <span>{{ chapter.pages }} pages</span>
-                    <span>{{ languageLabel(chapter.translatedLanguage) }}</span>
-                    @if (chapter.isOfficialTranslation === true) {
-                      <span class="rounded border border-emerald-700/60 px-1.5 py-0.5 text-emerald-300">Official</span>
-                    } @else if (chapter.isOfficialTranslation === false) {
-                      <span class="rounded border border-sky-700/60 px-1.5 py-0.5 text-sky-300">Community</span>
-                    } @else {
-                      <span class="rounded border border-zinc-600/70 px-1.5 py-0.5 text-zinc-300">Unverified</span>
+                  <div class="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                    @if (chapter.branch) {
+                      <span>{{ chapter.branch }}</span>
                     }
-                    @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
-                    @if (chapter.scanlationGroup) { <span>{{ chapter.scanlationGroup }}</span> }
+                    @if (chapter.volume) {
+                      <span>Vol. {{ chapter.volume }}</span>
+                    }
                   </div>
                 </a>
               }
@@ -295,6 +290,7 @@ export class MangaDetailComponent implements OnInit {
   showBackToTop = signal(false);
   selectedLanguage = signal('en');
   sourceId = signal('mangadex');
+  supportsLanguages = computed(() => this.sourceId() === 'mangadex');
   visibleChapterCount = signal(30);
   visibleChapters = computed(() => this.chapters().slice(0, this.visibleChapterCount()));
   hasMoreChapters = computed(() => this.chapters().length > this.visibleChapterCount());
