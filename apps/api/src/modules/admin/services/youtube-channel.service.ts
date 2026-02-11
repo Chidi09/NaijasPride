@@ -48,10 +48,21 @@ export interface BatchImportProgress {
   errors: string[];
 }
 
+export interface BackfillProgress {
+  processed: number;
+  total: number;
+  channelsFound: number;
+  channelsCreated: number;
+  moviesTagged: number;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  errors: string[];
+}
+
 export class YouTubeChannelService {
   private readonly redis = getRedis();
   private readonly CACHE_TTL = 86400; // 24 hours
   private importProgress: Map<string, BatchImportProgress> = new Map();
+  private backfillProgress: Map<string, BackfillProgress> = new Map();
 
   constructor(private prisma: PrismaClient) {}
 
@@ -455,28 +466,54 @@ export class YouTubeChannelService {
   }
 
   /**
-   * Backfill YouTubeChannel records from existing isStreamOnly movies.
-   * Batches all stored youtubeIds through the YouTube videos.list API (50 per call)
-   * to discover channelId + channelTitle, then upserts YouTubeChannel rows and
-   * stamps each movie's metadata.channelId so future lookups are instant.
+   * Start a background backfill job and return a jobId immediately.
+   * The actual work runs asynchronously so the HTTP request can return
+   * before Vercel's function timeout fires.
    */
-  async backfillChannelsFromExistingMovies(): Promise<{
-    processed: number;
-    channelsFound: number;
-    channelsCreated: number;
-    moviesTagged: number;
-    errors: string[];
-  }> {
-    const stats = { processed: 0, channelsFound: 0, channelsCreated: 0, moviesTagged: 0, errors: [] as string[] };
+  startBackfill(): string {
+    const jobId = `backfill:${Date.now()}`;
+    this.backfillProgress.set(jobId, {
+      processed: 0,
+      total: 0,
+      channelsFound: 0,
+      channelsCreated: 0,
+      moviesTagged: 0,
+      status: 'pending',
+      errors: [],
+    });
 
-    // Fetch all stream-only movies that have a youtubeId
+    // Fire and forget — runs in the background
+    this.runBackfill(jobId).catch((error) => {
+      console.error('[Backfill] Unhandled error:', error);
+      const p = this.backfillProgress.get(jobId);
+      if (p) {
+        p.status = 'failed';
+        p.errors.push(error instanceof Error ? error.message : String(error));
+      }
+    });
+
+    return jobId;
+  }
+
+  getBackfillProgress(jobId: string): BackfillProgress | null {
+    return this.backfillProgress.get(jobId) || null;
+  }
+
+  private async runBackfill(jobId: string): Promise<void> {
+    const progress = this.backfillProgress.get(jobId)!;
+    progress.status = 'running';
+
+    // Fetch all stream-only movies that have a youtubeId but no channelId in metadata
     const movies = await this.prisma.movie.findMany({
       where: { isStreamOnly: true, youtubeId: { not: null } },
       select: { id: true, youtubeId: true, metadata: true },
     });
 
+    progress.total = movies.length;
+
     if (movies.length === 0) {
-      return stats;
+      progress.status = 'completed';
+      return;
     }
 
     const yt = getYoutube();
@@ -502,7 +539,7 @@ export class YouTubeChannelService {
 
           if (!channelId || !videoId) continue;
 
-          stats.channelsFound++;
+          progress.channelsFound++;
 
           // Upsert the YouTubeChannel record
           const existing = await this.prisma.youTubeChannel.findUnique({ where: { channelId } });
@@ -515,12 +552,12 @@ export class YouTubeChannelService {
                 isActive: true,
               },
             });
-            stats.channelsCreated++;
-            // Sync video count in background
+            progress.channelsCreated++;
+            // Sync video count in background — don't await, don't block
             this.syncChannelStats(channelId).catch(console.error);
           }
 
-          // Stamp the movie's metadata with channelId so it's queryable without hitting the API again
+          // Stamp metadata.channelId on the movie for future DB-only counts
           const movie = batch.find((m) => m.youtubeId === videoId);
           if (movie) {
             const existingMeta = (movie.metadata as Record<string, unknown>) || {};
@@ -529,39 +566,44 @@ export class YouTubeChannelService {
                 where: { id: movie.id },
                 data: { metadata: { ...existingMeta, channelId, channelTitle } },
               });
-              stats.moviesTagged++;
+              progress.moviesTagged++;
             }
           }
         }
       } catch (error) {
         const msg = `Batch ${Math.floor(i / BATCH) + 1} failed: ${error instanceof Error ? error.message : String(error)}`;
         console.error(`[Backfill] ${msg}`);
-        stats.errors.push(msg);
+        progress.errors.push(msg);
       }
 
-      stats.processed += batch.length;
+      progress.processed += batch.length;
     }
 
-    // After backfill, refresh importedCount for each channel based on actual movie rows
-    const channels = await this.prisma.youTubeChannel.findMany({
-      where: { isActive: true },
-      select: { id: true, channelId: true },
-    });
+    // Refresh importedCount for all channels from actual metadata tags
+    try {
+      const channels = await this.prisma.youTubeChannel.findMany({
+        where: { isActive: true },
+        select: { id: true, channelId: true },
+      });
 
-    for (const channel of channels) {
-      const count = await this.prisma.movie.count({
-        where: {
-          isStreamOnly: true,
-          metadata: { path: ['channelId'], equals: channel.channelId },
-        },
-      });
-      await this.prisma.youTubeChannel.update({
-        where: { id: channel.id },
-        data: { importedCount: count },
-      });
+      for (const channel of channels) {
+        const count = await this.prisma.movie.count({
+          where: {
+            isStreamOnly: true,
+            metadata: { path: ['channelId'], equals: channel.channelId },
+          },
+        });
+        await this.prisma.youTubeChannel.update({
+          where: { id: channel.id },
+          data: { importedCount: count },
+        });
+      }
+    } catch (error) {
+      console.error('[Backfill] Failed to refresh importedCounts:', error);
     }
 
-    return stats;
+    progress.status = 'completed';
+    console.log(`[Backfill] Done. channels=${progress.channelsCreated} movies=${progress.moviesTagged} errors=${progress.errors.length}`);
   }
 
   async registerDiscoveredChannel(channelId: string, channelTitle: string, requestedName: string) {

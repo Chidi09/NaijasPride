@@ -144,22 +144,10 @@ interface ChannelImportResult {
 
           <!-- Backfill from existing movies -->
           <div class="bg-[#1b1014] border border-[#5f1327]/60 rounded-lg p-4">
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-4 mb-3">
               <div>
                 <h3 class="text-[#d6b87a] font-bold mb-1">Recover Channels from Existing Movies</h3>
                 <p class="text-gray-400 text-sm">If you already have YouTube movies imported, this will look up their channels and register them here automatically.</p>
-                @if (backfillResult(); as result) {
-                  <div class="mt-2 text-sm">
-                    @if (result.errors.length === 0) {
-                      <p class="text-green-400">{{ result.channelsCreated }} channel(s) registered, {{ result.moviesTagged }} movie(s) tagged</p>
-                    } @else {
-                      <p class="text-yellow-400">{{ result.channelsCreated }} channel(s) registered, {{ result.moviesTagged }} movie(s) tagged &mdash; {{ result.errors.length }} error(s)</p>
-                      @for (err of result.errors.slice(0, 3); track err) {
-                        <p class="text-red-400 text-xs mt-0.5">{{ err }}</p>
-                      }
-                    }
-                  </div>
-                }
               </div>
               <button
                 (click)="backfillChannels()"
@@ -174,6 +162,40 @@ interface ChannelImportResult {
                 }
               </button>
             </div>
+            @if (backfillProgress(); as bp) {
+              <div class="space-y-2">
+                @if (bp.status === 'running' || bp.status === 'pending') {
+                  <div class="flex justify-between text-xs text-gray-400">
+                    <span>Scanning movies...</span>
+                    <span>{{ bp.processed }} / {{ bp.total }}</span>
+                  </div>
+                  <div class="w-full bg-[#0d0d0d] rounded-full h-2">
+                    <div
+                      class="bg-[#d6b87a] h-2 rounded-full transition-all"
+                      [style.width.%]="bp.total > 0 ? (bp.processed / bp.total) * 100 : 0"
+                    ></div>
+                  </div>
+                }
+                @if (bp.status === 'completed') {
+                  <p class="text-green-400 text-sm">
+                    Done &mdash; {{ bp.channelsCreated }} channel(s) registered, {{ bp.moviesTagged }} movie(s) tagged
+                  </p>
+                }
+                @if (bp.status === 'failed') {
+                  <p class="text-red-400 text-sm">Backfill failed</p>
+                }
+                @if (bp.errors.length > 0) {
+                  <details class="text-xs">
+                    <summary class="text-yellow-400 cursor-pointer">{{ bp.errors.length }} warning(s)</summary>
+                    <div class="mt-1 text-gray-500 max-h-20 overflow-y-auto">
+                      @for (err of bp.errors.slice(0, 5); track err) {
+                        <p>{{ err }}</p>
+                      }
+                    </div>
+                  </details>
+                }
+              </div>
+            }
           </div>
 
           <!-- Channel List -->
@@ -488,7 +510,9 @@ export class ContentDiscoveryComponent {
 
   // Backfill state
   isBackfilling = signal(false);
-  backfillResult = signal<{ channelsCreated: number; moviesTagged: number; errors: string[] } | null>(null);
+  backfillJobId = signal<string | null>(null);
+  backfillProgress = signal<{ processed: number; total: number; channelsCreated: number; moviesTagged: number; status: string; errors: string[] } | null>(null);
+  private backfillPollInterval: number | null = null;
 
   // Channel detail state
   selectedChannel = signal<Channel | null>(null);
@@ -809,23 +833,53 @@ export class ContentDiscoveryComponent {
 
   backfillChannels() {
     this.isBackfilling.set(true);
-    this.backfillResult.set(null);
+    this.backfillProgress.set(null);
+    this.backfillJobId.set(null);
 
-    this.http.post<{ status: string; data: { channelsCreated: number; moviesTagged: number; errors: string[] } }>(
+    this.http.post<{ status: string; data: { jobId: string } }>(
       '/api/v1/admin/youtube/channels/backfill',
       {}
     ).subscribe({
       next: (response) => {
-        this.backfillResult.set(response.data);
-        this.isBackfilling.set(false);
-        // Reload channels to show newly discovered ones
-        this.loadChannels();
+        const jobId = response.data.jobId;
+        this.backfillJobId.set(jobId);
+        this.startBackfillPolling(jobId);
       },
       error: (error) => {
-        console.error('Backfill failed:', error);
-        this.backfillResult.set({ channelsCreated: 0, moviesTagged: 0, errors: [error.error?.message || 'Backfill failed'] });
+        console.error('Backfill failed to start:', error);
+        this.backfillProgress.set({ processed: 0, total: 0, channelsCreated: 0, moviesTagged: 0, status: 'failed', errors: [error.error?.message || 'Failed to start backfill'] });
         this.isBackfilling.set(false);
       }
     });
+  }
+
+  private startBackfillPolling(jobId: string) {
+    if (this.backfillPollInterval !== null) {
+      window.clearInterval(this.backfillPollInterval);
+    }
+
+    this.backfillPollInterval = window.setInterval(() => {
+      this.http.get<{ status: string; data: { processed: number; total: number; channelsCreated: number; moviesTagged: number; status: string; errors: string[] } }>(
+        `/api/v1/admin/youtube/channels/backfill/${jobId}`
+      ).subscribe({
+        next: (response) => {
+          this.backfillProgress.set(response.data);
+
+          if (response.data.status === 'completed' || response.data.status === 'failed') {
+            window.clearInterval(this.backfillPollInterval!);
+            this.backfillPollInterval = null;
+            this.isBackfilling.set(false);
+            // Reload channels list to show newly discovered ones
+            this.loadChannels();
+          }
+        },
+        error: (error) => {
+          console.error('Backfill polling error:', error);
+          window.clearInterval(this.backfillPollInterval!);
+          this.backfillPollInterval = null;
+          this.isBackfilling.set(false);
+        }
+      });
+    }, 2000);
   }
 }

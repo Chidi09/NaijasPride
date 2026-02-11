@@ -650,16 +650,16 @@ export const adminRoutes = async (
     },
   });
 
-  // POST /api/admin/youtube/channels/backfill - Discover channels from existing stream-only movies
+  // POST /api/admin/youtube/channels/backfill - Start background backfill job (returns jobId immediately)
   app.post("/youtube/channels/backfill", {
     preHandler: [app.authenticate, requireAdmin],
     handler: async (_request, reply) => {
       try {
-        const result = await channelService.backfillChannelsFromExistingMovies();
+        const jobId = channelService.startBackfill();
         return reply.send({
           status: "success",
-          data: result,
-          message: `Backfill complete: ${result.channelsCreated} new channel(s) registered, ${result.moviesTagged} movie(s) tagged`,
+          data: { jobId },
+          message: "Backfill started in background",
         });
       } catch (error) {
         return reply.status(500).send({
@@ -667,7 +667,27 @@ export const adminRoutes = async (
           message:
             error instanceof Error
               ? error.message
-              : "Failed to backfill channels",
+              : "Failed to start backfill",
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/youtube/channels/backfill/:jobId - Poll backfill progress
+  app.get("/youtube/channels/backfill/:jobId", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (request, reply) => {
+      try {
+        const { jobId } = request.params as { jobId: string };
+        const progress = channelService.getBackfillProgress(jobId);
+        if (!progress) {
+          return reply.status(404).send({ status: "error", message: "Job not found" });
+        }
+        return reply.send({ status: "success", data: progress });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message: error instanceof Error ? error.message : "Failed to get progress",
         });
       }
     },
