@@ -67,7 +67,8 @@ export class YouTubeChannelService {
   private activeChannelImports: Set<string> = new Set();
   private activeBackfillJobId: string | null = null;
   private isMonitorRunning = false;
-  private readonly MAX_CHANNELS_PER_MONITOR_RUN = 2;
+  private readonly MONITOR_MAX_IMPORTS_PER_CHANNEL = 10;
+  private readonly MONITOR_MAX_SCAN_VIDEOS_PER_CHANNEL = 120;
 
   constructor(private prisma: PrismaClient) {}
 
@@ -294,7 +295,8 @@ export class YouTubeChannelService {
   private async runBatchImport(
     channelId: string,
     batchSize: number,
-    progressId: string
+    progressId: string,
+    options?: { maxVideosToImport?: number; maxVideosToScan?: number }
   ): Promise<void> {
     const progress = this.importProgress.get(progressId)!;
     progress.status = 'running';
@@ -312,7 +314,9 @@ export class YouTubeChannelService {
     let pageToken: string | undefined;
     const allVideos: YouTubeVideoInfo[] = [];
 
-    // Fetch all videos from channel (respecting API limits)
+    const maxVideosToScan = options?.maxVideosToScan ?? 500;
+
+    // Fetch videos from channel (respecting API limits)
     console.log(`[Batch Import] Fetching all videos from channel ${channelId}`);
     do {
       const result = await this.getChannelVideos(channelId, pageToken, 50);
@@ -320,8 +324,8 @@ export class YouTubeChannelService {
       pageToken = result.nextPageToken || undefined;
 
       // Limit to prevent infinite loops and API quota exhaustion
-      if (allVideos.length >= 500) {
-        console.log('[Batch Import] Reached 500 video limit, stopping fetch');
+      if (allVideos.length >= maxVideosToScan) {
+        console.log(`[Batch Import] Reached ${maxVideosToScan} video scan limit, stopping fetch`);
         break;
       }
     } while (pageToken);
@@ -336,12 +340,16 @@ export class YouTubeChannelService {
       : [];
     const existingIds = new Set(existingMovies.map((m) => m.youtubeId));
 
-    const videosToImport = allVideos.filter((v) => !existingIds.has(v.youtubeId));
+    const remainingVideos = allVideos.filter((v) => !existingIds.has(v.youtubeId));
+    const videosToImport =
+      typeof options?.maxVideosToImport === 'number'
+        ? remainingVideos.slice(0, Math.max(0, options.maxVideosToImport))
+        : remainingVideos;
 
     progress.total = videosToImport.length;
     progress.totalBatches = Math.ceil(videosToImport.length / batchSize);
 
-    console.log(`[Batch Import] Found ${videosToImport.length} videos to import out of ${allVideos.length} total`);
+    console.log(`[Batch Import] Found ${remainingVideos.length} remaining videos; importing ${videosToImport.length} this run out of ${allVideos.length} scanned`);
 
     // Process in batches
     for (let i = 0; i < videosToImport.length; i += batchSize) {
@@ -456,10 +464,6 @@ export class YouTubeChannelService {
 
     let processedChannels = 0;
     for (const channel of channels) {
-      if (processedChannels >= this.MAX_CHANNELS_PER_MONITOR_RUN) {
-        break;
-      }
-
       if (this.activeChannelImports.has(channel.channelId)) {
         continue;
       }
@@ -479,8 +483,11 @@ export class YouTubeChannelService {
           errors: [],
         });
 
-        console.log(`[Channel Monitor] Importing channel ${channel.channelId} (${processedChannels + 1}/${this.MAX_CHANNELS_PER_MONITOR_RUN})`);
-        await this.runBatchImport(channel.channelId, 10, progressId);
+        console.log(`[Channel Monitor] Importing channel ${channel.channelId} (${processedChannels + 1}/${channels.length})`);
+        await this.runBatchImport(channel.channelId, 10, progressId, {
+          maxVideosToImport: this.MONITOR_MAX_IMPORTS_PER_CHANNEL,
+          maxVideosToScan: this.MONITOR_MAX_SCAN_VIDEOS_PER_CHANNEL,
+        });
         processedChannels++;
 
         // Small cool-down between channels to reduce quota spikes.
