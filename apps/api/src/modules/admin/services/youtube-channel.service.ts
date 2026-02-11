@@ -63,6 +63,11 @@ export class YouTubeChannelService {
   private readonly CACHE_TTL = 86400; // 24 hours
   private importProgress: Map<string, BatchImportProgress> = new Map();
   private backfillProgress: Map<string, BackfillProgress> = new Map();
+  private channelImportProgressId: Map<string, string> = new Map();
+  private activeChannelImports: Set<string> = new Set();
+  private activeBackfillJobId: string | null = null;
+  private isMonitorRunning = false;
+  private readonly MAX_CHANNELS_PER_MONITOR_RUN = 2;
 
   constructor(private prisma: PrismaClient) {}
 
@@ -147,7 +152,7 @@ export class YouTubeChannelService {
     pageToken?: string,
     maxResults: number = 50
   ): Promise<ChannelVideosResult> {
-    const cacheKey = `channel:videos:${channelId}:${pageToken || 'first'}`;
+    const cacheKey = `channel:videos:${channelId}:${pageToken || 'first'}:${maxResults}`;
     
     // Check cache
     if (this.redis) {
@@ -158,32 +163,68 @@ export class YouTubeChannelService {
       }
     }
 
-    // Search for videos from this channel
+    // Use uploads playlist instead of search.list to drastically reduce
+    // quota usage (playlistItems/videos are low-cost units compared to search).
     const yt = getYoutube();
-    const searchResponse = await yt.search.list({
-      part: ['snippet'],
-      channelId,
-      type: ['video'],
-      videoDuration: 'long', // Only long-form content (movies)
-      order: 'date',
+    const uploadsPlaylistId = await this.getUploadsPlaylistId(channelId);
+    const playlistResponse = await yt.playlistItems.list({
+      part: ['snippet', 'contentDetails'],
+      playlistId: uploadsPlaylistId,
       maxResults,
       pageToken,
     });
 
-    const videos: YouTubeVideoInfo[] = (searchResponse.data.items || []).map((item) => ({
-      youtubeId: item.id?.videoId || '',
-      title: item.snippet?.title || '',
-      description: item.snippet?.description || '',
-      thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || '',
-      publishedAt: item.snippet?.publishedAt || '',
-    }));
+    const rawItems = (playlistResponse.data.items || []).filter((item) => {
+      const id = item.contentDetails?.videoId;
+      const title = item.snippet?.title || '';
+      return !!id && title !== 'Private video' && title !== 'Deleted video';
+    });
+
+    const videoIds = rawItems
+      .map((item) => item.contentDetails?.videoId)
+      .filter((id): id is string => !!id);
+
+    // Fetch durations to keep long-form videos only.
+    const durationResponse = videoIds.length
+      ? await yt.videos.list({
+          part: ['contentDetails'],
+          id: videoIds,
+          maxResults: Math.min(50, videoIds.length),
+        })
+      : null;
+
+    const durationMap = new Map<string, number>();
+    for (const item of durationResponse?.data.items || []) {
+      const id = item.id;
+      const iso = item.contentDetails?.duration;
+      if (!id || !iso) continue;
+      durationMap.set(id, this.durationToSeconds(iso));
+    }
+
+    const MIN_LONG_FORM_SECONDS = 15 * 60;
+    const videos: YouTubeVideoInfo[] = rawItems
+      .filter((item) => {
+        const id = item.contentDetails?.videoId;
+        if (!id) return false;
+        const seconds = durationMap.get(id) ?? 0;
+        return seconds >= MIN_LONG_FORM_SECONDS;
+      })
+      .map((item) => ({
+        youtubeId: item.contentDetails?.videoId || '',
+        title: item.snippet?.title || '',
+        description: item.snippet?.description || '',
+        thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || '',
+        publishedAt: item.contentDetails?.videoPublishedAt || item.snippet?.publishedAt || '',
+      }));
 
     // Check which videos are already imported
     const youtubeIds = videos.map((v) => v.youtubeId).filter(Boolean);
-    const existingMovies = await this.prisma.movie.findMany({
-      where: { youtubeId: { in: youtubeIds } },
-      select: { youtubeId: true },
-    });
+    const existingMovies = youtubeIds.length
+      ? await this.prisma.movie.findMany({
+          where: { youtubeId: { in: youtubeIds } },
+          select: { youtubeId: true },
+        })
+      : [];
     const existingIds = new Set(existingMovies.map((m) => m.youtubeId));
 
     // Mark videos with import status
@@ -194,8 +235,8 @@ export class YouTubeChannelService {
 
     const result: ChannelVideosResult = {
       videos: videosWithStatus,
-      nextPageToken: searchResponse.data.nextPageToken || null,
-      totalResults: searchResponse.data.pageInfo?.totalResults || 0,
+      nextPageToken: playlistResponse.data.nextPageToken || null,
+      totalResults: playlistResponse.data.pageInfo?.totalResults || 0,
     };
 
     // Cache for 24 hours
@@ -213,7 +254,16 @@ export class YouTubeChannelService {
     channelId: string,
     batchSize: number = 10
   ): Promise<string> {
+    const existingProgressId = this.channelImportProgressId.get(channelId);
+    if (existingProgressId) {
+      const existingProgress = this.importProgress.get(existingProgressId);
+      if (existingProgress && (existingProgress.status === 'pending' || existingProgress.status === 'running')) {
+        return existingProgressId;
+      }
+    }
+
     const progressId = `import:${channelId}:${Date.now()}`;
+    this.channelImportProgressId.set(channelId, progressId);
     
     // Initialize progress
     this.importProgress.set(progressId, {
@@ -248,6 +298,9 @@ export class YouTubeChannelService {
   ): Promise<void> {
     const progress = this.importProgress.get(progressId)!;
     progress.status = 'running';
+    this.activeChannelImports.add(channelId);
+
+    try {
 
     // Resolve channel name for metadata tagging
     const channelRecord = await this.prisma.youTubeChannel.findUnique({
@@ -275,10 +328,12 @@ export class YouTubeChannelService {
 
     // Filter out already imported videos
     const youtubeIds = allVideos.map((v) => v.youtubeId);
-    const existingMovies = await this.prisma.movie.findMany({
-      where: { youtubeId: { in: youtubeIds } },
-      select: { youtubeId: true },
-    });
+    const existingMovies = youtubeIds.length
+      ? await this.prisma.movie.findMany({
+          where: { youtubeId: { in: youtubeIds } },
+          select: { youtubeId: true },
+        })
+      : [];
     const existingIds = new Set(existingMovies.map((m) => m.youtubeId));
 
     const videosToImport = allVideos.filter((v) => !existingIds.has(v.youtubeId));
@@ -372,6 +427,13 @@ export class YouTubeChannelService {
     }
 
     console.log(`[Batch Import] Completed for ${channelId}. Imported: ${progress.imported}, Skipped: ${progress.skipped}, Failed: ${progress.failed}`);
+    } finally {
+      this.activeChannelImports.delete(channelId);
+      const currentProgressId = this.channelImportProgressId.get(channelId);
+      if (currentProgressId === progressId) {
+        this.channelImportProgressId.delete(channelId);
+      }
+    }
   }
 
   getImportProgress(progressId: string): BatchImportProgress | null {
@@ -379,21 +441,102 @@ export class YouTubeChannelService {
   }
 
   async monitorAllChannelsEvery6Hours() {
+    if (this.isMonitorRunning) {
+      console.log('[Channel Monitor] Previous run still active, skipping this cycle');
+      return;
+    }
+
+    this.isMonitorRunning = true;
+    try {
     const channels = await this.prisma.youTubeChannel.findMany({
       where: { isActive: true },
       select: { channelId: true },
+      orderBy: { lastSyncedAt: 'asc' },
     });
 
+    let processedChannels = 0;
     for (const channel of channels) {
+      if (processedChannels >= this.MAX_CHANNELS_PER_MONITOR_RUN) {
+        break;
+      }
+
+      if (this.activeChannelImports.has(channel.channelId)) {
+        continue;
+      }
+
       try {
-        await this.startBatchImport(channel.channelId, 10);
+        const progressId = `monitor:${channel.channelId}:${Date.now()}`;
+        this.channelImportProgressId.set(channel.channelId, progressId);
+        this.importProgress.set(progressId, {
+          total: 0,
+          processed: 0,
+          imported: 0,
+          skipped: 0,
+          failed: 0,
+          currentBatch: 0,
+          totalBatches: 0,
+          status: 'pending',
+          errors: [],
+        });
+
+        console.log(`[Channel Monitor] Importing channel ${channel.channelId} (${processedChannels + 1}/${this.MAX_CHANNELS_PER_MONITOR_RUN})`);
+        await this.runBatchImport(channel.channelId, 10, progressId);
+        processedChannels++;
+
+        // Small cool-down between channels to reduce quota spikes.
+        await this.sleep(1500);
       } catch (error) {
         console.error(`[Channel Monitor] Failed for ${channel.channelId}:`, error);
       }
     }
+
+    console.log(`[Channel Monitor] Completed cycle. Processed channels: ${processedChannels}`);
+    } finally {
+      this.isMonitorRunning = false;
+    }
   }
 
   // ===== Helper Methods =====
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async getUploadsPlaylistId(channelId: string): Promise<string> {
+    const cacheKey = `channel:uploads-playlist:${channelId}`;
+    if (this.redis) {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return cached;
+    }
+
+    const yt = getYoutube();
+    const response = await yt.channels.list({
+      part: ['contentDetails'],
+      id: [channelId],
+      maxResults: 1,
+    });
+
+    const uploadsPlaylistId = response.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploadsPlaylistId) {
+      throw new Error(`Could not resolve uploads playlist for channel ${channelId}`);
+    }
+
+    if (this.redis) {
+      await this.redis.setex(cacheKey, this.CACHE_TTL, uploadsPlaylistId);
+    }
+
+    return uploadsPlaylistId;
+  }
+
+  private durationToSeconds(duration: string): number {
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+
+    const hours = parseInt(match[1] || '0', 10);
+    const minutes = parseInt(match[2] || '0', 10);
+    const seconds = parseInt(match[3] || '0', 10);
+    return (hours * 3600) + (minutes * 60) + seconds;
+  }
 
   private async extractChannelId(url: string): Promise<string | null> {
     // Handle different YouTube URL formats
@@ -471,7 +614,16 @@ export class YouTubeChannelService {
    * before Vercel's function timeout fires.
    */
   startBackfill(): string {
+    if (this.activeBackfillJobId) {
+      const existing = this.backfillProgress.get(this.activeBackfillJobId);
+      if (existing && (existing.status === 'pending' || existing.status === 'running')) {
+        return this.activeBackfillJobId;
+      }
+      this.activeBackfillJobId = null;
+    }
+
     const jobId = `backfill:${Date.now()}`;
+    this.activeBackfillJobId = jobId;
     this.backfillProgress.set(jobId, {
       processed: 0,
       total: 0,
@@ -490,6 +642,9 @@ export class YouTubeChannelService {
         p.status = 'failed';
         p.errors.push(error instanceof Error ? error.message : String(error));
       }
+      if (this.activeBackfillJobId === jobId) {
+        this.activeBackfillJobId = null;
+      }
     });
 
     return jobId;
@@ -503,6 +658,12 @@ export class YouTubeChannelService {
     const progress = this.backfillProgress.get(jobId)!;
     progress.status = 'running';
 
+    const existingChannelRows = await this.prisma.youTubeChannel.findMany({
+      select: { channelId: true },
+    });
+    const knownChannelIds = new Set(existingChannelRows.map((row) => row.channelId));
+    const seenInThisRun = new Set<string>();
+
     // Fetch all stream-only movies that have a youtubeId but no channelId in metadata
     const movies = await this.prisma.movie.findMany({
       where: { isStreamOnly: true, youtubeId: { not: null } },
@@ -513,6 +674,9 @@ export class YouTubeChannelService {
 
     if (movies.length === 0) {
       progress.status = 'completed';
+      if (this.activeBackfillJobId === jobId) {
+        this.activeBackfillJobId = null;
+      }
       return;
     }
 
@@ -541,18 +705,30 @@ export class YouTubeChannelService {
 
           progress.channelsFound++;
 
-          // Upsert the YouTubeChannel record
-          const existing = await this.prisma.youTubeChannel.findUnique({ where: { channelId } });
-          if (!existing) {
-            await this.prisma.youTubeChannel.create({
-              data: {
+          // Upsert channel once per unique channel in this backfill run.
+          if (!seenInThisRun.has(channelId)) {
+            seenInThisRun.add(channelId);
+
+            await this.prisma.youTubeChannel.upsert({
+              where: { channelId },
+              update: {
+                name: channelTitle,
+                url: `https://www.youtube.com/channel/${channelId}`,
+                isActive: true,
+              },
+              create: {
                 channelId,
                 name: channelTitle,
                 url: `https://www.youtube.com/channel/${channelId}`,
                 isActive: true,
               },
             });
-            progress.channelsCreated++;
+
+            if (!knownChannelIds.has(channelId)) {
+              knownChannelIds.add(channelId);
+              progress.channelsCreated++;
+            }
+
             // Sync video count in background — don't await, don't block
             this.syncChannelStats(channelId).catch(console.error);
           }
@@ -604,6 +780,16 @@ export class YouTubeChannelService {
 
     progress.status = 'completed';
     console.log(`[Backfill] Done. channels=${progress.channelsCreated} movies=${progress.moviesTagged} errors=${progress.errors.length}`);
+
+    if (this.activeBackfillJobId === jobId) {
+      this.activeBackfillJobId = null;
+    }
+
+    // Start a monitor cycle immediately so discovered channels begin importing
+    // content right away (still rate-limited inside monitorAllChannelsEvery6Hours).
+    this.monitorAllChannelsEvery6Hours().catch((error) => {
+      console.error('[Backfill] Auto import trigger failed:', error);
+    });
   }
 
   async registerDiscoveredChannel(channelId: string, channelTitle: string, requestedName: string) {
