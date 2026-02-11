@@ -6,7 +6,7 @@ import { MovieSummary } from '@naijaspride/types';
 /**
  * YouTube-style movie card component
  * - 16:9 aspect ratio for thumbnails
- - Title always visible below poster
+ * - Title always visible below poster
  * - Quality badges always visible
  * - Better for stream-only content
  */
@@ -21,9 +21,9 @@ import { MovieSummary } from '@naijaspride/types';
     >
       <!-- Thumbnail Container - 16:9 Aspect Ratio -->
       <div class="aspect-video relative rounded-lg overflow-hidden bg-cinema-800">
-        @if (movie.thumbnailUrl || movie.coverUrl || movie.posterUrl) {
+        @if (movie.thumbnailUrl) {
           <img 
-            [ngSrc]="movie.thumbnailUrl || movie.coverUrl || movie.posterUrl!" 
+            [ngSrc]="movie.thumbnailUrl" 
             [alt]="movie.title"
             fill
             sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
@@ -31,7 +31,7 @@ import { MovieSummary } from '@naijaspride/types';
           >
         } @else {
           <div class="w-full h-full flex items-center justify-center bg-cinema-700">
-            <span class="text-4xl text-cinema-500">🎬</span>
+            <span class="text-4xl">🎬</span>
           </div>
         }
         
@@ -43,13 +43,6 @@ import { MovieSummary } from '@naijaspride/types';
         } @else if (movie.quality?.includes('Q1080p')) {
           <div class="absolute top-2 right-2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded">
             HD
-          </div>
-        }
-
-        <!-- Duration Badge -->
-        @if (movie.durationMinutes) {
-          <div class="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-medium px-2 py-1 rounded">
-            {{ formatDuration(movie.durationMinutes) }}
           </div>
         }
 
@@ -82,25 +75,13 @@ import { MovieSummary } from '@naijaspride/types';
             <span class="text-gray-500">•</span>
             <span class="truncate max-w-[100px]">{{ movie.genre[0] }}</span>
           }
-          
-          @if (movie.isStreamOnly) {
-            <span class="text-gray-500">•</span>
-            <span class="text-blue-400">YouTube</span>
-          }
         </div>
-
-        <!-- Channel/Source -->
-        @if (movie.uploadedBy || movie.channel) {
-          <div class="text-xs text-gray-500 truncate">
-            {{ movie.uploadedBy || movie.channel }}
-          </div>
-        }
       </div>
     </div>
   `
 })
 export class MovieCardYoutubeComponent {
-  @Input({ required: true }) movie!: MovieSummary & { isStreamOnly?: boolean; channel?: string };
+  @Input({ required: true }) movie!: MovieSummary;
   @Input() progress: number | null = null;
 
   get progressPercent() {
@@ -108,14 +89,5 @@ export class MovieCardYoutubeComponent {
       return 0;
     }
     return Math.max(0, Math.min(100, this.progress));
-  }
-
-  formatDuration(minutes: number): string {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, '0')}:00`;
-    }
-    return `${mins}:00`;
   }
 }
