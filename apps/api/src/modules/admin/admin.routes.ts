@@ -808,4 +808,29 @@ export const adminRoutes = async (
       }
     },
   });
+
+  // POST /api/admin/movies/backfill-slugs - Generate slugs for movies without them
+  app.post("/movies/backfill-slugs", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        const { MoviesService } = await import("../movies/movies.service");
+        const moviesService = new MoviesService(app.prisma);
+        const result = await moviesService.backfillSlugs();
+        return reply.send({
+          status: "success",
+          data: result,
+          message: `Backfilled ${result.updated} of ${result.total} movies`,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to backfill slugs",
+        });
+      }
+    },
+  });
 };

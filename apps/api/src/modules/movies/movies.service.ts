@@ -55,8 +55,8 @@ export class MoviesService {
       }
     }
 
-    // 2. Hit DB
-    const movie = await this.prisma.movie.findUnique({
+    // 2. Try slug lookup first
+    let movie = await this.prisma.movie.findUnique({
       where: { slug },
       include: {
         cast: {
@@ -65,10 +65,23 @@ export class MoviesService {
         },
       },
     });
+
+    // 3. Fallback: if slug looks like a UUID, try ID lookup (handles legacy movies)
+    if (!movie && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
+      movie = await this.prisma.movie.findUnique({
+        where: { id: slug },
+        include: {
+          cast: {
+            orderBy: { name: 'asc' },
+            take: 12,
+          },
+        },
+      });
+    }
     
     if (movie) {
       const mapped = this.mapToMovie(movie);
-      // 3. Save to Redis (Infinite TTL, until we manually invalidate)
+      // 4. Save to Redis (Infinite TTL, until we manually invalidate)
       if (redis) {
         await redis.set(cacheKey, JSON.stringify(mapped));
         console.log(`[Cache SET] ${cacheKey}`);
@@ -77,6 +90,35 @@ export class MoviesService {
     }
     
     return null;
+  }
+
+  /**
+   * Backfill slugs for all movies that don't have one.
+   * Returns count of movies updated.
+   */
+  async backfillSlugs(): Promise<{ updated: number; total: number }> {
+    const movies = await this.prisma.movie.findMany({
+      where: {
+        slug: '',
+      },
+      select: { id: true, title: true, year: true },
+    });
+
+    let updated = 0;
+    for (const movie of movies) {
+      const slug = this.generateSlug(movie.title, movie.year);
+      try {
+        await this.prisma.movie.update({
+          where: { id: movie.id },
+          data: { slug },
+        });
+        updated++;
+      } catch (error) {
+        console.error(`[Backfill Slugs] Failed for ${movie.id}:`, error);
+      }
+    }
+
+    return { updated, total: movies.length };
   }
 
   async search(params: MovieSearchParams): Promise<{ data: MovieSummary[]; meta: PaginationMeta }> {

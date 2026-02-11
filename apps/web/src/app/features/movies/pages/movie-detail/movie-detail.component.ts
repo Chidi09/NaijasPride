@@ -138,31 +138,31 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
 
             <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 class="font-bold text-white mb-2">Director</h4>
-                <p class="text-gray-500">{{ movie.metadata?.director || 'Unknown' }}</p>
+                <h4 class="font-bold text-[#24181b] dark:text-white mb-2">Director</h4>
+                <p class="text-[#725f58] dark:text-gray-500">{{ movie.metadata?.director || 'Unknown' }}</p>
               </div>
               <div>
-                <h4 class="font-bold text-white mb-2">Top Cast</h4>
+                <h4 class="font-bold text-[#24181b] dark:text-white mb-2">Top Cast</h4>
                 @if ((movie.cast || []).length > 0) {
                   <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     @for (actor of movie.cast; track actor.id) {
-                      <div class="bg-cinema-800/70 border border-white/10 rounded-lg p-3 text-center">
+                      <div class="bg-[#f0e4da] dark:bg-cinema-800/70 border border-[#d9c4b7] dark:border-white/10 rounded-lg p-3 text-center">
                         @if (actor.photoUrl) {
-                          <img [src]="actor.photoUrl" [alt]="actor.name" class="w-14 h-14 rounded-full object-cover mx-auto mb-2 border border-white/10">
+                          <img [src]="actor.photoUrl" [alt]="actor.name" class="w-14 h-14 rounded-full object-cover mx-auto mb-2 border border-[#d9c4b7] dark:border-white/10">
                         } @else {
-                          <div class="w-14 h-14 rounded-full bg-cinema-700 text-cinema-200 mx-auto mb-2 flex items-center justify-center text-xs font-bold">
+                          <div class="w-14 h-14 rounded-full bg-[#dfc8bb] dark:bg-cinema-700 text-[#6b3d2e] dark:text-cinema-200 mx-auto mb-2 flex items-center justify-center text-xs font-bold">
                             {{ actorInitials(actor.name) }}
                           </div>
                         }
-                        <p class="text-sm text-white font-semibold leading-tight">{{ actor.name }}</p>
-                        <p class="text-xs text-gray-400 leading-tight">{{ actor.character || 'Cast' }}</p>
+                        <p class="text-sm text-[#24181b] dark:text-white font-semibold leading-tight">{{ actor.name }}</p>
+                        <p class="text-xs text-[#725f58] dark:text-gray-400 leading-tight">{{ actor.character || 'Cast' }}</p>
                       </div>
                     }
                   </div>
                 } @else {
                   <div class="flex flex-wrap gap-2">
                     @for (actor of movie.metadata?.cast || []; track actor) {
-                      <span class="bg-cinema-800 text-gray-300 text-sm px-3 py-1 rounded-sm">{{ actor }}</span>
+                      <span class="bg-[#f0e4da] dark:bg-cinema-800 text-[#24181b] dark:text-gray-300 text-sm px-3 py-1 rounded-sm">{{ actor }}</span>
                     }
                   </div>
                 }
@@ -171,7 +171,7 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
           </div>
 
           <div class="lg:col-span-1">
-            <div class="bg-cinema-800/50 backdrop-blur-sm border border-white/5 p-6 sticky top-24">
+            <div class="bg-[#f8f0e9] dark:bg-cinema-800/50 backdrop-blur-sm border border-[#d9c4b7] dark:border-white/5 p-6 sticky top-24">
               @if (movie.isStreamOnly) {
                 <!-- Stream Only Card -->
                 <div class="text-center py-6">
@@ -180,8 +180,8 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                       <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                     </svg>
                   </div>
-                  <h3 class="text-lg font-serif font-bold text-white mb-2">Stream Only</h3>
-                  <p class="text-gray-400 text-sm mb-4">This movie is available for streaming only.</p>
+                  <h3 class="text-lg font-serif font-bold text-[#24181b] dark:text-white mb-2">Stream Only</h3>
+                  <p class="text-[#725f58] dark:text-gray-400 text-sm mb-4">This movie is available for streaming only.</p>
                   @if (movie.youtubeId) {
                     <a 
                       [routerLink]="['/watch', slug()]" 
@@ -193,7 +193,7 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                 </div>
               } @else {
                 <!-- Download Options Card -->
-                <h3 class="text-lg font-serif font-bold text-white mb-4 flex items-center gap-2">
+                <h3 class="text-lg font-serif font-bold text-[#24181b] dark:text-white mb-4 flex items-center gap-2">
                   <svg class="w-5 h-5 text-cinema-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                   </svg>
@@ -202,10 +202,10 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
 
                 <div class="space-y-3">
                   @for (q of movie.quality; track q) {
-                    <div class="flex items-center justify-between p-3 rounded-sm border border-white/10 hover:border-cinema-500/50 hover:bg-cinema-500/10 transition-colors group">
+                    <div class="flex items-center justify-between p-3 rounded-sm border border-[#d9c4b7] dark:border-white/10 hover:border-cinema-500/50 hover:bg-cinema-500/10 transition-colors group">
                       <div>
-                        <div class="font-bold text-white">{{ q }}</div>
-                        <div class="text-xs text-gray-500">
+                        <div class="font-bold text-[#24181b] dark:text-white">{{ q }}</div>
+                        <div class="text-xs text-[#725f58] dark:text-gray-500">
                           {{ getFileSize(movie.fileSizes, q) }}
                         </div>
                       </div>
@@ -221,9 +221,9 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                   }
                 </div>
 
-                <div class="mt-6 pt-4 border-t border-white/5 text-center">
-                   <p class="text-xs text-gray-500 mb-2">Premium Quality Downloads</p>
-                   <div class="flex justify-center gap-4 text-gray-600 text-xs">
+                <div class="mt-6 pt-4 border-t border-[#d9c4b7] dark:border-white/5 text-center">
+                   <p class="text-xs text-[#725f58] dark:text-gray-500 mb-2">Premium Quality Downloads</p>
+                   <div class="flex justify-center gap-4 text-[#a08070] dark:text-gray-600 text-xs">
                       <span>🔒 Secure</span>
                       <span>⚡ Fast</span>
                       <span>🎬 4K</span>
