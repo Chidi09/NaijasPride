@@ -316,24 +316,35 @@ export class AsuraSource extends BaseHtmlSource {
       const html = await this.fetchHtml(seriesPath);
       const $ = cheerio.load(html);
 
+      // Kotatsu: tags from div[class^=space] > div.flex > button.text-white
+      const tagElements = $('div[class^="space"] > div.flex > button.text-white');
+      const tags = tagElements.map((_idx, el) => this.strip($(el).text())).get().filter(Boolean);
+
+      // Kotatsu: author from div.grid > div:has(h3:eq(0):containsOwn(Author)) > h3:eq(1)
+      const authorText = this.strip($('div.grid > div').filter((_i, el) => {
+        return $(el).find('h3').eq(0).text().includes('Author');
+      }).find('h3').eq(1).text());
+
+      // Kotatsu: description from span.font-medium.text-sm
+      const description = this.strip($('span.font-medium.text-sm').first().text()) ||
+        this.strip($('meta[property="og:description"]').attr('content'));
+
       const detail: MangaDetail = {
         id: seriesId,
         title:
           this.strip($('h1').first().text()) ||
           this.strip($('meta[property="og:title"]').attr('content')) ||
           this.titleFromSeriesPath(seriesId),
-        description:
-          this.strip($('meta[property="og:description"]').attr('content')) ||
-          this.strip($('.description, .summary, .synopsis').first().text()),
+        description,
         coverUrl:
           this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
           this.toAbsoluteUrl($('img').first().attr('src') || null),
         status: null,
         year: null,
         originalLanguage: null,
-        tags: $('.tag, .genre a, a[href*="genre"]').map((_idx, el) => this.strip($(el).text())).get().filter(Boolean),
+        tags,
         latestChapter: null,
-        author: null,
+        author: authorText || null,
         artist: null,
         contentRating: null,
         publicationDemographic: null,
@@ -365,28 +376,58 @@ export class AsuraSource extends BaseHtmlSource {
       const html = await this.fetchHtml(seriesPath);
       const $ = cheerio.load(html);
 
+      // Kotatsu: div.scrollbar-thumb-themecolor > div.group
+      const chapterGroups = $('div.scrollbar-thumb-themecolor > div.group, div[class*="scrollbar"] > div.group');
       const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
-      $('a[href*="/chapter/"]').each((_idx, el) => {
+
+      // Process in reverse order (newest first) as Kotatsu does
+      const groups = chapterGroups.toArray().reverse();
+
+      groups.forEach((el, index) => {
         if (chapters.length >= limit) return;
-        const href = $(el).attr('href');
+
+        const group = $(el);
+
+        // Kotatsu: a is the last element in the group
+        const link = group.find('a').last();
+        const href = link.attr('href');
         const chapterId = href ? this.coerceChapterId(href) : null;
         if (!chapterId || seen.has(chapterId)) return;
         seen.add(chapterId);
 
-        const text = this.strip($(el).text());
-        let chapterNumber = _idx + 1;
-        const chapterMatch = text.match(/\b(\d+(?:\.\d+)?)\b/);
-        if (chapterMatch) {
-          chapterNumber = parseFloat(chapterMatch[1]);
+        // Kotatsu: title from first h3, date from last h3
+        const titleEl = group.find('h3').first();
+        const dateEl = group.find('h3').last();
+
+        const title = this.strip(titleEl.text()) || null;
+
+        // Kotatsu date parsing: "January 7th 2026" -> remove "st", "nd", "rd", "th"
+        const dateText = this.strip(dateEl.text());
+        let publishedAt: string | null = null;
+        if (dateText) {
+          // Remove ordinal suffixes (1st, 2nd, 3rd, 4th)
+          const cleanDate = dateText.replace(/(\d+)(st|nd|rd|th)/, '$1');
+          // Try to parse as date
+          try {
+            const date = new Date(cleanDate);
+            if (!isNaN(date.getTime())) {
+              publishedAt = date.toISOString();
+            }
+          } catch {
+            // If parsing fails, keep as null
+          }
         }
+
+        // Kotatsu: use index + 1 for chapter number
+        const chapterNumber = String(index + 1);
 
         chapters.push({
           id: chapterId,
-          chapter: String(chapterNumber),
+          chapter: chapterNumber,
           volume: null,
-          title: text || null,
-          publishedAt: null,
+          title,
+          publishedAt,
           scanlationGroup: null,
           branch: null,
           externalUrl: null,
