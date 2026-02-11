@@ -23,7 +23,8 @@ export class ManhwaTopSource extends MadaraBaseSource {
     });
   }
 
-  // Override discover with ManhwaTop-specific selectors
+  // Kotatsu: ManhwaTop uses postReq = true for chapter loading
+  // Use /page/1/?s&post_type=wp-manga for discover (standard Madara)
   async getDiscoverManga(limit = 12): Promise<MangaDiscoverResult> {
     const safeLimit = Math.min(24, Math.max(1, limit));
     const cacheKey = this.buildCacheKey('discover', safeLimit);
@@ -31,12 +32,18 @@ export class ManhwaTopSource extends MadaraBaseSource {
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml('/');
+      // Use Madara's listing page instead of homepage
+      // This is more reliable as homepage might use AJAX
+      const html = await this.fetchHtml('/page/1', { 
+        s: '', 
+        post_type: 'wp-manga',
+        m_orderby: 'latest' 
+      });
       const $ = cheerio.load(html);
       const seen = new Set<string>();
       const cards: MangaSummary[] = [];
 
-      // ManhwaTop uses .page-item-detail.manga for manga items on homepage
+      // Standard Madara selectors
       $('.page-item-detail.manga, .c-tabs-item__content, .manga-item').each((_idx, el) => {
         if (cards.length >= safeLimit) return;
 
@@ -99,7 +106,7 @@ export class ManhwaTopSource extends MadaraBaseSource {
           this.toAbsoluteUrl($('.manga-thumb img').first().attr('src')) ||
           this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
           this.toAbsoluteUrl($('img').first().attr('src')),
-        status: this.strip($('.post-status .summary-content').filter((_i, el) => $(el).text().includes('Status')).find('.summary-content').text()) || null,
+        status: null,
         year: null,
         originalLanguage: null,
         tags: $('.genres-content a, .genres a, a[href*="genre"], a[href*="tag"]').map((_idx, el) => this.strip($(el).text())).get().filter(Boolean),
@@ -119,6 +126,8 @@ export class ManhwaTopSource extends MadaraBaseSource {
     }
   }
 
+  // Kotatsu ManhwaTop: Override getChapters with POST request
+  // Uses admin-ajax.php endpoint
   async getChapters(mangaId: string, _translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
     const seriesPath = this.normalizePath(mangaId, '/');
     const cacheKey = this.buildCacheKey('chapters', seriesPath, limit);
