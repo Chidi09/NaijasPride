@@ -650,6 +650,29 @@ export const adminRoutes = async (
     },
   });
 
+  // POST /api/admin/youtube/channels/backfill - Discover channels from existing stream-only movies
+  app.post("/youtube/channels/backfill", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        const result = await channelService.backfillChannelsFromExistingMovies();
+        return reply.send({
+          status: "success",
+          data: result,
+          message: `Backfill complete: ${result.channelsCreated} new channel(s) registered, ${result.moviesTagged} movie(s) tagged`,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to backfill channels",
+        });
+      }
+    },
+  });
+
   // DELETE /api/admin/youtube/channels/:id - Remove a channel
   app.delete("/youtube/channels/:id", {
     preHandler: [app.authenticate, requireAdmin],

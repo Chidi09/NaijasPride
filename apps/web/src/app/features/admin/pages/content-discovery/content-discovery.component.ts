@@ -142,11 +142,45 @@ interface ChannelImportResult {
             }
           </div>
 
+          <!-- Backfill from existing movies -->
+          <div class="bg-[#1b1014] border border-[#5f1327]/60 rounded-lg p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="text-[#d6b87a] font-bold mb-1">Recover Channels from Existing Movies</h3>
+                <p class="text-gray-400 text-sm">If you already have YouTube movies imported, this will look up their channels and register them here automatically.</p>
+                @if (backfillResult(); as result) {
+                  <div class="mt-2 text-sm">
+                    @if (result.errors.length === 0) {
+                      <p class="text-green-400">{{ result.channelsCreated }} channel(s) registered, {{ result.moviesTagged }} movie(s) tagged</p>
+                    } @else {
+                      <p class="text-yellow-400">{{ result.channelsCreated }} channel(s) registered, {{ result.moviesTagged }} movie(s) tagged &mdash; {{ result.errors.length }} error(s)</p>
+                      @for (err of result.errors.slice(0, 3); track err) {
+                        <p class="text-red-400 text-xs mt-0.5">{{ err }}</p>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+              <button
+                (click)="backfillChannels()"
+                [disabled]="isBackfilling()"
+                class="shrink-0 bg-[#3a1020] hover:bg-[#4a1428] border border-[#800020] text-[#d6b87a] px-4 py-2 rounded text-sm font-semibold disabled:opacity-50 transition whitespace-nowrap"
+              >
+                @if (isBackfilling()) {
+                  <span class="inline-block w-4 h-4 border-2 border-[#d6b87a]/30 border-t-[#d6b87a] rounded-full animate-spin mr-2"></span>
+                  Scanning...
+                } @else {
+                  Scan Existing Movies
+                }
+              </button>
+            </div>
+          </div>
+
           <!-- Channel List -->
           @if (channels().length === 0) {
             <div class="text-center py-12 text-gray-500">
               <p class="text-lg mb-2">No channels configured yet</p>
-              <p class="text-sm">Add your first YouTube channel above to get started</p>
+              <p class="text-sm">Add a YouTube channel above, or click "Scan Existing Movies" to recover channels from your imported movies</p>
             </div>
           } @else {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -451,6 +485,10 @@ export class ContentDiscoveryComponent {
   importProgressMap = signal<Map<string, BatchImportProgress>>(new Map());
   progressPollingIntervals = new Map<string, number>();
   isImportingAll = signal(false);
+
+  // Backfill state
+  isBackfilling = signal(false);
+  backfillResult = signal<{ channelsCreated: number; moviesTagged: number; errors: string[] } | null>(null);
 
   // Channel detail state
   selectedChannel = signal<Channel | null>(null);
@@ -765,5 +803,29 @@ export class ContentDiscoveryComponent {
         this.loadChannelVideos(channel.channelId);
       }
     }, 1000);
+  }
+
+  // ===== Backfill Channels from Existing Movies =====
+
+  backfillChannels() {
+    this.isBackfilling.set(true);
+    this.backfillResult.set(null);
+
+    this.http.post<{ status: string; data: { channelsCreated: number; moviesTagged: number; errors: string[] } }>(
+      '/api/v1/admin/youtube/channels/backfill',
+      {}
+    ).subscribe({
+      next: (response) => {
+        this.backfillResult.set(response.data);
+        this.isBackfilling.set(false);
+        // Reload channels to show newly discovered ones
+        this.loadChannels();
+      },
+      error: (error) => {
+        console.error('Backfill failed:', error);
+        this.backfillResult.set({ channelsCreated: 0, moviesTagged: 0, errors: [error.error?.message || 'Backfill failed'] });
+        this.isBackfilling.set(false);
+      }
+    });
   }
 }

@@ -238,6 +238,13 @@ export class YouTubeChannelService {
     const progress = this.importProgress.get(progressId)!;
     progress.status = 'running';
 
+    // Resolve channel name for metadata tagging
+    const channelRecord = await this.prisma.youTubeChannel.findUnique({
+      where: { channelId },
+      select: { name: true },
+    });
+    const channelName = channelRecord?.name || channelId;
+
     let pageToken: string | undefined;
     const allVideos: YouTubeVideoInfo[] = [];
 
@@ -308,6 +315,7 @@ export class YouTubeChannelService {
               fileUrls: {},
               fileSizes: {},
               status: 'active',
+              metadata: { channelId, channelTitle: channelName },
             },
           });
 
@@ -329,11 +337,17 @@ export class YouTubeChannelService {
 
     progress.status = 'completed';
 
-    // Update channel stats
+    // Update channel stats — recount from metadata for accuracy
+    const actualCount = await this.prisma.movie.count({
+      where: {
+        isStreamOnly: true,
+        metadata: { path: ['channelId'], equals: channelId },
+      },
+    });
     await this.prisma.youTubeChannel.update({
       where: { channelId },
       data: {
-        importedCount: { increment: progress.imported },
+        importedCount: actualCount,
         lastSyncedAt: new Date(),
       },
     });
@@ -438,6 +452,116 @@ export class YouTubeChannelService {
     } catch (error) {
       console.error(`[Channel Stats] Failed to sync stats for ${channelId}:`, error);
     }
+  }
+
+  /**
+   * Backfill YouTubeChannel records from existing isStreamOnly movies.
+   * Batches all stored youtubeIds through the YouTube videos.list API (50 per call)
+   * to discover channelId + channelTitle, then upserts YouTubeChannel rows and
+   * stamps each movie's metadata.channelId so future lookups are instant.
+   */
+  async backfillChannelsFromExistingMovies(): Promise<{
+    processed: number;
+    channelsFound: number;
+    channelsCreated: number;
+    moviesTagged: number;
+    errors: string[];
+  }> {
+    const stats = { processed: 0, channelsFound: 0, channelsCreated: 0, moviesTagged: 0, errors: [] as string[] };
+
+    // Fetch all stream-only movies that have a youtubeId
+    const movies = await this.prisma.movie.findMany({
+      where: { isStreamOnly: true, youtubeId: { not: null } },
+      select: { id: true, youtubeId: true, metadata: true },
+    });
+
+    if (movies.length === 0) {
+      return stats;
+    }
+
+    const yt = getYoutube();
+    const BATCH = 50; // YouTube videos.list max ids per request
+
+    for (let i = 0; i < movies.length; i += BATCH) {
+      const batch = movies.slice(i, i + BATCH);
+      const ids = batch.map((m) => m.youtubeId!).filter(Boolean);
+
+      try {
+        const res = await yt.videos.list({
+          part: ['snippet'],
+          id: ids,
+          maxResults: BATCH,
+        });
+
+        const items = res.data.items || [];
+
+        for (const item of items) {
+          const videoId = item.id;
+          const channelId = item.snippet?.channelId;
+          const channelTitle = item.snippet?.channelTitle || 'Unknown Channel';
+
+          if (!channelId || !videoId) continue;
+
+          stats.channelsFound++;
+
+          // Upsert the YouTubeChannel record
+          const existing = await this.prisma.youTubeChannel.findUnique({ where: { channelId } });
+          if (!existing) {
+            await this.prisma.youTubeChannel.create({
+              data: {
+                channelId,
+                name: channelTitle,
+                url: `https://www.youtube.com/channel/${channelId}`,
+                isActive: true,
+              },
+            });
+            stats.channelsCreated++;
+            // Sync video count in background
+            this.syncChannelStats(channelId).catch(console.error);
+          }
+
+          // Stamp the movie's metadata with channelId so it's queryable without hitting the API again
+          const movie = batch.find((m) => m.youtubeId === videoId);
+          if (movie) {
+            const existingMeta = (movie.metadata as Record<string, unknown>) || {};
+            if (!existingMeta.channelId) {
+              await this.prisma.movie.update({
+                where: { id: movie.id },
+                data: { metadata: { ...existingMeta, channelId, channelTitle } },
+              });
+              stats.moviesTagged++;
+            }
+          }
+        }
+      } catch (error) {
+        const msg = `Batch ${Math.floor(i / BATCH) + 1} failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(`[Backfill] ${msg}`);
+        stats.errors.push(msg);
+      }
+
+      stats.processed += batch.length;
+    }
+
+    // After backfill, refresh importedCount for each channel based on actual movie rows
+    const channels = await this.prisma.youTubeChannel.findMany({
+      where: { isActive: true },
+      select: { id: true, channelId: true },
+    });
+
+    for (const channel of channels) {
+      const count = await this.prisma.movie.count({
+        where: {
+          isStreamOnly: true,
+          metadata: { path: ['channelId'], equals: channel.channelId },
+        },
+      });
+      await this.prisma.youTubeChannel.update({
+        where: { id: channel.id },
+        data: { importedCount: count },
+      });
+    }
+
+    return stats;
   }
 
   async registerDiscoveredChannel(channelId: string, channelTitle: string, requestedName: string) {
