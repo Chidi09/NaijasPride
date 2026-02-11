@@ -107,9 +107,8 @@ type FeaturedContent = {
               <a [routerLink]="featured().manga?.id ? ['/books/manga', toRouteParam(featured().manga!.id)] : null"
                  class="block bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-cinema-800 hover:scale-[1.02]"
               >
-                <div class="p-4 border-b border-cinema-700 flex justify-between items-center">
+                <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-pink-400 uppercase">🎌 Trending Manga</span>
-                  <span class="text-xs text-gray-500">Changes every 5s</span>
                 </div>
                 <div class="p-4 flex gap-4">
                   @if (featured().manga?.coverUrl) {

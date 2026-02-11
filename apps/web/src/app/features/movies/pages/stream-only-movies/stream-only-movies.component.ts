@@ -119,11 +119,9 @@ export class StreamOnlyMoviesComponent implements OnInit {
     
     // Fetch stream-only movies
     this.http.get<{ 
-      status: string; 
-      data: { 
-        movies: MovieSummary[]; 
-        pagination: { total: number } 
-      } 
+      success: boolean;
+      data: MovieSummary[];
+      meta?: { total: number };
     }>('/api/v1/movies', {
       params: {
         isStreamOnly: 'true',
@@ -132,7 +130,7 @@ export class StreamOnlyMoviesComponent implements OnInit {
       }
     }).subscribe({
       next: (response) => {
-        this.movies.set(response.data.movies);
+        this.movies.set(response.data || []);
         this.isLoading.set(false);
       },
       error: (error) => {
