@@ -253,13 +253,46 @@ export class AsuraSource extends BaseHtmlSource {
       const $ = cheerio.load(html);
       const map = new Map<string, MangaSummary>();
 
-      $('a[href*="/series/"]').each((_idx, el) => {
-        this.addSeriesCard(map, $, el, Math.max(limit * 3, 50));
+      // Kotatsu: div.grid > a[href] - specific selector for manga cards
+      $('div.grid > a[href]').each((_idx, el) => {
+        const $el = $(el);
+        const href = $el.attr('href');
+        if (!href) return;
+        
+        const id = this.extractSeriesId(href);
+        if (!id || map.has(id)) return;
+        
+        // Kotatsu: div.block > span.block for title
+        const title = this.strip($el.find('div.block > span.block').text()) ||
+                     this.strip($el.find('span.block').first().text());
+        
+        if (!title || title.length < 2) return;
+        
+        // Filter by search query
+        if (!title.toLowerCase().includes(normalized.toLowerCase())) return;
+        
+        // Kotatsu: img for cover
+        const coverUrl = this.toAbsoluteUrl($el.find('img').first().attr('src') || null);
+        
+        // Kotatsu: span.status for status
+        const statusText = this.strip($el.find('span.status').last().text());
+        const status = statusText === 'Ongoing' ? 'ongoing' : 
+                      statusText === 'Completed' ? 'completed' : null;
+        
+        map.set(id, {
+          id,
+          title,
+          description: '',
+          coverUrl,
+          status,
+          year: null,
+          originalLanguage: null,
+          tags: [],
+          latestChapter: null,
+        });
       });
 
-      const results = Array.from(map.values())
-        .filter((entry) => entry.title.toLowerCase().includes(normalized.toLowerCase()))
-        .slice(0, limit);
+      const results = Array.from(map.values()).slice(0, limit);
 
       await this.setCache(cacheKey, results);
       return results;
@@ -279,8 +312,41 @@ export class AsuraSource extends BaseHtmlSource {
       const html = await this.fetchHtml('/series', { page: 1 });
       const $ = cheerio.load(html);
       const map = new Map<string, MangaSummary>();
-      $('a[href*="/series/"]').each((_idx, el) => {
-        this.addSeriesCard(map, $, el, safeLimit * 4);
+      
+      // Kotatsu: div.grid > a[href] - specific selector for manga cards
+      $('div.grid > a[href]').each((_idx, el) => {
+        const $el = $(el);
+        const href = $el.attr('href');
+        if (!href) return;
+        
+        const id = this.extractSeriesId(href);
+        if (!id || map.has(id)) return;
+        
+        // Kotatsu: div.block > span.block for title
+        const title = this.strip($el.find('div.block > span.block').text()) ||
+                     this.strip($el.find('span.block').first().text());
+        
+        if (!title || title.length < 2) return;
+        
+        // Kotatsu: img for cover
+        const coverUrl = this.toAbsoluteUrl($el.find('img').first().attr('src') || null);
+        
+        // Kotatsu: span.status for status
+        const statusText = this.strip($el.find('span.status').last().text());
+        const status = statusText === 'Ongoing' ? 'ongoing' : 
+                      statusText === 'Completed' ? 'completed' : null;
+        
+        map.set(id, {
+          id,
+          title,
+          description: '',
+          coverUrl,
+          status,
+          year: null,
+          originalLanguage: null,
+          tags: [],
+          latestChapter: null,
+        });
       });
 
       const cards = Array.from(map.values()).slice(0, safeLimit);

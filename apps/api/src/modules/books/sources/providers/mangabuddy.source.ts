@@ -1,3 +1,4 @@
+import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { BaseHtmlSource } from '../base/base-html.source';
 import { sourceMetrics } from '../observability/source-metrics';
@@ -13,12 +14,13 @@ import {
 import { summarizeSourceError } from '../utils/error-summary';
 
 const BASE_URL = 'https://mangabuddy.com';
+const IMAGE_CDN = 'https://sb.mbcdn.xyz';
 
 export class MangabuddySource extends BaseHtmlSource {
   readonly id = 'mangabuddy';
   readonly displayName = 'MangaBuddy';
   readonly capabilities = {
-    supportsFilters: false,
+    supportsFilters: true,
     supportsLanguages: false,
     supportsSimilar: false,
     supportsDiscover: true,
@@ -35,132 +37,58 @@ export class MangabuddySource extends BaseHtmlSource {
     });
   }
 
-  private extractSeriesId(href: string): string | null {
-    const trimmed = href.trim();
-    if (!trimmed) return null;
+  // Kotatsu MadthemeParser: listUrl = "search/"
+  // Kotatsu: datePattern = "MMM dd, yyyy"
 
-    const pathname = this.normalizePath(trimmed, '/').replace(/^\/+|\/+$/g, '');
-    if (!pathname) return null;
-    if (pathname.startsWith('search') || pathname.startsWith('genres') || pathname.startsWith('top')) return null;
-    if (pathname.includes('chapter-')) return null;
-    return pathname;
+  private extractSlugFromPath(path: string): string {
+    return path.replace(/^\/+|\/+$/g, '');
   }
 
-  private extractChapterId(href: string): string | null {
-    const trimmed = href.trim();
-    if (!trimmed) return null;
-    const pathname = this.normalizePath(trimmed, '/').replace(/^\/+|\/+$/g, '');
-    if (!pathname) return null;
-    return pathname;
-  }
-
-  private coerceSeriesId(value: string): string | null {
-    const trimmed = value.trim().replace(/^\/+|\/+$/g, '');
-    if (!trimmed) return null;
-    if (trimmed.includes('chapter-')) return null;
-    return this.extractSeriesId(trimmed) || trimmed;
-  }
-
-  private coerceChapterId(value: string): string | null {
-    const trimmed = value.trim().replace(/^\/+|\/+$/g, '');
-    if (!trimmed) return null;
-    return this.extractChapterId(trimmed) || trimmed;
-  }
-
-  private toSeriesPath(seriesId: string): string {
-    return `/${seriesId}`;
-  }
-
-  private toChapterPath(chapterId: string): string {
-    return `/${chapterId}`;
-  }
-
-  async searchManga(query?: string, limit = 20, _filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
-    const normalized = this.strip(query);
-    if (!normalized) return [];
-
-    const cacheKey = this.buildCacheKey('search', normalized.toLowerCase(), limit);
-    const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
-    if (cached) return cached;
-
-    try {
-      const html = await this.fetchHtml('/search', { q: normalized });
-      const $ = cheerio.load(html);
-      const results: MangaSummary[] = [];
-      const seen = new Set<string>();
-
-      $('.book-item, .book-detailed-item, a[href^="/"]').each((_idx, el) => {
-        if (results.length >= limit) return;
-
-        const link = $(el).is('a') ? $(el) : $(el).find('a[href^="/"]').first();
-        const href = link.attr('href');
-        if (!href || href.startsWith('/search') || href.startsWith('/genres') || href.startsWith('/top')) return;
-
-        const id = this.extractSeriesId(href);
-        if (!id || seen.has(id)) return;
-        seen.add(id);
-
-        results.push({
-          id,
-          title:
-            this.strip(link.find('.title').text()) ||
-            this.strip($(el).find('.book-detailed-item-title, h3, h2').first().text()) ||
-            this.strip(link.text()) ||
-            'Unknown Title',
-          description: this.strip($(el).find('.summary, .description').first().text()),
-          coverUrl:
-            this.toAbsoluteUrl($(el).find('img').first().attr('data-src')) ||
-            this.toAbsoluteUrl($(el).find('img').first().attr('src')),
-          status: null,
-          year: null,
-          originalLanguage: null,
-          tags: [],
-          latestChapter: null,
-        });
-      });
-
-      await this.setCache(cacheKey, results);
-      return results;
-    } catch (error) {
-      console.error(`[MangaBuddy] search failed: ${summarizeSourceError(error)}`);
-      return [];
-    }
-  }
-
+  // Kotatsu: getListPage with /search/?page=X&sort=updated_at
   async getDiscoverManga(limit = 12): Promise<MangaDiscoverResult> {
-    const safeLimit = Math.min(24, Math.max(1, limit));
+    const safeLimit = Math.min(48, Math.max(1, limit));
     const cacheKey = this.buildCacheKey('discover', safeLimit);
     const cached = await this.getFromCache<MangaDiscoverResult>(cacheKey);
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml('/latest');
+      // Kotatsu: /search/?page=1&sort=updated_at
+      const html = await this.fetchHtml('/search', { 
+        page: 1, 
+        sort: 'updated_at'
+      });
       const $ = cheerio.load(html);
       const cards: MangaSummary[] = [];
-      const seen = new Set<string>();
 
-      $('.book-item, .book-detailed-item, a[href^="/"]').each((_idx, el) => {
+      // Kotatsu: div.book-item
+      $('div.book-item').each((_idx, el) => {
         if (cards.length >= safeLimit) return;
 
-        const link = $(el).is('a') ? $(el) : $(el).find('a[href^="/"]').first();
-        const href = link.attr('href');
-        if (!href || href.startsWith('/search') || href.startsWith('/genres') || href.startsWith('/top')) return;
+        const $el = $(el);
+        const $a = $el.find('a').first();
+        const href = $a.attr('href');
+        if (!href) return;
 
-        const id = this.extractSeriesId(href);
-        if (!id || seen.has(id)) return;
-        seen.add(id);
+        const id = this.extractSlugFromPath(href);
+        if (!id) return;
+
+        // Kotatsu: div.meta div.title
+        const title = this.strip($el.find('div.meta div.title').text()) ||
+                     this.strip($el.find('div.title').first().text());
+        
+        if (!title || title.length < 2) return;
+
+        // Kotatsu: img (src)
+        const coverUrl = this.toAbsoluteUrl($el.find('img').first().attr('src') || null);
+
+        // Kotatsu: div.meta span.score for rating
+        const ratingText = this.strip($el.find('div.meta span.score').text());
 
         cards.push({
           id,
-          title:
-            this.strip(link.find('.title').text()) ||
-            this.strip($(el).find('.book-detailed-item-title, h3, h2').first().text()) ||
-            this.strip(link.text()) ||
-            'Unknown Title',
-          description: this.strip($(el).find('.summary, .description').first().text()),
-          coverUrl:
-            this.toAbsoluteUrl($(el).find('img').first().attr('data-src')) ||
-            this.toAbsoluteUrl($(el).find('img').first().attr('src')),
+          title,
+          description: '',
+          coverUrl,
           status: null,
           year: null,
           originalLanguage: null,
@@ -183,21 +111,87 @@ export class MangabuddySource extends BaseHtmlSource {
     }
   }
 
+  async searchManga(query?: string, limit = 20, filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
+    const normalized = this.strip(query);
+    if (!normalized) {
+      const discover = await this.getDiscoverManga(limit);
+      return discover.trending.slice(0, limit);
+    }
+
+    const cacheKey = this.buildCacheKey('search', normalized.toLowerCase(), limit);
+    const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      // Kotatsu: /search/?page=1&q=query&sort=views (or relevance)
+      const sortParam = filters.sort === 'followedCount' ? 'views' : 
+                       filters.sort === 'createdAt' ? 'created_at' : 
+                       'updated_at';
+      
+      const html = await this.fetchHtml('/search', { 
+        page: 1, 
+        q: normalized,
+        sort: sortParam
+      });
+      const $ = cheerio.load(html);
+      const results: MangaSummary[] = [];
+
+      $('div.book-item').each((_idx, el) => {
+        if (results.length >= limit) return;
+
+        const $el = $(el);
+        const $a = $el.find('a').first();
+        const href = $a.attr('href');
+        if (!href) return;
+
+        const id = this.extractSlugFromPath(href);
+        if (!id) return;
+
+        const title = this.strip($el.find('div.meta div.title').text()) ||
+                     this.strip($el.find('div.title').first().text());
+        
+        if (!title || title.length < 2) return;
+
+        const coverUrl = this.toAbsoluteUrl($el.find('img').first().attr('src') || null);
+
+        results.push({
+          id,
+          title,
+          description: '',
+          coverUrl,
+          status: null,
+          year: null,
+          originalLanguage: null,
+          tags: [],
+          latestChapter: null,
+        });
+      });
+
+      await this.setCache(cacheKey, results);
+      return results;
+    } catch (error) {
+      console.error(`[MangaBuddy] search failed: ${summarizeSourceError(error)}`);
+      return [];
+    }
+  }
+
   async getMangaTags(): Promise<MangaTag[]> {
     const cacheKey = this.buildCacheKey('tags');
     const cached = await this.getFromCache<MangaTag[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml('/');
+      const html = await this.fetchHtml('/search');
       const $ = cheerio.load(html);
       const tags: MangaTag[] = [];
       const seen = new Set<string>();
 
-      $('a[href^="/genres/"]').each((_idx, el) => {
-        const href = $(el).attr('href') || '';
-        const id = href.replace('/genres/', '').trim();
-        const name = this.strip($(el).text());
+      // Kotatsu: div.genres .checkbox
+      $('div.genres .checkbox').each((_idx, el) => {
+        const $input = $(el).find('input');
+        const id = $input.attr('value');
+        const name = this.strip($(el).find('span.radio__label').text()) || id;
+        
         if (!id || !name || seen.has(id)) return;
         seen.add(id);
         tags.push({ id, name, group: 'genre' });
@@ -210,12 +204,13 @@ export class MangabuddySource extends BaseHtmlSource {
     }
   }
 
+  // Kotatsu: selectDesc = "div.section-body.summary p.content"
+  // Kotatsu: selectState = "div.detail p:contains(Status) span"
+  // Kotatsu: selectAlt = "div.detail div.name h2"
+  // Kotatsu: selectTag = "div.detail p:contains(Genres) a"
   async getMangaDetail(mangaId: string): Promise<MangaDetail | null> {
-    const seriesId = this.coerceSeriesId(mangaId);
-    if (!seriesId) return null;
-
-    const seriesPath = this.toSeriesPath(seriesId);
-    const cacheKey = this.buildCacheKey('detail', seriesId);
+    const seriesPath = `/${mangaId}`;
+    const cacheKey = this.buildCacheKey('detail', mangaId);
     const cached = await this.getFromCache<MangaDetail>(cacheKey);
     if (cached) return cached;
 
@@ -223,25 +218,42 @@ export class MangabuddySource extends BaseHtmlSource {
       const html = await this.fetchHtml(seriesPath);
       const $ = cheerio.load(html);
 
+      // Kotatsu: div.detail div.name h1 (title)
+      const title = this.strip($('div.detail div.name h1').text()) ||
+                   this.strip($('h1').first().text()) ||
+                   this.strip($('meta[property="og:title"]').attr('content')) ||
+                   'Unknown Title';
+
+      // Kotatsu: div.section-body.summary p.content
+      const description = this.strip($('div.section-body.summary p.content').text()) ||
+                         this.strip($('meta[property="og:description"]').attr('content'));
+
+      // Kotatsu: div.detail div.name h2 (alt title)
+      const altTitle = this.strip($('div.detail div.name h2').text());
+
+      // Kotatsu: div.detail p:contains(Status) span
+      const statusText = this.strip($('div.detail p:contains("Status") span').text());
+      const status = statusText === 'Ongoing' ? 'ongoing' :
+                    statusText === 'Completed' ? 'completed' : null;
+
+      // Kotatsu: div.detail p:contains(Genres) a
+      const tags: string[] = [];
+      $('div.detail p:contains("Genres") a').each((_idx, el) => {
+        const tag = this.strip($(el).text());
+        if (tag) tags.push(tag);
+      });
+
       const detail: MangaDetail = {
-        id: seriesId,
-        title:
-          this.strip($('h1').first().text()) ||
-          this.strip($('meta[property="og:title"]').attr('content')) ||
-          'Unknown Title',
-        description:
-          this.strip($('meta[property="og:description"]').attr('content')) ||
-          this.strip($('.summary, .book-summary, .book-detailed-item').first().text()),
-        coverUrl:
-          this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
-          this.toAbsoluteUrl($('.book-cover img, .book-detail img, img').first().attr('data-src')) ||
-          this.toAbsoluteUrl($('.book-cover img, .book-detail img, img').first().attr('src')),
-        status: this.strip($('*:contains("Status")').first().parent().text()) || null,
+        id: mangaId,
+        title,
+        description,
+        coverUrl: this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')),
+        status,
         year: null,
         originalLanguage: null,
-        tags: $('a[href^="/genres/"]').map((_idx, el) => this.strip($(el).text())).get().filter(Boolean),
-        latestChapter: this.strip($('.latest-chapter a').first().text()) || null,
-        author: this.strip($('*:contains("Authors")').first().parent().text()) || null,
+        tags,
+        latestChapter: null,
+        author: this.strip($('div.detail p:contains("Author") a').text()) || null,
         artist: null,
         contentRating: null,
         publicationDemographic: null,
@@ -260,42 +272,88 @@ export class MangabuddySource extends BaseHtmlSource {
     return [];
   }
 
+  // Kotatsu: getChapters - uses API endpoint
+  // First extract bookSlug from script, then call /api/manga/{slug}/chapters?source=detail
   async getChapters(mangaId: string, _translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
-    const seriesId = this.coerceSeriesId(mangaId);
-    if (!seriesId) return [];
-
-    const seriesPath = this.toSeriesPath(seriesId);
-    const cacheKey = this.buildCacheKey('chapters', seriesId, limit);
+    const cacheKey = this.buildCacheKey('chapters', mangaId, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml(seriesPath);
-      const $ = cheerio.load(html);
-      const chapters: MangaChapter[] = [];
-      const seen = new Set<string>();
+      // First, get the manga page to extract bookSlug
+      const seriesHtml = await this.fetchHtml(`/${mangaId}`);
+      const $series = cheerio.load(seriesHtml);
+      
+      // Kotatsu: script:containsData(bookSlug)
+      const scriptTag = $series('script:contains("bookSlug")').first().html();
+      if (!scriptTag) {
+        console.error('[MangaBuddy] Could not find bookSlug');
+        return [];
+      }
 
-      $('a[href*="/chapter-"]').each((_idx, el) => {
+      const slugMatch = scriptTag.match(/bookSlug\s*=\s*["']([^"']+)["']/);
+      if (!slugMatch) {
+        console.error('[MangaBuddy] Could not extract bookSlug');
+        return [];
+      }
+
+      const bookSlug = slugMatch[1];
+
+      // Kotatsu: GET /api/manga/{slug}/chapters?source=detail
+      const apiUrl = `${BASE_URL}/api/manga/${bookSlug}/chapters?source=detail`;
+      const response = await axios.get(apiUrl, {
+        timeout: 20_000,
+        headers: {
+          'Accept': 'text/html, */*',
+          'Referer': `${BASE_URL}/${mangaId}`,
+        },
+      });
+
+      const chapterHtml = typeof response.data === 'string' ? response.data : '';
+      const $chapters = cheerio.load(chapterHtml);
+      const chapters: MangaChapter[] = [];
+
+      // Kotatsu: ul#chapter-list li
+      // Kotatsu: selectChapter = "ul#chapter-list li"
+      // Kotatsu: selectDate = "div .chapter-update"
+      $chapters('ul#chapter-list li').each((index, el) => {
         if (chapters.length >= limit) return;
 
-        const href = $(el).attr('href');
-        const chapterId = href ? this.coerceChapterId(href) : null;
-        if (!chapterId || seen.has(chapterId)) return;
-        seen.add(chapterId);
+        const $li = $chapters(el);
+        const $a = $li.find('a').first();
+        const href = $a.attr('href');
+        if (!href) return;
 
-        const text = this.strip($(el).text());
-        let chapterNumber = _idx + 1;
-        const chapterMatch = text.match(/\b(\d+(?:\.\d+)?)\b/);
-        if (chapterMatch) {
-          chapterNumber = parseFloat(chapterMatch[1]);
+        const chapterId = this.extractSlugFromPath(href);
+        if (!chapterId) return;
+
+        // Kotatsu: .chapter-title for title
+        const title = this.strip($li.find('.chapter-title').text()) ||
+                     this.strip($a.find('p').text()) ||
+                     this.strip($a.text());
+
+        // Kotatsu: div .chapter-update for date
+        const dateText = this.strip($li.find('div.chapter-update').text());
+        let publishedAt: string | null = null;
+        if (dateText) {
+          try {
+            // Parse "Jan 15, 2024" format
+            const date = new Date(dateText);
+            if (!isNaN(date.getTime())) {
+              publishedAt = date.toISOString();
+            }
+          } catch {
+            // Keep null if parsing fails
+          }
         }
 
+        // Kotatsu: number = i + 1 (index-based)
         chapters.push({
           id: chapterId,
-          chapter: String(chapterNumber),
+          chapter: String(index + 1),
           volume: null,
-          title: text || null,
-          publishedAt: null,
+          title: title || null,
+          publishedAt,
           scanlationGroup: null,
           branch: null,
           externalUrl: null,
@@ -311,75 +369,65 @@ export class MangabuddySource extends BaseHtmlSource {
     }
   }
 
-  private extractMangaBuddyPages(html: string): string[] {
-    const $ = cheerio.load(html);
-    const pages: string[] = [];
-
-    // Kotatsu approach: Extract from chapImages JavaScript variable
-    // Regex: chapImages\s*=\s*['"](.*?)['"]
-    $('script').each((_idx, el) => {
-      const script = $(el).html() || '';
-      const match = script.match(/chapImages\s*=\s*['"](.*?)['"]/);
-      if (match && match[1]) {
-        const imageUrls = match[1].split(',');
-        for (const url of imageUrls) {
-          // Kotatsu transforms: cleanUrl = url.substringAfter("/manga")
-          // Then uses: https://sb.mbcdn.xyz/manga$cleanUrl
-          const cleanUrl = url.replace(/^.*?\/manga/i, '');
-          if (cleanUrl) {
-            pages.push(`https://sb.mbcdn.xyz/manga${cleanUrl}`);
-          }
-        }
-      }
-    });
-
-    return pages;
-  }
-
+  // Kotatsu: getPages
+  // Kotatsu: selectPage = "div#chapter-images img"
+  // Also extracts from chapImages regex
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
-    const chapterRawId = this.coerceChapterId(chapterId);
-    if (!chapterRawId) {
-      return {
-        chapterId,
-        readerMode: 'standard',
-        pages: [],
-        externalUrl: null,
-        isExternal: false,
-      };
-    }
-
-    const chapterPath = this.toChapterPath(chapterRawId);
-    const cacheKey = this.buildCacheKey('pages', chapterRawId);
+    const cacheKey = this.buildCacheKey('pages', chapterId);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
     if (cached && (cached.pages.length > 0 || cached.externalUrl)) return cached;
 
     try {
-      const html = await this.fetchHtml(chapterPath);
-      
-      // Try Kotatsu-style chapImages extraction first
-      let pages = this.extractMangaBuddyPages(html);
-      
-      // Fallback to generic extraction if Kotatsu method fails
-      if (pages.length === 0) {
-        pages = this.extractChapterImageUrls(html);
-      }
-      
+      const html = await this.fetchHtml(`/${chapterId}`);
+      const $ = cheerio.load(html);
+      const pages: string[] = [];
+      const seen = new Set<string>();
+
+      // Method 1: Kotatsu HTML parsing - div#chapter-images img
+      $('div#chapter-images img').each((_idx, el) => {
+        const src = $(el).attr('src');
+        if (src && !seen.has(src)) {
+          seen.add(src);
+          // Transform to CDN URL if needed
+          if (src.includes('/manga')) {
+            const cleanUrl = src.replace(/^.*?\/manga/i, '');
+            pages.push(`${IMAGE_CDN}/manga${cleanUrl}`);
+          } else {
+            pages.push(src);
+          }
+        }
+      });
+
+      // Method 2: Kotatsu JS parsing - chapImages regex
+      const regexPages = /chapImages\s*=\s*['"](.*?)['"]/;
+      $('script').each((_idx, el) => {
+        const script = $(el).html() || '';
+        const match = regexPages.exec(script);
+        if (match && match[1]) {
+          const urls = match[1].split(',');
+          urls.forEach(url => {
+            if (url && !seen.has(url)) {
+              seen.add(url);
+              const cleanUrl = url.replace(/^.*?\/manga/i, '');
+              pages.push(`${IMAGE_CDN}/manga${cleanUrl}`);
+            }
+          });
+        }
+      });
+
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);
-        const externalResult: MangaPagesResult = {
-          chapterId: chapterRawId,
-        readerMode: 'standard',
+        return {
+          chapterId,
+          readerMode: 'standard',
           pages: [],
-          externalUrl: `${BASE_URL}${chapterPath}`,
+          externalUrl: `${BASE_URL}/${chapterId}`,
           isExternal: true,
         };
-
-        await this.setCache(cacheKey, externalResult, this.defaultCacheTtlSeconds * 2);
-        return externalResult;
       }
 
       const result: MangaPagesResult = {
-        chapterId: chapterRawId,
+        chapterId,
         readerMode: 'standard',
         pages,
         externalUrl: null,
@@ -391,10 +439,10 @@ export class MangabuddySource extends BaseHtmlSource {
     } catch (error) {
       console.error(`[MangaBuddy] page fetch failed: ${summarizeSourceError(error)}`);
       return {
-        chapterId: chapterRawId,
+        chapterId,
         readerMode: 'standard',
         pages: [],
-        externalUrl: `${BASE_URL}${chapterPath}`,
+        externalUrl: `${BASE_URL}/${chapterId}`,
         isExternal: true,
       };
     }
