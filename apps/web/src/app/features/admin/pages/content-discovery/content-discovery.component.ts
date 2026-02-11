@@ -24,35 +24,163 @@ interface SearchResults {
   [title: string]: YouTubeVideo[];
 }
 
+interface ChannelImportResult {
+  imported: string[];
+  skipped: string[];
+  failed: { title: string; error: string }[];
+  notFound: string[];
+  dryRun: boolean;
+}
+
 @Component({
   selector: 'app-content-discovery',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="p-6">
-      <h2 class="text-2xl font-serif text-white mb-6">Content Scout</h2>
+    <div class="p-6 max-w-6xl mx-auto">
+      <div class="mb-6">
+        <h2 class="text-2xl font-serif text-white mb-2">Content Scout</h2>
+        <p class="text-gray-400 text-sm">Import Nigerian movies from YouTube channels</p>
+      </div>
 
       <!-- Tab buttons -->
-      <div class="flex gap-2 mb-8 border-b border-[#5f1327]/40 pb-4">
+      <div class="flex gap-2 mb-8 border-b border-[#5f1327]/40 pb-4 flex-wrap">
+        <button
+          (click)="activeTab.set('channels')"
+          [class]="activeTab() === 'channels'
+            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+        >Add Channels (Bulk)</button>
         <button
           (click)="activeTab.set('search')"
           [class]="activeTab() === 'search'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded-t text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded-t text-sm'"
+            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
         >Search by Title</button>
         <button
           (click)="activeTab.set('trending')"
           [class]="activeTab() === 'trending'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded-t text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded-t text-sm'"
-        >Trending Scan</button>
+            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+        >Trending</button>
         <button
           (click)="activeTab.set('rss')"
           [class]="activeTab() === 'rss'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded-t text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded-t text-sm'"
+            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
         >RSS Feed</button>
       </div>
+
+      <!-- ============ ADD CHANNELS TAB (BULK IMPORT) ============ -->
+      @if (activeTab() === 'channels') {
+        <div class="space-y-6">
+          <!-- Instructions -->
+          <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-4">
+            <h3 class="text-[#d6b87a] font-bold mb-2">How to Add YouTube Channels</h3>
+            <ol class="text-gray-300 text-sm list-decimal list-inside space-y-1">
+              <li>Go to YouTube and find Nigerian movie channels</li>
+              <li>Copy the channel URL (e.g., youtube.com/&#64;channelname or youtube.com/c/ChannelName)</li>
+              <li>Paste URLs below (one per line)</li>
+              <li>Click "Import All Movies" to bulk import</li>
+            </ol>
+            <p class="text-gray-500 text-xs mt-2">Popular channels: &#64;nollywoodmovies, &#64;africamagic, &#64;ibakatv, &#64;apatatv</p>
+          </div>
+
+          <!-- Channel URLs Input -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a] mb-2">
+              YouTube Channel URLs (one per line)
+            </label>
+            <textarea
+              [(ngModel)]="channelUrlsInput"
+              rows="8"
+              placeholder="https://www.youtube.com/@nollywoodmovies&#10;https://www.youtube.com/c/AfricanMagic&#10;https://www.youtube.com/@ibakatv"
+              class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50 font-mono text-sm"
+            ></textarea>
+            
+            <!-- Settings -->
+            <div class="flex flex-wrap gap-4 mt-3 items-center">
+              <label class="flex items-center gap-2 text-sm text-gray-300">
+                <input 
+                  type="checkbox" 
+                  [(ngModel)]="channelDryRun"
+                  class="rounded border-gray-600 bg-[#1b1014] text-[#800020]"
+                >
+                Dry Run (preview only)
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-300">
+                <span>Max videos per channel:</span>
+                <input 
+                  type="number" 
+                  [(ngModel)]="maxResultsPerChannel"
+                  min="1"
+                  max="20"
+                  class="w-16 rounded border border-[#5f1327] bg-[#1b1014] px-2 py-1 text-sm text-center"
+                >
+              </label>
+            </div>
+
+            <div class="flex gap-3 mt-4">
+              <button
+                (click)="importChannels()"
+                [disabled]="isImportingChannels() || !channelUrlsInput().trim()"
+                class="bg-[#800020] hover:bg-[#660019] text-white px-6 py-2 rounded text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                @if (isImportingChannels()) {
+                  <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                }
+                Import All Movies
+              </button>
+              <button
+                (click)="clearChannelResults()"
+                class="text-gray-400 hover:text-white text-sm px-4 py-2 rounded border border-gray-700 transition"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Channel Import Results -->
+          @if (channelImportResult()) {
+            <div class="bg-[#120a0d] border border-[#5f1327]/40 rounded-lg p-4">
+              <h3 class="text-white font-bold mb-3">Import Results</h3>
+              
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="bg-green-900/20 border border-green-800 rounded p-3 text-center">
+                  <div class="text-2xl font-bold text-green-400">{{ channelImportResult()!.imported.length }}</div>
+                  <div class="text-xs text-green-300">Imported</div>
+                </div>
+                <div class="bg-yellow-900/20 border border-yellow-800 rounded p-3 text-center">
+                  <div class="text-2xl font-bold text-yellow-400">{{ channelImportResult()!.skipped.length }}</div>
+                  <div class="text-xs text-yellow-300">Skipped</div>
+                </div>
+                <div class="bg-red-900/20 border border-red-800 rounded p-3 text-center">
+                  <div class="text-2xl font-bold text-red-400">{{ channelImportResult()!.failed.length }}</div>
+                  <div class="text-xs text-red-300">Failed</div>
+                </div>
+                <div class="bg-blue-900/20 border border-blue-800 rounded p-3 text-center">
+                  <div class="text-2xl font-bold text-blue-400">{{ channelImportResult()!.notFound.length }}</div>
+                  <div class="text-xs text-blue-300">Not Found</div>
+                </div>
+              </div>
+
+              @if (channelImportResult()!.failed.length > 0) {
+                <div class="mt-3">
+                  <p class="text-red-400 text-sm font-semibold mb-1">Failed imports:</p>
+                  <p class="text-gray-400 text-xs">{{ getChannelFailedTitles() }}</p>
+                </div>
+              }
+
+              @if (channelImportResult()!.dryRun) {
+                <div class="mt-3 p-2 bg-blue-900/20 border border-blue-800 rounded">
+                  <p class="text-blue-300 text-sm">This was a dry run. No movies were actually imported.</p>
+                  <p class="text-blue-300 text-sm">Uncheck "Dry Run" and click "Import All Movies" to import for real.</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
 
       <!-- ============ SEARCH BY TITLE TAB ============ -->
       @if (activeTab() === 'search') {
@@ -262,9 +390,10 @@ interface SearchResults {
       }
 
       <!-- Empty state -->
-      @if (!isLoading() && !isSearching() && ytResults().length === 0 && rssResults().length === 0 && searchResultTitles().length === 0) {
+      @if (!isLoading() && !isSearching() && !isImportingChannels() && ytResults().length === 0 && rssResults().length === 0 && searchResultTitles().length === 0 && !channelImportResult()) {
         <div class="text-center py-20 text-gray-500">
-          <p class="text-lg">No results yet. Use the tabs above to discover content.</p>
+          <p class="text-lg mb-2">Ready to import content!</p>
+          <p class="text-sm">Click "Add Channels (Bulk)" for the easiest way to populate your site.</p>
         </div>
       }
     </div>
@@ -273,7 +402,14 @@ interface SearchResults {
 export class ContentDiscoveryComponent {
   private http = inject(HttpClient);
 
-  activeTab = signal<'search' | 'trending' | 'rss'>('search');
+  activeTab = signal<'channels' | 'search' | 'trending' | 'rss'>('channels');
+
+  // Channels import state
+  channelUrlsInput = signal('');
+  isImportingChannels = signal(false);
+  maxResultsPerChannel = signal(8);
+  channelDryRun = signal(false);
+  channelImportResult = signal<ChannelImportResult | null>(null);
 
   // Search by title state
   titleInput = signal('');
@@ -294,6 +430,58 @@ export class ContentDiscoveryComponent {
 
   // Import state
   isImporting = signal(false);
+
+  // --- Channels import ---
+  importChannels() {
+    const raw = this.channelUrlsInput().trim();
+    if (!raw) return;
+
+    const urls = raw
+      .split('\n')
+      .map(url => url.trim())
+      .filter(url => url.length > 0);
+
+    if (urls.length === 0) return;
+
+    this.isImportingChannels.set(true);
+    this.channelImportResult.set(null);
+
+    this.http.post<{
+      status: string;
+      data: ChannelImportResult;
+      message: string;
+    }>('/api/v1/admin/import/youtube/channels', {
+      channels: urls,
+      maxResultsPerChannel: this.maxResultsPerChannel(),
+      dryRun: this.channelDryRun(),
+      genre: ['Nollywood'],
+      isStreamOnly: true
+    }).subscribe({
+      next: (response) => {
+        this.channelImportResult.set(response.data);
+        this.isImportingChannels.set(false);
+        if (!response.data.dryRun) {
+          this.channelUrlsInput.set('');
+        }
+      },
+      error: (error) => {
+        console.error('Error importing channels:', error);
+        alert('Failed to import channels. Check that YOUTUBE_API_KEY is set.');
+        this.isImportingChannels.set(false);
+      }
+    });
+  }
+
+  clearChannelResults() {
+    this.channelImportResult.set(null);
+    this.channelUrlsInput.set('');
+  }
+
+  getChannelFailedTitles(): string {
+    const result = this.channelImportResult();
+    if (!result || result.failed.length === 0) return '';
+    return result.failed.map((item) => item.title).join(', ');
+  }
 
   // --- Search by title ---
   searchTitles() {
