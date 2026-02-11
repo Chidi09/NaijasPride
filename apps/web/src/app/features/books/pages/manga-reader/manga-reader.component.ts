@@ -17,6 +17,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
 import screenfull from 'screenfull';
+import { ReaderStateService } from '../../../../core/services/reader-state.service';
 
 type ApiReaderMode = 'webtoon' | 'reversed' | 'standard' | 'double-page';
 type ReaderMode = ApiReaderMode;
@@ -164,6 +165,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private readerState = inject(ReaderStateService);
   private destroy$ = new Subject<void>();
   private progressUpdate$ = new Subject<number>();
 
@@ -189,6 +191,9 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   canNextPage = computed(() => (this.readingMode() === 'reversed' ? this.pageIndex() > 0 : this.pageIndex() < this.pages().length - 1));
 
   ngOnInit() {
+    // Hide main navbar when entering reader (Kotatsu-style)
+    this.readerState.enterReader();
+    
     this.progressUpdate$.pipe(debounceTime(900), takeUntil(this.destroy$)).subscribe((pageIndex) => {
       this.saveProgress(pageIndex);
     });
@@ -214,6 +219,9 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    // Show main navbar when exiting reader (Kotatsu-style)
+    this.readerState.exitReader();
+    
     this.destroy$.next();
     this.destroy$.complete();
     if (this.chapterId() && this.pages().length > 0) {
