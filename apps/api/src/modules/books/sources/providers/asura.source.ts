@@ -497,7 +497,7 @@ export class AsuraSource extends BaseHtmlSource {
    * Kotatsu-style page extraction from script tags
    * Parses self.__next_f.push() calls to extract JSON page data
    */
-  private extractChapterImageUrls(html: string): string[] {
+  protected extractChapterImageUrls(html: string): string[] {
     try {
       const $ = cheerio.load(html);
       const pages: string[] = [];
