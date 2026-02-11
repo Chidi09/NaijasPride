@@ -1,6 +1,6 @@
 <nav
   class="fixed top-0 w-full z-50 transition-colors duration-300"
-  [ngClass]="scrolled ? 'bg-black/95 shadow-lg' : 'bg-gradient-to-b from-black/80 to-transparent'"
+  [ngClass]="scrolled ? 'bg-white/95 shadow-lg dark:bg-black/95' : 'bg-gradient-to-b from-white/85 to-transparent dark:from-black/80'"
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
@@ -16,28 +16,28 @@
         <div class="hidden md:flex items-baseline justify-center space-x-6 text-center">
           <a
             routerLink="/browse"
-            routerLinkActive="text-white font-bold"
-            class="text-gray-300 hover:text-white transition text-sm"
+            routerLinkActive="text-[#1f1618] dark:text-white font-bold"
+            class="text-[#6f5b54] dark:text-gray-300 hover:text-[#1f1618] dark:hover:text-white transition text-sm"
           >Home</a>
           <a
             routerLink="/movies"
-            routerLinkActive="text-white font-bold"
-            class="text-gray-300 hover:text-white transition text-sm"
+            routerLinkActive="text-[#1f1618] dark:text-white font-bold"
+            class="text-[#6f5b54] dark:text-gray-300 hover:text-[#1f1618] dark:hover:text-white transition text-sm"
           >Movies</a>
           <a
             routerLink="/books"
-            routerLinkActive="text-white font-bold"
-            class="text-gray-300 hover:text-white transition text-sm"
+            routerLinkActive="text-[#1f1618] dark:text-white font-bold"
+            class="text-[#6f5b54] dark:text-gray-300 hover:text-[#1f1618] dark:hover:text-white transition text-sm"
           >Books</a>
 
           <div class="relative group">
-            <button class="text-gray-300 hover:text-white transition text-sm flex items-center gap-1">
+            <button class="text-[#6f5b54] dark:text-gray-300 hover:text-[#1f1618] dark:hover:text-white transition text-sm flex items-center gap-1">
               Categories <span class="text-[10px]">▼</span>
             </button>
-            <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-black/95 border border-gray-800 rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-              <a routerLink="/category/nollywood" class="block px-4 py-3 text-sm text-center text-gray-300 hover:bg-zinc-800 hover:text-white">Nollywood</a>
-              <a routerLink="/category/bollywood" class="block px-4 py-3 text-sm text-center text-gray-300 hover:bg-zinc-800 hover:text-white">Bollywood</a>
-              <a routerLink="/category/hollywood" class="block px-4 py-3 text-sm text-center text-gray-300 hover:bg-zinc-800 hover:text-white">AAA Hits</a>
+            <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-white/95 border border-[#dcc5b7] rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 dark:bg-black/95 dark:border-gray-800">
+              <a routerLink="/category/nollywood" class="block px-4 py-3 text-sm text-center text-[#6f5b54] hover:bg-[#f4e4da] hover:text-[#1f1618] dark:text-gray-300 dark:hover:bg-zinc-800 dark:hover:text-white">Nollywood</a>
+              <a routerLink="/category/bollywood" class="block px-4 py-3 text-sm text-center text-[#6f5b54] hover:bg-[#f4e4da] hover:text-[#1f1618] dark:text-gray-300 dark:hover:bg-zinc-800 dark:hover:text-white">Bollywood</a>
+              <a routerLink="/category/hollywood" class="block px-4 py-3 text-sm text-center text-[#6f5b54] hover:bg-[#f4e4da] hover:text-[#1f1618] dark:text-gray-300 dark:hover:bg-zinc-800 dark:hover:text-white">AAA Hits</a>
             </div>
           </div>
         </div>
@@ -48,52 +48,71 @@
           <input
             type="text"
             placeholder="Titles, people, genres"
-            class="bg-black/50 border border-white/30 rounded-none pl-3 pr-10 py-2 text-sm w-0 group-hover:w-64 focus:w-64 transition-all duration-300 text-white placeholder-gray-400 focus:outline-none focus:border-white h-10"
+            class="bg-white/80 border border-[#d8bfb0] rounded-none pl-3 pr-10 py-2 text-sm w-0 group-hover:w-64 focus:w-64 transition-all duration-300 text-[#1f1618] placeholder-[#8b766d] focus:outline-none focus:border-[#6f1a2f] h-10 dark:bg-black/50 dark:border-white/30 dark:text-white dark:placeholder-gray-400 dark:focus:border-white"
           >
           <span class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-lg leading-none">🔍</span>
         </div>
 
-        <button class="text-white hover:text-gray-300 relative hidden md:block" type="button">
+        <app-theme-toggle class="hidden md:block" />
+
+        <div class="relative hidden md:block">
+        <button
+          class="text-[#3b2d30] hover:text-[#6f1a2f] dark:text-white dark:hover:text-gray-300 relative"
+          type="button"
+          (click)="notificationsOpen.set(!notificationsOpen())"
+        >
           🔔
           <span class="absolute top-0 right-0 h-2 w-2 bg-red-600 rounded-full"></span>
         </button>
+        @if (notificationsOpen()) {
+          <div class="absolute right-0 top-full mt-2 w-72 rounded-lg border border-[#dcc5b7] bg-white/95 shadow-xl dark:border-gray-800 dark:bg-black/95">
+            <div class="border-b border-[#dcc5b7] px-4 py-2 text-xs uppercase tracking-wider text-[#8b766d] dark:border-gray-800 dark:text-gray-500">Notifications</div>
+            @for (item of notifications(); track item) {
+              <div class="px-4 py-3 text-sm text-[#5f4d47] hover:bg-[#f4e4da] dark:text-gray-300 dark:hover:bg-zinc-800">{{ item }}</div>
+            }
+          </div>
+        }
+        </div>
 
         <div class="relative group cursor-pointer" *ngIf="auth.currentUser() as user; else loginBtn">
-          <div class="h-8 w-8 rounded bg-zinc-700 flex items-center justify-center text-xs font-semibold uppercase">
+          <div class="h-8 w-8 rounded bg-[#e7d3c8] text-[#5f1327] dark:bg-zinc-700 dark:text-white flex items-center justify-center text-xs font-semibold uppercase">
             {{ user.email?.charAt(0) }}
           </div>
 
-          <div class="absolute right-0 top-full mt-2 w-40 bg-black/95 border border-gray-800 rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-            <a routerLink="/profile" class="block px-4 py-3 text-sm text-gray-300 hover:bg-zinc-800 hover:text-white">Account</a>
-            <a routerLink="/premium" class="block px-4 py-3 text-sm text-gray-300 hover:bg-zinc-800 hover:text-white">Plans</a>
-            <div class="border-t border-gray-800 my-1"></div>
-            <button (click)="auth.logout()" class="block w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-zinc-800">Sign Out</button>
+          <div class="absolute right-0 top-full mt-2 w-40 bg-white/95 border border-[#dcc5b7] rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 dark:bg-black/95 dark:border-gray-800">
+            <a routerLink="/profile" class="block px-4 py-3 text-sm text-[#6f5b54] hover:bg-[#f4e4da] hover:text-[#1f1618] dark:text-gray-300 dark:hover:bg-zinc-800 dark:hover:text-white">Account</a>
+            <a routerLink="/premium" class="block px-4 py-3 text-sm text-[#6f5b54] hover:bg-[#f4e4da] hover:text-[#1f1618] dark:text-gray-300 dark:hover:bg-zinc-800 dark:hover:text-white">Plans</a>
+            <div class="border-t border-[#dcc5b7] my-1 dark:border-gray-800"></div>
+            <button (click)="auth.logout()" class="block w-full text-left px-4 py-3 text-sm text-red-600 dark:text-red-500 hover:bg-[#f4e4da] dark:hover:bg-zinc-800">Sign Out</button>
           </div>
         </div>
 
         <ng-template #loginBtn>
-          <a routerLink="/login" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded font-medium text-sm transition">Sign In</a>
+          <a routerLink="/login" class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-1.5 rounded font-medium text-sm transition">Sign In</a>
         </ng-template>
 
         <button
           type="button"
           (click)="mobileMenuOpen.set(!mobileMenuOpen())"
-          class="md:hidden text-gray-300 hover:text-white"
+          class="md:hidden text-[#5d4b46] hover:text-[#1f1618] dark:text-gray-300 dark:hover:text-white"
         >
           ☰
         </button>
       </div>
     </div>
 
-    <div *ngIf="mobileMenuOpen()" class="md:hidden bg-black/95 border-t border-gray-800 pb-4 space-y-1 text-center">
-      <a routerLink="/browse" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 transition-colors">Home</a>
-      <a routerLink="/movies" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 transition-colors">Movies</a>
-      <a routerLink="/books" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 transition-colors">Books</a>
-      <div class="border-t border-gray-800 my-2"></div>
-      <p class="px-4 text-xs text-gray-500 uppercase tracking-wider">Categories</p>
-      <a routerLink="/category/nollywood" (click)="mobileMenuOpen.set(false)" class="block px-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Nollywood</a>
-      <a routerLink="/category/bollywood" (click)="mobileMenuOpen.set(false)" class="block px-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Bollywood</a>
-      <a routerLink="/category/hollywood" (click)="mobileMenuOpen.set(false)" class="block px-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors">AAA Hits</a>
+    <div *ngIf="mobileMenuOpen()" class="md:hidden bg-white/95 border-t border-[#dcc5b7] pb-4 space-y-1 text-center dark:bg-black/95 dark:border-gray-800">
+      <div class="px-4 py-3 flex items-center justify-center">
+        <app-theme-toggle [compact]="true" />
+      </div>
+      <a routerLink="/browse" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-[#6f5b54] hover:text-[#1f1618] hover:bg-[#f4e4da] transition-colors dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/5">Home</a>
+      <a routerLink="/movies" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-[#6f5b54] hover:text-[#1f1618] hover:bg-[#f4e4da] transition-colors dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/5">Movies</a>
+      <a routerLink="/books" (click)="mobileMenuOpen.set(false)" class="block px-4 py-3 text-[#6f5b54] hover:text-[#1f1618] hover:bg-[#f4e4da] transition-colors dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/5">Books</a>
+      <div class="border-t border-[#dcc5b7] my-2 dark:border-gray-800"></div>
+      <p class="px-4 text-xs text-[#8b766d] uppercase tracking-wider dark:text-gray-500">Categories</p>
+      <a routerLink="/category/nollywood" (click)="mobileMenuOpen.set(false)" class="block px-6 py-2 text-sm text-[#7a655e] hover:text-[#1f1618] hover:bg-[#f4e4da] transition-colors dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/5">Nollywood</a>
+      <a routerLink="/category/bollywood" (click)="mobileMenuOpen.set(false)" class="block px-6 py-2 text-sm text-[#7a655e] hover:text-[#1f1618] hover:bg-[#f4e4da] transition-colors dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/5">Bollywood</a>
+      <a routerLink="/category/hollywood" (click)="mobileMenuOpen.set(false)" class="block px-6 py-2 text-sm text-[#7a655e] hover:text-[#1f1618] hover:bg-[#f4e4da] transition-colors dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/5">AAA Hits</a>
     </div>
   </div>
 </nav>

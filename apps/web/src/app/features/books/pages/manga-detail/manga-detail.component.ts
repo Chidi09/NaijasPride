@@ -59,24 +59,24 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
   imports: [CommonModule, RouterLink, FormsModule],
   template: `
     <div class="container mx-auto px-4 py-10">
-      <a routerLink="/books/manga" class="mb-6 inline-block rounded border border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-[#5f1327]/20">Back to Manga Library</a>
+      <a routerLink="/books/manga" class="mb-6 inline-block rounded border border-[#d8c2b8] dark:border-[#5f1327] px-3 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] hover:bg-[#f1e5dd] dark:hover:bg-[#5f1327]/20">Back to Manga Library</a>
 
       @if (isLoading()) {
         <section class="grid gap-6 md:grid-cols-[260px_1fr]">
-          <div class="aspect-[3/4] animate-pulse rounded border border-zinc-800 bg-zinc-900"></div>
+          <div class="aspect-[3/4] animate-pulse rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#e5d2c6] dark:bg-zinc-900"></div>
           <div class="space-y-3">
-            <div class="h-8 w-3/4 animate-pulse rounded bg-zinc-900"></div>
-            <div class="h-4 w-2/3 animate-pulse rounded bg-zinc-900"></div>
-            <div class="h-4 w-full animate-pulse rounded bg-zinc-900"></div>
-            <div class="h-4 w-5/6 animate-pulse rounded bg-zinc-900"></div>
-            <div class="h-4 w-4/6 animate-pulse rounded bg-zinc-900"></div>
+            <div class="h-8 w-3/4 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
+            <div class="h-4 w-2/3 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
+            <div class="h-4 w-full animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
+            <div class="h-4 w-5/6 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
+            <div class="h-4 w-4/6 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
           </div>
         </section>
       }
 
       @if (detail(); as manga) {
         <section class="mb-8 grid gap-6 md:grid-cols-[260px_1fr]">
-          <div class="relative aspect-[3/4] overflow-hidden rounded border border-[#5f1327]/40 bg-zinc-900">
+          <div class="relative aspect-[3/4] overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/40 bg-[#e5d2c6] dark:bg-zinc-900">
             @if (manga.coverUrl) {
               <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
             } @else {
@@ -85,29 +85,29 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
           </div>
 
           <div>
-            <h1 class="text-2xl font-semibold text-white md:text-3xl">{{ manga.title }}</h1>
-            <div class="mt-3 flex flex-wrap gap-2 text-xs text-gray-300">
-              <span class="rounded border border-[#5f1327] px-2 py-1 text-[#d6b87a]">{{ sourceLabel() }}</span>
-              @if (manga.status) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.status }}</span> }
-              @if (manga.year) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.year }}</span> }
-              @if (manga.originalLanguage) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.originalLanguage }}</span> }
-              @if (manga.contentRating) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.contentRating }}</span> }
-              @if (manga.publicationDemographic) { <span class="rounded border border-zinc-700 px-2 py-1">{{ manga.publicationDemographic }}</span> }
+            <h1 class="text-2xl font-semibold text-[#24181b] dark:text-white md:text-3xl">{{ manga.title }}</h1>
+            <div class="mt-3 flex flex-wrap gap-2 text-xs text-[#6f5b54] dark:text-gray-300">
+              <span class="rounded border border-[#d8c2b8] dark:border-[#5f1327] px-2 py-1 text-[#9a6d1f] dark:text-[#d6b87a]">{{ sourceLabel() }}</span>
+              @if (manga.status) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.status }}</span> }
+              @if (manga.year) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.year }}</span> }
+              @if (manga.originalLanguage) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.originalLanguage }}</span> }
+              @if (manga.contentRating) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.contentRating }}</span> }
+              @if (manga.publicationDemographic) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.publicationDemographic }}</span> }
             </div>
 
-            <p class="mt-4 text-sm text-gray-300">{{ manga.description || 'No description available.' }}</p>
+            <p class="mt-4 text-sm text-[#6f5b54] dark:text-gray-300">{{ manga.description || 'No description available.' }}</p>
 
-            <div class="mt-4 text-xs text-gray-400">
+            <div class="mt-4 text-xs text-[#8a756e] dark:text-gray-400">
               @if (manga.author) { <p>Author: {{ manga.author }}</p> }
               @if (manga.artist) { <p>Artist: {{ manga.artist }}</p> }
             </div>
 
             @if (supportsLanguages() && manga.availableTranslatedLanguages.length > 0) {
               <div class="mt-4">
-                <p class="mb-2 text-xs uppercase tracking-wide text-gray-400">Available chapter languages</p>
+                <p class="mb-2 text-xs uppercase tracking-wide text-[#8a756e] dark:text-gray-400">Available chapter languages</p>
                 <div class="flex flex-wrap gap-2">
                   @for (lang of manga.availableTranslatedLanguages; track lang) {
-                    <span class="rounded border border-zinc-700 px-2 py-1 text-xs text-gray-200">{{ languageLabel(lang) }}</span>
+                    <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1 text-xs text-[#24181b] dark:text-gray-200">{{ languageLabel(lang) }}</span>
                   }
                 </div>
               </div>
@@ -115,29 +115,29 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
 
             <div class="mt-4 flex flex-wrap gap-2">
               @for (tag of manga.tags; track tag) {
-                <span class="rounded border border-[#5f1327]/60 bg-[#120a0d] px-2 py-1 text-xs text-[#d6b87a]">{{ tag }}</span>
+                <span class="rounded border border-[#d8c2b8] dark:border-[#5f1327]/60 bg-[#f1e5dd] dark:bg-[#120a0d] px-2 py-1 text-xs text-[#9a6d1f] dark:text-[#d6b87a]">{{ tag }}</span>
               }
             </div>
 
             <div class="mt-5">
-              <button (click)="toggleFavorite()" class="rounded border border-[#5f1327] px-3 py-2 text-sm text-white hover:bg-[#800020]">
+              <button (click)="toggleFavorite()" class="rounded border border-[#d8c2b8] dark:border-[#5f1327] px-3 py-2 text-sm text-[#24181b] dark:text-white hover:bg-[#f1e5dd] dark:hover:bg-[#800020]">
                 {{ isFavorite() ? '★ Favorited' : '☆ Add to Favorites' }}
               </button>
             </div>
           </div>
         </section>
 
-        <section class="mb-8 rounded-xl border border-[#5f1327]/40 bg-[#120a0d]/70 p-4">
+        <section class="mb-8 rounded-xl border border-[#d8c2b8] dark:border-[#5f1327]/40 bg-[#f1e5dd] dark:bg-[#120a0d]/70 p-4">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 class="text-lg font-semibold text-[#d6b87a]">Chapters</h2>
+            <h2 class="text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Chapters</h2>
             <div class="flex items-center gap-3">
               @if (supportsLanguages()) {
-                <label class="text-xs text-gray-300">
+                <label class="text-xs text-[#6f5b54] dark:text-gray-300">
                   <span class="mr-2">Language</span>
                   <select
                     [ngModel]="selectedLanguage()"
                     (ngModelChange)="onLanguageChange($event)"
-                    class="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
+                    class="rounded border border-[#d8c2b8] dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs text-[#24181b] dark:text-white"
                   >
                     <option value="all">All</option>
                     @if (detail(); as current) {
@@ -148,26 +148,26 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                   </select>
                 </label>
               }
-              <span class="text-xs text-gray-400">{{ isChaptersLoading() ? 'Loading...' : (chapters().length + ' loaded') }}</span>
+              <span class="text-xs text-[#8a756e] dark:text-gray-400">{{ isChaptersLoading() ? 'Loading...' : (chapters().length + ' loaded') }}</span>
             </div>
           </div>
           @if (hasExternalChapters()) {
-            <div class="mb-3 rounded border border-amber-700/50 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
+            <div class="mb-3 rounded border border-amber-700/50 bg-amber-900/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
               Some chapters are hosted externally and will open on their original source.
             </div>
           }
           @if (!isChaptersLoading() && chapters().length === 0) {
-            <p class="text-sm text-gray-400">No chapters found.</p>
+            <p class="text-sm text-[#8a756e] dark:text-gray-400">No chapters found.</p>
           }
           @if (isChaptersLoading()) {
             <div class="space-y-2">
               @for (_ of [1,2,3,4,5]; track _) {
-                <div class="h-14 animate-pulse rounded border border-zinc-800 bg-zinc-900/60"></div>
+                <div class="h-14 animate-pulse rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#e5d2c6] dark:bg-zinc-900/60"></div>
               }
             </div>
           }
           <div class="max-h-[70vh] space-y-2 overflow-auto pr-1">
-            <div class="sticky top-0 z-10 -mx-1 mb-2 border-b border-zinc-800 bg-[#120a0d]/95 px-1 py-2 text-[11px] uppercase tracking-wide text-gray-400">
+            <div class="sticky top-0 z-10 -mx-1 mb-2 border-b border-[#d8c2b8] dark:border-zinc-800 bg-[#f1e5dd] dark:bg-[#120a0d]/95 px-1 py-2 text-[11px] uppercase tracking-wide text-[#8a756e] dark:text-gray-400">
               Chapter list (newest first)
             </div>
             @for (chapter of visibleChapters(); track chapter.id) {
@@ -176,16 +176,18 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                   [href]="chapter.externalUrl"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="block rounded border border-amber-700/40 bg-amber-900/10 px-3 py-3 text-sm text-gray-200 hover:border-amber-500"
+                  class="block rounded border border-amber-700/40 bg-amber-900/10 px-3 py-3 text-sm text-[#24181b] dark:text-gray-200 hover:border-amber-500"
                 >
                   <div class="flex items-center justify-between gap-2">
                     <p class="font-medium">
-                      Ch. {{ chapter.chapter }}
-                      <span class="text-gray-400">{{ chapter.title }}</span>
+                      {{ chapterLabel(chapter) }}
+                      @if (chapterSubtitle(chapter)) {
+                        <span class="text-[#8a756e] dark:text-gray-400">{{ chapterSubtitle(chapter) }}</span>
+                      }
                     </p>
-                    <span class="rounded border border-amber-600/50 px-2 py-0.5 text-[11px] text-amber-300">External</span>
+                    <span class="rounded border border-amber-600/50 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">External</span>
                   </div>
-                  <div class="mt-1 flex items-center gap-2 text-xs text-gray-400">
+                  <div class="mt-1 flex items-center gap-2 text-xs text-[#8a756e] dark:text-gray-400">
                     @if (chapter.branch) {
                       <span>{{ chapter.branch }}</span>
                     }
@@ -199,18 +201,20 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                 <a
                   [routerLink]="['/books/manga/read', toRouteParam(chapter.id)]"
                   [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
-                  class="block rounded border border-zinc-800 bg-zinc-900/50 px-3 py-3 text-sm text-gray-200 hover:border-[#800020]"
+                  class="block rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#f1e5dd] dark:bg-zinc-900/50 px-3 py-3 text-sm text-[#24181b] dark:text-gray-200 hover:border-[#800020]"
                 >
                   <div class="flex items-center justify-between gap-2">
                     <p class="font-medium">
-                      Ch. {{ chapter.chapter }}
-                      <span class="text-gray-400">{{ chapter.title }}</span>
+                      {{ chapterLabel(chapter) }}
+                      @if (chapterSubtitle(chapter)) {
+                        <span class="text-[#8a756e] dark:text-gray-400">{{ chapterSubtitle(chapter) }}</span>
+                      }
                     </p>
-                    <span class="text-xs text-gray-500">
+                    <span class="text-xs text-[#9a857d] dark:text-gray-500">
                       {{ chapter.publishedAt ? (chapter.publishedAt | date: 'MMM d, y') : '' }}
                     </span>
                   </div>
-                  <div class="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                  <div class="mt-1 flex items-center gap-2 text-xs text-[#9a857d] dark:text-gray-500">
                     @if (chapter.branch) {
                       <span>{{ chapter.branch }}</span>
                     }
@@ -227,36 +231,36 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
               <button
                 type="button"
                 (click)="visibleChapterCount.set(visibleChapterCount() + 30)"
-                class="rounded border border-[#5f1327] px-4 py-2 text-xs text-[#d6b87a] hover:bg-[#5f1327]/20"
+                class="rounded border border-[#d8c2b8] dark:border-[#5f1327] px-4 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] hover:bg-[#f1e5dd] dark:hover:bg-[#5f1327]/20"
               >Load 30 more chapters</button>
             </div>
           }
         </section>
 
         <section>
-          <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Similar Manga</h2>
+          <h2 class="mb-4 text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Similar Manga</h2>
           @if (isSimilarLoading()) {
             <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               @for (_ of [1,2,3,4,5,6]; track _) {
-                <div class="aspect-[3/4] animate-pulse rounded border border-zinc-800 bg-zinc-900"></div>
+                <div class="aspect-[3/4] animate-pulse rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#e5d2c6] dark:bg-zinc-900"></div>
               }
             </div>
           }
           @if (!isSimilarLoading()) {
             <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               @for (item of similar(); track item.id) {
-                <a [routerLink]="['/books/manga', toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] hover:border-[#800020]">
+                <a [routerLink]="['/books/manga', toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/30 bg-[#f1e5dd] dark:bg-[#120a0d] hover:border-[#800020]">
                   <div class="relative aspect-[3/4]">
                     @if (item.coverUrl) {
                       <img [src]="item.coverUrl" [alt]="item.title" class="absolute inset-0 h-full w-full object-cover">
                     } @else {
-                      <div class="flex h-full items-center justify-center bg-zinc-800 text-3xl">📘</div>
+                      <div class="flex h-full items-center justify-center bg-[#dcc4b8] dark:bg-zinc-800 text-3xl">📘</div>
                     }
                   </div>
                   <div class="p-2">
-                    <p class="line-clamp-2 text-xs text-white">{{ item.title }}</p>
+                    <p class="line-clamp-2 text-xs text-[#24181b] dark:text-white">{{ item.title }}</p>
                     @if (item.latestChapter) {
-                      <p class="mt-1 text-[11px] text-[#d6b87a]">Ch. {{ item.latestChapter }}</p>
+                      <p class="mt-1 text-[11px] text-[#9a6d1f] dark:text-[#d6b87a]">Ch. {{ item.latestChapter }}</p>
                     }
                   </div>
                 </a>
@@ -270,7 +274,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
         <button
           type="button"
           (click)="scrollToTop()"
-          class="fixed bottom-5 right-4 z-20 rounded-full border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-xs text-[#d6b87a] shadow-lg hover:bg-[#800020] md:bottom-8"
+          class="fixed bottom-5 right-4 z-20 rounded-full border border-[#d8c2b8] dark:border-[#5f1327] bg-[#f1e5dd] dark:bg-[#120a0d] px-3 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] shadow-lg hover:bg-[#e6d5c9] dark:hover:bg-[#800020] md:bottom-8"
         >Top</button>
       }
     </div>
@@ -475,5 +479,34 @@ export class MangaDetailComponent implements OnInit {
     }).subscribe({
       next: () => this.favorite.set(true),
     });
+  }
+
+  chapterLabel(chapter: MangaChapter): string {
+    if (chapter.chapter) {
+      return `Chapter ${chapter.chapter}`;
+    }
+    return chapter.title || 'Chapter';
+  }
+
+  chapterSubtitle(chapter: MangaChapter): string | null {
+    const title = (chapter.title || '').trim();
+    if (!title) return null;
+
+    const chapterValue = (chapter.chapter || '').trim();
+    if (!chapterValue) return title;
+
+    const normalizedTitle = title.toLowerCase().replace(/\s+/g, ' ').trim();
+    const chapterPatterns = [
+      `ch. ${chapterValue}`,
+      `chapter ${chapterValue}`,
+      `ch ${chapterValue}`,
+      chapterValue,
+    ];
+
+    if (chapterPatterns.some((pattern) => normalizedTitle === pattern.toLowerCase())) {
+      return null;
+    }
+
+    return title;
   }
 }

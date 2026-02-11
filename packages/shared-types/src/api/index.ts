@@ -15,6 +15,7 @@ export interface MovieSearchParams extends PaginationParams {
   language?: string;
   sortBy?: 'latest' | 'popular' | 'rating' | 'title' | 'trending' | 'newest';
   nollywoodOnly?: boolean;
+  isStreamOnly?: boolean;
 }
 
 export interface CreateMovieRequest {

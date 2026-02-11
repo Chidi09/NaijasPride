@@ -11,18 +11,18 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink, BrandLogoComponent],
   template: `
-    <div class="relative min-h-screen overflow-hidden bg-[#0b0708] px-4 py-12 sm:px-6 lg:px-8">
-      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(128,0,32,0.24),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(214,184,122,0.14),transparent_40%)]"></div>
-      <div class="relative mx-auto w-full max-w-md rounded-2xl border border-[#5f1327]/60 bg-[#120a0d]/90 p-8 shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur-sm">
+    <div class="relative min-h-screen overflow-hidden bg-[#f7efe8] dark:bg-[#0b0708] px-4 py-12 sm:px-6 lg:px-8">
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(128,0,32,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(154,109,31,0.10),transparent_40%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(128,0,32,0.24),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(214,184,122,0.14),transparent_40%)]"></div>
+      <div class="relative mx-auto w-full max-w-md rounded-2xl border border-[#d8b7a8] dark:border-[#5f1327]/60 bg-white/90 dark:bg-[#120a0d]/90 p-8 shadow-[0_18px_60px_rgba(0,0,0,0.18)] dark:shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur-sm">
         <div>
           <div class="flex justify-center">
             <app-brand-logo variant="mark" alt="NaijasPride" className="h-16 w-16 object-contain" />
           </div>
-          <p class="mt-4 text-center text-xs uppercase tracking-[0.28em] text-[#d6b87a]">Welcome Back</p>
-          <h2 class="mt-3 text-center font-['Cinzel'] text-3xl font-bold text-[#f3e5d8]">
+          <p class="mt-4 text-center text-xs uppercase tracking-[0.28em] text-[#8a5f1c] dark:text-[#d6b87a]">Welcome Back</p>
+          <h2 class="mt-3 text-center font-['Cinzel'] text-3xl font-bold text-[#2a1c1f] dark:text-[#f3e5d8]">
             Sign in to NaijasPride
           </h2>
-          <p class="mt-2 text-center text-sm text-[#d7c4b6]">
+          <p class="mt-2 text-center text-sm text-[#7b6660] dark:text-[#d7c4b6]">
             Or create a new account
           </p>
         </div>
@@ -30,29 +30,29 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
         <form [formGroup]="form" (ngSubmit)="onSubmit()" class="mt-8 space-y-5">
           <div class="space-y-3">
             <div>
-              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a]">Email address</label>
+              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[#8a5f1c] dark:text-[#d6b87a]">Email address</label>
               <input
                 formControlName="email"
                 type="email"
                 required
-                class="block w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
+                class="block w-full rounded-lg border border-[#d8b7a8] dark:border-[#5f1327] bg-white dark:bg-[#1b1014] px-4 py-3 text-[#2a1c1f] dark:text-[#f7eee7] placeholder-[#8e756b] dark:placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
                 placeholder="Email address"
               >
             </div>
             <div>
-              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a]">Password</label>
+              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[#8a5f1c] dark:text-[#d6b87a]">Password</label>
               <input
                 formControlName="password"
                 type="password"
                 required
-                class="block w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
+                class="block w-full rounded-lg border border-[#d8b7a8] dark:border-[#5f1327] bg-white dark:bg-[#1b1014] px-4 py-3 text-[#2a1c1f] dark:text-[#f7eee7] placeholder-[#8e756b] dark:placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
                 placeholder="Password"
               >
             </div>
           </div>
 
           @if (error) {
-            <div class="rounded-lg border border-[#7f1d2d] bg-[#3a1118]/65 p-3 text-center text-sm text-[#ffccd4]">
+            <div class="rounded-lg border border-[#c94866] dark:border-[#7f1d2d] bg-[#ffe7ec] dark:bg-[#3a1118]/65 p-3 text-center text-sm text-[#7a1f35] dark:text-[#ffccd4]">
               {{ error }}
             </div>
           }

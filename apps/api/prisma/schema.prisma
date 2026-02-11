@@ -297,3 +297,19 @@ model MangaFavorite {
   @@unique([userId, mangaId])
   @@index([userId, addedAt])
 }
+
+// YouTube Channels for bulk importing
+model YouTubeChannel {
+  id            String   @id @default(uuid())
+  name          String   // Channel display name
+  channelId     String   @unique // YouTube channel ID (UC...)
+  url           String   // Original URL provided
+  isActive      Boolean  @default(true)
+  lastSyncedAt  DateTime?
+  totalVideos   Int      @default(0) // Total videos found on channel
+  importedCount Int      @default(0) // How many already imported
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+}

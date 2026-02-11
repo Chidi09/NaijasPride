@@ -1,7 +1,9 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, computed, inject, signal } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MovieSummary } from '@naijaspride/types';
+import { ProfileApiService } from '../../../profile/services/profile-api.service';
+import { AuthStateService } from '../../../../core/auth/auth-state.service';
 
 @Component({
   selector: 'app-movie-card',
@@ -10,7 +12,7 @@ import { MovieSummary } from '@naijaspride/types';
   template: `
     <div 
       [routerLink]="['/movies', movie.slug]" 
-      class="group relative bg-cinema-800 rounded-sm overflow-hidden cursor-pointer transition-all duration-300 ease-out hover:z-10 hover:scale-105 hover:shadow-2xl hover:shadow-black/50"
+      class="group relative bg-[#efe1d7] dark:bg-cinema-800 rounded-sm overflow-hidden cursor-pointer transition-all duration-300 ease-out hover:z-10 hover:scale-105 hover:shadow-2xl hover:shadow-black/30 dark:hover:shadow-black/50"
     >
       <div class="aspect-[2/3] relative">
         @if (movie.thumbnailUrl) {
@@ -22,7 +24,7 @@ import { MovieSummary } from '@naijaspride/types';
             class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
           >
         } @else {
-          <div class="w-full h-full flex items-center justify-center bg-cinema-700">
+          <div class="w-full h-full flex items-center justify-center bg-[#dfc8bb] dark:bg-cinema-700">
             <span class="text-4xl text-cinema-500">🎬</span>
           </div>
         }
@@ -53,7 +55,7 @@ import { MovieSummary } from '@naijaspride/types';
         }
       </div>
 
-      <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-4">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-4">
         
         <h3 class="font-serif text-white text-lg leading-tight mb-1 drop-shadow-md">{{ movie.title }}</h3>
         
@@ -72,14 +74,20 @@ import { MovieSummary } from '@naijaspride/types';
            >
              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
            </button>
+           @if (isLoggedIn()) {
            <button
              class="border border-gray-400 rounded-full p-1.5 hover:border-white transition-colors"
-             (click)="$event.stopPropagation()"
+             (click)="toggleWatchlist($event)"
              aria-label="Add movie"
-           >
-             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-           </button>
-        </div>
+            >
+              @if (saved()) {
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 016.5 4c1.74 0 3.41.81 4.5 2.09A6 6 0 0115 4a4.5 4.5 0 014.5 4.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+              } @else {
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              }
+            </button>
+            }
+         </div>
       </div>
     </div>
   `
@@ -88,10 +96,23 @@ export class MovieCardComponent {
   @Input({ required: true }) movie!: MovieSummary;
   @Input() progress: number | null = null;
 
+  private profileApi = inject(ProfileApiService);
+  private authState = inject(AuthStateService);
+  saved = signal(false);
+  isLoggedIn = computed(() => !!this.authState.currentUser());
+
   get progressPercent() {
     if (this.progress === null || Number.isNaN(this.progress)) {
       return 0;
     }
     return Math.max(0, Math.min(100, this.progress));
+  }
+
+  toggleWatchlist(event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.profileApi.toggleWatchlist(this.movie.id).subscribe({
+      next: () => this.saved.update((current) => !current),
+    });
   }
 }

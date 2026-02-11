@@ -12,7 +12,7 @@ import { CommonModule } from '@angular/common';
         <button 
           (click)="changePage(currentPage - 1)"
           [disabled]="currentPage === 1"
-          class="px-4 py-2 rounded-sm border border-white/10 text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors font-serif"
+          class="px-4 py-2 rounded-sm border border-[#d8c2b8] dark:border-white/10 text-[#2a1c1f] dark:text-white hover:bg-[#ead7cc] dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors font-serif"
         >
           PREV
         </button>
@@ -22,10 +22,7 @@ import { CommonModule } from '@angular/common';
             <button 
               (click)="changePage(page)"
               class="w-10 h-10 flex items-center justify-center rounded-sm text-sm font-medium transition-all"
-              [class.bg-cinema-500]="currentPage === page"
-              [class.text-white]="currentPage === page"
-              [class.text-gray-400]="currentPage !== page"
-              [ngClass]="{ 'hover:bg-white/5': currentPage !== page }"
+              [ngClass]="currentPage === page ? 'bg-cinema-500 text-white' : 'text-[#705c55] dark:text-gray-400 hover:bg-[#ead7cc] dark:hover:bg-white/5'"
             >
               {{ page }}
             </button>
@@ -35,7 +32,7 @@ import { CommonModule } from '@angular/common';
         <button 
           (click)="changePage(currentPage + 1)"
           [disabled]="currentPage === totalPages"
-          class="px-4 py-2 rounded-sm border border-white/10 text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors font-serif"
+          class="px-4 py-2 rounded-sm border border-[#d8c2b8] dark:border-white/10 text-[#2a1c1f] dark:text-white hover:bg-[#ead7cc] dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors font-serif"
         >
           NEXT
         </button>

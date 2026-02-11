@@ -2,19 +2,20 @@ const { join } = require('path');
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [join(__dirname, 'src/**/!(*.stories|*.spec).{ts,html}')],
   theme: {
     extend: {
       colors: {
         // "Old Money" Palette
         cinema: {
-          900: '#0a0a0a', // Deepest Black (Main bg)
-          800: '#121212', // Charcoal (Card bg)
-          700: '#1e1e1e', // Lighter Grey (Hover states)
-          500: '#800020', // Burgundy (Primary Brand)
-          400: '#a31535', // Lighter Burgundy (Hover interactions)
-          100: '#F5F5DC', // Cream (Text/Accents)
-          50: '#f9f9f2',  // Off-white
+          900: 'rgb(var(--cinema-900) / <alpha-value>)',
+          800: 'rgb(var(--cinema-800) / <alpha-value>)',
+          700: 'rgb(var(--cinema-700) / <alpha-value>)',
+          500: 'rgb(var(--cinema-500) / <alpha-value>)',
+          400: 'rgb(var(--cinema-400) / <alpha-value>)',
+          100: 'rgb(var(--cinema-100) / <alpha-value>)',
+          50: 'rgb(var(--cinema-50) / <alpha-value>)',
         }
       },
       fontFamily: {

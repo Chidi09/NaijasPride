@@ -24,7 +24,7 @@ import { Book } from '@naijaspride/types';
                   >
                 </div>
               } @else {
-                <div class="aspect-[2/3] bg-cinema-800 rounded-lg flex items-center justify-center">
+                <div class="aspect-[2/3] bg-[#e5d2c6] dark:bg-cinema-800 rounded-lg flex items-center justify-center">
                   <span class="text-6xl">📚</span>
                 </div>
               }
@@ -48,14 +48,14 @@ import { Book } from '@naijaspride/types';
           
           <!-- Book Details -->
           <div class="md:col-span-2">
-            <a routerLink="/books" class="text-gray-400 hover:text-white transition-colors mb-4 inline-block">
+            <a routerLink="/books" class="text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white transition-colors mb-4 inline-block">
               ← Back to Library
             </a>
             
-            <h1 class="text-3xl md:text-4xl font-serif text-white mb-2">{{ book.title }}</h1>
-            <p class="text-xl text-gray-400 mb-6">by {{ book.author }}</p>
+            <h1 class="text-3xl md:text-4xl font-serif text-[#24181b] dark:text-white mb-2">{{ book.title }}</h1>
+            <p class="text-xl text-[#8a756e] dark:text-gray-400 mb-6">by {{ book.author }}</p>
             
-            <div class="flex flex-wrap gap-4 mb-8 text-sm text-gray-400">
+            <div class="flex flex-wrap gap-4 mb-8 text-sm text-[#8a756e] dark:text-gray-400">
               @if (book.year) {
                 <span>{{ book.year }}</span>
               }
@@ -73,7 +73,7 @@ import { Book } from '@naijaspride/types';
             @if (book.genre?.length) {
               <div class="flex flex-wrap gap-2 mb-8">
                 @for (genre of book.genre; track genre) {
-                  <span class="bg-cinema-800 text-gray-300 text-sm px-3 py-1 rounded-full">
+                  <span class="bg-[#e5d2c6] dark:bg-cinema-800 text-[#5b4a46] dark:text-gray-300 text-sm px-3 py-1 rounded-full">
                     {{ genre }}
                   </span>
                 }
@@ -81,14 +81,14 @@ import { Book } from '@naijaspride/types';
             }
             
             @if (book.description) {
-              <div class="bg-cinema-800/50 rounded-lg p-6">
-                <h2 class="text-lg font-bold text-white mb-4">Description</h2>
-                <p class="text-gray-400 leading-relaxed">{{ book.description }}</p>
+              <div class="bg-[#f1e5dd] dark:bg-cinema-800/50 rounded-lg p-6">
+                <h2 class="text-lg font-bold text-[#24181b] dark:text-white mb-4">Description</h2>
+                <p class="text-[#725f58] dark:text-gray-400 leading-relaxed">{{ book.description }}</p>
               </div>
             }
             
             @if (book.isbn) {
-              <div class="mt-6 text-gray-500 text-sm">
+              <div class="mt-6 text-[#8a756e] dark:text-gray-500 text-sm">
                 ISBN: {{ book.isbn }}
               </div>
             }
@@ -96,7 +96,7 @@ import { Book } from '@naijaspride/types';
         </div>
       </div>
     } @else {
-      <div class="container mx-auto px-4 py-24 text-center text-gray-400">
+      <div class="container mx-auto px-4 py-24 text-center text-[#8a756e] dark:text-gray-400">
         <p>Loading...</p>
       </div>
     }

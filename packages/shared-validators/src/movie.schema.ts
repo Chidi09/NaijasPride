@@ -9,6 +9,7 @@ export const movieSearchSchema = z.object({
   language: z.string().optional(),
   sortBy: z.enum(['latest', 'popular', 'rating', 'title', 'trending', 'newest']).default('latest'),
   nollywoodOnly: z.boolean().default(false).optional(), // .optional() for query params parsing
+  isStreamOnly: z.coerce.boolean().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });

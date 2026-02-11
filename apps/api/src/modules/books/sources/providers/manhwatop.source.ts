@@ -39,6 +39,12 @@ export class ManhwaTopSource extends MadaraBaseSource {
         post_type: 'wp-manga',
         m_orderby: 'latest' 
       });
+      
+      if (!html || html.length < 100) {
+        console.error('[ManhwaTop] Discover returned empty HTML');
+        return { trending: [], recentlyUpdated: [], newTitles: [] };
+      }
+      
       const $ = cheerio.load(html);
       const seen = new Set<string>();
       const cards: MangaSummary[] = [];
@@ -83,7 +89,8 @@ export class ManhwaTopSource extends MadaraBaseSource {
 
       await this.setCache(cacheKey, payload);
       return payload;
-    } catch {
+    } catch (error) {
+      console.error(`[ManhwaTop] discover failed: ${summarizeSourceError(error)}`);
       return { trending: [], recentlyUpdated: [], newTitles: [] };
     }
   }
@@ -97,7 +104,19 @@ export class ManhwaTopSource extends MadaraBaseSource {
 
     try {
       const html = await this.fetchHtml(seriesPath);
+      
+      if (!html || html.length < 100) {
+        console.error(`[ManhwaTop] Detail page returned empty HTML for ${mangaId}`);
+        return null;
+      }
+      
       const $ = cheerio.load(html);
+
+      // Debug: Log what we're finding
+      const titleElements = $('.post-title h1, h1').length;
+      const descElements = $('.description-summary, .summary__content, .manga-excerpt').length;
+      const coverElements = $('.summary_image img, .manga-thumb img').length;
+      console.log(`[ManhwaTop] Detail parse: title=${titleElements}, desc=${descElements}, cover=${coverElements}`);
 
       // Fix: More robust selectors with fallbacks
       const detail: MangaDetail = {

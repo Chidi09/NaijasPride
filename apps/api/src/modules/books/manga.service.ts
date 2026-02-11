@@ -216,6 +216,18 @@ export class MangaService {
     });
   }
 
+  async deleteHistoryEntry(userId: string, chapterId: string) {
+    return this.prisma.mangaReadingProgress.deleteMany({
+      where: { userId, chapterId },
+    });
+  }
+
+  async clearHistory(userId: string) {
+    return this.prisma.mangaReadingProgress.deleteMany({
+      where: { userId },
+    });
+  }
+
   async getMangaProgressForUser(userId: string, mangaId: string) {
     return this.prisma.mangaReadingProgress.findMany({
       where: { userId, mangaId },

@@ -21,6 +21,7 @@ import { paymentRoutes } from "./modules/payments/payments.routes";
 import { profileRoutes } from "./modules/users/profile.routes";
 import { adminRoutes } from "./modules/admin/admin.routes";
 import { watchRoutes } from "./modules/users/watch.routes";
+import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
@@ -246,6 +247,18 @@ const start = async () => {
   try {
     const app = await buildServer();
     const port = parseInt(process.env.PORT || "3000", 10);
+
+    // Monitor configured YouTube channels every 6 hours.
+    const channelService = new YouTubeChannelService(app.prisma);
+    const sixHoursMs = 6 * 60 * 60 * 1000;
+    setInterval(() => {
+      channelService.monitorAllChannelsEvery6Hours().catch((error) => {
+        app.log.error({ error }, "YouTube channel monitor failed");
+      });
+    }, sixHoursMs);
+    channelService.monitorAllChannelsEvery6Hours().catch((error) => {
+      app.log.error({ error }, "Initial YouTube channel monitor run failed");
+    });
 
     await app.listen({ port, host: "0.0.0.0" });
     console.log(`🚀 NaijasPride API running on http://localhost:${port}`);

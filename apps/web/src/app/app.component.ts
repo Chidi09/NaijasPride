@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from './core/components/navbar/navbar.component';
 import { DeviceService } from './core/services/device.service';
 import { ReaderStateService } from './core/services/reader-state.service';
+import { ThemeService } from './core/services/theme.service';
 import { ToastContainerComponent } from './shared/components/toast-container/toast-container.component';
 
 @Component({
@@ -10,7 +11,7 @@ import { ToastContainerComponent } from './shared/components/toast-container/toa
   standalone: true,
   imports: [RouterOutlet, NavbarComponent, ToastContainerComponent],
   template: `
-    <div class="min-h-screen flex flex-col bg-cinema-900 text-cinema-50">
+    <div class="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300">
       @if (!readerState.navbarHidden()) {
         <app-navbar />
       }
@@ -25,9 +26,11 @@ import { ToastContainerComponent } from './shared/components/toast-container/toa
 })
 export class AppComponent implements OnInit {
   private deviceService = inject(DeviceService);
+  private themeService = inject(ThemeService);
   protected readerState = inject(ReaderStateService);
 
   ngOnInit() {
+    this.themeService.init();
     if (this.deviceService.isTV()) {
       document.body.classList.add('tv-mode');
     }

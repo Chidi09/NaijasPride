@@ -28,11 +28,11 @@ type FeaturedContent = {
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="min-h-screen bg-cinema-900 pb-20">
+    <div class="min-h-screen bg-[var(--bg-primary)] pb-20">
       <!-- Hero Section with Featured Content -->
       <div class="bg-gradient-to-b from-cinema-800 to-cinema-900 py-12 px-6">
         <div class="max-w-7xl mx-auto">
-          <h1 class="text-4xl md:text-5xl font-serif text-white mb-4">Reading Library</h1>
+          <h1 class="text-4xl md:text-5xl font-serif text-[#24181b] dark:text-white mb-4">Reading Library</h1>
           <p class="text-gray-400 text-lg mb-8 max-w-2xl">
             Discover stories across books, comics, and manga. Something for every reader.
           </p>
@@ -42,7 +42,7 @@ type FeaturedContent = {
             <!-- Featured Book -->
             <div class="group">
               <a [routerLink]="featured().book?.slug ? ['/books', featured().book!.slug] : null"
-                 class="block bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-cinema-800 hover:scale-[1.02]"
+                 class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
               >
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-blue-400 uppercase">📚 Popular Book</span>
@@ -57,12 +57,12 @@ type FeaturedContent = {
                       >
                     </div>
                   } @else {
-                    <div class="w-24 h-36 flex-shrink-0 bg-cinema-700 rounded flex items-center justify-center">
+                    <div class="w-24 h-36 flex-shrink-0 bg-[#dcc4b8] dark:bg-cinema-700 rounded flex items-center justify-center">
                       <span class="text-2xl">📚</span>
                     </div>
                   }
                   <div class="flex-1 min-w-0">
-                    <h3 class="text-white font-medium text-lg line-clamp-2 mb-1">{{ featured().book?.title || 'Loading...' }}</h3>
+                    <h3 class="text-[#24181b] dark:text-white font-medium text-lg line-clamp-2 mb-1">{{ featured().book?.title || 'Loading...' }}</h3>
                     <p class="text-gray-400 text-sm">{{ featured().book?.author || 'Unknown Author' }}</p>
                     @if (featured().book?.year) {
                       <p class="text-gray-500 text-xs mt-1">{{ featured().book!.year }}</p>
@@ -75,7 +75,7 @@ type FeaturedContent = {
             <!-- Featured Comic -->
             <div class="group">
               <a [routerLink]="featured().comic?.slug ? ['/books', featured().comic!.slug] : null"
-                 class="block bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-cinema-800 hover:scale-[1.02]"
+                 class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
               >
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-purple-400 uppercase">📖 Popular Comic</span>
@@ -90,12 +90,12 @@ type FeaturedContent = {
                       >
                     </div>
                   } @else {
-                    <div class="w-24 h-36 flex-shrink-0 bg-cinema-700 rounded flex items-center justify-center">
+                    <div class="w-24 h-36 flex-shrink-0 bg-[#dcc4b8] dark:bg-cinema-700 rounded flex items-center justify-center">
                       <span class="text-2xl">📖</span>
                     </div>
                   }
                   <div class="flex-1 min-w-0">
-                    <h3 class="text-white font-medium text-lg line-clamp-2 mb-1">{{ featured().comic?.title || 'Loading...' }}</h3>
+                    <h3 class="text-[#24181b] dark:text-white font-medium text-lg line-clamp-2 mb-1">{{ featured().comic?.title || 'Loading...' }}</h3>
                     <p class="text-gray-400 text-sm">{{ featured().comic?.author || 'Unknown Author' }}</p>
                   </div>
                 </div>
@@ -105,7 +105,7 @@ type FeaturedContent = {
             <!-- Featured Manga (Auto-rotating) -->
             <div class="group relative">
               <a [routerLink]="featured().manga?.id ? ['/books/manga', toRouteParam(featured().manga!.id)] : null"
-                 class="block bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-cinema-800 hover:scale-[1.02]"
+                 class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
               >
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-pink-400 uppercase">🎌 Trending Manga</span>
@@ -122,12 +122,12 @@ type FeaturedContent = {
                       >
                     </div>
                   } @else {
-                    <div class="w-24 h-36 flex-shrink-0 bg-cinema-700 rounded flex items-center justify-center">
+                    <div class="w-24 h-36 flex-shrink-0 bg-[#dcc4b8] dark:bg-cinema-700 rounded flex items-center justify-center">
                       <span class="text-2xl">🎌</span>
                     </div>
                   }
                   <div class="flex-1 min-w-0">
-                    <h3 class="text-white font-medium text-lg line-clamp-2 mb-1 transition-opacity duration-500"
+                    <h3 class="text-[#24181b] dark:text-white font-medium text-lg line-clamp-2 mb-1 transition-opacity duration-500"
                         [class.opacity-0]="isMangaChanging()"
                         [class.opacity-100]="!isMangaChanging()"
                     >{{ featured().manga?.title || 'Loading...' }}</h3>
@@ -150,7 +150,7 @@ type FeaturedContent = {
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
               <span class="text-2xl">📚</span>
-              <h2 class="text-2xl font-serif text-white">Books</h2>
+              <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Books</h2>
             </div>
             <a routerLink="/books/all" class="text-sm text-[#d6b87a] hover:text-white transition-colors">
               View All Books →
@@ -160,14 +160,14 @@ type FeaturedContent = {
           @if (isBooksLoading()) {
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               @for (i of [1,2,3,4,5,6]; track i) {
-                <div class="bg-cinema-800 rounded aspect-[2/3] animate-pulse"></div>
+                <div class="bg-[#e5d2c6] dark:bg-cinema-800 rounded aspect-[2/3] animate-pulse"></div>
               }
             </div>
           } @else if (books().length > 0) {
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               @for (book of books().slice(0, 12); track book.id) {
                 <a [routerLink]="['/books', book.slug]" class="group">
-                  <div class="bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
+                  <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                     <div class="aspect-[2/3] relative">
                       @if (book.coverUrl) {
                         <img 
@@ -176,13 +176,13 @@ type FeaturedContent = {
                           class="absolute inset-0 w-full h-full object-cover"
                         >
                       } @else {
-                        <div class="w-full h-full bg-cinema-700 flex items-center justify-center">
+                        <div class="w-full h-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
                           <span class="text-2xl">📚</span>
                         </div>
                       }
                     </div>
                     <div class="p-3">
-                      <h3 class="text-white text-sm font-medium line-clamp-2">{{ book.title }}</h3>
+                      <h3 class="text-[#24181b] dark:text-white text-sm font-medium line-clamp-2">{{ book.title }}</h3>
                       <p class="text-gray-500 text-xs mt-1">{{ book.author }}</p>
                     </div>
                   </div>

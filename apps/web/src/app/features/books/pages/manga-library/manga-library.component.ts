@@ -397,7 +397,16 @@ type MangaSourceHealth = {
 
       @if (activeTab() === 'history') {
         <section>
-          <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Reading History</h2>
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold text-[#d6b87a]">Reading History</h2>
+            @if (history().length > 0) {
+              <button
+                type="button"
+                (click)="clearHistory()"
+                class="rounded border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20"
+              >Clear All</button>
+            }
+          </div>
           @if (history().length === 0) {
             <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No reading history yet.</div>
           }
@@ -408,11 +417,18 @@ type MangaSourceHealth = {
                   <p class="text-sm text-white">Chapter ID: {{ item.chapterId.slice(0, 8) }}...</p>
                   <p class="mt-1 text-xs text-gray-400">Page {{ item.pageIndex + 1 }} / {{ item.totalPages }}</p>
                 </div>
-                <a
-                  [routerLink]="['/books/manga/read', toRouteParam(item.chapterId)]"
-                  [queryParams]="{ mangaId: item.mangaId }"
-                  class="rounded bg-[#800020] px-3 py-1 text-xs text-white hover:bg-[#660019]"
-                >Continue</a>
+                <div class="flex items-center gap-2">
+                  <a
+                    [routerLink]="['/books/manga/read', toRouteParam(item.chapterId)]"
+                    [queryParams]="{ mangaId: item.mangaId }"
+                    class="rounded bg-[#800020] px-3 py-1 text-xs text-white hover:bg-[#660019]"
+                  >Continue</a>
+                  <button
+                    type="button"
+                    (click)="removeHistoryEntry(item.chapterId)"
+                    class="rounded border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20"
+                  >Delete</button>
+                </div>
               </div>
             }
           </div>
@@ -705,6 +721,24 @@ export class MangaLibraryComponent implements OnInit {
       next: (response) => {
         this.history.set(response.data);
       },
+    });
+  }
+
+  removeHistoryEntry(chapterId: string) {
+    if (!this.isAuthenticated()) return;
+
+    this.http.delete(`/api/v1/books/manga/history/${encodeURIComponent(chapterId)}`).subscribe({
+      next: () => {
+        this.history.update((list) => list.filter((item) => item.chapterId !== chapterId));
+      },
+    });
+  }
+
+  clearHistory() {
+    if (!this.isAuthenticated()) return;
+
+    this.http.delete('/api/v1/books/manga/history').subscribe({
+      next: () => this.history.set([]),
     });
   }
 }

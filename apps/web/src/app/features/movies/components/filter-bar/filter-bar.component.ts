@@ -8,12 +8,12 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="sticky top-20 z-30 bg-cinema-900/95 backdrop-blur-sm border-b border-white/5 py-3 mb-6 transition-all">
+    <div class="sticky top-20 z-30 bg-[#f9efe8]/95 dark:bg-cinema-900/95 backdrop-blur-sm border-b border-[#d8c2b8]/60 dark:border-white/5 py-3 mb-6 transition-all">
       <div class="flex flex-wrap gap-3 items-center">
         
         <div class="relative group">
           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-[#8a756e] dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
           </div>
@@ -23,11 +23,11 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
             (ngModelChange)="updateFilter('q', $event)"
             aria-label="Search movies"
             placeholder="Search..."
-            class="pl-9 pr-4 py-2 bg-cinema-800 border border-white/10 rounded-sm text-sm text-white focus:ring-2 focus:ring-cinema-500 focus:border-transparent outline-none w-40 focus:w-60 transition-all placeholder-gray-600"
+            class="pl-9 pr-4 py-2 bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 rounded-sm text-sm text-[#2a1c1f] dark:text-white focus:ring-2 focus:ring-cinema-500 focus:border-transparent outline-none w-40 focus:w-60 transition-all placeholder-[#8f7a72] dark:placeholder-gray-600"
           />
         </div>
 
-        <div class="h-6 w-px bg-white/10 hidden md:block"></div>
+        <div class="h-6 w-px bg-[#d8c2b8] dark:bg-white/10 hidden md:block"></div>
 
         <select
           [ngModel]="activeFilters.genre?.[0] || ''" 
@@ -71,7 +71,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           [ngModel]="activeFilters.sortBy || 'latest'"
           (ngModelChange)="updateFilter('sortBy', $event)"
           aria-label="Sort movies"
-          class="form-select text-gray-400"
+          class="form-select text-[#6f5b54] dark:text-gray-400"
         >
           <option value="latest">Latest</option>
           <option value="popular">Popular</option>
@@ -81,8 +81,8 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
       </div>
 
       @if (hasActiveFilters()) {
-        <div class="flex flex-wrap gap-2 mt-3 pt-2 border-t border-dashed border-white/10">
-          <span class="text-xs text-gray-500 self-center uppercase font-bold tracking-wider mr-1">Active:</span>
+        <div class="flex flex-wrap gap-2 mt-3 pt-2 border-t border-dashed border-[#d8c2b8] dark:border-white/10">
+          <span class="text-xs text-[#8a756e] dark:text-gray-500 self-center uppercase font-bold tracking-wider mr-1">Active:</span>
           
           @if (activeFilters.genre) {
             <button (click)="updateFilter('genre', undefined)" class="chip" aria-label="Remove genre filter">
@@ -100,7 +100,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
             </button>
           }
           
-          <button (click)="resetAll()" class="text-xs text-cinema-500 hover:text-cinema-100 font-medium ml-auto transition-colors" aria-label="Clear all active filters">
+          <button (click)="resetAll()" class="text-xs text-cinema-500 hover:text-[#4f0f21] dark:hover:text-cinema-100 font-medium ml-auto transition-colors" aria-label="Clear all active filters">
             Clear All
           </button>
         </div>
@@ -109,14 +109,14 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
   `,
   styles: [`
     .form-select {
-      @apply appearance-none bg-cinema-800 border border-white/10 text-gray-300 py-2 px-4 pr-8 rounded-sm text-sm leading-tight focus:outline-none focus:border-cinema-500 cursor-pointer hover:border-white/20 transition-colors;
+      @apply appearance-none bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 text-[#5f4d47] dark:text-gray-300 py-2 px-4 pr-8 rounded-sm text-sm leading-tight focus:outline-none focus:border-cinema-500 cursor-pointer hover:border-[#b99f92] dark:hover:border-white/20 transition-colors;
       background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
       background-position: right 0.5rem center;
       background-repeat: no-repeat;
       background-size: 1.5em 1.5em;
     }
     .chip {
-      @apply bg-cinema-500/20 text-cinema-100 text-xs px-2 py-1 rounded-sm hover:bg-cinema-500/40 transition-colors cursor-pointer flex items-center gap-1;
+      @apply bg-cinema-500/20 text-[#4f0f21] dark:text-cinema-100 text-xs px-2 py-1 rounded-sm hover:bg-cinema-500/40 transition-colors cursor-pointer flex items-center gap-1;
     }
   `]
 })

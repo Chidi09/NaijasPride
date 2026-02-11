@@ -6,6 +6,7 @@ import {
 import { YoutubeScoutService } from "./services/youtube-scout.service";
 import { RssScoutService } from "./services/rss-scout.service";
 import { TMDBMetadataService } from "./services/tmdb-metadata.service";
+import { YouTubeChannelService } from "./services/youtube-channel.service";
 import { z } from "zod";
 
 // Validation schemas
@@ -46,7 +47,7 @@ const AutoImportYoutubeSchema = z.object({
 
 const ChannelImportYoutubeSchema = z.object({
   channels: z.array(z.string().min(1)).min(1).max(20),
-  maxResultsPerChannel: z.number().int().min(1).max(20).optional().default(8),
+  maxResultsPerChannel: z.number().int().min(1).max(50).optional().default(8),
   genre: z.array(z.string()).optional().default(["Nollywood"]),
   isStreamOnly: z.boolean().optional().default(true),
   dryRun: z.boolean().optional().default(false),
@@ -413,6 +414,21 @@ export const adminRoutes = async (
           .map((entry) => entry.requestedName);
         const failed: { title: string; error: string }[] = [];
 
+        // Save channels to database
+        for (const entry of discovered) {
+          if (entry.channelId) {
+            try {
+              await channelService.registerDiscoveredChannel(
+                entry.channelId,
+                entry.channelTitle,
+                entry.requestedName,
+              );
+            } catch {
+              // Channel might already exist, that's fine
+            }
+          }
+        }
+
         for (const entry of discovered) {
           for (const video of entry.videos) {
             try {
@@ -575,6 +591,176 @@ export const adminRoutes = async (
             error instanceof Error
               ? error.message
               : "Failed to create RSS feed",
+        });
+      }
+    },
+  });
+
+  // ===== YouTube Channel Management Routes =====
+  const channelService = new YouTubeChannelService(app.prisma);
+
+  // GET /api/admin/youtube/channels - List all configured channels
+  app.get("/youtube/channels", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        const channels = await channelService.listChannels();
+        return reply.send({
+          status: "success",
+          data: channels,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch channels",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/youtube/channels - Add a new channel
+  app.post("/youtube/channels", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: z.object({
+        url: z.string().url(),
+      }),
+    },
+    handler: async (request, reply) => {
+      try {
+        const { url } = request.body as { url: string };
+        const channel = await channelService.addChannel(url);
+        return reply.send({
+          status: "success",
+          data: channel,
+          message: "Channel added successfully",
+        });
+      } catch (error) {
+        return reply.status(400).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to add channel",
+        });
+      }
+    },
+  });
+
+  // DELETE /api/admin/youtube/channels/:id - Remove a channel
+  app.delete("/youtube/channels/:id", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string };
+        await channelService.deleteChannel(id);
+        return reply.send({
+          status: "success",
+          message: "Channel removed successfully",
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to remove channel",
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/youtube/channels/:channelId/videos - Get all videos from channel
+  app.get("/youtube/channels/:channelId/videos", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      querystring: z.object({
+        pageToken: z.string().optional(),
+        maxResults: z.coerce.number().int().min(1).max(50).optional().default(50),
+      }),
+    },
+    handler: async (request, reply) => {
+      try {
+        const { channelId } = request.params as { channelId: string };
+        const { pageToken, maxResults } = request.query as { pageToken?: string; maxResults: number };
+        
+        const result = await channelService.getChannelVideos(channelId, pageToken, maxResults);
+        return reply.send({
+          status: "success",
+          data: result,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch channel videos",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/youtube/channels/:channelId/import-remaining - Batch import remaining videos
+  app.post("/youtube/channels/:channelId/import-remaining", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: z.object({
+        batchSize: z.number().int().min(1).max(20).optional().default(10),
+      }),
+    },
+    handler: async (request, reply) => {
+      try {
+        const { channelId } = request.params as { channelId: string };
+        const { batchSize } = request.body as { batchSize?: number };
+        
+        const progressId = await channelService.startBatchImport(channelId, batchSize);
+        return reply.send({
+          status: "success",
+          data: { progressId },
+          message: "Batch import started",
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to start batch import",
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/youtube/import-progress/:progressId - Get import progress
+  app.get("/youtube/import-progress/:progressId", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (request, reply) => {
+      try {
+        const { progressId } = request.params as { progressId: string };
+        const progress = channelService.getImportProgress(progressId);
+        
+        if (!progress) {
+          return reply.status(404).send({
+            status: "error",
+            message: "Import progress not found",
+          });
+        }
+        
+        return reply.send({
+          status: "success",
+          data: progress,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch import progress",
         });
       }
     },

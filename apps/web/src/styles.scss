@@ -5,8 +5,65 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --cinema-900: 247 239 232;
+  --cinema-800: 239 225 215;
+  --cinema-700: 223 200 187;
+  --cinema-500: 128 0 32;
+  --cinema-400: 163 21 53;
+  --cinema-100: 61 42 47;
+  --cinema-50: 29 20 22;
+
+  --bg-primary: #f5efe8;
+  --bg-secondary: #fffaf6;
+  --bg-card: #ffffff;
+  --bg-elevated: #f3e7db;
+  --text-primary: #1d1416;
+  --text-secondary: #5b4a46;
+  --text-muted: #826f68;
+  --border-color: #d8c2b8;
+  --brand: #800020;
+  --brand-hover: #660019;
+  --accent: #9a6d1f;
+  --scroll-track: #ece0d8;
+  --scroll-thumb: #c2a498;
+  --focus-ring: #800020;
+}
+
+.dark {
+  --cinema-900: 10 10 10;
+  --cinema-800: 18 18 18;
+  --cinema-700: 30 30 30;
+  --cinema-500: 128 0 32;
+  --cinema-400: 163 21 53;
+  --cinema-100: 245 245 220;
+  --cinema-50: 249 249 242;
+
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #121212;
+  --bg-card: #120a0d;
+  --bg-elevated: #1b1014;
+  --text-primary: #f9f9f2;
+  --text-secondary: #d7c4b6;
+  --text-muted: #a88a78;
+  --border-color: #5f1327;
+  --brand: #800020;
+  --brand-hover: #660019;
+  --accent: #d6b87a;
+  --scroll-track: #0a0a0a;
+  --scroll-thumb: #1e1e1e;
+  --focus-ring: #e50914;
+}
+
 body {
-  @apply bg-cinema-900 text-cinema-50 font-sans antialiased selection:bg-cinema-500 selection:text-white;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  @apply antialiased selection:text-white;
+}
+
+::selection {
+  background: var(--brand);
 }
 
 /* Cinematic Headers */
@@ -19,16 +76,21 @@ h1, h2, h3, h4, h5, h6, .brand-font {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-cinema-900;
+  background: var(--scroll-track);
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-cinema-700 rounded-full hover:bg-cinema-500 transition-colors;
+  background: var(--scroll-thumb);
+  @apply rounded-full transition-colors;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand);
 }
 
 /* TV Mode & Keyboard Accessibility */
 /* Enhanced focus states for remote/keyboard navigation */
 :focus {
-  outline: 4px solid #e50914;
+  outline: 4px solid var(--focus-ring);
   outline-offset: 4px;
   z-index: 50;
   transition: all 0.2s ease-in-out;
@@ -52,7 +114,7 @@ a:focus:not(:focus-visible) {
 button:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
-  outline: 4px solid #e50914;
+  outline: 4px solid var(--focus-ring);
   outline-offset: 4px;
   transform: scale(1.05);
 }

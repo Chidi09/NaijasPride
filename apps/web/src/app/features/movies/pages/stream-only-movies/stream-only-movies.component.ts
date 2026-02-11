@@ -14,14 +14,14 @@ import { MovieSummary } from '@naijaspride/types';
   standalone: true,
   imports: [CommonModule, RouterLink, MovieCardYoutubeComponent],
   template: `
-    <div class="min-h-screen bg-cinema-900 pb-20">
+    <div class="min-h-screen bg-[var(--bg-primary)] pb-20">
       <!-- Header -->
-      <div class="bg-gradient-to-b from-cinema-800 to-cinema-900 py-12 px-6">
+      <div class="bg-gradient-to-b from-[#f1e3d8] to-[#f8f0e9] dark:from-cinema-800 dark:to-cinema-900 py-12 px-6">
         <div class="max-w-7xl mx-auto">
           <div class="flex items-center gap-4 mb-4">
             <a 
               routerLink="/movies" 
-              class="text-gray-400 hover:text-white text-sm flex items-center gap-2 transition-colors"
+              class="text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white text-sm flex items-center gap-2 transition-colors"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -30,10 +30,10 @@ import { MovieSummary } from '@naijaspride/types';
             </a>
           </div>
           
-          <h1 class="text-3xl md:text-4xl font-serif text-white mb-3">
+          <h1 class="text-3xl md:text-4xl font-serif text-[#24181b] dark:text-white mb-3">
             Nollywood YouTube Movies
           </h1>
-          <p class="text-gray-400 max-w-2xl">
+          <p class="text-[#75635c] dark:text-gray-400 max-w-2xl">
             Watch the latest Nigerian movies streamed directly from YouTube. 
             All movies are free to watch with no downloads required.
           </p>
@@ -47,9 +47,9 @@ import { MovieSummary } from '@naijaspride/types';
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             @for (i of [1,2,3,4,5,6,7,8]; track i) {
               <div class="animate-pulse">
-                <div class="aspect-video bg-cinema-800 rounded-lg"></div>
-                <div class="mt-2 h-4 bg-cinema-800 rounded w-3/4"></div>
-                <div class="mt-1 h-3 bg-cinema-800 rounded w-1/2"></div>
+                <div class="aspect-video bg-[#e5d2c6] dark:bg-cinema-800 rounded-lg"></div>
+                <div class="mt-2 h-4 bg-[#e5d2c6] dark:bg-cinema-800 rounded w-3/4"></div>
+                <div class="mt-1 h-3 bg-[#e5d2c6] dark:bg-cinema-800 rounded w-1/2"></div>
               </div>
             }
           </div>
@@ -59,15 +59,15 @@ import { MovieSummary } from '@naijaspride/types';
         @if (!isLoading() && movies().length > 0) {
           <div class="mb-8">
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-xl font-semibold text-white">
+              <h2 class="text-xl font-semibold text-[#24181b] dark:text-white">
                 Latest Additions
-                <span class="text-gray-500 text-sm ml-2">({{ movies().length }} movies)</span>
+                <span class="text-[#8a756e] dark:text-gray-500 text-sm ml-2">({{ movies().length }} movies)</span>
               </h2>
               
               <!-- Sort Options -->
               <select 
                 (change)="changeSort($event)"
-                class="bg-cinema-800 text-white text-sm rounded px-3 py-2 border border-cinema-700 focus:border-[#800020] focus:outline-none"
+                class="bg-white dark:bg-cinema-800 text-[#24181b] dark:text-white text-sm rounded px-3 py-2 border border-[#d8c2b8] dark:border-cinema-700 focus:border-[#800020] focus:outline-none"
               >
                 <option value="latest">Latest Added</option>
                 <option value="popular">Most Viewed</option>
@@ -87,8 +87,8 @@ import { MovieSummary } from '@naijaspride/types';
         @if (!isLoading() && movies().length === 0) {
           <div class="text-center py-20">
             <div class="text-6xl mb-4">🎬</div>
-            <h3 class="text-xl text-white mb-2">No YouTube movies yet</h3>
-            <p class="text-gray-400 mb-6">
+            <h3 class="text-xl text-[#24181b] dark:text-white mb-2">No YouTube movies yet</h3>
+            <p class="text-[#75635c] dark:text-gray-400 mb-6">
               Import movies from YouTube channels to see them here.
             </p>
             <a 

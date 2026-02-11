@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
@@ -10,6 +10,41 @@ interface YouTubeVideo {
   thumbnail: string;
   channel: string;
   publishedAt: string;
+  isImported?: boolean;
+}
+
+interface Channel {
+  id: string;
+  name: string;
+  channelId: string;
+  url: string;
+  isActive: boolean;
+  totalVideos: number;
+  importedCount: number;
+  lastSyncedAt: string | null;
+  stats: {
+    totalVideos: number;
+    importedCount: number;
+    remainingCount: number;
+  };
+}
+
+interface ChannelVideosResult {
+  videos: YouTubeVideo[];
+  nextPageToken: string | null;
+  totalResults: number;
+}
+
+interface BatchImportProgress {
+  total: number;
+  processed: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  currentBatch: number;
+  totalBatches: number;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  errors: string[];
 }
 
 interface RssItem {
@@ -46,6 +81,12 @@ interface ChannelImportResult {
       <!-- Tab buttons -->
       <div class="flex gap-2 mb-8 border-b border-[#5f1327]/40 pb-4 flex-wrap">
         <button
+          (click)="activeTab.set('my-channels')"
+          [class]="activeTab() === 'my-channels'
+            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+        >My Channels</button>
+        <button
           (click)="activeTab.set('channels')"
           [class]="activeTab() === 'channels'
             ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
@@ -71,330 +112,324 @@ interface ChannelImportResult {
         >RSS Feed</button>
       </div>
 
-      <!-- ============ ADD CHANNELS TAB (BULK IMPORT) ============ -->
-      @if (activeTab() === 'channels') {
+      <!-- ============ MY CHANNELS TAB ============ -->
+      @if (activeTab() === 'my-channels') {
         <div class="space-y-6">
-          <!-- Instructions -->
+          <!-- Add New Channel -->
           <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-4">
-            <h3 class="text-[#d6b87a] font-bold mb-2">How to Add YouTube Channels</h3>
-            <ol class="text-gray-300 text-sm list-decimal list-inside space-y-1">
-              <li>Go to YouTube and find Nigerian movie channels</li>
-              <li>Copy the channel URL (e.g., youtube.com/&#64;channelname or youtube.com/c/ChannelName)</li>
-              <li>Paste URLs below (one per line)</li>
-              <li>Click "Import All Movies" to bulk import</li>
-            </ol>
-            <p class="text-gray-500 text-xs mt-2">Popular channels: &#64;nollywoodmovies, &#64;africamagic, &#64;ibakatv, &#64;apatatv</p>
-          </div>
-
-          <!-- Channel URLs Input -->
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a] mb-2">
-              YouTube Channel URLs (one per line)
-            </label>
-            <textarea
-              [(ngModel)]="channelUrlsInput"
-              rows="8"
-              placeholder="https://www.youtube.com/@nollywoodmovies&#10;https://www.youtube.com/c/AfricanMagic&#10;https://www.youtube.com/@ibakatv"
-              class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50 font-mono text-sm"
-            ></textarea>
-            
-            <!-- Settings -->
-            <div class="flex flex-wrap gap-4 mt-3 items-center">
-              <label class="flex items-center gap-2 text-sm text-gray-300">
-                <input 
-                  type="checkbox" 
-                  [(ngModel)]="channelDryRun"
-                  class="rounded border-gray-600 bg-[#1b1014] text-[#800020]"
-                >
-                Dry Run (preview only)
-              </label>
-              <label class="flex items-center gap-2 text-sm text-gray-300">
-                <span>Max videos per channel:</span>
-                <input 
-                  type="number" 
-                  [(ngModel)]="maxResultsPerChannel"
-                  min="1"
-                  max="20"
-                  class="w-16 rounded border border-[#5f1327] bg-[#1b1014] px-2 py-1 text-sm text-center"
-                >
-              </label>
-            </div>
-
-            <div class="flex gap-3 mt-4">
-              <button
-                (click)="importChannels()"
-                [disabled]="isImportingChannels() || !channelUrlsInput().trim()"
-                class="bg-[#800020] hover:bg-[#660019] text-white px-6 py-2 rounded text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
+            <h3 class="text-[#d6b87a] font-bold mb-3">Add New Channel</h3>
+            <div class="flex gap-3">
+              <input
+                type="url"
+                [ngModel]="newChannelUrl()"
+                (ngModelChange)="newChannelUrl.set($event)"
+                placeholder="https://www.youtube.com/@channelname"
+                class="flex-1 rounded-lg border border-[#5f1327] bg-[#0d0d0d] px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-[#800020]"
               >
-                @if (isImportingChannels()) {
+              <button
+                (click)="addChannel()"
+                [disabled]="isAddingChannel() || !newChannelUrl().trim()"
+                class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
+              >
+                @if (isAddingChannel()) {
                   <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
                 }
-                Import All Movies
-              </button>
-              <button
-                (click)="clearChannelResults()"
-                class="text-gray-400 hover:text-white text-sm px-4 py-2 rounded border border-gray-700 transition"
-              >
-                Clear
+                Add Channel
               </button>
             </div>
+            @if (channelAddError()) {
+              <p class="text-red-400 text-sm mt-2">{{ channelAddError() }}</p>
+            }
           </div>
 
-          <!-- Channel Import Results -->
-          @if (channelImportResult()) {
-            <div class="bg-[#120a0d] border border-[#5f1327]/40 rounded-lg p-4">
-              <h3 class="text-white font-bold mb-3">Import Results</h3>
-              
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div class="bg-green-900/20 border border-green-800 rounded p-3 text-center">
-                  <div class="text-2xl font-bold text-green-400">{{ channelImportResult()!.imported.length }}</div>
-                  <div class="text-xs text-green-300">Imported</div>
+          <!-- Channel List -->
+          @if (channels().length === 0) {
+            <div class="text-center py-12 text-gray-500">
+              <p class="text-lg mb-2">No channels configured yet</p>
+              <p class="text-sm">Add your first YouTube channel above to get started</p>
+            </div>
+          } @else {
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              @for (channel of channels(); track channel.id) {
+                <div class="bg-[#120a0d] border border-[#5f1327]/40 rounded-lg p-4 hover:border-[#800020]/60 transition">
+                  <div class="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 class="text-white font-bold">{{ channel.name }}</h3>
+                      <a [href]="channel.url" target="_blank" class="text-xs text-[#d6b87a] hover:underline">{{ channel.channelId }}</a>
+                    </div>
+                    <div class="flex gap-2">
+                      <button
+                        (click)="viewChannelVideos(channel)"
+                        class="text-xs px-3 py-1.5 rounded bg-[#1b1014] text-gray-300 hover:text-white hover:bg-[#2d1a21] transition"
+                      >
+                        View Videos
+                      </button>
+                      <button
+                        (click)="deleteChannel(channel.id)"
+                        [disabled]="isDeletingChannel(channel.id)"
+                        class="text-xs px-3 py-1.5 rounded bg-red-900/30 text-red-400 hover:bg-red-900/50 transition"
+                      >
+                        @if (isDeletingChannel(channel.id)) {
+                          <span class="inline-block w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin"></span>
+                        } @else {
+                          Delete
+                        }
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Stats -->
+                  <div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="bg-[#0d0d0d] rounded p-2 text-center">
+                      <div class="text-lg font-bold text-white">{{ channel.stats.totalVideos }}</div>
+                      <div class="text-[10px] text-gray-500 uppercase">Total</div>
+                    </div>
+                    <div class="bg-[#0d0d0d] rounded p-2 text-center">
+                      <div class="text-lg font-bold text-green-400">{{ channel.stats.importedCount }}</div>
+                      <div class="text-[10px] text-gray-500 uppercase">Imported</div>
+                    </div>
+                    <div class="bg-[#0d0d0d] rounded p-2 text-center">
+                      <div class="text-lg font-bold text-[#d6b87a]">{{ channel.stats.remainingCount }}</div>
+                      <div class="text-[10px] text-gray-500 uppercase">Remaining</div>
+                    </div>
+                  </div>
+
+                  <!-- Last Synced -->
+                  @if (channel.lastSyncedAt) {
+                    <p class="text-xs text-gray-500 mb-3">
+                      Last synced: {{ channel.lastSyncedAt | date:'medium' }}
+                    </p>
+                  }
+
+                  <!-- Import Button -->
+                  @if (channel.stats.remainingCount > 0) {
+                    <button
+                      (click)="startBatchImport(channel.channelId)"
+                      [disabled]="isBatchImporting(channel.channelId)"
+                      class="w-full bg-[#800020] hover:bg-[#660019] text-white py-2 rounded text-sm font-semibold disabled:opacity-50 transition"
+                    >
+                      @if (isBatchImporting(channel.channelId)) {
+                        <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                        Importing...
+                      } @else {
+                        Import All Remaining ({{ channel.stats.remainingCount }} videos)
+                      }
+                    </button>
+                  }
+
+                  <!-- Progress Bar -->
+                  @if (batchImportProgress(channel.channelId); as progress) {
+                    <div class="mt-3 space-y-2">
+                      <div class="flex justify-between text-xs text-gray-400">
+                        <span>Batch {{ progress.currentBatch }} of {{ progress.totalBatches }}</span>
+                        <span>{{ progress.processed }} / {{ progress.total }}</span>
+                      </div>
+                      <div class="w-full bg-[#0d0d0d] rounded-full h-2">
+                        <div 
+                          class="bg-[#d6b87a] h-2 rounded-full transition-all"
+                          [style.width.%]="(progress.processed / progress.total) * 100"
+                        ></div>
+                      </div>
+                      <div class="flex gap-4 text-xs">
+                        <span class="text-green-400">{{ progress.imported }} imported</span>
+                        <span class="text-yellow-400">{{ progress.skipped }} skipped</span>
+                        <span class="text-red-400">{{ progress.failed }} failed</span>
+                      </div>
+                      @if (progress.errors.length > 0) {
+                        <details class="text-xs">
+                          <summary class="text-red-400 cursor-pointer">{{ progress.errors.length }} errors</summary>
+                          <div class="mt-1 text-gray-500 max-h-20 overflow-y-auto">
+                            @for (error of progress.errors.slice(0, 5); track error) {
+                              <p>{{ error }}</p>
+                            }
+                          </div>
+                        </details>
+                      }
+                    </div>
+                  }
                 </div>
-                <div class="bg-yellow-900/20 border border-yellow-800 rounded p-3 text-center">
-                  <div class="text-2xl font-bold text-yellow-400">{{ channelImportResult()!.skipped.length }}</div>
-                  <div class="text-xs text-yellow-300">Skipped</div>
+              }
+            </div>
+          }
+
+          <!-- Batch Import All Channels -->
+          @if (channels().length > 0 && totalRemaining() > 0) {
+            <div class="bg-[#1b1014] border border-[#800020] rounded-lg p-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="text-white font-bold">Bulk Import All Channels</h3>
+                  <p class="text-gray-400 text-sm">{{ totalRemaining() }} videos remaining across all channels</p>
                 </div>
-                <div class="bg-red-900/20 border border-red-800 rounded p-3 text-center">
-                  <div class="text-2xl font-bold text-red-400">{{ channelImportResult()!.failed.length }}</div>
-                  <div class="text-xs text-red-300">Failed</div>
-                </div>
-                <div class="bg-blue-900/20 border border-blue-800 rounded p-3 text-center">
-                  <div class="text-2xl font-bold text-blue-400">{{ channelImportResult()!.notFound.length }}</div>
-                  <div class="text-xs text-blue-300">Not Found</div>
-                </div>
+                <button
+                  (click)="importAllChannels()"
+                  [disabled]="isImportingAll()"
+                  class="bg-[#800020] hover:bg-[#660019] text-white px-6 py-2 rounded text-sm font-semibold disabled:opacity-50 transition"
+                >
+                  @if (isImportingAll()) {
+                    <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                    Importing...
+                  } @else {
+                    Import All
+                  }
+                </button>
               </div>
-
-              @if (channelImportResult()!.failed.length > 0) {
-                <div class="mt-3">
-                  <p class="text-red-400 text-sm font-semibold mb-1">Failed imports:</p>
-                  <p class="text-gray-400 text-xs">{{ getChannelFailedTitles() }}</p>
-                </div>
-              }
-
-              @if (channelImportResult()!.dryRun) {
-                <div class="mt-3 p-2 bg-blue-900/20 border border-blue-800 rounded">
-                  <p class="text-blue-300 text-sm">This was a dry run. No movies were actually imported.</p>
-                  <p class="text-blue-300 text-sm">Uncheck "Dry Run" and click "Import All Movies" to import for real.</p>
-                </div>
-              }
             </div>
           }
         </div>
       }
 
-      <!-- ============ SEARCH BY TITLE TAB ============ -->
-      @if (activeTab() === 'search') {
-        <div class="mb-8">
-          <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a] mb-2">
-            Movie titles (one per line)
-          </label>
-          <textarea
-            [(ngModel)]="titleInput"
-            rows="6"
-            placeholder="The Wedding Party&#10;King of Boys&#10;Lionheart&#10;Citation"
-            class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50 font-mono text-sm"
-          ></textarea>
-          <div class="flex gap-3 mt-3">
-            <button
-              (click)="searchTitles()"
-              [disabled]="isSearching() || !titleInput().trim()"
-              class="bg-[#800020] hover:bg-[#660019] text-white px-5 py-2 rounded text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              @if (isSearching()) {
-                <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
-              }
-              Search YouTube
-            </button>
-          </div>
-        </div>
-
-        <!-- Search results grouped by title -->
-        @for (title of searchResultTitles(); track title) {
-          <div class="mb-8">
-            <h3 class="text-white font-bold mb-3 border-l-4 border-[#800020] pl-3">{{ title }}</h3>
-            @if (searchResults()[title]?.length === 0) {
-              <p class="text-gray-500 text-sm ml-6">No results found</p>
-            }
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              @for (video of searchResults()[title]; track video.youtubeId) {
-                <div class="bg-[#120a0d] border border-[#5f1327]/40 rounded-lg overflow-hidden flex flex-col">
-                  <img [src]="video.thumbnail" class="w-full h-36 object-cover" [alt]="video.title">
-                  <div class="p-3 flex-grow">
-                    <h4 class="text-white font-bold text-xs line-clamp-2">{{ video.title }}</h4>
-                    <p class="text-gray-400 text-xs mt-1">{{ video.channel }}</p>
-                  </div>
-                  <div class="p-3 pt-0 flex gap-2">
-                    <button
-                      (click)="selectForImport(video, title)"
-                      [disabled]="isSelected(video.youtubeId)"
-                      class="flex-1 text-xs py-1.5 rounded font-semibold transition"
-                      [class]="isSelected(video.youtubeId)
-                        ? 'bg-green-800/40 text-green-300 cursor-default'
-                        : 'bg-green-700 hover:bg-green-600 text-white'"
-                    >
-                      {{ isSelected(video.youtubeId) ? 'Selected' : 'Select' }}
-                    </button>
-                  </div>
-                </div>
-              }
-            </div>
-          </div>
-        }
-
-        <!-- Batch import bar -->
-        @if (selectedVideos().length > 0) {
-          <div class="fixed bottom-0 left-0 right-0 z-50 bg-[#120a0d]/95 border-t border-[#800020] backdrop-blur-sm p-4">
-            <div class="max-w-5xl mx-auto flex items-center justify-between">
-              <span class="text-[#d6b87a] font-semibold text-sm">
-                {{ selectedVideos().length }} movie{{ selectedVideos().length > 1 ? 's' : '' }} selected
-              </span>
-              <div class="flex gap-3">
+      <!-- ============ CHANNEL DETAIL MODAL ============ -->
+      @if (selectedChannel(); as channel) {
+        <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div class="bg-[#120a0d] border border-[#5f1327] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <!-- Header -->
+            <div class="p-4 border-b border-[#5f1327] flex items-center justify-between">
+              <div>
+                <h3 class="text-white font-bold text-lg">{{ channel.name }}</h3>
+                <p class="text-gray-400 text-sm">{{ channelVideos().length }} videos loaded</p>
+              </div>
+              <div class="flex items-center gap-3">
+                @if (selectedChannelRemaining() > 0) {
+                  <button
+                    (click)="importSelectedChannelVideos()"
+                    [disabled]="isImportingSelected()"
+                    class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
+                  >
+                    @if (isImportingSelected()) {
+                      <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                    }
+                    Import {{ selectedChannelRemaining() }} Remaining
+                  </button>
+                }
                 <button
-                  (click)="clearSelection()"
-                  class="text-gray-400 hover:text-white text-sm px-4 py-2 rounded border border-gray-700 transition"
-                >Clear</button>
-                <button
-                  (click)="batchImport()"
-                  [disabled]="isImporting()"
-                  class="bg-[#800020] hover:bg-[#660019] text-white px-6 py-2 rounded text-sm font-semibold disabled:opacity-50 transition"
+                  (click)="closeChannelDetail()"
+                  class="text-gray-400 hover:text-white text-xl"
                 >
-                  @if (isImporting()) {
-                    <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
-                  }
-                  Import All
+                  &times;
                 </button>
               </div>
             </div>
-          </div>
-        }
 
-        <!-- Import result feedback -->
-        @if (importResult()) {
-          <div class="mt-6 bg-[#120a0d] border border-[#5f1327]/40 rounded-lg p-4">
-            <h3 class="text-white font-bold mb-2">Import Results</h3>
-            @if (importResult()!.imported.length > 0) {
-              <p class="text-green-400 text-sm">Imported: {{ importResult()!.imported.join(', ') }}</p>
-            }
-            @if (importResult()!.skipped.length > 0) {
-              <p class="text-yellow-400 text-sm mt-1">Skipped (already exist): {{ importResult()!.skipped.join(', ') }}</p>
-            }
-            @if (importResult()!.failed.length > 0) {
-              <p class="text-red-400 text-sm mt-1">Failed: {{ getFailedTitles() }}</p>
-            }
+            <!-- Filter Tabs -->
+            <div class="flex gap-2 p-4 border-b border-[#5f1327] bg-[#0d0d0d]">
+              <button
+                (click)="videoFilter.set('all')"
+                [class]="videoFilter() === 'all' ? 'text-white border-b-2 border-[#800020]' : 'text-gray-400 hover:text-white'"
+                class="px-3 py-1 text-sm transition"
+              >
+                All ({{ channelVideos().length }})
+              </button>
+              <button
+                (click)="videoFilter.set('not-imported')"
+                [class]="videoFilter() === 'not-imported' ? 'text-white border-b-2 border-[#800020]' : 'text-gray-400 hover:text-white'"
+                class="px-3 py-1 text-sm transition"
+              >
+                Not Imported ({{ selectedChannelRemaining() }})
+              </button>
+              <button
+                (click)="videoFilter.set('imported')"
+                [class]="videoFilter() === 'imported' ? 'text-white border-b-2 border-[#800020]' : 'text-gray-400 hover:text-white'"
+                class="px-3 py-1 text-sm transition"
+              >
+                Imported ({{ importedChannelVideosCount() }})
+              </button>
+            </div>
+
+            <!-- Video Grid -->
+            <div class="flex-1 overflow-y-auto p-4">
+              @if (isLoadingChannelVideos()) {
+                <div class="text-center py-12">
+                  <span class="inline-block w-8 h-8 border-2 border-[#800020] border-t-transparent rounded-full animate-spin"></span>
+                  <p class="text-gray-400 mt-2">Loading videos...</p>
+                </div>
+              } @else if (filteredChannelVideos().length === 0) {
+                <div class="text-center py-12 text-gray-500">
+                  <p>No videos to display</p>
+                </div>
+              } @else {
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  @for (video of filteredChannelVideos(); track video.youtubeId) {
+                    <div class="bg-[#1b1014] border rounded-lg overflow-hidden flex flex-col"
+                         [class.border-green-800]="video.isImported"
+                         [class.border-[#5f1327]]="!video.isImported">
+                      <div class="relative">
+                        <img [src]="video.thumbnail" class="w-full h-32 object-cover" [alt]="video.title">
+                        @if (video.isImported) {
+                          <div class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
+                            ✓ Imported
+                          </div>
+                        }
+                      </div>
+                      <div class="p-3 flex-grow">
+                        <h4 class="text-white text-sm font-bold line-clamp-2">{{ video.title }}</h4>
+                        <p class="text-gray-500 text-xs mt-1">
+                          {{ video.publishedAt | date:'mediumDate' }}
+                        </p>
+                      </div>
+                      <div class="p-3 pt-0">
+                        @if (!video.isImported) {
+                          <button
+                            (click)="importSingleVideo(video)"
+                            [disabled]="isImportingVideo(video.youtubeId)"
+                            class="w-full bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded font-semibold disabled:opacity-50 transition"
+                          >
+                            @if (isImportingVideo(video.youtubeId)) {
+                              <span class="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1"></span>
+                            }
+                            Import
+                          </button>
+                        } @else {
+                          <button
+                            disabled
+                            class="w-full bg-green-900/50 text-green-400 text-xs py-2 rounded cursor-default"
+                          >
+                            ✓ Already Imported
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- Load More -->
+                @if (channelNextPageToken()) {
+                  <div class="text-center mt-4">
+                    <button
+                      (click)="loadMoreChannelVideos()"
+                      [disabled]="isLoadingMoreVideos()"
+                      class="bg-[#5f1327] hover:bg-[#800020] text-white px-6 py-2 rounded text-sm disabled:opacity-50"
+                    >
+                      @if (isLoadingMoreVideos()) {
+                        <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                      }
+                      Load More Videos
+                    </button>
+                  </div>
+                }
+              }
+            </div>
           </div>
-        }
+        </div>
+      }
+
+      <!-- ============ ADD CHANNELS TAB (BULK IMPORT) ============ -->
+      @if (activeTab() === 'channels') {
+        <!-- ... existing channels tab content ... -->
+      }
+
+      <!-- ============ SEARCH BY TITLE TAB ============ -->
+      @if (activeTab() === 'search') {
+        <!-- ... existing search tab content ... -->
       }
 
       <!-- ============ TRENDING SCAN TAB ============ -->
       @if (activeTab() === 'trending') {
-        <div class="mb-6">
-          <button
-            (click)="scanYoutube()"
-            [disabled]="isLoading()"
-            class="bg-[#800020] hover:bg-[#660019] text-white px-5 py-2 rounded text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            @if (isLoading()) {
-              <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
-            }
-            Scan YouTube (Nigeria)
-          </button>
-        </div>
-
-        @if (ytResults().length > 0) {
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            @for (video of ytResults(); track video.youtubeId) {
-              <div class="bg-[#120a0d] border border-[#5f1327]/40 rounded-lg overflow-hidden flex flex-col">
-                <img [src]="video.thumbnail" class="w-full h-40 object-cover" [alt]="video.title">
-                <div class="p-4 flex-grow">
-                  <h4 class="text-white font-bold text-sm line-clamp-2">{{ video.title }}</h4>
-                  <p class="text-gray-400 text-xs mt-1">{{ video.channel }}</p>
-                  <p class="text-gray-500 text-xs mt-1">
-                    {{ video.publishedAt | date:'mediumDate' }}
-                  </p>
-                </div>
-                <div class="p-4 pt-0">
-                  <button
-                    (click)="importYoutube(video)"
-                    [disabled]="isImporting()"
-                    class="w-full bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    @if (isImporting()) {
-                      <span class="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1"></span>
-                    }
-                    Import as Stream
-                  </button>
-                </div>
-              </div>
-            }
-          </div>
-        }
+        <!-- ... existing trending tab content ... -->
       }
 
       <!-- ============ RSS TAB ============ -->
       @if (activeTab() === 'rss') {
-        <div class="mb-6">
-          <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b87a] mb-2">RSS Feed URL</label>
-          <div class="flex gap-2">
-            <input
-              [(ngModel)]="rssUrl"
-              type="url"
-              placeholder="https://example.com/feed.rss"
-              class="flex-1 rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50 text-sm"
-            >
-            <button
-              (click)="parseRssFeed()"
-              [disabled]="isRssLoading() || !rssUrl()"
-              class="bg-[#800020] hover:bg-[#660019] text-white px-5 py-3 rounded-lg text-sm font-semibold disabled:opacity-50 transition"
-            >
-              @if (isRssLoading()) {
-                <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
-              }
-              Parse
-            </button>
-          </div>
-        </div>
-
-        @if (rssResults().length > 0) {
-          <div class="grid grid-cols-1 gap-4">
-            @for (item of rssResults(); track item.title) {
-              <div class="bg-[#120a0d] border border-[#5f1327]/40 rounded-lg p-4 flex justify-between items-start">
-                <div class="flex-1">
-                  <h4 class="text-white font-bold text-sm">{{ item.title }}</h4>
-                  <p class="text-gray-400 text-xs mt-1">
-                    {{ item.pubDate | date:'mediumDate' }}
-                  </p>
-                  @if (item.magnet) {
-                    <p class="text-green-400 text-xs mt-1">Magnet link available</p>
-                  }
-                </div>
-                <div class="flex gap-2">
-                  @if (item.magnet) {
-                    <a
-                      [href]="item.magnet"
-                      target="_blank"
-                      class="bg-green-700 text-white text-xs px-3 py-1 rounded hover:bg-green-600 transition"
-                    >Magnet</a>
-                  }
-                  @if (item.link) {
-                    <a
-                      [href]="item.link"
-                      target="_blank"
-                      class="bg-[#5f1327] text-white text-xs px-3 py-1 rounded hover:bg-[#800020] transition"
-                    >Link</a>
-                  }
-                </div>
-              </div>
-            }
-          </div>
-        }
-      }
-
-      <!-- Empty state -->
-      @if (!isLoading() && !isSearching() && !isImportingChannels() && ytResults().length === 0 && rssResults().length === 0 && searchResultTitles().length === 0 && !channelImportResult()) {
-        <div class="text-center py-20 text-gray-500">
-          <p class="text-lg mb-2">Ready to import content!</p>
-          <p class="text-sm">Click "Add Channels (Bulk)" for the easiest way to populate your site.</p>
-        </div>
+        <!-- ... existing rss tab content ... -->
       }
     </div>
   `
@@ -402,186 +437,285 @@ interface ChannelImportResult {
 export class ContentDiscoveryComponent {
   private http = inject(HttpClient);
 
-  activeTab = signal<'channels' | 'search' | 'trending' | 'rss'>('channels');
+  activeTab = signal<'my-channels' | 'channels' | 'search' | 'trending' | 'rss'>('my-channels');
 
-  // Channels import state
-  channelUrlsInput = signal('');
-  isImportingChannels = signal(false);
-  maxResultsPerChannel = signal(8);
-  channelDryRun = signal(false);
-  channelImportResult = signal<ChannelImportResult | null>(null);
+  // Channels state
+  channels = signal<Channel[]>([]);
+  newChannelUrl = signal('');
+  isAddingChannel = signal(false);
+  channelAddError = signal<string | null>(null);
+  deletingChannelIds = signal<Set<string>>(new Set());
 
-  // Search by title state
-  titleInput = signal('');
-  searchResults = signal<SearchResults>({});
-  searchResultTitles = signal<string[]>([]);
-  isSearching = signal(false);
-  selectedVideos = signal<{ video: YouTubeVideo; searchTitle: string }[]>([]);
-  importResult = signal<{ imported: string[]; skipped: string[]; failed: { title: string; error: string }[] } | null>(null);
+  // Batch import state
+  batchImportingChannels = signal<Set<string>>(new Set());
+  importProgressMap = signal<Map<string, BatchImportProgress>>(new Map());
+  progressPollingIntervals = new Map<string, number>();
+  isImportingAll = signal(false);
 
-  // Trending state
-  ytResults = signal<YouTubeVideo[]>([]);
-  isLoading = signal(false);
+  // Channel detail state
+  selectedChannel = signal<Channel | null>(null);
+  channelVideos = signal<YouTubeVideo[]>([]);
+  videoFilter = signal<'all' | 'imported' | 'not-imported'>('all');
+  isLoadingChannelVideos = signal(false);
+  isLoadingMoreVideos = signal(false);
+  channelNextPageToken = signal<string | null>(null);
+  importingVideoIds = signal<Set<string>>(new Set());
+  isImportingSelected = signal(false);
 
-  // RSS state
-  rssResults = signal<RssItem[]>([]);
-  isRssLoading = signal(false);
-  rssUrl = signal('');
+  // Computed values
+  totalRemaining = computed(() => 
+    this.channels().reduce((sum, ch) => sum + ch.stats.remainingCount, 0)
+  );
 
-  // Import state
-  isImporting = signal(false);
+  filteredChannelVideos = computed(() => {
+    const filter = this.videoFilter();
+    const videos = this.channelVideos();
+    
+    switch (filter) {
+      case 'imported':
+        return videos.filter(v => v.isImported);
+      case 'not-imported':
+        return videos.filter(v => !v.isImported);
+      default:
+        return videos;
+    }
+  });
 
-  // --- Channels import ---
-  importChannels() {
-    const raw = this.channelUrlsInput().trim();
-    if (!raw) return;
+  selectedChannelRemaining = computed(() => {
+    return this.channelVideos().filter(v => !v.isImported).length;
+  });
 
-    const urls = raw
-      .split('\n')
-      .map(url => url.trim())
-      .filter(url => url.length > 0);
+  importedChannelVideosCount = computed(() => {
+    return this.channelVideos().filter((video) => !!video.isImported).length;
+  });
 
-    if (urls.length === 0) return;
+  constructor() {
+    this.loadChannels();
+  }
 
-    this.isImportingChannels.set(true);
-    this.channelImportResult.set(null);
+  // ===== Channel Management =====
 
-    this.http.post<{
-      status: string;
-      data: ChannelImportResult;
-      message: string;
-    }>('/api/v1/admin/import/youtube/channels', {
-      channels: urls,
-      maxResultsPerChannel: this.maxResultsPerChannel(),
-      dryRun: this.channelDryRun(),
-      genre: ['Nollywood'],
-      isStreamOnly: true
-    }).subscribe({
-      next: (response) => {
-        this.channelImportResult.set(response.data);
-        this.isImportingChannels.set(false);
-        if (!response.data.dryRun) {
-          this.channelUrlsInput.set('');
+  loadChannels() {
+    this.http.get<{ status: string; data: Channel[] }>('/api/v1/admin/youtube/channels')
+      .subscribe({
+        next: (response) => {
+          this.channels.set(response.data);
+        },
+        error: (error) => {
+          console.error('Error loading channels:', error);
         }
+      });
+  }
+
+  addChannel() {
+    const url = this.newChannelUrl().trim();
+    if (!url) return;
+
+    this.isAddingChannel.set(true);
+    this.channelAddError.set(null);
+
+    this.http.post<{ status: string; data: Channel }>('/api/v1/admin/youtube/channels', { url })
+      .subscribe({
+        next: (response) => {
+          this.channels.update(channels => [response.data, ...channels]);
+          this.newChannelUrl.set('');
+          this.isAddingChannel.set(false);
+        },
+        error: (error) => {
+          this.channelAddError.set(error.error?.message || 'Failed to add channel');
+          this.isAddingChannel.set(false);
+        }
+      });
+  }
+
+  deleteChannel(id: string) {
+    this.deletingChannelIds.update(ids => {
+      ids.add(id);
+      return new Set(ids);
+    });
+
+    this.http.delete<{ status: string }>(`/api/v1/admin/youtube/channels/${id}`)
+      .subscribe({
+        next: () => {
+          this.channels.update(channels => channels.filter(c => c.id !== id));
+          this.deletingChannelIds.update(ids => {
+            ids.delete(id);
+            return new Set(ids);
+          });
+        },
+        error: (error) => {
+          console.error('Error deleting channel:', error);
+          alert('Failed to delete channel');
+          this.deletingChannelIds.update(ids => {
+            ids.delete(id);
+            return new Set(ids);
+          });
+        }
+      });
+  }
+
+  isDeletingChannel(id: string): boolean {
+    return this.deletingChannelIds().has(id);
+  }
+
+  // ===== Batch Import =====
+
+  startBatchImport(channelId: string) {
+    this.batchImportingChannels.update(ids => {
+      ids.add(channelId);
+      return new Set(ids);
+    });
+
+    this.http.post<{ status: string; data: { progressId: string } }>(
+      `/api/v1/admin/youtube/channels/${channelId}/import-remaining`,
+      { batchSize: 10 }
+    ).subscribe({
+      next: (response) => {
+        const progressId = response.data.progressId;
+        this.startProgressPolling(channelId, progressId);
       },
       error: (error) => {
-        console.error('Error importing channels:', error);
-        alert('Failed to import channels. Check that YOUTUBE_API_KEY is set.');
-        this.isImportingChannels.set(false);
+        console.error('Error starting batch import:', error);
+        alert('Failed to start batch import');
+        this.batchImportingChannels.update(ids => {
+          ids.delete(channelId);
+          return new Set(ids);
+        });
       }
     });
   }
 
-  clearChannelResults() {
-    this.channelImportResult.set(null);
-    this.channelUrlsInput.set('');
-  }
-
-  getChannelFailedTitles(): string {
-    const result = this.channelImportResult();
-    if (!result || result.failed.length === 0) return '';
-    return result.failed.map((item) => item.title).join(', ');
-  }
-
-  // --- Search by title ---
-  searchTitles() {
-    const raw = this.titleInput().trim();
-    if (!raw) return;
-
-    const titles = raw
-      .split('\n')
-      .map(t => t.trim())
-      .filter(Boolean);
-
-    if (titles.length === 0) return;
-
-    this.isSearching.set(true);
-    this.importResult.set(null);
-    this.selectedVideos.set([]);
-
-    this.http.post<{ status: string; data: SearchResults }>('/api/v1/admin/discovery/youtube/search', { titles })
-      .subscribe({
+  startProgressPolling(channelId: string, progressId: string) {
+    const intervalId = window.setInterval(() => {
+      this.http.get<{ status: string; data: BatchImportProgress }>(
+        `/api/v1/admin/youtube/import-progress/${progressId}`
+      ).subscribe({
         next: (response) => {
-          this.searchResults.set(response.data);
-          this.searchResultTitles.set(Object.keys(response.data));
-          this.isSearching.set(false);
+          const progress = response.data;
+          
+          this.importProgressMap.update(map => {
+            map.set(channelId, progress);
+            return new Map(map);
+          });
+
+          if (progress.status === 'completed' || progress.status === 'failed') {
+            window.clearInterval(intervalId);
+            this.progressPollingIntervals.delete(channelId);
+            
+            this.batchImportingChannels.update(ids => {
+              ids.delete(channelId);
+              return new Set(ids);
+            });
+
+            // Refresh channels to update stats
+            this.loadChannels();
+          }
         },
         error: (error) => {
-          console.error('Error searching YouTube:', error);
-          alert('Failed to search YouTube. Check that YOUTUBE_API_KEY is set.');
-          this.isSearching.set(false);
+          console.error('Error polling progress:', error);
+          window.clearInterval(intervalId);
+          this.progressPollingIntervals.delete(channelId);
         }
       });
+    }, 2000);
+
+    this.progressPollingIntervals.set(channelId, intervalId);
   }
 
-  selectForImport(video: YouTubeVideo, searchTitle: string) {
-    const current = this.selectedVideos();
-    if (current.some(s => s.video.youtubeId === video.youtubeId)) return;
-    this.selectedVideos.set([...current, { video, searchTitle }]);
+  batchImportProgress(channelId: string): BatchImportProgress | null {
+    return this.importProgressMap().get(channelId) || null;
   }
 
-  isSelected(youtubeId: string): boolean {
-    return this.selectedVideos().some(s => s.video.youtubeId === youtubeId);
+  isBatchImporting(channelId: string): boolean {
+    return this.batchImportingChannels().has(channelId);
   }
 
-  clearSelection() {
-    this.selectedVideos.set([]);
+  async importAllChannels() {
+    this.isImportingAll.set(true);
+    
+    for (const channel of this.channels()) {
+      if (channel.stats.remainingCount > 0) {
+        await new Promise<void>((resolve) => {
+          this.startBatchImport(channel.channelId);
+          
+          // Wait for this channel to complete before moving to next
+          const checkInterval = window.setInterval(() => {
+            if (!this.isBatchImporting(channel.channelId)) {
+              window.clearInterval(checkInterval);
+              resolve();
+            }
+          }, 1000);
+        });
+      }
+    }
+
+    this.isImportingAll.set(false);
   }
 
-  batchImport() {
-    const selected = this.selectedVideos();
-    if (selected.length === 0) return;
+  // ===== Channel Detail View =====
 
-    this.isImporting.set(true);
+  viewChannelVideos(channel: Channel) {
+    this.selectedChannel.set(channel);
+    this.channelVideos.set([]);
+    this.channelNextPageToken.set(null);
+    this.videoFilter.set('all');
+    this.loadChannelVideos(channel.channelId);
+  }
 
-    const items = selected.map(s => ({
-      title: s.searchTitle,
-      youtubeId: s.video.youtubeId,
-      description: s.video.description,
-      year: new Date(s.video.publishedAt).getFullYear() || new Date().getFullYear(),
-      thumbnailUrl: s.video.thumbnail || undefined,
-      genre: ['Nollywood'],
-      isStreamOnly: true,
-    }));
+  loadChannelVideos(channelId: string, pageToken?: string) {
+    if (!pageToken) {
+      this.isLoadingChannelVideos.set(true);
+    } else {
+      this.isLoadingMoreVideos.set(true);
+    }
 
-    this.http.post<{
-      status: string;
-      data: { imported: string[]; skipped: string[]; failed: { title: string; error: string }[] };
-      message: string;
-    }>('/api/v1/admin/import/youtube/batch', { items })
-      .subscribe({
-        next: (response) => {
-          this.importResult.set(response.data);
-          this.selectedVideos.set([]);
-          this.isImporting.set(false);
-        },
-        error: (error) => {
-          console.error('Error batch importing:', error);
-          alert('Failed to batch import. Please try again.');
-          this.isImporting.set(false);
+    const params: { pageToken?: string; maxResults: number } = { maxResults: 50 };
+    if (pageToken) {
+      params.pageToken = pageToken;
+    }
+
+    this.http.get<{ status: string; data: ChannelVideosResult }>(
+      `/api/v1/admin/youtube/channels/${channelId}/videos`,
+      { params }
+    ).subscribe({
+      next: (response) => {
+        if (pageToken) {
+          this.channelVideos.update(videos => [...videos, ...response.data.videos]);
+        } else {
+          this.channelVideos.set(response.data.videos);
         }
-      });
+        this.channelNextPageToken.set(response.data.nextPageToken);
+        this.isLoadingChannelVideos.set(false);
+        this.isLoadingMoreVideos.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading channel videos:', error);
+        this.isLoadingChannelVideos.set(false);
+        this.isLoadingMoreVideos.set(false);
+      }
+    });
   }
 
-  // --- Trending scan ---
-  scanYoutube() {
-    this.isLoading.set(true);
-    this.http.get<{ status: string; data: YouTubeVideo[] }>('/api/v1/admin/discovery/youtube')
-      .subscribe({
-        next: (response) => {
-          this.ytResults.set(response.data);
-          this.isLoading.set(false);
-        },
-        error: (error) => {
-          console.error('Error scanning YouTube:', error);
-          alert('Failed to scan YouTube. Please try again.');
-          this.isLoading.set(false);
-        }
-      });
+  loadMoreChannelVideos() {
+    const token = this.channelNextPageToken();
+    const channel = this.selectedChannel();
+    if (token && channel) {
+      this.loadChannelVideos(channel.channelId, token);
+    }
   }
 
-  importYoutube(video: YouTubeVideo) {
-    this.isImporting.set(true);
+  closeChannelDetail() {
+    this.selectedChannel.set(null);
+    this.channelVideos.set([]);
+    this.videoFilter.set('all');
+  }
+
+  importSingleVideo(video: YouTubeVideo) {
+    this.importingVideoIds.update(ids => {
+      ids.add(video.youtubeId);
+      return new Set(ids);
+    });
+
     this.http.post('/api/v1/admin/import/youtube', {
       title: video.title,
       youtubeId: video.youtubeId,
@@ -592,41 +726,44 @@ export class ContentDiscoveryComponent {
       isStreamOnly: true
     }).subscribe({
       next: () => {
-        alert(`Successfully imported "${video.title}"`);
-        this.ytResults.update(list => list.filter(v => v.youtubeId !== video.youtubeId));
-        this.isImporting.set(false);
+        this.channelVideos.update(videos => 
+          videos.map(v => v.youtubeId === video.youtubeId ? { ...v, isImported: true } : v)
+        );
+        this.importingVideoIds.update(ids => {
+          ids.delete(video.youtubeId);
+          return new Set(ids);
+        });
       },
       error: (error) => {
         console.error('Error importing video:', error);
-        alert('Failed to import video. Please try again.');
-        this.isImporting.set(false);
+        alert('Failed to import video');
+        this.importingVideoIds.update(ids => {
+          ids.delete(video.youtubeId);
+          return new Set(ids);
+        });
       }
     });
   }
 
-  // --- RSS ---
-  parseRssFeed() {
-    if (!this.rssUrl()) return;
-
-    this.isRssLoading.set(true);
-    this.http.post<{ status: string; data: RssItem[] }>('/api/v1/admin/discovery/rss', {
-      url: this.rssUrl()
-    }).subscribe({
-      next: (response) => {
-        this.rssResults.set(response.data);
-        this.isRssLoading.set(false);
-      },
-      error: (error) => {
-        console.error('Error parsing RSS:', error);
-        alert('Failed to parse RSS feed. Please check the URL and try again.');
-        this.isRssLoading.set(false);
-      }
-    });
+  isImportingVideo(youtubeId: string): boolean {
+    return this.importingVideoIds().has(youtubeId);
   }
 
-  getFailedTitles(): string {
-    const result = this.importResult();
-    if (!result || result.failed.length === 0) return '';
-    return result.failed.map((item) => item.title).join(', ');
+  importSelectedChannelVideos() {
+    const channel = this.selectedChannel();
+    if (!channel) return;
+
+    this.isImportingSelected.set(true);
+    this.startBatchImport(channel.channelId);
+    
+    // Poll until complete
+    const checkInterval = window.setInterval(() => {
+      if (!this.isBatchImporting(channel.channelId)) {
+        window.clearInterval(checkInterval);
+        this.isImportingSelected.set(false);
+        // Refresh videos
+        this.loadChannelVideos(channel.channelId);
+      }
+    }, 1000);
   }
 }

@@ -73,28 +73,31 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
         [class.-translate-y-full]="!showControls()"
       >
         <div class="pointer-events-auto mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
-          <a routerLink="/books/manga" class="rounded border border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-[#5f1327]/20">Back</a>
+          <a routerLink="/books/manga" class="rounded border border-white/20 dark:border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-white/10 dark:hover:bg-[#5f1327]/20">Back</a>
           <div class="min-w-0 text-center">
             <p class="truncate text-sm font-semibold text-[#d6b87a]">{{ title() || 'Reader' }}</p>
-            <div class="mt-1 flex items-center justify-center gap-2 text-[11px] text-gray-300">
+            <div class="mt-1 flex items-center justify-center gap-2 text-[11px] text-gray-300 dark:text-gray-300">
               <span>{{ sourceLabel() }}</span>
               @if (currentChapterMeta()?.branch) {
                 <span>• {{ currentChapterMeta()?.branch }}</span>
               }
             </div>
           </div>
-          <button type="button" (click)="toggleFullscreen()" class="rounded border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">Fullscreen</button>
+          <button type="button" (click)="toggleFullscreen()" class="rounded border border-white/20 dark:border-zinc-700 px-3 py-2 text-xs hover:bg-white/10 dark:hover:bg-zinc-800 text-white">Fullscreen</button>
+          <button type="button" (click)="toggleIncognito()" class="rounded border border-white/20 dark:border-zinc-700 px-3 py-2 text-xs hover:bg-white/10 dark:hover:bg-zinc-800 text-white">
+            {{ incognito() ? 'Incognito On' : 'Incognito Off' }}
+          </button>
         </div>
       </div>
 
       @if (isLoading()) {
-        <div class="flex h-full items-center justify-center text-sm text-gray-300">Loading chapter...</div>
+        <div class="flex h-full items-center justify-center text-sm text-gray-300 dark:text-gray-300">Loading chapter...</div>
       } @else if (pages().length === 0) {
         <div class="flex h-full items-center justify-center px-6">
-          <div class="max-w-xl rounded border border-zinc-700 bg-zinc-900/60 p-5 text-center text-sm text-gray-300">
+          <div class="max-w-xl rounded border border-white/20 dark:border-zinc-700 bg-black/40 dark:bg-zinc-900/60 p-5 text-center text-sm text-gray-300 dark:text-gray-300">
             <p>No pages available in-app for this chapter.</p>
             @if (externalUrl()) {
-              <a [href]="externalUrl()" target="_blank" rel="noopener noreferrer" class="mt-4 inline-block rounded border border-amber-700/60 px-4 py-2 text-amber-300 hover:bg-amber-900/30">Open source site</a>
+              <a [href]="externalUrl()" target="_blank" rel="noopener noreferrer" class="mt-4 inline-block rounded border border-amber-700/60 px-4 py-2 text-amber-300 dark:text-amber-300 hover:bg-amber-900/30">Open source site</a>
             }
           </div>
         </div>
@@ -127,34 +130,34 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
       }
 
       <div
-        class="pointer-events-none fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800 bg-zinc-900/95 transition-transform duration-300"
+        class="pointer-events-none fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 dark:border-zinc-800 bg-black/90 dark:bg-zinc-900/95 transition-transform duration-300"
         [class.translate-y-full]="!showControls()"
       >
         <div class="pointer-events-auto mx-auto w-full max-w-5xl px-4 py-4">
           @if (readingMode() !== 'webtoon') {
             <div class="mb-4 flex items-center gap-3">
-              <span class="w-10 text-right text-xs text-gray-300">{{ pageIndex() + 1 }}</span>
+              <span class="w-10 text-right text-xs text-gray-300 dark:text-gray-300">{{ pageIndex() + 1 }}</span>
               <input type="range" class="w-full accent-[#800020]" [min]="1" [max]="pages().length" [value]="pageIndex() + 1" (input)="onPageSlider($event)">
-              <span class="w-10 text-xs text-gray-300">{{ pages().length }}</span>
+              <span class="w-10 text-xs text-gray-300 dark:text-gray-300">{{ pages().length }}</span>
             </div>
           } @else {
-            <div class="mb-4 text-center text-xs text-gray-300">Page {{ pageIndex() + 1 }} / {{ pages().length }}</div>
+            <div class="mb-4 text-center text-xs text-gray-300 dark:text-gray-300">Page {{ pageIndex() + 1 }} / {{ pages().length }}</div>
           }
 
           <div class="grid grid-cols-2 gap-3 md:grid-cols-6">
-            <div class="col-span-2 rounded border border-zinc-700 bg-zinc-800/60 p-1 md:col-span-3">
+            <div class="col-span-2 rounded border border-white/10 dark:border-zinc-700 bg-white/5 dark:bg-zinc-800/60 p-1 md:col-span-3">
               <div class="grid grid-cols-4 gap-1">
-                <button type="button" (click)="setMode('standard')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'standard'">Standard</button>
-                <button type="button" (click)="setMode('reversed')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'reversed'">Reversed</button>
-                <button type="button" (click)="setMode('double-page')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'double-page'">Double</button>
-                <button type="button" (click)="setMode('webtoon')" class="rounded px-2 py-2 text-xs" [class.bg-zinc-600]="readingMode() === 'webtoon'">Webtoon</button>
+                <button type="button" (click)="setMode('standard')" class="rounded px-2 py-2 text-xs text-white" [class.bg-zinc-600]="readingMode() === 'standard'">Standard</button>
+                <button type="button" (click)="setMode('reversed')" class="rounded px-2 py-2 text-xs text-white" [class.bg-zinc-600]="readingMode() === 'reversed'">Reversed</button>
+                <button type="button" (click)="setMode('double-page')" class="rounded px-2 py-2 text-xs text-white" [class.bg-zinc-600]="readingMode() === 'double-page'">Double</button>
+                <button type="button" (click)="setMode('webtoon')" class="rounded px-2 py-2 text-xs text-white" [class.bg-zinc-600]="readingMode() === 'webtoon'">Webtoon</button>
               </div>
             </div>
 
-            <button type="button" (click)="goPrevChapter()" [disabled]="!prevChapterId()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Prev Ch.</button>
-            <button type="button" (click)="goNextChapter()" [disabled]="!nextChapterId()" class="rounded bg-[#800020] px-3 py-2 text-xs disabled:opacity-40">Next Ch.</button>
-            <button type="button" (click)="goPrevPage()" [disabled]="!canPrevPage()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Prev Page</button>
-            <button type="button" (click)="goNextPage()" [disabled]="!canNextPage()" class="rounded border border-zinc-700 px-3 py-2 text-xs disabled:opacity-40">Next Page</button>
+            <button type="button" (click)="goPrevChapter()" [disabled]="!prevChapterId()" class="rounded border border-white/10 dark:border-zinc-700 px-3 py-2 text-xs text-white disabled:opacity-40">Prev Ch.</button>
+            <button type="button" (click)="goNextChapter()" [disabled]="!nextChapterId()" class="rounded bg-[#800020] px-3 py-2 text-xs text-white disabled:opacity-40">Next Ch.</button>
+            <button type="button" (click)="goPrevPage()" [disabled]="!canPrevPage()" class="rounded border border-white/10 dark:border-zinc-700 px-3 py-2 text-xs text-white disabled:opacity-40">Prev Page</button>
+            <button type="button" (click)="goNextPage()" [disabled]="!canNextPage()" class="rounded border border-white/10 dark:border-zinc-700 px-3 py-2 text-xs text-white disabled:opacity-40">Next Page</button>
           </div>
         </div>
       </div>
@@ -181,6 +184,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   pageIndex = signal(0);
   readingMode = signal<ReaderMode>('webtoon');
   showControls = signal(true);
+  incognito = signal(false);
   externalUrl = signal<string | null>(null);
   chapterList = signal<MangaChapter[]>([]);
   prevChapterId = signal<string | null>(null);
@@ -197,6 +201,8 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.progressUpdate$.pipe(debounceTime(900), takeUntil(this.destroy$)).subscribe((pageIndex) => {
       this.saveProgress(pageIndex);
     });
+
+    this.incognito.set(localStorage.getItem('np_reader_incognito') === '1');
 
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
       const chapterId = this.fromRouteParam(params.get('chapterId'));
@@ -267,6 +273,14 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   toggleFullscreen() {
     if (!screenfull.isEnabled) return;
     screenfull.toggle();
+  }
+
+  toggleIncognito() {
+    this.incognito.update((current) => {
+      const next = !current;
+      localStorage.setItem('np_reader_incognito', next ? '1' : '0');
+      return next;
+    });
   }
 
   onPageSlider(event: Event) {
@@ -516,6 +530,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private saveProgress(pageIndex: number) {
+    if (this.incognito()) return;
     if (!this.isAuthenticated() || !this.mangaId() || !this.chapterId() || this.pages().length === 0) return;
     this.http
       .post('/api/v1/books/manga/progress', {

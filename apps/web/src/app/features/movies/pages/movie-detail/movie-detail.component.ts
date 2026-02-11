@@ -14,17 +14,17 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
   template: `
     @if (query.isPending()) {
       <div class="animate-pulse">
-        <div class="h-[400px] bg-cinema-800 w-full mb-8"></div>
+        <div class="h-[400px] bg-[#e5d2c6] dark:bg-cinema-800 w-full mb-8"></div>
         <div class="container mx-auto px-4">
-          <div class="h-8 bg-cinema-800 w-1/3 mb-4"></div>
-          <div class="h-4 bg-cinema-800 w-1/2 mb-8"></div>
+          <div class="h-8 bg-[#e5d2c6] dark:bg-cinema-800 w-1/3 mb-4"></div>
+          <div class="h-4 bg-[#e5d2c6] dark:bg-cinema-800 w-1/2 mb-8"></div>
         </div>
       </div>
     }
 
     @if (query.isError()) {
       <div class="container mx-auto px-4 py-20 text-center">
-        <h2 class="text-2xl font-serif font-bold text-white">Movie not found</h2>
+        <h2 class="text-2xl font-serif font-bold text-[#24181b] dark:text-white">Movie not found</h2>
         <a routerLink="/movies" class="text-cinema-500 hover:text-cinema-100 mt-4 block">← Back to Movies</a>
       </div>
     }
@@ -32,13 +32,13 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
     @if (query.isSuccess(); as success) {
       @if (query.data()?.data; as movie) {
         
-        <div class="relative w-full bg-cinema-900 text-white overflow-hidden mb-8">
+        <div class="relative w-full bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden mb-8">
           
           <div 
             class="absolute inset-0 bg-cover bg-center opacity-20 blur-xl scale-110"
             [style.backgroundImage]="'url(' + getHeroBackdrop(movie) + ')'"
           ></div>
-          <div class="absolute inset-0 bg-gradient-to-t from-cinema-900 via-cinema-900/70 to-black/20"></div>
+          <div class="absolute inset-0 bg-gradient-to-t from-[#f8f0e9] via-[#f8f0e9]/70 to-white/20 dark:from-cinema-900 dark:via-cinema-900/70 dark:to-black/20"></div>
 
           <div class="relative container mx-auto px-4 py-12 md:py-20 flex flex-col md:flex-row gap-8 items-center md:items-end">
             
@@ -51,7 +51,7 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                 @if (movie.metadata?.nollywood) {
                   <span class="bg-cinema-500 text-white text-xs font-bold px-2 py-1 rounded-sm">Nollywood</span>
                 }
-                <span class="bg-white/10 text-white text-xs font-bold px-2 py-1 rounded-sm">{{ movie.year }}</span>
+                <span class="bg-black/10 text-[#24181b] dark:bg-white/10 dark:text-white text-xs font-bold px-2 py-1 rounded-sm">{{ movie.year }}</span>
                 <span class="bg-green-500/20 text-green-400 text-xs font-bold px-2 py-1 rounded-sm">{{ movie.rating }}% Match</span>
                 @if (movie.isStreamOnly) {
                   <span class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-sm">STREAM ONLY</span>
@@ -60,10 +60,10 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
 
               <h1 class="text-3xl md:text-5xl font-serif font-bold leading-tight">{{ movie.title }}</h1>
               @if (movie.tagline) {
-                <p class="text-base md:text-lg text-gray-300 italic">{{ movie.tagline }}</p>
+                <p class="text-base md:text-lg text-[#6f5b54] dark:text-gray-300 italic">{{ movie.tagline }}</p>
               }
               
-              <div class="text-gray-400 text-sm md:text-base flex flex-wrap gap-x-4 gap-y-1 justify-center md:justify-start">
+              <div class="text-[#725f58] dark:text-gray-400 text-sm md:text-base flex flex-wrap gap-x-4 gap-y-1 justify-center md:justify-start">
                 <span>{{ getDuration(movie.durationMinutes) }}</span>
                 <span>•</span>
                 <span>{{ movie.genre.join(', ') }}</span>
@@ -132,8 +132,8 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
           
           <div class="lg:col-span-2 space-y-8">
             <section>
-              <h3 class="text-xl font-serif font-bold text-white mb-3">Synopsis</h3>
-              <p class="text-gray-400 leading-relaxed">{{ movie.overview || movie.description || 'No description available.' }}</p>
+               <h3 class="text-xl font-serif font-bold text-[#24181b] dark:text-white mb-3">Synopsis</h3>
+               <p class="text-[#725f58] dark:text-gray-400 leading-relaxed">{{ movie.overview || movie.description || 'No description available.' }}</p>
             </section>
 
             <section class="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -15,7 +15,7 @@ import { RouterLink } from "@angular/router";
     RouterLink,
   ],
   template: `
-    <div class="min-h-screen bg-cinema-900 flex flex-col">
+    <div class="min-h-screen bg-[#0a0a0a] dark:bg-cinema-900 flex flex-col">
       <!-- Branded Intro -->
       @if (showIntro) {
         <app-branded-intro (introFinished)="onIntroFinished()">
@@ -27,12 +27,12 @@ import { RouterLink } from "@angular/router";
       >
         <a
           [routerLink]="['/movies', slug()]"
-          class="text-gray-400 hover:text-white transition-colors"
+          class="text-[#9a857d] dark:text-gray-400 hover:text-[#24181b] dark:hover:text-white transition-colors"
         >
           ← Back to Details
         </a>
         @if (movie(); as m) {
-          <h1 class="text-white font-serif text-lg">{{ m.title }}</h1>
+          <h1 class="text-[#24181b] dark:text-white font-serif text-lg">{{ m.title }}</h1>
         }
       </header>
 
@@ -51,20 +51,20 @@ import { RouterLink } from "@angular/router";
             <div
               class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4"
             >
-              <p class="text-gray-500 text-sm text-center sm:text-left">
+              <p class="text-[#9a857d] dark:text-gray-500 text-sm text-center sm:text-left">
                 Streaming via YouTube • Support the creators by subscribing to
                 their channel.
               </p>
 
               <!-- Keyboard Shortcuts Hint -->
-              <div class="flex items-center gap-4 text-gray-600 text-xs">
+              <div class="flex items-center gap-4 text-[#9a857d] dark:text-gray-600 text-xs">
                 <span class="flex items-center gap-1">
-                  <kbd class="bg-gray-800 px-2 py-1 rounded">←</kbd>
-                  <kbd class="bg-gray-800 px-2 py-1 rounded">→</kbd>
+                  <kbd class="bg-[#2a2a2a] dark:bg-gray-800 px-2 py-1 rounded">←</kbd>
+                  <kbd class="bg-[#2a2a2a] dark:bg-gray-800 px-2 py-1 rounded">→</kbd>
                   Skip
                 </span>
                 <span class="flex items-center gap-1">
-                  <kbd class="bg-gray-800 px-2 py-1 rounded">Space</kbd>
+                  <kbd class="bg-[#2a2a2a] dark:bg-gray-800 px-2 py-1 rounded">Space</kbd>
                   Play/Pause
                 </span>
               </div>

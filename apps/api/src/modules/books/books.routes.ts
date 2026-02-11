@@ -558,6 +558,41 @@ export const bookRoutes = async (
     },
   });
 
+  // DELETE /api/books/manga/history/:chapterId - Remove one history entry
+  app.delete('/manga/history/:chapterId', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const { chapterId } = request.params as { chapterId: string };
+        const userId = request.user.id;
+        await mangaService.deleteHistoryEntry(userId, chapterId);
+        return reply.send({ status: 'success', message: 'History entry removed' });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to remove history entry',
+        });
+      }
+    },
+  });
+
+  // DELETE /api/books/manga/history - Clear all reading history
+  app.delete('/manga/history', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        await mangaService.clearHistory(userId);
+        return reply.send({ status: 'success', message: 'History cleared' });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to clear history',
+        });
+      }
+    },
+  });
+
   // POST /api/books/manga/favorites - Add to favorites
   app.post('/manga/favorites', {
     preHandler: [app.authenticate],
