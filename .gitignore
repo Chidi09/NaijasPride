@@ -75,3 +75,6 @@ prisma/migrations/
 # Misc
 *.tgz
 .yarn-integrity
+
+# Local reference repos
+kotatsu-parsers/

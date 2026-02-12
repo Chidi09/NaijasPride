@@ -6,6 +6,8 @@ export class ReadComicsOnlineSource extends MmrcmsSource {
       id: 'readcomicsonline',
       displayName: 'ReadComicsOnline.ru',
       baseUrl: 'https://readcomicsonline.ru',
+      detailStatusSelector: 'dt:contains("Status")',
+      detailTagSelector: 'dt:contains("Categories")',
     });
   }
 }

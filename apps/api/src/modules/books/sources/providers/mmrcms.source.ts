@@ -11,6 +11,8 @@ export class MmrcmsSource extends MmrcmsBaseSource {
     listPath?: string;
     tagPath?: string;
     updatedCoverSuffix?: string;
+    detailStatusSelector?: string;
+    detailTagSelector?: string;
   }) {
     super({
       baseUrl: options.baseUrl,
@@ -18,6 +20,8 @@ export class MmrcmsSource extends MmrcmsBaseSource {
       listPath: options.listPath,
       tagPath: options.tagPath,
       updatedCoverSuffix: options.updatedCoverSuffix,
+      detailStatusSelector: options.detailStatusSelector,
+      detailTagSelector: options.detailTagSelector,
       defaultCacheTtlSeconds: 600,
     });
 

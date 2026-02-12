@@ -25,6 +25,8 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
   protected readonly listPath: string;
   protected readonly tagPath: string;
   protected readonly updatedCoverSuffix: string;
+  protected readonly detailStatusSelector: string;
+  protected readonly detailTagSelector: string;
 
   constructor(options: {
     baseUrl: string;
@@ -32,12 +34,16 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
     listPath?: string;
     tagPath?: string;
     updatedCoverSuffix?: string;
+    detailStatusSelector?: string;
+    detailTagSelector?: string;
     defaultCacheTtlSeconds?: number;
   }) {
     super(options);
     this.listPath = options.listPath || 'filterList';
     this.tagPath = options.tagPath || 'manga-list';
     this.updatedCoverSuffix = options.updatedCoverSuffix || '/cover/cover_250x350.jpg';
+    this.detailStatusSelector = options.detailStatusSelector || 'dt:contains("Statut")';
+    this.detailTagSelector = options.detailTagSelector || 'dt:contains("Catégories")';
   }
 
   async searchManga(query?: string, limit = 20, _filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
@@ -138,13 +144,10 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
         coverUrl:
           this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
           this.toAbsoluteUrl($('img').first().attr('src')),
-        status: this.parseStatus(
-          this.strip($('dt:contains("Statut")').next().text()) ||
-            this.strip($('dt:contains("Status")').next().text())
-        ),
+        status: this.parseStatus(this.strip($(this.detailStatusSelector).first().next().text())),
         year: null,
         originalLanguage: null,
-        tags: $('dt:contains("Catégories"), dt:contains("Categories"), dt:contains("Categorías"), dt:contains("Kategori")')
+        tags: $(this.detailTagSelector)
           .first()
           .next()
           .find('a')
@@ -186,39 +189,29 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
       const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('ul.chapters > li:not(.btn) a').each((index, el) => {
-        if (chapters.length >= limit) return;
-        const href = $(el).attr('href');
+      const chapterItems = $('ul.chapters > li:not(.btn)').toArray().reverse();
+      for (const [index, chapterItem] of chapterItems.entries()) {
+        if (chapters.length >= limit) break;
+        const href = $(chapterItem).find('a').first().attr('href');
         const chapterPath = href ? this.normalizePath(href, '/') : null;
-        if (!chapterPath || seen.has(chapterPath)) return;
+        if (!chapterPath || seen.has(chapterPath)) continue;
         seen.add(chapterPath);
 
-        const text = this.strip($(el).text()) || this.strip($(el).closest('li').find('h5').first().text());
-        const chapterMatch = text.match(/chapter\s*[:\-]?\s*([\d.]+)/i);
-        const langMatch = text.match(/\b(EN|JP|KR|CN|ES|PT|FR|DE|ID|TH|VI|TR|RU|AR)\b/i);
-        const chapterLanguage = langMatch?.[1]?.toLowerCase() || null;
-
-        if (translatedLanguage && chapterLanguage && chapterLanguage !== translatedLanguage.toLowerCase()) {
-          return;
-        }
-
-        const publishedAt = this.parseChapterDate(this.strip($(el).closest('li').find('div.date-chapter-title-rtl').first().text()));
+        const title = this.strip($(chapterItem).find('h5').first().text()) || null;
+        const publishedAt = this.parseChapterDate(this.strip($(chapterItem).find('div.date-chapter-title-rtl').first().text()));
 
         chapters.push({
           id: chapterPath,
-          chapter: (() => {
-            const match = text.match(/\b(\d+(?:\.\d+)?)\b/);
-            return match ? match[1] : String(index + 1);
-          })(),
+          chapter: String(index + 1),
           volume: null,
-          title: text || null,
+          title,
           publishedAt,
           scanlationGroup: null,
           branch: null,
           externalUrl: null,
           isExternal: false,
         });
-      });
+      }
 
       await this.setCache(cacheKey, chapters);
       return chapters;
@@ -235,7 +228,15 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
 
     try {
       const html = await this.fetchHtml(chapterPath);
-      const pages = this.extractChapterImageUrls(html);
+      const $ = cheerio.load(html);
+      const pages = Array.from(
+        new Set(
+          $('div#all img')
+            .map((_idx, el) => this.toAbsoluteUrl($(el).attr('src') || $(el).attr('data-src')))
+            .get()
+            .filter((url): url is string => Boolean(url))
+        )
+      );
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
@@ -328,13 +329,19 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
     $('div.manga-item').each((_idx, el) => {
       if (cards.length >= limit) return;
 
-      const href = $(el).find('a').first().attr('href');
+      const href =
+        $(el).find('h3 a').first().attr('href') ||
+        $(el).find('a').first().attr('href');
       const id = href ? this.normalizePath(href, '/') : null;
       if (!id || seen.has(id)) return;
       seen.add(id);
 
       const slug = id.split('/').filter(Boolean).pop() || '';
-      const coverUrl = slug ? this.toAbsoluteUrl(`/uploads/manga/${slug}${this.updatedCoverSuffix}`) : null;
+      const parsedCoverFromCard =
+        this.toAbsoluteUrl($(el).find('img').first().attr('src')) ||
+        this.toAbsoluteUrl($(el).find('img').first().attr('data-src'));
+      const fallbackCover = slug ? this.toAbsoluteUrl(`/uploads/manga/${slug}${this.updatedCoverSuffix}`) : null;
+      const coverUrl = parsedCoverFromCard || fallbackCover;
 
       cards.push({
         id,
@@ -361,9 +368,37 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
   }
 
   protected parseChapterDate(value: string): string | null {
-    if (!value) return null;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toISOString();
+    const normalized = this.strip(value);
+    if (!normalized) return null;
+
+    const directDate = new Date(normalized);
+    if (!Number.isNaN(directDate.getTime())) return directDate.toISOString();
+
+    const match = normalized.match(/^(\d{1,2})\s+([A-Za-z]{3,})\.?\s+(\d{4})$/);
+    if (!match) return null;
+
+    const [, dayRaw, monthRaw, yearRaw] = match;
+    const monthIndexMap: Record<string, number> = {
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11,
+    };
+
+    const monthKey = monthRaw.slice(0, 3).toLowerCase();
+    const monthIndex = monthIndexMap[monthKey];
+    if (monthIndex === undefined) return null;
+
+    const parsedDate = new Date(Date.UTC(Number(yearRaw), monthIndex, Number(dayRaw)));
+    if (Number.isNaN(parsedDate.getTime())) return null;
+    return parsedDate.toISOString();
   }
 }
