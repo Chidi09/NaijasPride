@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { emailService } from '../../shared/services/email.service';
+import { OAuth2Client } from 'google-auth-library';
 
 const requireEnv = (name: string) => {
   const value = process.env[name];
@@ -15,8 +16,15 @@ const requireEnv = (name: string) => {
 const getJwtAccessSecret = () => requireEnv('JWT_SECRET');
 const getJwtRefreshSecret = () => requireEnv('JWT_REFRESH_SECRET');
 
-const ACCESS_TOKEN_TTL = (process.env.JWT_ACCESS_TOKEN_TTL || '20m') as jwt.SignOptions['expiresIn'];
-const REFRESH_TOKEN_TTL = (process.env.JWT_REFRESH_TOKEN_TTL || '30d') as jwt.SignOptions['expiresIn'];
+const ACCESS_TOKEN_TTL = (process.env.JWT_ACCESS_TOKEN_TTL || '7d') as jwt.SignOptions['expiresIn'];
+const REFRESH_TOKEN_TTL = (process.env.JWT_REFRESH_TOKEN_TTL || '120d') as jwt.SignOptions['expiresIn'];
+
+const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_IDS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const googleClient = new OAuth2Client();
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -31,6 +39,10 @@ export const signupSchema = z.object({
 
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(20),
+});
+
+export const googleAuthSchema = z.object({
+  idToken: z.string().min(20),
 });
 
 type AccessPayload = {
@@ -59,6 +71,8 @@ export class AuthService {
         email: data.email,
         password: hashedPassword,
         name: data.name,
+        isPremium: false,
+        subStatus: 'inactive',
       },
     });
 
@@ -94,6 +108,54 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: decoded.id } });
     if (!user) {
       throw new Error('Invalid refresh token');
+    }
+
+    return this.createSession(user);
+  }
+
+  async loginWithGoogleIdToken(idToken: string) {
+    if (GOOGLE_CLIENT_IDS.length === 0) {
+      throw new Error('Google auth is not configured. Set GOOGLE_CLIENT_IDS.');
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: GOOGLE_CLIENT_IDS,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload?.email) {
+      throw new Error('Google account has no email address.');
+    }
+    if (!payload.email_verified) {
+      throw new Error('Google email is not verified.');
+    }
+
+    const email = payload.email.toLowerCase().trim();
+    const name = payload.name?.trim() || null;
+
+    let user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      const randomPassword = `${Date.now()}-${Math.random()}-${email}`;
+      const hashedPassword = await bcrypt.hash(randomPassword, 12);
+
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          isPremium: false,
+          subStatus: 'inactive',
+        },
+      });
+
+      emailService.sendWelcomeEmail(user.email, user.name || undefined).catch(console.error);
+    } else if (!user.name && name) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { name },
+      });
     }
 
     return this.createSession(user);

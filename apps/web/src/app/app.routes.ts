@@ -80,6 +80,11 @@ export const routes: Routes = [
       .then(m => m.BookListComponent)
   },
   {
+    path: 'books/comics',
+    loadComponent: () => import('./features/books/pages/comics-library/comics-library.component')
+      .then(m => m.ComicsLibraryComponent)
+  },
+  {
     path: 'books/manga',
     loadComponent: () => import('./features/books/pages/manga-library/manga-library.component')
       .then(m => m.MangaLibraryComponent)
@@ -123,6 +128,16 @@ export const routes: Routes = [
       .then(m => m.AdminLayoutComponent),
     children: [
       {
+        path: 'dashboard',
+        loadComponent: () => import('./features/admin/pages/admin-dashboard/admin-dashboard.component')
+          .then(m => m.AdminDashboardComponent)
+      },
+      {
+        path: 'books',
+        loadComponent: () => import('./features/admin/pages/admin-books/admin-books.component')
+          .then(m => m.AdminBooksComponent)
+      },
+      {
         path: 'movies',
         loadComponent: () => import('./features/admin/pages/admin-movie-list/admin-movie-list.component')
           .then(m => m.AdminMovieListComponent)
@@ -137,7 +152,7 @@ export const routes: Routes = [
         loadComponent: () => import('./features/admin/pages/content-discovery/content-discovery.component')
           .then(m => m.ContentDiscoveryComponent)
       },
-      { path: '', redirectTo: 'movies', pathMatch: 'full' }
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   }
 ];

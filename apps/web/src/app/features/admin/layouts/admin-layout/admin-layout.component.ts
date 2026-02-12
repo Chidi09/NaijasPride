@@ -51,9 +51,13 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 10l9-6 9 6-9 6-9-6zm0 4l9 6 9-6"/></svg>
             Discovery
           </a>
-          <a href="#" class="flex items-center gap-3 px-4 py-3 text-[#8f7a74] rounded-lg opacity-50 cursor-not-allowed">
+          <a
+            routerLink="/admin/books"
+            routerLinkActive="bg-cinema-500 text-white"
+            class="flex items-center gap-3 px-4 py-3 text-[#b59c95] hover:bg-[#22161b] hover:text-white rounded-lg transition-colors"
+          >
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 5a2 2 0 012-2h11a3 3 0 013 3v13H6a2 2 0 00-2 2V5z"/></svg>
-            Books (Soon)
+            Books & Comics
           </a>
         </nav>
 

@@ -26,7 +26,7 @@ import { RouterLink } from "@angular/router";
         class="p-4 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50"
       >
         <a
-          [routerLink]="['/movies', slug()]"
+          [routerLink]="['/movies', movie()?.id || slug()]"
           class="text-[#9a857d] dark:text-gray-400 hover:text-[#24181b] dark:hover:text-white transition-colors"
         >
           ← Back to Details

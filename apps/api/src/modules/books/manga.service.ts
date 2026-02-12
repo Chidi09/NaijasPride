@@ -4,6 +4,7 @@ import { ManhwaTopSource } from './sources/providers/manhwatop.source';
 import { MangaDexSource } from './sources/providers/mangadex.source';
 import { MangabuddySource } from './sources/providers/mangabuddy.source';
 import { WeebCentralSource } from './sources/providers/weebcentral.source';
+import { ReadComicsOnlineSource } from './sources/providers/readcomicsonline.source';
 import { MangaSourceManager } from './sources/source-manager';
 import { MangaSourceRegistry } from './sources/source-registry';
 import {
@@ -53,6 +54,7 @@ export class MangaService {
     registry.register(new AsuraSource());
     registry.register(new MangabuddySource());
     registry.register(new ManhwaTopSource());
+    registry.register(new ReadComicsOnlineSource());
 
     if (registry.list().length === 0) {
       registry.register(new MangaDexSource());
@@ -62,7 +64,7 @@ export class MangaService {
   }
 
   private resolveDefaultSourceId(registry: MangaSourceRegistry): string {
-    const preferredOrder = ['weebcentral', 'asura', 'manhwatop', 'mangabuddy', 'mangadex'];
+    const preferredOrder = ['weebcentral', 'asura', 'manhwatop', 'mangabuddy', 'readcomicsonline', 'mangadex'];
     for (const sourceId of preferredOrder) {
       if (registry.has(sourceId)) {
         return sourceId;

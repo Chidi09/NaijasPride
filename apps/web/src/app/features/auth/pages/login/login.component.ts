@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/auth/auth.service';
@@ -70,16 +70,46 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
               }
             </button>
           </div>
+
+          <div class="relative py-1">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-[#d8b7a8] dark:border-[#5f1327]"></div>
+            </div>
+            <div class="relative flex justify-center text-xs uppercase tracking-[0.2em]">
+              <span class="bg-white dark:bg-[#120a0d] px-3 text-[#8a5f1c] dark:text-[#d6b87a]">or</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            (click)="signInWithGoogle()"
+            [disabled]="isLoading || googleLoading || !googleClientId"
+            class="flex w-full items-center justify-center gap-2 rounded-lg border border-[#d8b7a8] dark:border-[#5f1327] bg-white dark:bg-[#1b1014] px-4 py-3 text-sm font-semibold text-[#2a1c1f] dark:text-[#f7eee7] transition hover:bg-[#f7efe8] dark:hover:bg-[#2a151b] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#4285F4] font-bold">G</span>
+            @if (googleLoading) {
+              Loading Google...
+            } @else {
+              Continue with Google
+            }
+          </button>
+
+          @if (!googleClientId) {
+            <p class="text-center text-xs text-[#8a756e] dark:text-[#a88a78]">
+              Google sign-in is unavailable. Configure <code>google-client-id</code> meta tag.
+            </p>
+          }
         </form>
       </div>
     </div>
   `
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
+  readonly googleClientId = this.readGoogleClientId();
 
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -88,11 +118,22 @@ export class LoginComponent implements OnInit {
 
   isLoading = false;
   error = '';
+  googleLoading = false;
+  googleEnabled = false;
+  private googleScriptEl: HTMLScriptElement | null = null;
 
   ngOnInit() {
     const prefilledEmail = this.route.snapshot.queryParamMap.get('email');
     if (prefilledEmail) {
       this.form.patchValue({ email: prefilledEmail });
+    }
+
+    this.initializeGoogleSignIn();
+  }
+
+  ngOnDestroy() {
+    if ((window as any).handleGoogleCredentialResponse) {
+      delete (window as any).handleGoogleCredentialResponse;
     }
   }
 
@@ -112,6 +153,83 @@ export class LoginComponent implements OnInit {
         }
       });
     }
+  }
+
+  signInWithGoogle() {
+    this.error = '';
+    if (!this.googleEnabled) {
+      this.toast.error('Google Sign-In is not configured yet.');
+      return;
+    }
+
+    const google = (window as any).google;
+    if (!google?.accounts?.id?.prompt) {
+      this.toast.error('Google Sign-In is unavailable right now. Please try again.');
+      return;
+    }
+
+    google.accounts.id.prompt();
+  }
+
+  private initializeGoogleSignIn() {
+    if (!this.googleClientId) {
+      return;
+    }
+
+    this.googleLoading = true;
+    (window as any).handleGoogleCredentialResponse = (response: { credential?: string }) => {
+      const credential = response?.credential;
+      if (!credential) {
+        this.toast.error('Google did not return an ID token.');
+        return;
+      }
+
+      this.isLoading = true;
+      this.authService.loginWithGoogle(credential, this.getReturnUrl()).subscribe({
+        next: () => {
+          this.isLoading = false;
+        },
+        error: (err) => {
+          this.isLoading = false;
+          this.error = err.error?.error || 'Google login failed. Please try again.';
+          this.toast.error(this.error);
+        },
+      });
+    };
+
+    this.googleScriptEl = document.createElement('script');
+    this.googleScriptEl.src = 'https://accounts.google.com/gsi/client';
+    this.googleScriptEl.async = true;
+    this.googleScriptEl.defer = true;
+    this.googleScriptEl.onload = () => {
+      const google = (window as any).google;
+      if (!google?.accounts?.id) {
+        this.googleLoading = false;
+        return;
+      }
+
+      google.accounts.id.initialize({
+        client_id: this.googleClientId,
+        callback: (window as any).handleGoogleCredentialResponse,
+        auto_select: false,
+      });
+
+      this.googleEnabled = true;
+      this.googleLoading = false;
+    };
+    this.googleScriptEl.onerror = () => {
+      this.googleLoading = false;
+      this.googleEnabled = false;
+    };
+    document.head.appendChild(this.googleScriptEl);
+  }
+
+  private readGoogleClientId(): string {
+    const runtimeValue = ((window as any).__GOOGLE_CLIENT_ID__ || '').trim();
+    if (runtimeValue) return runtimeValue;
+
+    const meta = document.querySelector('meta[name="google-client-id"]');
+    return (meta?.getAttribute('content') || '').trim();
   }
 
   private getReturnUrl() {

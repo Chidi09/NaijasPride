@@ -23,6 +23,18 @@ type FeaturedContent = {
   manga: ContentItem | null;
 };
 
+type SourceDiscoverResponse = {
+  status: string;
+  data: {
+    trending: Array<{
+      id: string;
+      title: string;
+      coverUrl: string | null;
+      latestChapter?: string | null;
+    }>;
+  };
+};
+
 @Component({
   selector: 'app-book-hub',
   standalone: true,
@@ -74,7 +86,7 @@ type FeaturedContent = {
 
             <!-- Featured Comic -->
             <div class="group">
-              <a [routerLink]="featured().comic?.slug ? ['/books', featured().comic!.slug] : null"
+              <a [routerLink]="featured().comic?.id ? ['/books/manga', toRouteParam(featured().comic!.id)] : ['/books/comics']"
                  class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
               >
                 <div class="p-4 border-b border-cinema-700">
@@ -202,9 +214,9 @@ type FeaturedContent = {
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
               <span class="text-2xl">📖</span>
-              <h2 class="text-2xl font-serif text-white">Comics</h2>
+              <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Comics</h2>
             </div>
-            <a routerLink="/books/all" [queryParams]="{type: 'comic'}" class="text-sm text-[#d6b87a] hover:text-white transition-colors">
+            <a routerLink="/books/comics" class="text-sm text-[#d6b87a] hover:text-white transition-colors">
               View All Comics →
             </a>
           </div>
@@ -218,7 +230,7 @@ type FeaturedContent = {
           } @else if (comics().length > 0) {
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               @for (comic of comics().slice(0, 12); track comic.id) {
-                <a [routerLink]="['/books', comic.slug]" class="group">
+                <a [routerLink]="['/books/manga', toRouteParam(comic.id)]" class="group">
                   <div class="bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                     <div class="aspect-[2/3] relative">
                       @if (comic.coverUrl) {
@@ -254,7 +266,7 @@ type FeaturedContent = {
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
               <span class="text-2xl">🎌</span>
-              <h2 class="text-2xl font-serif text-white">Manga</h2>
+              <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Manga</h2>
             </div>
             <a routerLink="/books/manga" class="text-sm text-[#d6b87a] hover:text-white transition-colors">
               Open Manga Library →
@@ -313,7 +325,7 @@ export class BookHubComponent implements OnInit, OnDestroy {
   
   // Content signals
   books = signal<Book[]>([]);
-  comics = signal<Book[]>([]);
+  comics = signal<ContentItem[]>([]);
   manga = signal<ContentItem[]>([]);
   
   // Loading states
@@ -342,7 +354,7 @@ export class BookHubComponent implements OnInit, OnDestroy {
 
   loadBooks() {
     this.isBooksLoading.set(true);
-    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>('/api/v1/books?page=1&limit=20')
+    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>('/api/v1/books?page=1&limit=20&kind=book')
       .subscribe({
         next: (response) => {
           this.books.set(response.data);
@@ -372,16 +384,23 @@ export class BookHubComponent implements OnInit, OnDestroy {
   }
 
   loadComics() {
-    // For now, treating comics as a subset of books (can be filtered by type later)
     this.isComicsLoading.set(true);
-    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>('/api/v1/books?page=1&limit=20')
+    this.http
+      .get<SourceDiscoverResponse>('/api/v1/books/manga/source/readcomicsonline/discover?limit=20')
       .subscribe({
         next: (response) => {
-          // In a real implementation, you'd filter by type=comic
-          // For now, we'll just show some books as comics
-          this.comics.set(response.data.slice(0, 6));
-          if (response.data.length > 1) {
-            const comic = response.data[1];
+          const comics = response.data.trending.map((entry) => ({
+            id: entry.id,
+            title: entry.title,
+            coverUrl: entry.coverUrl,
+            author: 'ReadComicsOnline',
+            type: 'comic' as const,
+            latestChapter: entry.latestChapter ?? null,
+          }));
+
+          this.comics.set(comics);
+          if (comics.length > 0) {
+            const comic = comics[0];
             this.featured.update(f => ({
               ...f,
               comic: {
@@ -390,7 +409,7 @@ export class BookHubComponent implements OnInit, OnDestroy {
                 coverUrl: comic.coverUrl,
                 author: comic.author,
                 type: 'comic',
-                slug: comic.slug
+                latestChapter: comic.latestChapter,
               }
             }));
           }

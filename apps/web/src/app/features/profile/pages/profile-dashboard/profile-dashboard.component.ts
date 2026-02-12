@@ -63,7 +63,7 @@ import { ProfileQueryService } from '../../services/profile-query.service';
           @if (activeTab === 'watchlist') {
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
               @for (movie of profile.watchlist; track movie.id) {
-                <a [routerLink]="['/movies', movie.slug]" class="group">
+                <a [routerLink]="['/movies', movie.id]" class="group">
                   <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                     <img 
                       [src]="movie.thumbnailUrl || movie.coverUrl" 
@@ -103,7 +103,7 @@ import { ProfileQueryService } from '../../services/profile-query.service';
                   @for (item of profile.downloadHistory; track item.id) {
                     <tr class="hover:bg-[#ead7cc] dark:hover:bg-white/5 transition-colors">
                       <td class="p-4">
-                        <a [routerLink]="['/movies', item.movie.slug]" class="text-[#24181b] dark:text-white font-medium hover:text-cinema-500">
+                        <a [routerLink]="['/movies', item.movie.id]" class="text-[#24181b] dark:text-white font-medium hover:text-cinema-500">
                           {{ item.movie.title }}
                         </a>
                       </td>
@@ -140,7 +140,7 @@ import { ProfileQueryService } from '../../services/profile-query.service';
               <h2 class="text-xl font-serif text-[#24181b] dark:text-white mb-6">Recommended for You</h2>
               <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
                 @for (movie of profile.recommendations; track movie.id) {
-                  <a [routerLink]="['/movies', movie.slug]" class="group">
+                  <a [routerLink]="['/movies', movie.id]" class="group">
                     <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                       <img 
                         [src]="movie.thumbnailUrl || movie.coverUrl" 

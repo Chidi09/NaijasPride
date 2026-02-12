@@ -85,7 +85,7 @@
     <!-- Dynamic YouTube Movies Carousel -->
     <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" *ngIf="youtubeMovies().length > 0">
       <div *ngFor="let movie of youtubeMovies()"
-           [routerLink]="['/movies', movie.slug]"
+           [routerLink]="['/movies', movie.id]"
            class="min-w-[280px] group cursor-pointer">
         <!-- Thumbnail -->
          <div class="aspect-video bg-[#e5d2c6] dark:bg-zinc-800 rounded-lg overflow-hidden relative">

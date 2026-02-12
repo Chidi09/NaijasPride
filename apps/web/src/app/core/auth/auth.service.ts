@@ -31,6 +31,16 @@ export class AuthService {
     );
   }
 
+  loginWithGoogle(idToken: string, returnUrl?: string) {
+    return this.http.post<AuthResponse>('/api/v1/auth/google', { idToken }).pipe(
+      tap((response) => {
+        if (response.success) {
+          this.setSession(response.data, returnUrl);
+        }
+      })
+    );
+  }
+
   logout() {
     this.authState.clearSession();
     this.router.navigate(['/login']);

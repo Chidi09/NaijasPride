@@ -3,6 +3,7 @@ import { BooksService } from './books.service';
 import { MangaService } from './manga.service';
 import { z } from 'zod';
 import axios from 'axios';
+import { StorageService } from '../../shared/services/storage.service';
 
 const createBookSchema = z.object({
   title: z.string().trim().min(1),
@@ -11,10 +12,11 @@ const createBookSchema = z.object({
   year: z.number().int().min(1400).max(new Date().getFullYear() + 1),
   isbn: z.string().trim().optional(),
   coverUrl: z.string().url().optional(),
-  downloadUrl: z.string().url().optional(),
+  downloadUrl: z.string().trim().min(1).optional(),
   fileSize: z.number().int().positive().optional(),
   format: z.string().trim().min(1).default('PDF'),
   genre: z.array(z.string().trim().min(1)).min(1),
+  kind: z.enum(['book', 'comic']).optional(),
   language: z.string().trim().min(1).default('English'),
   pageCount: z.number().int().positive().optional(),
   rating: z.number().min(0).max(10).optional(),
@@ -65,6 +67,16 @@ const bookSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   q: z.string().trim().optional(),
+  kind: z.enum(['book', 'comic']).optional(),
+});
+
+const bookUploadUrlSchema = z.object({
+  fileName: z.string().trim().min(1),
+  contentType: z.string().trim().min(1),
+});
+
+const bookDownloadSchema = z.object({
+  key: z.string().trim().min(1),
 });
 
 const mangaChaptersSchema = z.object({
@@ -114,11 +126,29 @@ export const bookRoutes = async (
 ) => {
   const booksService = new BooksService(app.prisma);
   const mangaService = new MangaService(app.prisma);
+  const storageService = new StorageService();
 
   const toArray = (value?: string | string[]) => {
     if (!value) return undefined;
     return Array.isArray(value) ? value : [value];
   };
+
+  const sanitizeStorageFilename = (fileName: string) =>
+    fileName
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'book-file';
+
+  const allowedBookMimeTypes = new Set([
+    'application/pdf',
+    'application/epub+zip',
+    'application/x-mobipocket-ebook',
+    'application/vnd.amazon.ebook',
+    'text/plain',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ]);
 
   // GET /api/books/manga/search?q=one+piece
   app.get('/manga/search', {
@@ -671,15 +701,84 @@ export const bookRoutes = async (
     },
   });
 
+  // POST /api/books/upload-url - Generate signed upload URL for book files (Admin only)
+  app.post('/upload-url', {
+    preHandler: [app.authenticate],
+    schema: {
+      body: bookUploadUrlSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            status: 'error',
+            message: 'Forbidden: Admin access required',
+          });
+        }
+
+        const { fileName, contentType } = request.body as z.infer<typeof bookUploadUrlSchema>;
+        if (!allowedBookMimeTypes.has(contentType)) {
+          return reply.status(400).send({
+            status: 'error',
+            message: `Unsupported file type: ${contentType}`,
+          });
+        }
+
+        const safeName = sanitizeStorageFilename(fileName);
+        const storageKey = `books/${Date.now()}-${safeName}`;
+        const uploadUrl = await storageService.getUploadUrl(storageKey, contentType);
+        const downloadUrl = `/api/v1/books/download?key=${encodeURIComponent(storageKey)}`;
+
+        return reply.send({
+          status: 'success',
+          data: {
+            uploadUrl,
+            storageKey,
+            downloadUrl,
+          },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to create upload URL',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/download?key=books/... - Resolve a stable book key to a signed URL
+  app.get('/download', {
+    schema: {
+      querystring: bookDownloadSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { key } = request.query as z.infer<typeof bookDownloadSchema>;
+        if (key.startsWith('http://') || key.startsWith('https://')) {
+          return reply.redirect(key);
+        }
+
+        const signedUrl = await storageService.getDownloadUrl(key);
+        return reply.redirect(signedUrl);
+      } catch (error) {
+        return reply.status(404).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Book file not found',
+        });
+      }
+    },
+  });
+
   // GET /api/books - Search books with pagination
   app.get('/', async (request, reply) => {
     try {
-      const { page, limit, q } = bookSearchSchema.parse(request.query ?? {});
+      const { page, limit, q, kind } = bookSearchSchema.parse(request.query ?? {});
       
       const result = await booksService.search({
         page: page ?? 1,
         limit: limit ?? 20,
-        q
+        q,
+        kind,
       });
 
       return reply.send({
@@ -738,7 +837,23 @@ export const bookRoutes = async (
         }
 
         const bookPayload = request.body as z.infer<typeof createBookSchema>;
-        const book = await booksService.create(bookPayload);
+        const { kind, ...basePayload } = bookPayload;
+
+        const normalizedGenre = [...basePayload.genre];
+        if (kind === 'comic' && !normalizedGenre.includes('Comic')) {
+          normalizedGenre.unshift('Comic');
+        }
+        if (kind === 'book') {
+          const withoutComic = normalizedGenre.filter((entry) => entry !== 'Comic');
+          if (withoutComic.length > 0) {
+            normalizedGenre.splice(0, normalizedGenre.length, ...withoutComic);
+          }
+        }
+
+        const book = await booksService.create({
+          ...basePayload,
+          genre: normalizedGenre,
+        });
         
         return reply.status(201).send({
           status: 'success',

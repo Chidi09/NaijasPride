@@ -78,10 +78,27 @@ export class MoviesService {
         },
       });
     }
+
+    // 4. Fallback for stale/legacy slugs that still include HTML-entity artifacts
+    // like -39- (apostrophe) or -amp- from previous slug generations.
+    if (!movie) {
+      const normalizedSlug = this.normalizeLegacySlug(slug);
+      if (normalizedSlug !== slug) {
+        movie = await this.prisma.movie.findUnique({
+          where: { slug: normalizedSlug },
+          include: {
+            cast: {
+              orderBy: { name: 'asc' },
+              take: 12,
+            },
+          },
+        });
+      }
+    }
     
     if (movie) {
       const mapped = this.mapToMovie(movie);
-      // 4. Save to Redis (Infinite TTL, until we manually invalidate)
+      // 5. Save to Redis (Infinite TTL, until we manually invalidate)
       if (redis) {
         await redis.set(cacheKey, JSON.stringify(mapped));
         console.log(`[Cache SET] ${cacheKey}`);
@@ -320,6 +337,15 @@ export class MoviesService {
 
   private generateSlug(title: string, year: number): string {
     return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}`;
+  }
+
+  private normalizeLegacySlug(slug: string): string {
+    return slug
+      .toLowerCase()
+      .replace(/-(amp|quot|apos|nbsp)-/g, '-')
+      .replace(/-(\d{2,4})-/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
   }
 
   private getOrderBy(sort?: string): Prisma.MovieOrderByWithRelationInput | Prisma.MovieOrderByWithRelationInput[] {

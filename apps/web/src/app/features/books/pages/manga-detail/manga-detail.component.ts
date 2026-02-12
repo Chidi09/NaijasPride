@@ -329,6 +329,7 @@ export class MangaDetailComponent implements OnInit {
     if (source === 'weebcentral') return 'WeebCentral';
     if (source === 'asura') return 'Asura';
     if (source === 'manhwatop') return 'ManhwaTop';
+    if (source === 'readcomicsonline') return 'ReadComicsOnline';
     return source;
   }
 

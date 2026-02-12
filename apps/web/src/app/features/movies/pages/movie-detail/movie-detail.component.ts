@@ -87,7 +87,7 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
               <div class="flex flex-wrap gap-3 pt-4">
                 @if (movie.youtubeId) {
                   <a 
-                    [routerLink]="['/watch', slug()]" 
+                    [routerLink]="['/watch', movie.id]" 
                     class="inline-flex items-center gap-2 bg-white text-cinema-900 px-6 py-3 rounded-full font-bold hover:bg-gray-100 transition-colors"
                   >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -184,7 +184,7 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                   <p class="text-[#725f58] dark:text-gray-400 text-sm mb-4">This movie is available for streaming only.</p>
                   @if (movie.youtubeId) {
                     <a 
-                      [routerLink]="['/watch', slug()]" 
+                      [routerLink]="['/watch', movie.id]" 
                       class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-6 py-3 rounded-full transition-colors w-full"
                     >
                       ▶ Watch Now

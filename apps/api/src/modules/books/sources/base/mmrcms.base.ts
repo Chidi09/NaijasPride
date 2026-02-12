@@ -144,7 +144,8 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
         ),
         year: null,
         originalLanguage: null,
-        tags: $('dt:contains("Catégories")')
+        tags: $('dt:contains("Catégories"), dt:contains("Categories"), dt:contains("Categorías"), dt:contains("Kategori")')
+          .first()
           .next()
           .find('a')
           .map((_idx, el) => this.strip($(el).text()))

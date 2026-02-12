@@ -5,6 +5,7 @@ type BookSearchParams = {
   page?: number;
   limit?: number;
   q?: string;
+  kind?: 'book' | 'comic';
 };
 
 type CreateBookInput = {
@@ -28,15 +29,27 @@ export class BooksService {
   constructor(private prisma: PrismaClient) {}
 
   async search(params: BookSearchParams): Promise<{ data: Book[]; meta: PaginationMeta }> {
-    const { page = 1, limit = 20, q } = params;
+    const { page = 1, limit = 20, q, kind } = params;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.BookWhereInput = q ? {
-      OR: [
-        { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
-        { author: { contains: q, mode: Prisma.QueryMode.insensitive } }
-      ]
-    } : {};
+    const filters: Prisma.BookWhereInput[] = [];
+
+    if (q) {
+      filters.push({
+        OR: [
+          { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
+          { author: { contains: q, mode: Prisma.QueryMode.insensitive } },
+        ],
+      });
+    }
+
+    if (kind === 'comic') {
+      filters.push({ genre: { has: 'Comic' } });
+    } else if (kind === 'book') {
+      filters.push({ NOT: { genre: { has: 'Comic' } } });
+    }
+
+    const where: Prisma.BookWhereInput = filters.length > 0 ? { AND: filters } : {};
 
     const [total, books] = await Promise.all([
       this.prisma.book.count({ where }),

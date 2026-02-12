@@ -3,6 +3,7 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { randomBytes } from 'crypto';
 import {
   AuthService,
+  googleAuthSchema,
   loginSchema,
   refreshTokenSchema,
   signupSchema,
@@ -94,6 +95,26 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(401).send({
         success: false,
         error: getErrorMessage(error, 'Invalid refresh token'),
+      });
+    }
+  });
+
+  app.post('/google', {
+    schema: {
+      body: googleAuthSchema,
+    },
+    config: {
+      rateLimit: rateLimitByIp(20, '15 minutes'),
+    },
+  }, async (request, reply) => {
+    try {
+      const { idToken } = request.body as { idToken: string };
+      const result = await service.loginWithGoogleIdToken(idToken);
+      return { success: true, data: result };
+    } catch (error: unknown) {
+      return reply.status(401).send({
+        success: false,
+        error: getErrorMessage(error, 'Google login failed'),
       });
     }
   });

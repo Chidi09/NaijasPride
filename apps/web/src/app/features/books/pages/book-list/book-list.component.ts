@@ -28,6 +28,12 @@ type MangaDiscoverPayload = {
           <p class="text-[#8a756e] dark:text-gray-400 mt-2">Discover our collection of Nollywood books and magazines</p>
         </div>
         <div class="flex gap-2">
+          <a
+            routerLink="/books/comics"
+            class="px-4 py-2 bg-[#f1e5dd] dark:bg-cinema-800 text-[#24181b] dark:text-white rounded hover:bg-[#e6d5c9] dark:hover:bg-cinema-700 transition-colors"
+          >
+            Comics
+          </a>
           <a 
             routerLink="/books/manga" 
             class="px-4 py-2 bg-[#800020] text-white rounded hover:bg-[#660019] transition-colors"
@@ -180,7 +186,7 @@ export class BookListComponent {
 
   loadBooks() {
     this.isLoading.set(true);
-    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>(`/api/v1/books?page=${this.currentPage()}`)
+    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>(`/api/v1/books?page=${this.currentPage()}&kind=book`)
       .subscribe({
         next: (response) => {
           this.books.set(response.data);
