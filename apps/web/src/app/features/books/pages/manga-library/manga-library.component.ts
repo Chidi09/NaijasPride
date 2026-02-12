@@ -99,54 +99,160 @@ type MangaSourceHealth = {
   ],
   template: `
     <div class="container mx-auto px-4 py-10 books-theme">
+      <!-- Header -->
       <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0">
           <h1 class="text-3xl md:text-4xl font-serif text-[var(--text-primary)]">Manga Library</h1>
-          <p class="mt-2 text-sm text-[var(--text-muted)]">Search Manga, Manhwa and Manhua with advanced filters.</p>
+          <p class="mt-1 text-sm text-[var(--text-muted)]">Manga, Manhwa and Manhua from multiple sources.</p>
         </div>
-        <a mat-stroked-button color="primary" routerLink="/books">Back to Books</a>
+        <div class="flex gap-2">
+          <a mat-stroked-button color="primary" routerLink="/books/comics">Comics</a>
+          <a mat-stroked-button color="primary" routerLink="/books">Back to Hub</a>
+        </div>
       </div>
 
-      <mat-card class="mb-6" style="background: var(--bg-elevated); border: 1px solid var(--border-color);">
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs uppercase tracking-wider text-[var(--text-muted)]">Source</span>
-            <mat-chip-listbox aria-label="Manga sources" class="flex flex-wrap">
-              @for (source of sources(); track source.id) {
-                <mat-chip-option
-                  [selected]="selectedSource() === source.id"
-                  [disabled]="isSwitchingSource()"
-                  (click)="setSource(source.id)"
-                >{{ source.displayName }}</mat-chip-option>
-              }
-            </mat-chip-listbox>
-          </div>
+      <!-- Search card — same structure as Comics -->
+      <mat-card class="mb-6 p-4" style="background: var(--bg-card); border: 1px solid var(--border-color);">
 
-          <div class="flex flex-wrap gap-2">
-            @for (health of sourceHealth(); track health.sourceId) {
-              <span
-                class="rounded border px-2 py-1 text-[11px]"
-                [class.border-emerald-700]="health.ok && health.circuitState === 'closed'"
-                [class.text-emerald-700]="health.ok && health.circuitState === 'closed'"
-                [class.border-amber-700]="health.circuitState === 'half_open'"
-                [class.text-amber-700]="health.circuitState === 'half_open'"
-                [class.border-red-700]="!health.ok || health.circuitState === 'open'"
-                [class.text-red-700]="!health.ok || health.circuitState === 'open'"
-                [attr.title]="health.degradationReasons.join(', ')"
-              >{{ health.displayName }} {{ health.latencyMs }}ms</span>
-            }
-          </div>
+        <!-- Row 1: pill search + actions -->
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <mat-form-field
+            appearance="fill"
+            floatLabel="never"
+            subscriptSizing="dynamic"
+            class="np-search-field w-full"
+          >
+            <span matPrefix class="np-search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="M21 21l-4.3-4.3"></path>
+              </svg>
+            </span>
+            <input
+              matInput
+              [ngModel]="query()"
+              (ngModelChange)="query.set($event)"
+              (keyup.enter)="search()"
+              aria-label="Search manga"
+              placeholder="Search manga, manhwa, manhua…"
+            />
+          </mat-form-field>
+          <button mat-flat-button color="primary" (click)="search()" [disabled]="isLoading()">
+            {{ isLoading() ? 'Searching…' : 'Search' }}
+          </button>
+          <button mat-stroked-button color="primary" type="button" (click)="showFilters.set(!showFilters())">
+            {{ showFilters() ? 'Hide filters' : 'Filters' }}
+            @if (hasActiveFilters()) { <span class="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--cinema-500)] text-[10px] text-white">!</span> }
+          </button>
+          @if (hasActiveFilters()) {
+            <button mat-stroked-button type="button" (click)="clearFilters()">Clear</button>
+          }
         </div>
+
+        <!-- Row 2: source chips -->
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <span class="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">Source</span>
+          <mat-chip-listbox aria-label="Manga sources">
+            @for (source of sources(); track source.id) {
+              <mat-chip-option
+                [selected]="selectedSource() === source.id"
+                [disabled]="isSwitchingSource()"
+                (click)="setSource(source.id)"
+              >{{ source.displayName }}</mat-chip-option>
+            }
+          </mat-chip-listbox>
+        </div>
+
+        <!-- Row 3: filters (collapsible, no accordion wrapper) -->
+        @if (showFilters()) {
+          <div class="mt-4 border-t border-[var(--border-color)] pt-4">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <mat-form-field appearance="fill" floatLabel="never" subscriptSizing="dynamic" class="np-search-field">
+                <mat-select [ngModel]="sort()" (ngModelChange)="sort.set($event)" aria-label="Sort">
+                  <mat-option value="relevance">Relevance</mat-option>
+                  <mat-option value="followedCount">Popularity</mat-option>
+                  <mat-option value="latestUploadedChapter">Latest Updates</mat-option>
+                  <mat-option value="createdAt">Newest Titles</mat-option>
+                  <mat-option value="year">Year</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="fill" floatLabel="never" subscriptSizing="dynamic" class="np-search-field">
+                <mat-select [ngModel]="originalLanguage()" (ngModelChange)="originalLanguage.set($event)" aria-label="Language">
+                  <mat-option value="">Any language</mat-option>
+                  <mat-option value="ja">Japanese (Manga)</mat-option>
+                  <mat-option value="ko">Korean (Manhwa)</mat-option>
+                  <mat-option value="zh">Chinese (Manhua)</mat-option>
+                  <mat-option value="en">English</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="fill" floatLabel="never" subscriptSizing="dynamic" class="np-search-field">
+                <mat-select [ngModel]="status()" (ngModelChange)="status.set($event)" aria-label="Status">
+                  <mat-option value="">Any status</mat-option>
+                  <mat-option value="ongoing">Ongoing</mat-option>
+                  <mat-option value="completed">Completed</mat-option>
+                  <mat-option value="hiatus">Hiatus</mat-option>
+                  <mat-option value="cancelled">Cancelled</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="fill" floatLabel="never" subscriptSizing="dynamic" class="np-search-field">
+                <mat-select [ngModel]="demographic()" (ngModelChange)="demographic.set($event)" aria-label="Demographic">
+                  <mat-option value="">Any demographic</mat-option>
+                  <mat-option value="shounen">Shounen</mat-option>
+                  <mat-option value="shoujo">Shoujo</mat-option>
+                  <mat-option value="seinen">Seinen</mat-option>
+                  <mat-option value="josei">Josei</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="fill" floatLabel="never" subscriptSizing="dynamic" class="np-search-field">
+                <mat-select [ngModel]="contentRating()" (ngModelChange)="contentRating.set($event)" aria-label="Content rating">
+                  <mat-option value="">Any rating</mat-option>
+                  <mat-option value="safe">Safe</mat-option>
+                  <mat-option value="suggestive">Suggestive</mat-option>
+                  <mat-option value="erotica">Erotica</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="fill" floatLabel="never" subscriptSizing="dynamic" class="np-search-field">
+                <input matInput type="number" [ngModel]="year()" (ngModelChange)="year.set($event || null)" placeholder="Year (e.g. 2023)" aria-label="Year" />
+              </mat-form-field>
+            </div>
+
+            @if (groupedTags().length) {
+              <div class="mt-3">
+                <p class="mb-2 text-[11px] uppercase tracking-wider text-[var(--text-muted)]">Tags</p>
+                <div class="max-h-52 overflow-auto rounded-xl border border-[var(--border-color)] p-3" style="background: var(--bg-secondary)">
+                  @for (group of groupedTags(); track group.group) {
+                    <div class="mb-3">
+                      <p class="mb-1 text-[11px] uppercase tracking-wide text-[var(--accent)]">{{ group.group }}</p>
+                      <mat-chip-listbox>
+                        @for (tag of group.items; track tag.id) {
+                          <mat-chip-option [selected]="selectedTagIds().includes(tag.id)" (click)="toggleTag(tag.id)">{{ tag.name }}</mat-chip-option>
+                        }
+                      </mat-chip-listbox>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+
+            <div class="mt-3 flex gap-2">
+              <button mat-flat-button color="primary" type="button" (click)="search()">Apply filters</button>
+              <button mat-stroked-button type="button" (click)="clearFilters()">Reset</button>
+            </div>
+          </div>
+        }
       </mat-card>
 
+      <!-- Source-switching spinner -->
       @if (isSwitchingSource()) {
-        <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-8">
-          <div class="flex flex-col items-center justify-center text-center gap-3">
-            <mat-progress-spinner diameter="46" mode="indeterminate"></mat-progress-spinner>
-            <div>
-              <h3 class="text-lg font-medium text-[var(--text-primary)]">Loading {{ selectedSource() | titlecase }}...</h3>
-              <p class="text-sm text-[var(--text-muted)]">Fetching manga catalog and tags. This may take a moment.</p>
-            </div>
+        <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="mb-6 p-8">
+          <div class="flex flex-col items-center justify-center gap-3 text-center">
+            <mat-progress-spinner diameter="40" mode="indeterminate"></mat-progress-spinner>
+            <p class="text-sm text-[var(--text-muted)]">Loading {{ selectedSourceLabel() }}…</p>
           </div>
         </mat-card>
       } @else {
@@ -156,138 +262,6 @@ type MangaSourceHealth = {
         >
           <mat-tab label="Search">
             <div class="pt-6">
-              <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <mat-form-field
-                    appearance="fill"
-                    floatLabel="never"
-                    subscriptSizing="dynamic"
-                    class="np-search-field w-full"
-                  >
-                    <span matPrefix class="np-search-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="7"></circle>
-                        <path d="M21 21l-4.3-4.3"></path>
-                      </svg>
-                    </span>
-                    <input
-                      matInput
-                      [ngModel]="query()"
-                      (ngModelChange)="query.set($event)"
-                      (keyup.enter)="search()"
-                      aria-label="Search manga"
-                      placeholder="Search manga"
-                    />
-                  </mat-form-field>
-
-                  <button mat-flat-button color="primary" (click)="search()" [disabled]="isLoading()">
-                    {{ isLoading() ? 'Searching...' : 'Search' }}
-                  </button>
-
-                  <button mat-stroked-button color="primary" type="button" (click)="showFilters.set(!showFilters())">
-                    {{ showFilters() ? 'Hide filters' : 'Show filters' }}
-                  </button>
-                </div>
-
-                @if (showFilters()) {
-                  <div class="mt-4">
-                    <mat-accordion>
-                      <mat-expansion-panel [expanded]="true">
-                        <mat-expansion-panel-header>
-                          <mat-panel-title>Filters</mat-panel-title>
-                          <mat-panel-description>Refine results</mat-panel-description>
-                        </mat-expansion-panel-header>
-
-                        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                          <mat-form-field appearance="outline">
-                            <mat-label>Sort</mat-label>
-                            <mat-select [ngModel]="sort()" (ngModelChange)="sort.set($event)">
-                              <mat-option value="relevance">Relevance</mat-option>
-                              <mat-option value="followedCount">Popularity</mat-option>
-                              <mat-option value="latestUploadedChapter">Latest Updates</mat-option>
-                              <mat-option value="createdAt">Newest Titles</mat-option>
-                              <mat-option value="year">Year</mat-option>
-                            </mat-select>
-                          </mat-form-field>
-
-                          <mat-form-field appearance="outline">
-                            <mat-label>Year</mat-label>
-                            <input matInput type="number" [ngModel]="year()" (ngModelChange)="year.set($event || null)" />
-                          </mat-form-field>
-
-                          <mat-form-field appearance="outline">
-                            <mat-label>Language</mat-label>
-                            <mat-select [ngModel]="originalLanguage()" (ngModelChange)="originalLanguage.set($event)">
-                              <mat-option value="">Any</mat-option>
-                              <mat-option value="ja">Japanese (Manga)</mat-option>
-                              <mat-option value="ko">Korean (Manhwa)</mat-option>
-                              <mat-option value="zh">Chinese (Manhua)</mat-option>
-                              <mat-option value="en">English</mat-option>
-                            </mat-select>
-                          </mat-form-field>
-
-                          <mat-form-field appearance="outline">
-                            <mat-label>Status</mat-label>
-                            <mat-select [ngModel]="status()" (ngModelChange)="status.set($event)">
-                              <mat-option value="">Any</mat-option>
-                              <mat-option value="ongoing">Ongoing</mat-option>
-                              <mat-option value="completed">Completed</mat-option>
-                              <mat-option value="hiatus">Hiatus</mat-option>
-                              <mat-option value="cancelled">Cancelled</mat-option>
-                            </mat-select>
-                          </mat-form-field>
-
-                          <mat-form-field appearance="outline">
-                            <mat-label>Demographic</mat-label>
-                            <mat-select [ngModel]="demographic()" (ngModelChange)="demographic.set($event)">
-                              <mat-option value="">Any</mat-option>
-                              <mat-option value="shounen">Shounen</mat-option>
-                              <mat-option value="shoujo">Shoujo</mat-option>
-                              <mat-option value="seinen">Seinen</mat-option>
-                              <mat-option value="josei">Josei</mat-option>
-                            </mat-select>
-                          </mat-form-field>
-
-                          <mat-form-field appearance="outline">
-                            <mat-label>Content rating</mat-label>
-                            <mat-select [ngModel]="contentRating()" (ngModelChange)="contentRating.set($event)">
-                              <mat-option value="">Any</mat-option>
-                              <mat-option value="safe">Safe</mat-option>
-                              <mat-option value="suggestive">Suggestive</mat-option>
-                              <mat-option value="erotica">Erotica</mat-option>
-                            </mat-select>
-                          </mat-form-field>
-                        </div>
-
-                        <div class="mt-4">
-                          <p class="text-xs uppercase tracking-wider text-[var(--text-muted)] mb-2">Tags</p>
-                          <div class="max-h-56 overflow-auto rounded border border-[var(--border-color)] p-3 bg-[var(--bg-secondary)]">
-                            @for (group of groupedTags(); track group.group) {
-                              <div class="mb-3">
-                                <p class="mb-2 text-[11px] uppercase tracking-wide text-[var(--accent)]">{{ group.group }}</p>
-                                <mat-chip-listbox class="flex flex-wrap">
-                                  @for (tag of group.items; track tag.id) {
-                                    <mat-chip-option
-                                      [selected]="selectedTagIds().includes(tag.id)"
-                                      (click)="toggleTag(tag.id)"
-                                    >{{ tag.name }}</mat-chip-option>
-                                  }
-                                </mat-chip-listbox>
-                              </div>
-                            }
-                          </div>
-                        </div>
-
-                        <div class="mt-4 flex flex-wrap gap-2">
-                          <button mat-flat-button color="primary" type="button" (click)="search()">Apply</button>
-                          <button mat-stroked-button type="button" (click)="clearFilters()">Clear</button>
-                        </div>
-                      </mat-expansion-panel>
-                    </mat-accordion>
-                  </div>
-                }
-              </mat-card>
-
               @if (showHome()) {
                 <div class="mt-6 space-y-10">
                   @if (isDiscoverLoading()) {
