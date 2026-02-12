@@ -3,6 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 
 type MangaDetail = {
   id: string;
@@ -56,97 +61,142 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
 @Component({
   selector: 'app-manga-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    FormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatSelectModule,
+  ],
   template: `
-    <div class="container mx-auto px-4 py-10">
-      <a [routerLink]="libraryRootPath()" class="mb-6 inline-block rounded border border-[#d8c2b8] dark:border-[#5f1327] px-3 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] hover:bg-[#f1e5dd] dark:hover:bg-[#5f1327]/20">Back to {{ isComicsMode() ? 'Comics' : 'Manga' }} Library</a>
+    <div class="container mx-auto px-4 py-10 books-theme">
+      <a mat-stroked-button color="primary" [routerLink]="libraryRootPath()" class="mb-6">
+        Back to {{ isComicsMode() ? 'Comics' : 'Manga' }} Library
+      </a>
 
       @if (isLoading()) {
-        <section class="grid gap-6 md:grid-cols-[260px_1fr]">
-          <div class="aspect-[3/4] animate-pulse rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#e5d2c6] dark:bg-zinc-900"></div>
-          <div class="space-y-3">
-            <div class="h-8 w-3/4 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
-            <div class="h-4 w-2/3 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
-            <div class="h-4 w-full animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
-            <div class="h-4 w-5/6 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
-            <div class="h-4 w-4/6 animate-pulse rounded bg-[#e5d2c6] dark:bg-zinc-900"></div>
-          </div>
+        <section class="grid gap-6 md:grid-cols-[280px_1fr]">
+          <mat-card class="np-cover-card animate-pulse">
+            <div class="np-cover-media"></div>
+          </mat-card>
+          <mat-card class="np-surface-card p-6">
+            <div class="space-y-3">
+              <div class="h-8 w-3/4 animate-pulse rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              <div class="h-4 w-2/3 animate-pulse rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              <div class="h-4 w-full animate-pulse rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              <div class="h-4 w-5/6 animate-pulse rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              <div class="h-4 w-4/6 animate-pulse rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+            </div>
+          </mat-card>
         </section>
       }
 
       @if (detail(); as manga) {
-        <section class="mb-8 grid gap-6 md:grid-cols-[260px_1fr]">
-          <div class="relative aspect-[3/4] overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/40 bg-[#e5d2c6] dark:bg-zinc-900">
-            @if (manga.coverUrl) {
-              <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
-            } @else {
-              <div class="flex h-full items-center justify-center text-4xl">📘</div>
-            }
-          </div>
-
-          <div>
-            <h1 class="text-2xl font-semibold text-[#24181b] dark:text-white md:text-3xl">{{ manga.title }}</h1>
-            <div class="mt-3 flex flex-wrap gap-2 text-xs text-[#6f5b54] dark:text-gray-300">
-              <span class="rounded border border-[#d8c2b8] dark:border-[#5f1327] px-2 py-1 text-[#9a6d1f] dark:text-[#d6b87a]">{{ sourceLabel() }}</span>
-              @if (manga.status) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.status }}</span> }
-              @if (manga.year) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.year }}</span> }
-              @if (manga.originalLanguage) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.originalLanguage }}</span> }
-              @if (manga.contentRating) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.contentRating }}</span> }
-              @if (manga.publicationDemographic) { <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1">{{ manga.publicationDemographic }}</span> }
-            </div>
-
-            <p class="mt-4 text-sm text-[#6f5b54] dark:text-gray-300">{{ manga.description || 'No description available.' }}</p>
-
-            <div class="mt-4 text-xs text-[#8a756e] dark:text-gray-400">
-              @if (manga.author) { <p>Author: {{ manga.author }}</p> }
-              @if (manga.artist) { <p>Artist: {{ manga.artist }}</p> }
-            </div>
-
-            @if (supportsLanguages() && manga.availableTranslatedLanguages.length > 0) {
-              <div class="mt-4">
-                <p class="mb-2 text-xs uppercase tracking-wide text-[#8a756e] dark:text-gray-400">Available chapter languages</p>
-                <div class="flex flex-wrap gap-2">
-                  @for (lang of manga.availableTranslatedLanguages; track lang) {
-                    <span class="rounded border border-[#d8c2b8] dark:border-zinc-700 px-2 py-1 text-xs text-[#24181b] dark:text-gray-200">{{ languageLabel(lang) }}</span>
-                  }
-                </div>
-              </div>
-            }
-
-            <div class="mt-4 flex flex-wrap gap-2">
-              @for (tag of manga.tags; track tag) {
-                <span class="rounded border border-[#d8c2b8] dark:border-[#5f1327]/60 bg-[#f1e5dd] dark:bg-[#120a0d] px-2 py-1 text-xs text-[#9a6d1f] dark:text-[#d6b87a]">{{ tag }}</span>
+        <section class="mb-8 grid gap-6 md:grid-cols-[280px_1fr]">
+          <mat-card class="np-cover-card">
+            <div class="np-cover-media">
+              @if (manga.coverUrl) {
+                <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+              } @else {
+                <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
               }
             </div>
+          </mat-card>
+
+          <div class="min-w-0">
+            <h1 class="text-2xl font-semibold text-[var(--text-primary)] md:text-3xl">{{ manga.title }}</h1>
+
+            <mat-chip-set class="mt-3" aria-label="Manga metadata">
+              <mat-chip>{{ sourceLabel() }}</mat-chip>
+              @if (manga.status) { <mat-chip>{{ manga.status }}</mat-chip> }
+              @if (manga.year) { <mat-chip>{{ manga.year }}</mat-chip> }
+              @if (manga.originalLanguage) { <mat-chip>{{ manga.originalLanguage }}</mat-chip> }
+              @if (manga.contentRating) { <mat-chip>{{ manga.contentRating }}</mat-chip> }
+              @if (manga.publicationDemographic) { <mat-chip>{{ manga.publicationDemographic }}</mat-chip> }
+            </mat-chip-set>
+
+            <mat-card class="np-surface-card mt-4 p-4">
+              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Source</p>
+                  <p class="text-sm text-[var(--text-primary)]">{{ sourceLabel() }}</p>
+                </div>
+                @if (manga.author) {
+                  <div>
+                    <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Author</p>
+                    <p class="text-sm text-[var(--text-primary)]">{{ manga.author }}</p>
+                  </div>
+                }
+                @if (manga.artist) {
+                  <div>
+                    <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Artist</p>
+                    <p class="text-sm text-[var(--text-primary)]">{{ manga.artist }}</p>
+                  </div>
+                }
+                <div>
+                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Chapters</p>
+                  <p class="text-sm text-[var(--text-primary)]">{{ isChaptersLoading() ? 'Loading…' : chapters().length }}</p>
+                </div>
+                @if (manga.availableTranslatedLanguages?.length) {
+                  <div class="sm:col-span-2 lg:col-span-2">
+                    <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Languages</p>
+                    <p class="text-sm text-[var(--text-primary)]">{{ manga.availableTranslatedLanguages.length }} available</p>
+                  </div>
+                }
+              </div>
+            </mat-card>
+
+            <mat-card class="np-surface-card mt-4 p-4">
+              <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Description</p>
+              <p class="mt-2 text-sm text-[var(--text-secondary)] leading-relaxed">{{ manga.description || 'No description available.' }}</p>
+            </mat-card>
+
+            @if (manga.tags?.length) {
+              <mat-card class="np-surface-card mt-4 p-4">
+                <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Tags</p>
+                <mat-chip-set class="mt-2" aria-label="Manga tags">
+                  @for (tag of manga.tags; track tag) {
+                    <mat-chip>{{ tag }}</mat-chip>
+                  }
+                </mat-chip-set>
+              </mat-card>
+            }
 
             <div class="mt-5">
-              <button (click)="toggleFavorite()" class="rounded border border-[#d8c2b8] dark:border-[#5f1327] px-3 py-2 text-sm text-[#24181b] dark:text-white hover:bg-[#f1e5dd] dark:hover:bg-[#800020]">
+              <button mat-stroked-button color="primary" type="button" (click)="toggleFavorite()">
                 {{ isFavorite() ? '★ Favorited' : '☆ Add to Favorites' }}
               </button>
             </div>
           </div>
         </section>
 
-        <section class="mb-8 rounded-xl border border-[#d8c2b8] dark:border-[#5f1327]/40 bg-[#f1e5dd] dark:bg-[#120a0d]/70 p-4">
+        <mat-card class="np-surface-card mb-8 p-4">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 class="text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Chapters</h2>
+            <h2 class="text-lg font-semibold text-[var(--text-primary)]">Chapters</h2>
             <div class="flex items-center gap-3">
               @if (supportsLanguages()) {
-                <label class="text-xs text-[#6f5b54] dark:text-gray-300">
-                  <span class="mr-2">Language</span>
-                  <select
+                <mat-form-field
+                  appearance="fill"
+                  floatLabel="never"
+                  subscriptSizing="dynamic"
+                  class="np-search-field w-52"
+                >
+                  <mat-select
                     [ngModel]="selectedLanguage()"
                     (ngModelChange)="onLanguageChange($event)"
-                    class="rounded border border-[#d8c2b8] dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs text-[#24181b] dark:text-white"
+                    aria-label="Chapter language"
                   >
-                    <option value="all">All</option>
+                    <mat-option value="all">All languages</mat-option>
                     @if (detail(); as current) {
                       @for (lang of current.availableTranslatedLanguages; track lang) {
-                        <option [value]="lang">{{ languageLabel(lang) }}</option>
+                        <mat-option [value]="lang">{{ languageLabel(lang) }}</mat-option>
                       }
                     }
-                  </select>
-                </label>
+                  </mat-select>
+                </mat-form-field>
               }
               <span class="text-xs text-[#8a756e] dark:text-gray-400">{{ isChaptersLoading() ? 'Loading...' : (chapters().length + ' loaded') }}</span>
             </div>
@@ -235,36 +285,42 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
               >Load 30 more chapters</button>
             </div>
           }
-        </section>
+        </mat-card>
 
         @if (supportsSimilar()) {
           <section>
-            <h2 class="mb-4 text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Similar {{ isComicsMode() ? 'Comics' : 'Manga' }}</h2>
+            <h2 class="mb-4 text-lg font-semibold text-[var(--text-primary)]">Similar {{ isComicsMode() ? 'Comics' : 'Manga' }}</h2>
             @if (isSimilarLoading()) {
-              <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+              <div class="np-cover-grid">
                 @for (_ of [1,2,3,4,5,6]; track _) {
-                  <div class="aspect-[3/4] animate-pulse rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#e5d2c6] dark:bg-zinc-900"></div>
+                  <mat-card class="np-cover-card animate-pulse">
+                    <div class="np-cover-media"></div>
+                    <div class="np-cover-body">
+                      <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                      <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                    </div>
+                  </mat-card>
                 }
               </div>
             }
             @if (!isSimilarLoading()) {
-              <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+              <div class="np-cover-grid">
                 @for (item of similar(); track item.id) {
-                  <a [routerLink]="[detailBasePath(), toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/30 bg-[#f1e5dd] dark:bg-[#120a0d] hover:border-[#800020]">
-                    <div class="relative aspect-[3/4]">
-                      @if (item.coverUrl) {
-                        <img [src]="item.coverUrl" [alt]="item.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
-                      } @else {
-                        <div class="flex h-full items-center justify-center bg-[#dcc4b8] dark:bg-zinc-800 text-3xl">📘</div>
-                      }
-                    </div>
-                    <div class="p-2">
-                      <p class="line-clamp-2 text-xs text-[#24181b] dark:text-white">{{ item.title }}</p>
-                      @if (item.latestChapter) {
-                        <p class="mt-1 text-[11px] text-[#9a6d1f] dark:text-[#d6b87a]">Ch. {{ item.latestChapter }}</p>
-                      }
-                    </div>
-                  </a>
+                  <mat-card class="np-cover-card">
+                    <a [routerLink]="[detailBasePath(), toRouteParam(item.id)]" class="np-cover-link">
+                      <div class="np-cover-media">
+                        @if (item.coverUrl) {
+                          <img [src]="item.coverUrl" [alt]="item.title" referrerpolicy="no-referrer">
+                        } @else {
+                          <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                        }
+                      </div>
+                      <div class="np-cover-body">
+                        <div class="np-cover-title">{{ item.title }}</div>
+                        <div class="np-cover-meta">@if (item.latestChapter) { Ch. {{ item.latestChapter }} }</div>
+                      </div>
+                    </a>
+                  </mat-card>
                 }
               </div>
             }

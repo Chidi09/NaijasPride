@@ -52,9 +52,25 @@ type SearchResponse = {
 
       <mat-card class="mb-8 p-4" style="background: var(--bg-card); border: 1px solid var(--border-color);">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <mat-form-field appearance="outline" class="w-full">
-            <mat-label>Search comics</mat-label>
-            <input matInput [(ngModel)]="query" (keyup.enter)="search()" placeholder="Search comics by title..." />
+          <mat-form-field
+            appearance="fill"
+            floatLabel="never"
+            subscriptSizing="dynamic"
+            class="np-search-field w-full"
+          >
+            <span matPrefix class="np-search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="M21 21l-4.3-4.3"></path>
+              </svg>
+            </span>
+            <input
+              matInput
+              [(ngModel)]="query"
+              (keyup.enter)="search()"
+              aria-label="Search comics"
+              placeholder="Search comics"
+            />
           </mat-form-field>
           <button mat-flat-button color="primary" (click)="search()" [disabled]="isSearching()">{{ isSearching() ? 'Searching...' : 'Search' }}</button>
           <button mat-stroked-button color="primary" type="button" (click)="clearSearch()">Clear</button>
@@ -68,36 +84,41 @@ type SearchResponse = {
       }
 
       @if (isLoadingDiscover() || isSearching()) {
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div class="np-cover-grid">
           @for (i of [1,2,3,4,5,6,7,8,9,10,11,12]; track i) {
-            <div class="bg-[#e5d2c6] dark:bg-cinema-800 rounded aspect-[2/3] animate-pulse"></div>
+            <mat-card class="np-cover-card animate-pulse">
+              <div class="np-cover-media"></div>
+              <div class="np-cover-body">
+                <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              </div>
+            </mat-card>
           }
         </div>
       } @else {
         @if (searchResults().length > 0) {
           <section>
             <h2 class="mb-4 text-xl font-serif text-[#24181b] dark:text-white">Search Results</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div class="np-cover-grid">
               @for (comic of searchResults(); track comic.id) {
-                <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group">
-                  <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
-                    <div class="aspect-[2/3] relative">
+                <mat-card class="np-cover-card">
+                  <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="np-cover-link">
+                    <div class="np-cover-media">
                       @if (comic.coverUrl) {
-                        <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
+                        <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer">
                       } @else {
-                        <div class="h-full w-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
-                          <span class="text-2xl">📖</span>
-                        </div>
+                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
                       }
                     </div>
-                    <div class="p-3">
-                      <h3 class="text-[#24181b] dark:text-white text-sm font-medium line-clamp-2">{{ comic.title }}</h3>
-                      @if (comic.latestChapter) {
-                        <p class="text-[#9a6d1f] dark:text-[#d6b87a] text-xs mt-1">Latest: {{ comic.latestChapter }}</p>
-                      }
+                    <div class="np-cover-body">
+                      <div class="np-cover-title">{{ comic.title }}</div>
+                      <div class="np-cover-meta">
+                        @if (comic.latestChapter) { Latest: {{ comic.latestChapter }} • }
+                        Comics
+                      </div>
                     </div>
-                  </div>
-                </a>
+                  </a>
+                </mat-card>
               }
             </div>
           </section>
@@ -105,27 +126,26 @@ type SearchResponse = {
           <section class="space-y-10">
             <div>
               <h2 class="mb-4 text-xl font-serif text-[#24181b] dark:text-white">Trending Comics</h2>
-              <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div class="np-cover-grid">
                 @for (comic of discoverTrending(); track comic.id) {
-                  <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group">
-                    <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
-                      <div class="aspect-[2/3] relative">
+                  <mat-card class="np-cover-card">
+                    <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="np-cover-link">
+                      <div class="np-cover-media">
                         @if (comic.coverUrl) {
-                          <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
+                          <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer">
                         } @else {
-                          <div class="h-full w-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
-                            <span class="text-2xl">📖</span>
-                          </div>
+                          <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
                         }
                       </div>
-                      <div class="p-3">
-                        <h3 class="text-[#24181b] dark:text-white text-sm font-medium line-clamp-2">{{ comic.title }}</h3>
-                        @if (comic.latestChapter) {
-                          <p class="text-[#9a6d1f] dark:text-[#d6b87a] text-xs mt-1">Latest: {{ comic.latestChapter }}</p>
-                        }
+                      <div class="np-cover-body">
+                        <div class="np-cover-title">{{ comic.title }}</div>
+                        <div class="np-cover-meta">
+                          @if (comic.latestChapter) { Latest: {{ comic.latestChapter }} • }
+                          Trending
+                        </div>
                       </div>
-                    </div>
-                  </a>
+                    </a>
+                  </mat-card>
                 }
               </div>
             </div>

@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -158,14 +158,25 @@ type MangaSourceHealth = {
             <div class="pt-6">
               <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <mat-form-field appearance="outline" class="w-full">
-                    <mat-label>Search by title</mat-label>
+                  <mat-form-field
+                    appearance="fill"
+                    floatLabel="never"
+                    subscriptSizing="dynamic"
+                    class="np-search-field w-full"
+                  >
+                    <span matPrefix class="np-search-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <path d="M21 21l-4.3-4.3"></path>
+                      </svg>
+                    </span>
                     <input
                       matInput
                       [ngModel]="query()"
                       (ngModelChange)="query.set($event)"
                       (keyup.enter)="search()"
-                      placeholder="e.g. One Piece"
+                      aria-label="Search manga"
+                      placeholder="Search manga"
                     />
                   </mat-form-field>
 
@@ -173,7 +184,7 @@ type MangaSourceHealth = {
                     {{ isLoading() ? 'Searching...' : 'Search' }}
                   </button>
 
-                  <button mat-button type="button" (click)="showFilters.set(!showFilters())">
+                  <button mat-stroked-button color="primary" type="button" (click)="showFilters.set(!showFilters())">
                     {{ showFilters() ? 'Hide filters' : 'Show filters' }}
                   </button>
                 </div>
@@ -277,49 +288,172 @@ type MangaSourceHealth = {
                 }
               </mat-card>
 
-              <div class="mt-6">
-                <div class="flex items-center justify-between gap-3 mb-3">
-                  <h2 class="text-lg font-semibold text-[var(--text-primary)]">Results</h2>
+              @if (showHome()) {
+                <div class="mt-6 space-y-10">
                   @if (isDiscoverLoading()) {
-                    <span class="text-xs text-[var(--text-muted)]">Loading discover...</span>
-                  }
-                </div>
-
-                @if (results().length === 0 && !isLoading()) {
-                  <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-6">
-                    <p class="text-sm text-[var(--text-muted)]">No manga found. Try a different search or loosen filters.</p>
-                  </mat-card>
-                }
-
-                <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                  @for (manga of results(); track manga.id) {
-                    <mat-card
-                      style="background: var(--bg-card); border: 1px solid var(--border-color);"
-                      class="overflow-hidden hover:shadow-md transition-shadow"
-                    >
-                      <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block">
-                        <div class="relative aspect-[3/4] bg-[var(--bg-elevated)]">
-                          @if (manga.coverUrl) {
-                            <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
-                          } @else {
-                            <div class="flex h-full items-center justify-center text-4xl">📘</div>
+                    <section>
+                      <div class="flex items-center justify-between gap-3 mb-3">
+                        <h2 class="text-lg font-semibold text-[var(--text-primary)]">Trending now</h2>
+                        <span class="text-xs text-[var(--text-muted)]">Loading...</span>
+                      </div>
+                      <div class="np-cover-grid">
+                        @for (i of [1,2,3,4,5,6]; track i) {
+                          <mat-card class="np-cover-card animate-pulse">
+                            <div class="np-cover-media"></div>
+                            <div class="np-cover-body">
+                              <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                              <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                            </div>
+                          </mat-card>
+                        }
+                      </div>
+                    </section>
+                  } @else {
+                    @if (discover(); as d) {
+                    @if (d.trending?.length) {
+                      <section>
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                          <h2 class="text-lg font-semibold text-[var(--text-primary)]">Trending now</h2>
+                          <span class="text-xs text-[var(--text-muted)]">{{ selectedSourceLabel() }}</span>
+                        </div>
+                        <div class="np-cover-grid">
+                          @for (manga of d.trending; track manga.id) {
+                            <mat-card class="np-cover-card">
+                              <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
+                                <div class="np-cover-media">
+                                  @if (manga.coverUrl) {
+                                    <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                                  } @else {
+                                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                                  }
+                                </div>
+                                <div class="np-cover-body">
+                                  <div class="np-cover-title">{{ manga.title }}</div>
+                                  <div class="np-cover-meta">
+                                    {{ sourceLabel(manga.id) }}
+                                    @if (manga.latestChapter) { • Ch. {{ manga.latestChapter }} }
+                                  </div>
+                                </div>
+                              </a>
+                            </mat-card>
                           }
                         </div>
-                        <div class="p-3">
-                          <p class="line-clamp-2 text-sm font-semibold text-[var(--text-primary)]">{{ manga.title }}</p>
-                          <p class="mt-1 text-xs text-[var(--text-muted)]">{{ manga.year || 'Unknown year' }} • {{ sourceLabel(manga.id) }}</p>
-                        </div>
-                      </a>
+                      </section>
+                    }
 
-                      <div class="px-3 pb-3">
-                        <button mat-stroked-button type="button" (click)="toggleFavorite(manga); $event.stopPropagation()">
-                          {{ isFavorite(manga.id) ? '★ Favorited' : '☆ Favorite' }}
-                        </button>
-                      </div>
-                    </mat-card>
+                    @if (d.recentlyUpdated?.length) {
+                      <section>
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                          <h2 class="text-lg font-semibold text-[var(--text-primary)]">Recently updated</h2>
+                          <span class="text-xs text-[var(--text-muted)]">Fresh chapters</span>
+                        </div>
+                        <div class="np-cover-grid">
+                          @for (manga of d.recentlyUpdated; track manga.id) {
+                            <mat-card class="np-cover-card">
+                              <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
+                                <div class="np-cover-media">
+                                  @if (manga.coverUrl) {
+                                    <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                                  } @else {
+                                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                                  }
+                                </div>
+                                <div class="np-cover-body">
+                                  <div class="np-cover-title">{{ manga.title }}</div>
+                                  <div class="np-cover-meta">
+                                    @if (manga.latestChapter) { Latest: {{ manga.latestChapter }} • }
+                                    {{ sourceLabel(manga.id) }}
+                                  </div>
+                                </div>
+                              </a>
+                            </mat-card>
+                          }
+                        </div>
+                      </section>
+                    }
+
+                    @if (d.newTitles?.length) {
+                      <section>
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                          <h2 class="text-lg font-semibold text-[var(--text-primary)]">New titles</h2>
+                          <span class="text-xs text-[var(--text-muted)]">Discover something new</span>
+                        </div>
+                        <div class="np-cover-grid">
+                          @for (manga of d.newTitles; track manga.id) {
+                            <mat-card class="np-cover-card">
+                              <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
+                                <div class="np-cover-media">
+                                  @if (manga.coverUrl) {
+                                    <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                                  } @else {
+                                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                                  }
+                                </div>
+                                <div class="np-cover-body">
+                                  <div class="np-cover-title">{{ manga.title }}</div>
+                                  <div class="np-cover-meta">{{ manga.year || 'Unknown year' }} • {{ sourceLabel(manga.id) }}</div>
+                                </div>
+                              </a>
+                            </mat-card>
+                          }
+                        </div>
+                      </section>
+                    }
+
+                    @if ((!d.trending?.length) && (!d.recentlyUpdated?.length) && (!d.newTitles?.length)) {
+                      <mat-card class="p-6" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                        <p class="text-sm text-[var(--text-muted)]">No discover sections available for this source. Use search to find titles.</p>
+                      </mat-card>
+                    }
+                    } @else {
+                      <mat-card class="p-6" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                        <p class="text-sm text-[var(--text-muted)]">Start searching to find manga, or switch sources to explore trending titles.</p>
+                      </mat-card>
+                    }
                   }
                 </div>
-              </div>
+              } @else {
+                <div class="mt-6">
+                  <div class="flex items-center justify-between gap-3 mb-3">
+                    <h2 class="text-lg font-semibold text-[var(--text-primary)]">Results</h2>
+                    @if (isLoading()) {
+                      <span class="text-xs text-[var(--text-muted)]">Searching...</span>
+                    }
+                  </div>
+
+                  @if (hasSearched() && results().length === 0 && !isLoading()) {
+                    <mat-card class="p-6" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                      <p class="text-sm text-[var(--text-muted)]">No manga found. Try a different search or loosen filters.</p>
+                    </mat-card>
+                  }
+
+                  <div class="np-cover-grid">
+                    @for (manga of results(); track manga.id) {
+                      <mat-card class="np-cover-card">
+                        <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
+                          <div class="np-cover-media">
+                            @if (manga.coverUrl) {
+                              <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                            } @else {
+                              <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                            }
+                          </div>
+                          <div class="np-cover-body">
+                            <div class="np-cover-title">{{ manga.title }}</div>
+                            <div class="np-cover-meta">{{ manga.year || 'Unknown year' }} • {{ sourceLabel(manga.id) }}</div>
+                          </div>
+                        </a>
+
+                        <div class="px-3 pb-3">
+                          <button mat-stroked-button type="button" (click)="toggleFavorite(manga); $event.stopPropagation()">
+                            {{ isFavorite(manga.id) ? '★ Favorited' : '☆ Favorite' }}
+                          </button>
+                        </div>
+                      </mat-card>
+                    }
+                  </div>
+                </div>
+              }
             </div>
           </mat-tab>
 
@@ -327,23 +461,23 @@ type MangaSourceHealth = {
             <div class="pt-6">
               <div class="mb-3 text-sm text-[var(--text-muted)]">Favorites are saved to your account.</div>
               @if (favorites().length === 0) {
-                <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-6">
+                <mat-card class="p-6" style="background: var(--bg-card); border: 1px solid var(--border-color);">
                   <p class="text-sm text-[var(--text-muted)]">No favorites yet.</p>
                 </mat-card>
               }
-              <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4" *ngIf="favorites().length > 0">
+              <div class="np-cover-grid" *ngIf="favorites().length > 0">
                 @for (fav of favorites(); track fav.id) {
-                  <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="overflow-hidden">
-                    <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="block">
-                      <div class="relative aspect-[3/4] bg-[var(--bg-elevated)]">
+                  <mat-card class="np-cover-card">
+                    <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="np-cover-link">
+                      <div class="np-cover-media">
                         @if (fav.coverUrl) {
-                          <img [src]="fav.coverUrl" [alt]="fav.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
+                          <img [src]="fav.coverUrl" [alt]="fav.title" referrerpolicy="no-referrer">
                         } @else {
-                          <div class="flex h-full items-center justify-center text-4xl">📘</div>
+                          <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                         }
                       </div>
-                      <div class="p-3">
-                        <p class="line-clamp-2 text-sm font-semibold text-[var(--text-primary)]">{{ fav.title }}</p>
+                      <div class="np-cover-body">
+                        <div class="np-cover-title">{{ fav.title }}</div>
                       </div>
                     </a>
                     <div class="px-3 pb-3">
@@ -404,6 +538,7 @@ export class MangaLibraryComponent implements OnInit {
   activeTab = signal<'search' | 'favorites' | 'history'>('search');
   query = signal('');
   isLoading = signal(false);
+  hasSearched = signal(false);
   isDiscoverLoading = signal(false);
   isSwitchingSource = signal(false);
   showFilters = signal(false);
@@ -442,7 +577,27 @@ export class MangaLibraryComponent implements OnInit {
   sort = signal<'relevance' | 'latestUploadedChapter' | 'followedCount' | 'createdAt' | 'year'>('relevance');
   year = signal<number | null>(null);
 
+  hasActiveFilters = computed(() => {
+    return (
+      this.selectedTagIds().length > 0 ||
+      !!this.status() ||
+      !!this.originalLanguage() ||
+      !!this.contentRating() ||
+      !!this.demographic() ||
+      !!this.year() ||
+      this.sort() !== 'relevance'
+    );
+  });
+
+  showHome = computed(() => !this.query().trim() && !this.hasActiveFilters());
+
   ngOnInit() {
+    effect(() => {
+      if (this.showHome()) {
+        this.hasSearched.set(false);
+      }
+    });
+
     const savedSource = localStorage.getItem('np_manga_source');
     if (savedSource) {
       this.selectedSource.set(savedSource);
@@ -452,6 +607,10 @@ export class MangaLibraryComponent implements OnInit {
       this.loadFavorites();
     }
     this.loadSources();
+  }
+
+  selectedSourceLabel() {
+    return this.sources().find((source) => source.id === this.selectedSource())?.displayName || this.selectedSource();
   }
 
   onTabChange(index: number) {
@@ -505,7 +664,9 @@ export class MangaLibraryComponent implements OnInit {
     // Load new source data
     this.loadDiscover();
     this.loadTags();
-    this.search();
+    if (!this.showHome()) {
+      this.search();
+    }
     
     // Turn off switching state after a short delay to show the loading state
     setTimeout(() => {
@@ -551,7 +712,11 @@ export class MangaLibraryComponent implements OnInit {
         this.loadSourceHealth();
         this.loadDiscover();
         this.loadTags();
-        this.search();
+        if (!this.showHome()) {
+          this.search();
+        } else {
+          this.results.set([]);
+        }
       },
       error: () => {
         this.sources.set([{ id: 'mangadex', displayName: 'MangaDex', capabilities: {
@@ -565,7 +730,11 @@ export class MangaLibraryComponent implements OnInit {
         } }]);
         this.loadDiscover();
         this.loadTags();
-        this.search();
+        if (!this.showHome()) {
+          this.search();
+        } else {
+          this.results.set([]);
+        }
       },
     });
   }
@@ -578,6 +747,14 @@ export class MangaLibraryComponent implements OnInit {
   }
 
   search() {
+    if (this.showHome()) {
+      this.results.set([]);
+      this.isLoading.set(false);
+      this.hasSearched.set(false);
+      return;
+    }
+
+    this.hasSearched.set(true);
     this.isLoading.set(true);
     const query = this.buildSearchQuery();
     this.http
@@ -601,7 +778,13 @@ export class MangaLibraryComponent implements OnInit {
     this.demographic.set('');
     this.sort.set('relevance');
     this.year.set(null);
-    this.search();
+
+    if (this.query().trim()) {
+      this.search();
+    } else {
+      this.results.set([]);
+      this.hasSearched.set(false);
+    }
   }
 
   toggleTag(tagId: string) {
@@ -627,6 +810,7 @@ export class MangaLibraryComponent implements OnInit {
         this.isDiscoverLoading.set(false);
       },
       error: () => {
+        this.discover.set(null);
         this.isDiscoverLoading.set(false);
       },
     });

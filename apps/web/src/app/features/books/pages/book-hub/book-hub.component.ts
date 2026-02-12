@@ -175,43 +175,46 @@ type SourceDiscoverResponse = {
           </div>
 
           @if (isBooksLoading()) {
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div class="np-cover-grid">
               @for (i of [1,2,3,4,5,6]; track i) {
-                <div class="bg-[#e5d2c6] dark:bg-cinema-800 rounded aspect-[2/3] animate-pulse"></div>
+                <mat-card class="np-cover-card animate-pulse">
+                  <div class="np-cover-media"></div>
+                  <div class="np-cover-body">
+                    <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                    <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                  </div>
+                </mat-card>
               }
             </div>
           } @else if (books().length > 0) {
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div class="np-cover-grid">
               @for (book of books().slice(0, 12); track book.id) {
-                <a [routerLink]="['/books', book.slug]" class="group">
-                  <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
-                    <div class="aspect-[2/3] relative">
+                <mat-card class="np-cover-card">
+                  <a [routerLink]="['/books', book.slug]" class="np-cover-link">
+                    <div class="np-cover-media">
                       @if (book.coverUrl) {
-                        <img 
-                          [src]="book.coverUrl" 
+                        <img
+                          [src]="book.coverUrl"
                           [alt]="book.title"
                           referrerpolicy="no-referrer"
-                          class="absolute inset-0 w-full h-full object-cover"
                         >
                       } @else {
-                        <div class="w-full h-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
-                          <span class="text-2xl">📚</span>
-                        </div>
+                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📚</div>
                       }
                     </div>
-                    <div class="p-3">
-                      <h3 class="text-[#24181b] dark:text-white text-sm font-medium line-clamp-2">{{ book.title }}</h3>
-                      <p class="text-gray-500 text-xs mt-1">{{ book.author }}</p>
+                    <div class="np-cover-body">
+                      <div class="np-cover-title">{{ book.title }}</div>
+                      <div class="np-cover-meta">{{ book.author }}</div>
                     </div>
-                  </div>
-                </a>
+                  </a>
+                </mat-card>
               }
             </div>
           } @else {
-            <div class="text-center py-12 bg-cinema-800/50 rounded-lg">
+            <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
               <span class="text-4xl">📚</span>
-              <p class="text-gray-400 mt-2">No books available yet</p>
-            </div>
+              <p class="text-[var(--text-muted)] mt-2">No books available yet</p>
+            </mat-card>
           }
         </section>
 
@@ -228,43 +231,46 @@ type SourceDiscoverResponse = {
           </div>
 
           @if (isComicsLoading()) {
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div class="np-cover-grid">
               @for (i of [1,2,3,4,5,6]; track i) {
-                <div class="bg-cinema-800 rounded aspect-[2/3] animate-pulse"></div>
+                <mat-card class="np-cover-card animate-pulse">
+                  <div class="np-cover-media"></div>
+                  <div class="np-cover-body">
+                    <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                    <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                  </div>
+                </mat-card>
               }
             </div>
           } @else if (comics().length > 0) {
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div class="np-cover-grid">
               @for (comic of comics().slice(0, 12); track comic.id) {
-                <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group">
-                  <div class="bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
-                    <div class="aspect-[2/3] relative">
+                <mat-card class="np-cover-card">
+                  <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="np-cover-link">
+                    <div class="np-cover-media">
                       @if (comic.coverUrl) {
-                        <img 
-                          [src]="comic.coverUrl" 
+                        <img
+                          [src]="comic.coverUrl"
                           [alt]="comic.title"
                           referrerpolicy="no-referrer"
-                          class="absolute inset-0 w-full h-full object-cover"
                         >
                       } @else {
-                        <div class="w-full h-full bg-cinema-700 flex items-center justify-center">
-                          <span class="text-2xl">📖</span>
-                        </div>
+                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
                       }
                     </div>
-                    <div class="p-3">
-                      <h3 class="text-white text-sm font-medium line-clamp-2">{{ comic.title }}</h3>
-                      <p class="text-gray-500 text-xs mt-1">{{ comic.author }}</p>
+                    <div class="np-cover-body">
+                      <div class="np-cover-title">{{ comic.title }}</div>
+                      <div class="np-cover-meta">{{ comic.author }}</div>
                     </div>
-                  </div>
-                </a>
+                  </a>
+                </mat-card>
               }
             </div>
           } @else {
-            <div class="text-center py-12 bg-cinema-800/50 rounded-lg">
+            <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
               <span class="text-4xl">📖</span>
-              <p class="text-gray-400 mt-2">No comics available yet</p>
-            </div>
+              <p class="text-[var(--text-muted)] mt-2">No comics available yet</p>
+            </mat-card>
           }
         </section>
 
@@ -281,45 +287,49 @@ type SourceDiscoverResponse = {
           </div>
 
           @if (isMangaLoading()) {
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div class="np-cover-grid">
               @for (i of [1,2,3,4,5,6]; track i) {
-                <div class="bg-cinema-800 rounded aspect-[2/3] animate-pulse"></div>
+                <mat-card class="np-cover-card animate-pulse">
+                  <div class="np-cover-media"></div>
+                  <div class="np-cover-body">
+                    <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                    <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                  </div>
+                </mat-card>
               }
             </div>
           } @else if (manga().length > 0) {
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div class="np-cover-grid">
               @for (m of manga().slice(0, 12); track m.id) {
-                <a [routerLink]="['/books/manga', toRouteParam(m.id)]" class="group">
-                  <div class="bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
-                    <div class="aspect-[2/3] relative">
+                <mat-card class="np-cover-card">
+                  <a [routerLink]="['/books/manga', toRouteParam(m.id)]" class="np-cover-link">
+                    <div class="np-cover-media">
                       @if (m.coverUrl) {
-                        <img 
-                          [src]="m.coverUrl" 
+                        <img
+                          [src]="m.coverUrl"
                           [alt]="m.title"
                           referrerpolicy="no-referrer"
-                          class="absolute inset-0 w-full h-full object-cover"
                         >
                       } @else {
-                        <div class="w-full h-full bg-cinema-700 flex items-center justify-center">
-                          <span class="text-2xl">🎌</span>
-                        </div>
+                        <div class="absolute inset-0 flex items-center justify-center text-4xl">🎌</div>
                       }
                     </div>
-                    <div class="p-3">
-                      <h3 class="text-white text-sm font-medium line-clamp-2">{{ m.title }}</h3>
-                      @if (m.latestChapter) {
-                        <p class="text-pink-400 text-xs mt-1">Ch. {{ m.latestChapter }}</p>
-                      }
+                    <div class="np-cover-body">
+                      <div class="np-cover-title">{{ m.title }}</div>
+                      <div class="np-cover-meta">
+                        @if (m.latestChapter) { Ch. {{ m.latestChapter }} • }
+                        Manga
+                      </div>
                     </div>
-                  </div>
-                </a>
+                  </a>
+                </mat-card>
               }
             </div>
           } @else {
-            <div class="text-center py-12 bg-cinema-800/50 rounded-lg">
+            <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
               <span class="text-4xl">🎌</span>
-              <p class="text-gray-400 mt-2">No manga available</p>
-            </div>
+              <p class="text-[var(--text-muted)] mt-2">No manga available</p>
+            </mat-card>
           }
         </section>
 

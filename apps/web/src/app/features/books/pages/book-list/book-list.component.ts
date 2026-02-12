@@ -38,41 +38,41 @@ type MangaDiscoverPayload = {
       </div>
 
       @if (isLoading()) {
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          @for (i of [1,2,3,4,5,6,7,8,10]; track i) {
-            <div class="bg-[#e5d2c6] dark:bg-cinema-800 rounded-sm aspect-[2/3] animate-pulse"></div>
+        <div class="np-cover-grid">
+          @for (i of [1,2,3,4,5,6,7,8,9,10]; track i) {
+            <mat-card class="np-cover-card animate-pulse">
+              <div class="np-cover-media"></div>
+              <div class="np-cover-body">
+                <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              </div>
+            </mat-card>
           }
         </div>
       }
 
       @if (books().length > 0) {
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+        <div class="np-cover-grid">
           @for (book of books(); track book.id) {
-            <a [routerLink]="['/books', book.slug]" class="block">
-              <mat-card class="h-full overflow-hidden hover:shadow-md transition-shadow" style="background: var(--bg-card); border: 1px solid var(--border-color);">
-                <div class="aspect-[2/3] relative bg-[var(--bg-elevated)]">
+            <mat-card class="np-cover-card">
+              <a [routerLink]="['/books', book.slug]" class="np-cover-link">
+                <div class="np-cover-media">
                   @if (book.coverUrl) {
-                    <img 
-                      [src]="book.coverUrl" 
+                    <img
+                      [src]="book.coverUrl"
                       [alt]="book.title"
-                      class="absolute inset-0 w-full h-full object-cover"
                       referrerpolicy="no-referrer"
                     >
                   } @else {
-                    <div class="w-full h-full flex items-center justify-center">
-                      <span class="text-4xl">📚</span>
-                    </div>
+                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📚</div>
                   }
                 </div>
-                <div class="p-4">
-                  <h3 class="text-[#24181b] dark:text-white font-medium text-sm line-clamp-2">{{ book.title }}</h3>
-                  <p class="text-[#8a756e] dark:text-gray-400 text-xs mt-1">{{ book.author }}</p>
-                  @if (book.year) {
-                    <p class="text-[#9a857d] dark:text-gray-500 text-xs mt-1">{{ book.year }}</p>
-                  }
+                <div class="np-cover-body">
+                  <div class="np-cover-title">{{ book.title }}</div>
+                  <div class="np-cover-meta">{{ book.author }} @if (book.year) { • {{ book.year }} }</div>
                 </div>
-              </mat-card>
-            </a>
+              </a>
+            </mat-card>
           }
         </div>
         
@@ -102,31 +102,27 @@ type MangaDiscoverPayload = {
               <h2 class="text-xl font-serif text-[#24181b] dark:text-white">Trending Manga Right Now</h2>
               <a routerLink="/books/manga" class="text-sm text-[#d6b87a] hover:text-white">Open Manga Library</a>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+            <div class="np-cover-grid">
               @for (manga of trendingManga(); track manga.id) {
-                <a [routerLink]="['/books/manga', toRouteParam(manga.id)]" class="group">
-                  <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded-sm overflow-hidden transition-transform group-hover:scale-105">
-                    <div class="aspect-[2/3] relative">
+                <mat-card class="np-cover-card">
+                  <a [routerLink]="['/books/manga', toRouteParam(manga.id)]" class="np-cover-link">
+                    <div class="np-cover-media">
                       @if (manga.coverUrl) {
                         <img
                           [src]="manga.coverUrl"
                           [alt]="manga.title"
-                          class="absolute inset-0 w-full h-full object-cover"
+                          referrerpolicy="no-referrer"
                         >
                       } @else {
-                        <div class="w-full h-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
-                          <span class="text-4xl">📘</span>
-                        </div>
+                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                       }
                     </div>
-                    <div class="p-3">
-                      <h3 class="text-[#24181b] dark:text-white font-medium text-sm line-clamp-2">{{ manga.title }}</h3>
-                      @if (manga.latestChapter) {
-                        <p class="text-[#d6b87a] text-xs mt-1">Ch. {{ manga.latestChapter }}</p>
-                      }
+                    <div class="np-cover-body">
+                      <div class="np-cover-title">{{ manga.title }}</div>
+                      <div class="np-cover-meta">@if (manga.latestChapter) { Ch. {{ manga.latestChapter }} }</div>
                     </div>
-                  </div>
-                </a>
+                  </a>
+                </mat-card>
               }
             </div>
           </section>
