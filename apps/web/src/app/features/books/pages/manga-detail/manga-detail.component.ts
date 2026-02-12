@@ -311,7 +311,7 @@ export class MangaDetailComponent implements OnInit {
   }
 
   toRouteParam(value: string) {
-    return encodeURIComponent(value);
+    return value;
   }
 
   private fromRouteParam(value: string | null): string | null {
@@ -379,7 +379,6 @@ export class MangaDetailComponent implements OnInit {
   private loadChapters(mangaId: string) {
     this.isChaptersLoading.set(true);
     const language = this.selectedLanguage();
-    const params = language && language !== 'all' ? `?language=${encodeURIComponent(language)}` : '';
     const parsed = parseSourceEntityId(mangaId);
     if (!parsed) {
       this.chapters.set([]);
@@ -388,8 +387,11 @@ export class MangaDetailComponent implements OnInit {
       return;
     }
 
-    const encodedMangaId = encodeURIComponent(mangaId);
-    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/chapters${params}`;
+    const query = new URLSearchParams({
+      mangaId,
+      ...(language && language !== 'all' ? { language } : {}),
+    }).toString();
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapters-by-id?${query}`;
     this.http.get<{ status: string; data: MangaChapter[] }>(endpoint).subscribe({
       next: (response) => {
         this.chapters.set(response.data);
@@ -416,8 +418,7 @@ export class MangaDetailComponent implements OnInit {
       return;
     }
 
-    const encodedMangaId = encodeURIComponent(mangaId);
-    const detailEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}`;
+    const detailEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/detail-by-id?mangaId=${encodeURIComponent(mangaId)}`;
     this.http.get<{ status: string; data: MangaDetail }>(detailEndpoint).subscribe({
       next: (response) => {
         this.detail.set(response.data);
@@ -430,7 +431,7 @@ export class MangaDetailComponent implements OnInit {
 
     this.loadChapters(mangaId);
 
-    const similarEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodedMangaId}/similar?limit=6`;
+    const similarEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/similar-by-id?mangaId=${encodeURIComponent(mangaId)}&limit=6`;
     this.http.get<{ status: string; data: MangaSummary[] }>(similarEndpoint).subscribe({
       next: (response) => {
         this.similar.set(response.data);

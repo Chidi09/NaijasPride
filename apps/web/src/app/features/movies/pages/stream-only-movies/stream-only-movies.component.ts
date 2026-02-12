@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { MovieCardYoutubeComponent } from '../../../movies/components/movie-card-youtube/movie-card-youtube.component';
 import { MovieSummary } from '@naijaspride/types';
+import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
 
 /**
  * Stream-only movies page (YouTube Nollywood movies)
@@ -12,7 +13,7 @@ import { MovieSummary } from '@naijaspride/types';
 @Component({
   selector: 'app-stream-only-movies',
   standalone: true,
-  imports: [CommonModule, RouterLink, MovieCardYoutubeComponent],
+  imports: [CommonModule, RouterLink, MovieCardYoutubeComponent, PaginatorComponent],
   template: `
     <div class="min-h-screen bg-[var(--bg-primary)] pb-20">
       <!-- Header -->
@@ -59,10 +60,10 @@ import { MovieSummary } from '@naijaspride/types';
         @if (!isLoading() && movies().length > 0) {
           <div class="mb-8">
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-xl font-semibold text-[#24181b] dark:text-white">
-                Latest Additions
-                <span class="text-[#8a756e] dark:text-gray-500 text-sm ml-2">({{ movies().length }} movies)</span>
-              </h2>
+                <h2 class="text-xl font-semibold text-[#24181b] dark:text-white">
+                  Latest Additions
+                <span class="text-[#8a756e] dark:text-gray-500 text-sm ml-2">({{ totalMovies() }} movies)</span>
+                </h2>
               
               <!-- Sort Options -->
               <select 
@@ -80,6 +81,16 @@ import { MovieSummary } from '@naijaspride/types';
                 <app-movie-card-youtube [movie]="movie" />
               }
             </div>
+
+            @if (totalPages() > 1) {
+              <div class="mt-8">
+                <app-paginator
+                  [currentPage]="currentPage()"
+                  [totalPages]="totalPages()"
+                  (pageChange)="onPageChange($event)"
+                />
+              </div>
+            }
           </div>
         }
 
@@ -109,6 +120,10 @@ export class StreamOnlyMoviesComponent implements OnInit {
   movies = signal<MovieSummary[]>([]);
   isLoading = signal(true);
   sortBy = signal('latest');
+  currentPage = signal(1);
+  totalPages = signal(1);
+  totalMovies = signal(0);
+  readonly pageSize = 50;
 
   ngOnInit() {
     this.loadMovies();
@@ -121,16 +136,19 @@ export class StreamOnlyMoviesComponent implements OnInit {
     this.http.get<{ 
       success: boolean;
       data: MovieSummary[];
-      meta?: { total: number };
+      meta?: { page: number; total: number; totalPages: number };
     }>('/api/v1/movies', {
       params: {
         isStreamOnly: 'true',
         sortBy: this.sortBy(),
-        limit: '50'
+        page: String(this.currentPage()),
+        limit: String(this.pageSize),
       }
     }).subscribe({
       next: (response) => {
         this.movies.set(response.data || []);
+        this.totalMovies.set(response.meta?.total || response.data?.length || 0);
+        this.totalPages.set(response.meta?.totalPages || 1);
         this.isLoading.set(false);
       },
       error: (error) => {
@@ -143,6 +161,13 @@ export class StreamOnlyMoviesComponent implements OnInit {
   changeSort(event: Event) {
     const select = event.target as HTMLSelectElement;
     this.sortBy.set(select.value);
+    this.currentPage.set(1);
     this.loadMovies();
+  }
+
+  onPageChange(page: number) {
+    this.currentPage.set(page);
+    this.loadMovies();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }

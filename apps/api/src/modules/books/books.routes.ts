@@ -53,6 +53,25 @@ const sourceChapterParamSchema = z.object({
   chapterId: z.string().trim().min(1),
 });
 
+const sourceMangaQuerySchema = z.object({
+  mangaId: z.string().trim().min(1),
+});
+
+const sourceSimilarQueryByIdSchema = z.object({
+  mangaId: z.string().trim().min(1),
+  limit: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+const sourceChaptersByIdQuerySchema = z.object({
+  mangaId: z.string().trim().min(1),
+  language: z.string().trim().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+const sourcePagesByIdQuerySchema = z.object({
+  chapterId: z.string().trim().min(1),
+});
+
 const SCRAPE_RATE_LIMIT = {
   max: 40,
   timeWindow: '1 minute',
@@ -275,6 +294,102 @@ export const bookRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to fetch manga source tags',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/detail-by-id?mangaId=...
+  // Query-based variant to safely support IDs containing slashes.
+  app.get('/manga/source/:source/detail-by-id', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: sourceParamSchema,
+      querystring: sourceMangaQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source } = request.params as z.infer<typeof sourceParamSchema>;
+        const { mangaId } = request.query as z.infer<typeof sourceMangaQuerySchema>;
+        const data = await mangaService.getMangaDetailBySource(source, mangaId);
+        if (!data) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Manga not found',
+          });
+        }
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch manga detail',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/similar-by-id?mangaId=...&limit=6
+  app.get('/manga/source/:source/similar-by-id', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: sourceParamSchema,
+      querystring: sourceSimilarQueryByIdSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source } = request.params as z.infer<typeof sourceParamSchema>;
+        const { mangaId, limit } = request.query as z.infer<typeof sourceSimilarQueryByIdSchema>;
+        const data = await mangaService.getSimilarMangaBySource(source, mangaId, limit ?? 6);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch similar manga',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/chapters-by-id?mangaId=...&language=...&limit=...
+  app.get('/manga/source/:source/chapters-by-id', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      params: sourceParamSchema,
+      querystring: sourceChaptersByIdQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source } = request.params as z.infer<typeof sourceParamSchema>;
+        const { mangaId, language, limit } = request.query as z.infer<typeof sourceChaptersByIdQuerySchema>;
+        const normalizedLanguage = language?.toLowerCase() === 'all' ? undefined : language;
+        const data = await mangaService.getChaptersBySource(source, mangaId, normalizedLanguage, limit ?? 200);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch source chapters',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/source/:source/pages-by-id?chapterId=...
+  app.get('/manga/source/:source/pages-by-id', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      params: sourceParamSchema,
+      querystring: sourcePagesByIdQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source } = request.params as z.infer<typeof sourceParamSchema>;
+        const { chapterId } = request.query as z.infer<typeof sourcePagesByIdQuerySchema>;
+        const data = await mangaService.getChapterPagesBySource(source, chapterId);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch source chapter pages',
         });
       }
     },

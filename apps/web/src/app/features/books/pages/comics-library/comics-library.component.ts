@@ -206,6 +206,6 @@ export class ComicsLibraryComponent {
   }
 
   toRouteParam(value: string) {
-    return encodeURIComponent(value);
+    return value;
   }
 }

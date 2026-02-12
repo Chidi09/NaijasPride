@@ -545,7 +545,7 @@ export class MangaLibraryComponent implements OnInit {
   }
 
   toRouteParam(value: string) {
-    return encodeURIComponent(value);
+    return value;
   }
 
   private extractSource(entityId: string): string {

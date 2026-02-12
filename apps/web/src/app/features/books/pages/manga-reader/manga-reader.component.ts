@@ -343,6 +343,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     if (source === 'weebcentral') return 'WeebCentral';
     if (source === 'asura') return 'AsuraScans';
     if (source === 'manhwatop') return 'ManhwaTop';
+    if (source === 'readcomicsonline') return 'ReadComicsOnline';
     return source;
   }
 
@@ -358,7 +359,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapter/${encodeURIComponent(chapterId)}/pages`;
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/pages-by-id?chapterId=${encodeURIComponent(chapterId)}`;
 
     this.http.get<{ status: string; data: MangaPagesPayload }>(endpoint).subscribe({
       next: (response) => {
@@ -414,7 +415,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/${encodeURIComponent(mangaId)}/chapters?limit=500`;
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/chapters-by-id?mangaId=${encodeURIComponent(mangaId)}&limit=500`;
 
     this.http.get<{ status: string; data: MangaChapter[] }>(endpoint).subscribe({
       next: (response) => {
@@ -548,7 +549,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private toRouteParam(value: string) {
-    return encodeURIComponent(value);
+    return value;
   }
 
   private fromRouteParam(value: string | null): string | null {
