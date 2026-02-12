@@ -56,16 +56,18 @@ type SourceDiscoverResponse = {
             <!-- Featured Book -->
             <div class="group">
               <a [routerLink]="featured().book?.slug ? ['/books', featured().book!.slug] : null" class="block">
-                <mat-card class="overflow-hidden transition-all hover:scale-[1.01]" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                <mat-card class="np-surface-card overflow-hidden transition-all hover:scale-[1.01]">
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-blue-400 uppercase">📚 Popular Book</span>
                 </div>
                 <div class="p-4 flex gap-4">
                   @if (featured().book?.coverUrl) {
                     <div class="w-24 h-36 flex-shrink-0 rounded overflow-hidden">
-                      <img 
-                        [src]="featured().book!.coverUrl" 
+                      <img
+                        [src]="featured().book!.coverUrl"
                         [alt]="featured().book!.title"
+                        loading="lazy"
+                        decoding="async"
                         referrerpolicy="no-referrer"
                         class="w-full h-full object-cover"
                       >
@@ -90,16 +92,18 @@ type SourceDiscoverResponse = {
             <!-- Featured Comic -->
             <div class="group">
               <a [routerLink]="featured().comic?.id ? ['/books/comics', toRouteParam(featured().comic!.id)] : ['/books/comics']" class="block">
-                <mat-card class="overflow-hidden transition-all hover:scale-[1.01]" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                <mat-card class="np-surface-card overflow-hidden transition-all hover:scale-[1.01]">
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-purple-400 uppercase">📖 Popular Comic</span>
                 </div>
                 <div class="p-4 flex gap-4">
                   @if (featured().comic?.coverUrl) {
                     <div class="w-24 h-36 flex-shrink-0 rounded overflow-hidden">
-                      <img 
-                        [src]="featured().comic!.coverUrl" 
+                      <img
+                        [src]="featured().comic!.coverUrl"
                         [alt]="featured().comic!.title"
+                        loading="lazy"
+                        decoding="async"
                         referrerpolicy="no-referrer"
                         class="w-full h-full object-cover"
                       >
@@ -121,16 +125,18 @@ type SourceDiscoverResponse = {
             <!-- Featured Manga (Auto-rotating) -->
             <div class="group relative">
               <a [routerLink]="featured().manga?.id ? ['/books/manga', toRouteParam(featured().manga!.id)] : null" class="block">
-                <mat-card class="overflow-hidden transition-all hover:scale-[1.01]" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                <mat-card class="np-surface-card overflow-hidden transition-all hover:scale-[1.01]">
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-pink-400 uppercase">🎌 Trending Manga</span>
                 </div>
                 <div class="p-4 flex gap-4">
                   @if (featured().manga?.coverUrl) {
                     <div class="w-24 h-36 flex-shrink-0 rounded overflow-hidden">
-                      <img 
-                        [src]="featured().manga!.coverUrl" 
+                      <img
+                        [src]="featured().manga!.coverUrl"
                         [alt]="featured().manga!.title"
+                        loading="lazy"
+                        decoding="async"
                         referrerpolicy="no-referrer"
                         class="w-full h-full object-cover transition-opacity duration-500"
                         [class.opacity-0]="isMangaChanging()"
@@ -196,6 +202,8 @@ type SourceDiscoverResponse = {
                         <img
                           [src]="book.coverUrl"
                           [alt]="book.title"
+                          loading="lazy"
+                          decoding="async"
                           referrerpolicy="no-referrer"
                         >
                       } @else {
@@ -252,6 +260,8 @@ type SourceDiscoverResponse = {
                         <img
                           [src]="comic.coverUrl"
                           [alt]="comic.title"
+                          loading="lazy"
+                          decoding="async"
                           referrerpolicy="no-referrer"
                         >
                       } @else {
@@ -308,6 +318,8 @@ type SourceDiscoverResponse = {
                         <img
                           [src]="m.coverUrl"
                           [alt]="m.title"
+                          loading="lazy"
+                          decoding="async"
                           referrerpolicy="no-referrer"
                         >
                       } @else {

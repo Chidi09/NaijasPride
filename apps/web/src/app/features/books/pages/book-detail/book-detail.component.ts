@@ -5,11 +5,12 @@ import { HttpClient } from '@angular/common/http';
 import { Book } from '@naijaspride/types';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
 
 @Component({
   selector: 'app-book-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatChipsModule],
   template: `
     @if (book(); as book) {
       <div class="container mx-auto px-4 py-12 books-theme">
@@ -18,17 +19,23 @@ import { MatCardModule } from '@angular/material/card';
           <div class="md:col-span-1">
             <div class="sticky top-24">
               @if (book.coverUrl) {
-                <div class="relative aspect-[2/3] w-full rounded-lg shadow-2xl overflow-hidden">
-                  <img 
-                    [src]="book.coverUrl" 
-                    [alt]="book.title"
-                    class="absolute inset-0 w-full h-full object-cover"
-                  >
-                </div>
+                <mat-card class="np-cover-card">
+                  <div class="np-cover-media">
+                    <img
+                      [src]="book.coverUrl"
+                      [alt]="book.title"
+                      loading="lazy"
+                      decoding="async"
+                      referrerpolicy="no-referrer"
+                    >
+                  </div>
+                </mat-card>
               } @else {
-                <div class="aspect-[2/3] bg-[#e5d2c6] dark:bg-cinema-800 rounded-lg flex items-center justify-center">
-                  <span class="text-6xl">📚</span>
-                </div>
+                <mat-card class="np-cover-card">
+                  <div class="np-cover-media">
+                    <div class="absolute inset-0 flex items-center justify-center text-6xl">📚</div>
+                  </div>
+                </mat-card>
               }
               
               @if (book.downloadUrl) {
@@ -75,19 +82,20 @@ import { MatCardModule } from '@angular/material/card';
             </div>
             
             @if (book.genre?.length) {
-              <div class="flex flex-wrap gap-2 mb-8">
-                @for (genre of book.genre; track genre) {
-                  <span class="bg-[#e5d2c6] dark:bg-cinema-800 text-[#5b4a46] dark:text-gray-300 text-sm px-3 py-1 rounded-full">
-                    {{ genre }}
-                  </span>
-                }
-              </div>
+              <mat-card class="np-surface-card mb-8 p-4">
+                <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Genres</p>
+                <mat-chip-set class="mt-2" aria-label="Book genres">
+                  @for (genre of book.genre; track genre) {
+                    <mat-chip>{{ genre }}</mat-chip>
+                  }
+                </mat-chip-set>
+              </mat-card>
             }
             
             @if (book.description) {
-              <mat-card class="p-6" style="background: var(--bg-card); border: 1px solid var(--border-color);">
-                <h2 class="text-lg font-bold text-[#24181b] dark:text-white mb-4">Description</h2>
-                <p class="text-[#725f58] dark:text-gray-400 leading-relaxed">{{ book.description }}</p>
+              <mat-card class="np-surface-card p-6">
+                <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Description</p>
+                <p class="mt-2 text-[var(--text-secondary)] leading-relaxed">{{ book.description }}</p>
               </mat-card>
             }
             

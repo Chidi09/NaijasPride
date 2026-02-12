@@ -179,37 +179,30 @@ body.tv-mode html,
 /* Books Theme (Kotatsu-inspired Material feel)
    Scoped to .books-theme so the rest of the site remains unchanged. */
 .books-theme {
-  --np-tile-min: 140px;
+  /* Cover grid density adapts smoothly across phones/tablets/foldables. */
+  --np-grid-gap: clamp(12px, 1.6vw, 18px);
+  --np-tile-min: clamp(132px, 22vw, 196px);
   --np-cover-aspect: 2 / 3;
-  --np-cover-radius: 18px;
+  --np-cover-radius: 16px;
   --np-cover-shadow: 0 14px 40px rgba(0, 0, 0, 0.12);
 }
 
 @media (min-width: 600px) {
   .books-theme {
-    --np-tile-min: 160px;
-  }
-}
-
-@media (min-width: 900px) {
-  .books-theme {
-    --np-tile-min: 180px;
-  }
-}
-
-@media (min-width: 1200px) {
-  .books-theme {
-    --np-tile-min: 190px;
+    --np-cover-radius: 18px;
   }
 }
 
 .books-theme .np-cover-grid {
   display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(var(--np-tile-min), 1fr));
+  gap: var(--np-grid-gap);
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--np-tile-min), 100%), 1fr));
+  align-content: start;
 }
 
 .books-theme .np-cover-card.mat-mdc-card {
+  display: flex;
+  flex-direction: column;
   border-radius: var(--np-cover-radius);
   overflow: hidden;
   background: var(--bg-card);
@@ -236,7 +229,9 @@ body.tv-mode html,
 }
 
 .books-theme .np-cover-link {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   color: inherit;
   text-decoration: none;
 }
@@ -244,7 +239,8 @@ body.tv-mode html,
 .books-theme .np-cover-media {
   position: relative;
   aspect-ratio: var(--np-cover-aspect);
-  background: var(--bg-elevated);
+  background: radial-gradient(120% 90% at 15% 20%, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.01) 55%, transparent 100%),
+    var(--bg-elevated);
 }
 
 .books-theme .np-cover-media img {
@@ -253,10 +249,12 @@ body.tv-mode html,
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .books-theme .np-cover-body {
   padding: 12px;
+  min-height: 64px;
 }
 
 .books-theme .np-cover-title {
@@ -321,6 +319,75 @@ body.tv-mode html,
   width: 18px;
   height: 18px;
   margin-right: 6px;
+  color: var(--text-muted);
+}
+
+/* Chapters list (Kotatsu-like sticky toolbar + compact rows) */
+.books-theme .np-chapters-scroll {
+  max-height: min(70vh, 820px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+@media (max-width: 480px) {
+  .books-theme .np-chapters-scroll {
+    max-height: 78vh;
+  }
+}
+
+.books-theme .np-chapters-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: 0 -4px 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-card);
+  backdrop-filter: blur(8px);
+}
+
+.books-theme .np-chapter-row {
+  display: block;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  padding: 10px 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.books-theme .np-chapter-row:hover {
+  border-color: rgb(var(--cinema-500) / 0.45);
+  transform: translateY(-1px);
+}
+
+.books-theme .np-chapter-row.np-chapter-row--external {
+  border-color: rgba(217, 119, 6, 0.45);
+  background: rgba(217, 119, 6, 0.08);
+}
+
+.books-theme .np-chapter-row.np-chapter-row--external:hover {
+  border-color: rgba(245, 158, 11, 0.65);
+}
+
+.books-theme .np-chapter-title {
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.books-theme .np-chapter-subtitle {
+  margin-left: 8px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.books-theme .np-chapter-meta {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 

@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 
 type MangaDetail = {
@@ -69,6 +70,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
     MatCardModule,
     MatChipsModule,
     MatFormFieldModule,
+    MatInputModule,
     MatSelectModule,
   ],
   template: `
@@ -99,7 +101,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
           <mat-card class="np-cover-card">
             <div class="np-cover-media">
               @if (manga.coverUrl) {
-                <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
               } @else {
                 <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
               }
@@ -174,31 +176,35 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
         </section>
 
         <mat-card class="np-surface-card mb-8 p-4">
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 class="text-lg font-semibold text-[var(--text-primary)]">Chapters</h2>
-            <div class="flex items-center gap-3">
-              @if (supportsLanguages()) {
-                <mat-form-field
-                  appearance="fill"
-                  floatLabel="never"
-                  subscriptSizing="dynamic"
-                  class="np-search-field w-52"
+          <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 class="text-lg font-semibold text-[var(--text-primary)]">Chapters</h2>
+              <p class="mt-1 text-xs text-[var(--text-muted)]">
+                @if (isChaptersLoading()) {
+                  Loading chapters...
+                } @else {
+                  Showing {{ visibleFilteredChapterCount() }} of {{ filteredChapterCount() }}
+                }
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              @if (continueReadingChapterId(); as contId) {
+                <a
+                  mat-flat-button
+                  color="primary"
+                  [routerLink]="[readBasePath(), toRouteParam(contId)]"
+                  [queryParams]="{ title: manga.title, chapter: continueReadingChapterLabel() || '', mangaId: manga.id }"
                 >
-                  <mat-select
-                    [ngModel]="selectedLanguage()"
-                    (ngModelChange)="onLanguageChange($event)"
-                    aria-label="Chapter language"
-                  >
-                    <mat-option value="all">All languages</mat-option>
-                    @if (detail(); as current) {
-                      @for (lang of current.availableTranslatedLanguages; track lang) {
-                        <mat-option [value]="lang">{{ languageLabel(lang) }}</mat-option>
-                      }
-                    }
-                  </mat-select>
-                </mat-form-field>
+                  Continue
+                  @if (continueReadingChapterLabel(); as cLabel) {
+                    <span class="ml-2 text-xs font-normal opacity-80">{{ cLabel }}</span>
+                  }
+                </a>
               }
-              <span class="text-xs text-[#8a756e] dark:text-gray-400">{{ isChaptersLoading() ? 'Loading...' : (chapters().length + ' loaded') }}</span>
+              <button mat-stroked-button color="primary" type="button" (click)="toggleChapterOrder()">
+                {{ chapterOrder() === 'newest' ? 'Newest' : 'Oldest' }}
+              </button>
             </div>
           </div>
           @if (hasExternalChapters()) {
@@ -216,73 +222,145 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
               }
             </div>
           }
-          <div class="max-h-[70vh] space-y-2 overflow-auto pr-1">
-            <div class="sticky top-0 z-10 -mx-1 mb-2 border-b border-[#d8c2b8] dark:border-zinc-800 bg-[#f1e5dd] dark:bg-[#120a0d]/95 px-1 py-2 text-[11px] uppercase tracking-wide text-[#8a756e] dark:text-gray-400">
-              Chapter list (newest first)
-            </div>
-            @for (chapter of visibleChapters(); track chapter.id) {
-              @if (chapter.isExternal && chapter.externalUrl) {
-                <a
-                  [href]="chapter.externalUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="block rounded border border-amber-700/40 bg-amber-900/10 px-3 py-3 text-sm text-[#24181b] dark:text-gray-200 hover:border-amber-500"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="font-medium">
-                      {{ chapterLabel(chapter) }}
-                      @if (chapterSubtitle(chapter)) {
-                        <span class="text-[#8a756e] dark:text-gray-400">{{ chapterSubtitle(chapter) }}</span>
-                      }
-                    </p>
-                    <span class="rounded border border-amber-600/50 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">External</span>
-                  </div>
-                  <div class="mt-1 flex items-center gap-2 text-xs text-[#8a756e] dark:text-gray-400">
-                    @if (chapter.branch) {
-                      <span>{{ chapter.branch }}</span>
+          @if (!isChaptersLoading() && chapters().length > 0) {
+            <div class="np-chapters-scroll space-y-2">
+              <div class="np-chapters-toolbar">
+                <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    @if (supportsLanguages()) {
+                      <mat-form-field
+                        appearance="fill"
+                        floatLabel="never"
+                        subscriptSizing="dynamic"
+                        class="np-search-field w-full sm:w-52"
+                      >
+                        <mat-select
+                          [ngModel]="selectedLanguage()"
+                          (ngModelChange)="onLanguageChange($event)"
+                          aria-label="Chapter language"
+                        >
+                          <mat-option value="all">All languages</mat-option>
+                          @if (detail(); as current) {
+                            @for (lang of current.availableTranslatedLanguages; track lang) {
+                              <mat-option [value]="lang">{{ languageLabel(lang) }}</mat-option>
+                            }
+                          }
+                        </mat-select>
+                      </mat-form-field>
                     }
-                    @if (chapter.volume) {
-                      <span>Vol. {{ chapter.volume }}</span>
-                    }
-                    <span>Open source site</span>
+
+                    <mat-form-field
+                      appearance="fill"
+                      floatLabel="never"
+                      subscriptSizing="dynamic"
+                      class="np-search-field w-full sm:w-72"
+                    >
+                      <span matPrefix class="np-search-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="11" cy="11" r="7"></circle>
+                          <path d="M21 21l-4.3-4.3"></path>
+                        </svg>
+                      </span>
+                      <input
+                        matInput
+                        [ngModel]="chapterFilter()"
+                        (ngModelChange)="onChapterFilterChange($event)"
+                        aria-label="Filter chapters"
+                        placeholder="Filter chapters"
+                      />
+                    </mat-form-field>
                   </div>
-                </a>
-              } @else {
-                <a
-                  [routerLink]="[readBasePath(), toRouteParam(chapter.id)]"
-                  [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
-                  class="block rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#f1e5dd] dark:bg-zinc-900/50 px-3 py-3 text-sm text-[#24181b] dark:text-gray-200 hover:border-[#800020]"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="font-medium">
-                      {{ chapterLabel(chapter) }}
-                      @if (chapterSubtitle(chapter)) {
-                        <span class="text-[#8a756e] dark:text-gray-400">{{ chapterSubtitle(chapter) }}</span>
-                      }
-                    </p>
-                    <span class="text-xs text-[#9a857d] dark:text-gray-500">
-                      {{ chapter.publishedAt ? (chapter.publishedAt | date: 'MMM d, y') : '' }}
-                    </span>
+
+                  <div class="flex items-end gap-2">
+                    <mat-form-field
+                      appearance="fill"
+                      floatLabel="never"
+                      subscriptSizing="dynamic"
+                      class="np-search-field w-36"
+                    >
+                      <input
+                        matInput
+                        [ngModel]="chapterJump()"
+                        (ngModelChange)="chapterJump.set($event)"
+                        (keyup.enter)="jumpToChapter()"
+                        aria-label="Jump to chapter"
+                        placeholder="Jump to"
+                      />
+                    </mat-form-field>
+                    <button mat-stroked-button color="primary" type="button" (click)="jumpToChapter()">Go</button>
                   </div>
-                  <div class="mt-1 flex items-center gap-2 text-xs text-[#9a857d] dark:text-gray-500">
-                    @if (chapter.branch) {
-                      <span>{{ chapter.branch }}</span>
-                    }
-                    @if (chapter.volume) {
-                      <span>Vol. {{ chapter.volume }}</span>
-                    }
-                  </div>
-                </a>
+                </div>
+
+                <div class="mt-2 flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+                  <span>Order: {{ chapterOrder() === 'newest' ? 'Newest first' : 'Oldest first' }}</span>
+                  <span>{{ filteredChapterCount() }} total</span>
+                </div>
+              </div>
+
+              @for (chapter of visibleChapters(); track chapter.id) {
+                @if (chapter.isExternal && chapter.externalUrl) {
+                  <a
+                    [attr.id]="'np-chapter-' + chapter.id"
+                    [href]="chapter.externalUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="np-chapter-row np-chapter-row--external"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="np-chapter-title">
+                          {{ chapterLabel(chapter) }}
+                          @if (chapterSubtitle(chapter)) {
+                            <span class="np-chapter-subtitle">{{ chapterSubtitle(chapter) }}</span>
+                          }
+                        </div>
+                        <div class="np-chapter-meta">
+                          @if (chapter.branch) { <span>{{ chapter.branch }}</span> }
+                          @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
+                          <span>External</span>
+                        </div>
+                      </div>
+                      <span class="shrink-0 rounded border border-amber-600/50 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">Open</span>
+                    </div>
+                  </a>
+                } @else {
+                  <a
+                    [attr.id]="'np-chapter-' + chapter.id"
+                    [routerLink]="[readBasePath(), toRouteParam(chapter.id)]"
+                    [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
+                    (click)="rememberContinue(chapter)"
+                    class="np-chapter-row"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="np-chapter-title">
+                          {{ chapterLabel(chapter) }}
+                          @if (chapterSubtitle(chapter)) {
+                            <span class="np-chapter-subtitle">{{ chapterSubtitle(chapter) }}</span>
+                          }
+                        </div>
+                        <div class="np-chapter-meta">
+                          @if (chapter.branch) { <span>{{ chapter.branch }}</span> }
+                          @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
+                        </div>
+                      </div>
+                      <span class="shrink-0 text-xs text-[var(--text-muted)]">
+                        {{ chapter.publishedAt ? (chapter.publishedAt | date: 'MMM d, y') : '' }}
+                      </span>
+                    </div>
+                  </a>
+                }
               }
-            }
-          </div>
+            </div>
+          }
           @if (hasMoreChapters()) {
             <div class="mt-4 text-center">
               <button
+                mat-stroked-button
+                color="primary"
                 type="button"
                 (click)="visibleChapterCount.set(visibleChapterCount() + 30)"
-                class="rounded border border-[#d8c2b8] dark:border-[#5f1327] px-4 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] hover:bg-[#f1e5dd] dark:hover:bg-[#5f1327]/20"
-              >Load 30 more chapters</button>
+              >Load 30 more</button>
             </div>
           }
         </mat-card>
@@ -310,7 +388,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                     <a [routerLink]="[detailBasePath(), toRouteParam(item.id)]" class="np-cover-link">
                       <div class="np-cover-media">
                         @if (item.coverUrl) {
-                          <img [src]="item.coverUrl" [alt]="item.title" referrerpolicy="no-referrer">
+                          <img [src]="item.coverUrl" [alt]="item.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                         } @else {
                           <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                         }
@@ -329,11 +407,9 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
       }
 
       @if (showBackToTop()) {
-        <button
-          type="button"
-          (click)="scrollToTop()"
-          class="fixed bottom-5 right-4 z-20 rounded-full border border-[#d8c2b8] dark:border-[#5f1327] bg-[#f1e5dd] dark:bg-[#120a0d] px-3 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] shadow-lg hover:bg-[#e6d5c9] dark:hover:bg-[#800020] md:bottom-8"
-        >Top</button>
+        <button mat-fab color="primary" type="button" (click)="scrollToTop()" class="fixed bottom-6 right-5 z-20">
+          Top
+        </button>
       }
     </div>
   `,
@@ -357,8 +433,37 @@ export class MangaDetailComponent implements OnInit {
   supportsSimilar = computed(() => this.sourceId() === 'mangadex');
   isComicsMode = computed(() => this.libraryMode() === 'comics');
   visibleChapterCount = signal(30);
-  visibleChapters = computed(() => this.chapters().slice(0, this.visibleChapterCount()));
-  hasMoreChapters = computed(() => this.chapters().length > this.visibleChapterCount());
+  chapterOrder = signal<'newest' | 'oldest'>('newest');
+  chapterFilter = signal('');
+  chapterJump = signal('');
+  continueReadingChapterId = signal<string | null>(null);
+  continueReadingChapterLabel = signal<string | null>(null);
+
+  filteredChapters = computed(() => {
+    const raw = this.chapters();
+    const filter = this.chapterFilter().trim().toLowerCase();
+    const ordered = this.chapterOrder() === 'oldest' ? [...raw].reverse() : raw;
+
+    if (!filter) return ordered;
+
+    return ordered.filter((chapter) => {
+      const bits = [
+        chapter.chapter || '',
+        chapter.title || '',
+        chapter.volume || '',
+        chapter.branch || '',
+        chapter.scanlationGroup || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return bits.includes(filter);
+    });
+  });
+
+  visibleChapters = computed(() => this.filteredChapters().slice(0, this.visibleChapterCount()));
+  hasMoreChapters = computed(() => this.filteredChapters().length > this.visibleChapterCount());
+  filteredChapterCount = computed(() => this.filteredChapters().length);
+  visibleFilteredChapterCount = computed(() => Math.min(this.visibleChapterCount(), this.filteredChapters().length));
   hasExternalChapters = computed(() => this.chapters().some((chapter) => chapter.isExternal));
 
   ngOnInit(): void {
@@ -419,6 +524,60 @@ export class MangaDetailComponent implements OnInit {
 
   scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  toggleChapterOrder() {
+    this.chapterOrder.update((current) => (current === 'newest' ? 'oldest' : 'newest'));
+    this.visibleChapterCount.set(30);
+  }
+
+  onChapterFilterChange(value: string) {
+    this.chapterFilter.set(value || '');
+    this.visibleChapterCount.set(30);
+  }
+
+  jumpToChapter() {
+    const raw = this.chapterJump().trim();
+    if (!raw) return;
+
+    const normalized = raw.toLowerCase();
+    const target = this.filteredChapters().find((chapter) => {
+      const chapterNo = (chapter.chapter || '').trim().toLowerCase();
+      const label = this.chapterLabel(chapter).toLowerCase();
+      return chapterNo === normalized || label.includes(normalized);
+    });
+
+    if (!target) return;
+    this.scrollToChapter(target.id);
+  }
+
+  private scrollToChapter(chapterId: string) {
+    const elementId = `np-chapter-${chapterId}`;
+    setTimeout(() => {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+  }
+
+  rememberContinue(chapter: MangaChapter) {
+    const manga = this.detail();
+    if (!manga) return;
+    try {
+      const label = this.chapterLabel(chapter);
+      localStorage.setItem(
+        this.continueStorageKey(manga.id),
+        JSON.stringify({ chapterId: chapter.id, at: Date.now(), label })
+      );
+      this.continueReadingChapterId.set(chapter.id);
+      this.continueReadingChapterLabel.set(label);
+    } catch {
+      // ignore
+    }
+  }
+
+  private continueStorageKey(mangaId: string) {
+    return `np_books_continue_${mangaId}`;
   }
 
   languageLabel(code?: string | null) {
@@ -509,6 +668,18 @@ export class MangaDetailComponent implements OnInit {
     });
 
     this.loadChapters(mangaId);
+
+    try {
+      const stored = localStorage.getItem(this.continueStorageKey(mangaId));
+      const parsedStored = stored
+        ? (JSON.parse(stored) as { chapterId?: string; label?: string } | null)
+        : null;
+      this.continueReadingChapterId.set(parsedStored?.chapterId || null);
+      this.continueReadingChapterLabel.set(parsedStored?.label || null);
+    } catch {
+      this.continueReadingChapterId.set(null);
+      this.continueReadingChapterLabel.set(null);
+    }
 
     if (parsed.sourceId === 'mangadex') {
       this.isSimilarLoading.set(true);

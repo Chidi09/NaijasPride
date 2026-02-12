@@ -105,7 +105,7 @@ type SearchResponse = {
                   <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="np-cover-link">
                     <div class="np-cover-media">
                       @if (comic.coverUrl) {
-                        <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer">
+                        <img [src]="comic.coverUrl" [alt]="comic.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                       } @else {
                         <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
                       }
@@ -132,7 +132,7 @@ type SearchResponse = {
                     <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="np-cover-link">
                       <div class="np-cover-media">
                         @if (comic.coverUrl) {
-                          <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer">
+                          <img [src]="comic.coverUrl" [alt]="comic.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                         } @else {
                           <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
                         }

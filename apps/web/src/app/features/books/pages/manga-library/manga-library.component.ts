@@ -322,7 +322,7 @@ type MangaSourceHealth = {
                               <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
                                 <div class="np-cover-media">
                                   @if (manga.coverUrl) {
-                                    <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                                    <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                                   } @else {
                                     <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                                   }
@@ -353,7 +353,7 @@ type MangaSourceHealth = {
                               <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
                                 <div class="np-cover-media">
                                   @if (manga.coverUrl) {
-                                    <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                                    <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                                   } @else {
                                     <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                                   }
@@ -384,7 +384,7 @@ type MangaSourceHealth = {
                               <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
                                 <div class="np-cover-media">
                                   @if (manga.coverUrl) {
-                                    <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                                    <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                                   } @else {
                                     <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                                   }
@@ -433,7 +433,7 @@ type MangaSourceHealth = {
                         <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="np-cover-link">
                           <div class="np-cover-media">
                             @if (manga.coverUrl) {
-                              <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer">
+                              <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                             } @else {
                               <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                             }
@@ -471,7 +471,7 @@ type MangaSourceHealth = {
                     <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="np-cover-link">
                       <div class="np-cover-media">
                         @if (fav.coverUrl) {
-                          <img [src]="fav.coverUrl" [alt]="fav.title" referrerpolicy="no-referrer">
+                          <img [src]="fav.coverUrl" [alt]="fav.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                         } @else {
                           <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
                         }

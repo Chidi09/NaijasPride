@@ -61,6 +61,8 @@ type MangaDiscoverPayload = {
                     <img
                       [src]="book.coverUrl"
                       [alt]="book.title"
+                      loading="lazy"
+                      decoding="async"
                       referrerpolicy="no-referrer"
                     >
                   } @else {
@@ -111,6 +113,8 @@ type MangaDiscoverPayload = {
                         <img
                           [src]="manga.coverUrl"
                           [alt]="manga.title"
+                          loading="lazy"
+                          decoding="async"
                           referrerpolicy="no-referrer"
                         >
                       } @else {

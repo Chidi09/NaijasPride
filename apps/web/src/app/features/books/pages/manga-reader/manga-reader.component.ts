@@ -214,12 +214,38 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.title.set(this.route.snapshot.queryParamMap.get('title') || 'Reader');
       this.mangaId.set(this.route.snapshot.queryParamMap.get('mangaId') || '');
 
+      // Persist a lightweight "continue reading" pointer for the detail page.
+      this.rememberContinueFromReader();
+
       const parsed = parseSourceEntityId(chapterId);
       this.sourceId.set(parsed?.sourceId || 'mangadex');
 
       this.loadChapter();
       this.loadChapterContext();
     });
+  }
+
+  private rememberContinueFromReader() {
+    if (this.incognito()) return;
+    const mangaId = this.mangaId();
+    const chapterId = this.chapterId();
+    if (!mangaId || !chapterId) return;
+
+    const chapterParam = (this.route.snapshot.queryParamMap.get('chapter') || '').trim();
+    const label = chapterParam
+      ? /^(ch\.?|chapter)\b/i.test(chapterParam)
+        ? chapterParam
+        : `Chapter ${chapterParam}`
+      : '';
+
+    try {
+      localStorage.setItem(
+        `np_books_continue_${mangaId}`,
+        JSON.stringify({ chapterId, label, at: Date.now() })
+      );
+    } catch {
+      // ignore
+    }
   }
 
   ngAfterViewInit() {
