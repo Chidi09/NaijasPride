@@ -91,7 +91,7 @@ type SearchResponse = {
             <h2 class="mb-4 text-xl font-serif text-[#24181b] dark:text-white">Search Results</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               @for (comic of searchResults(); track comic.id) {
-                <a [routerLink]="['/books/manga', toRouteParam(comic.id)]" class="group">
+                <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group">
                   <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                     <div class="aspect-[2/3] relative">
                       @if (comic.coverUrl) {
@@ -119,7 +119,7 @@ type SearchResponse = {
               <h2 class="mb-4 text-xl font-serif text-[#24181b] dark:text-white">Trending Comics</h2>
               <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 @for (comic of discoverTrending(); track comic.id) {
-                  <a [routerLink]="['/books/manga', toRouteParam(comic.id)]" class="group">
+                  <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group">
                     <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                       <div class="aspect-[2/3] relative">
                         @if (comic.coverUrl) {

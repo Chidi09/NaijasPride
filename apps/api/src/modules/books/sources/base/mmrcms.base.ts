@@ -135,6 +135,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
       const detail: MangaDetail = {
         id: seriesPath,
         title:
+          this.strip($('h2.listmanga-header').first().text()) ||
           this.strip($('h1').first().text()) ||
           this.strip($('meta[property="og:title"]').attr('content')) ||
           'Unknown Title',
@@ -142,8 +143,9 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
           this.strip($('meta[property="og:description"]').attr('content')) ||
           this.strip($('div.well, .summary, .description').first().text()),
         coverUrl:
-          this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
-          this.toAbsoluteUrl($('img').first().attr('src')),
+          this.extractImageUrl($('div.list-container .boxed img, .boxed img, .col-sm-4 .img-responsive').first()) ||
+          this.toAbsoluteUrl(this.strip($('meta[property="og:image"]').attr('content'))) ||
+          this.extractImageUrl($('img').first()),
         status: this.parseStatus(this.strip($(this.detailStatusSelector).first().next().text())),
         year: null,
         originalLanguage: null,
@@ -232,7 +234,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
       const pages = Array.from(
         new Set(
           $('div#all img')
-            .map((_idx, el) => this.toAbsoluteUrl($(el).attr('src') || $(el).attr('data-src')))
+            .map((_idx, el) => this.extractImageUrl($(el)))
             .get()
             .filter((url): url is string => Boolean(url))
         )
@@ -310,7 +312,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
         id,
         title: this.strip($(el).find('div.media-body h5').first().text()) || this.strip($(el).find('a').first().text()) || 'Unknown Title',
         description: '',
-        coverUrl: this.toAbsoluteUrl($(el).find('img').first().attr('src')),
+        coverUrl: this.extractImageUrl($(el).find('img').first()),
         status: null,
         year: null,
         originalLanguage: null,
@@ -337,9 +339,7 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
       seen.add(id);
 
       const slug = id.split('/').filter(Boolean).pop() || '';
-      const parsedCoverFromCard =
-        this.toAbsoluteUrl($(el).find('img').first().attr('src')) ||
-        this.toAbsoluteUrl($(el).find('img').first().attr('data-src'));
+      const parsedCoverFromCard = this.extractImageUrl($(el).find('img').first());
       const fallbackCover = slug ? this.toAbsoluteUrl(`/uploads/manga/${slug}${this.updatedCoverSuffix}`) : null;
       const coverUrl = parsedCoverFromCard || fallbackCover;
 
@@ -365,6 +365,40 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
     if (lowered.includes('ongoing') || lowered.includes('on going') || lowered.includes('en cours')) return 'ongoing';
     if (lowered.includes('completed') || lowered.includes('complete') || lowered.includes('termin')) return 'completed';
     return this.strip(value) || null;
+  }
+
+  protected extractImageUrl(image: cheerio.Cheerio<any>): string | null {
+    const attributes = [
+      'data-src',
+      'data-cfsrc',
+      'data-original',
+      'data-cdn',
+      'data-sizes',
+      'data-lazy-src',
+      'data-srcset',
+      'original-src',
+      'data-wpfc-original-src',
+      'src',
+    ];
+
+    for (const attribute of attributes) {
+      const rawValue = this.strip(image.attr(attribute));
+      if (!rawValue) continue;
+
+      const candidate = attribute.includes('srcset') ? (rawValue.split(',')[0] || '').trim().split(/\s+/)[0] : rawValue;
+      const normalizedCandidate = this.strip(candidate);
+      if (!normalizedCandidate) continue;
+
+      const lowered = normalizedCandidate.toLowerCase();
+      if (lowered.startsWith('data:') || lowered.startsWith('about:blank')) continue;
+
+      const absolute = this.toAbsoluteUrl(normalizedCandidate);
+      if (!absolute) continue;
+
+      return absolute;
+    }
+
+    return null;
   }
 
   protected parseChapterDate(value: string): string | null {

@@ -86,7 +86,7 @@ type SourceDiscoverResponse = {
 
             <!-- Featured Comic -->
             <div class="group">
-              <a [routerLink]="featured().comic?.id ? ['/books/manga', toRouteParam(featured().comic!.id)] : ['/books/comics']"
+              <a [routerLink]="featured().comic?.id ? ['/books/comics', toRouteParam(featured().comic!.id)] : ['/books/comics']"
                  class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
               >
                 <div class="p-4 border-b border-cinema-700">
@@ -230,7 +230,7 @@ type SourceDiscoverResponse = {
           } @else if (comics().length > 0) {
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               @for (comic of comics().slice(0, 12); track comic.id) {
-                <a [routerLink]="['/books/manga', toRouteParam(comic.id)]" class="group">
+                <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group">
                   <div class="bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                     <div class="aspect-[2/3] relative">
                       @if (comic.coverUrl) {

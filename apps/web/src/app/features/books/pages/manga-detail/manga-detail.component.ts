@@ -59,7 +59,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
   imports: [CommonModule, RouterLink, FormsModule],
   template: `
     <div class="container mx-auto px-4 py-10">
-      <a routerLink="/books/manga" class="mb-6 inline-block rounded border border-[#d8c2b8] dark:border-[#5f1327] px-3 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] hover:bg-[#f1e5dd] dark:hover:bg-[#5f1327]/20">Back to Manga Library</a>
+      <a [routerLink]="libraryRootPath()" class="mb-6 inline-block rounded border border-[#d8c2b8] dark:border-[#5f1327] px-3 py-2 text-xs text-[#9a6d1f] dark:text-[#d6b87a] hover:bg-[#f1e5dd] dark:hover:bg-[#5f1327]/20">Back to {{ isComicsMode() ? 'Comics' : 'Manga' }} Library</a>
 
       @if (isLoading()) {
         <section class="grid gap-6 md:grid-cols-[260px_1fr]">
@@ -199,7 +199,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                 </a>
               } @else {
                 <a
-                  [routerLink]="['/books/manga/read', toRouteParam(chapter.id)]"
+                  [routerLink]="[readBasePath(), toRouteParam(chapter.id)]"
                   [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
                   class="block rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#f1e5dd] dark:bg-zinc-900/50 px-3 py-3 text-sm text-[#24181b] dark:text-gray-200 hover:border-[#800020]"
                 >
@@ -238,7 +238,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
         </section>
 
         <section>
-          <h2 class="mb-4 text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Similar Manga</h2>
+          <h2 class="mb-4 text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Similar {{ isComicsMode() ? 'Comics' : 'Manga' }}</h2>
           @if (isSimilarLoading()) {
             <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               @for (_ of [1,2,3,4,5,6]; track _) {
@@ -249,7 +249,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
           @if (!isSimilarLoading()) {
             <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               @for (item of similar(); track item.id) {
-                <a [routerLink]="['/books/manga', toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/30 bg-[#f1e5dd] dark:bg-[#120a0d] hover:border-[#800020]">
+                <a [routerLink]="[detailBasePath(), toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/30 bg-[#f1e5dd] dark:bg-[#120a0d] hover:border-[#800020]">
                   <div class="relative aspect-[3/4]">
                     @if (item.coverUrl) {
                       <img [src]="item.coverUrl" [alt]="item.title" class="absolute inset-0 h-full w-full object-cover">
@@ -284,6 +284,7 @@ export class MangaDetailComponent implements OnInit {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
 
+  libraryMode = signal<'manga' | 'comics'>('manga');
   isLoading = signal(true);
   detail = signal<MangaDetail | null>(null);
   chapters = signal<MangaChapter[]>([]);
@@ -295,6 +296,7 @@ export class MangaDetailComponent implements OnInit {
   selectedLanguage = signal('en');
   sourceId = signal('mangadex');
   supportsLanguages = computed(() => this.sourceId() === 'mangadex');
+  isComicsMode = computed(() => this.libraryMode() === 'comics');
   visibleChapterCount = signal(30);
   visibleChapters = computed(() => this.chapters().slice(0, this.visibleChapterCount()));
   hasMoreChapters = computed(() => this.chapters().length > this.visibleChapterCount());
@@ -302,12 +304,25 @@ export class MangaDetailComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
+      this.resolveLibraryMode();
       const mangaId = this.fromRouteParam(params.get('mangaId'));
       if (!mangaId) return;
       const parsed = parseSourceEntityId(mangaId);
       this.sourceId.set(parsed?.sourceId || 'mangadex');
       this.loadData(mangaId);
     });
+  }
+
+  libraryRootPath() {
+    return this.isComicsMode() ? '/books/comics' : '/books/manga';
+  }
+
+  detailBasePath() {
+    return this.isComicsMode() ? '/books/comics' : '/books/manga';
+  }
+
+  readBasePath() {
+    return this.isComicsMode() ? '/books/comics/read' : '/books/manga/read';
   }
 
   toRouteParam(value: string) {
@@ -331,6 +346,11 @@ export class MangaDetailComponent implements OnInit {
     if (source === 'manhwatop') return 'ManhwaTop';
     if (source === 'readcomicsonline') return 'ReadComicsOnline';
     return source;
+  }
+
+  private resolveLibraryMode() {
+    const routePath = this.route.snapshot.routeConfig?.path || '';
+    this.libraryMode.set(routePath.startsWith('books/comics') ? 'comics' : 'manga');
   }
 
   @HostListener('window:scroll')

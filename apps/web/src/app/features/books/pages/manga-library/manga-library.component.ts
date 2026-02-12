@@ -283,7 +283,7 @@ type MangaSourceHealth = {
               <h2 class="mb-3 text-base font-semibold text-[#d6b87a]">Trending Now</h2>
               <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
                 @for (manga of discover.trending; track manga.id) {
-                  <a [routerLink]="['/books/manga', toRouteParam(manga.id)]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] text-left hover:border-[#800020]">
+                  <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] text-left hover:border-[#800020]">
                     <div class="relative aspect-[3/4]">
                       @if (manga.coverUrl) {
                         <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
@@ -303,7 +303,7 @@ type MangaSourceHealth = {
                 <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Recently Updated</h3>
                 <div class="space-y-2">
                   @for (manga of discover.recentlyUpdated.slice(0, 6); track manga.id) {
-                    <a [routerLink]="['/books/manga', toRouteParam(manga.id)]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
+                    <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
                       <span>{{ manga.title }}</span>
                       <span class="ml-2 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</span>
                       @if (manga.latestChapter) {
@@ -317,7 +317,7 @@ type MangaSourceHealth = {
                 <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Fresh Titles</h3>
                 <div class="space-y-2">
                   @for (manga of discover.newTitles.slice(0, 6); track manga.id) {
-                    <a [routerLink]="['/books/manga', toRouteParam(manga.id)]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
+                    <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
                       <span>{{ manga.title }}</span>
                       <span class="ml-2 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</span>
                       @if (manga.latestChapter) {
@@ -339,7 +339,7 @@ type MangaSourceHealth = {
           <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
             @for (manga of results(); track manga.id) {
               <div class="group relative overflow-hidden rounded-lg border border-[#5f1327]/30 bg-[#120a0d] transition hover:border-[#800020]">
-                <a [routerLink]="['/books/manga', toRouteParam(manga.id)]" class="block">
+                <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block">
                   <div class="relative aspect-[3/4]">
                     @if (manga.coverUrl) {
                       <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
@@ -374,7 +374,7 @@ type MangaSourceHealth = {
           <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
             @for (fav of favorites(); track fav.id) {
               <div class="overflow-hidden rounded-lg border border-[#5f1327]/30 bg-[#120a0d]">
-                <a [routerLink]="['/books/manga', toRouteParam(fav.mangaId)]" class="block">
+                <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="block">
                   <div class="relative aspect-[3/4]">
                     @if (fav.coverUrl) {
                       <img [src]="fav.coverUrl" [alt]="fav.title" class="absolute inset-0 h-full w-full object-cover">
@@ -419,7 +419,7 @@ type MangaSourceHealth = {
                 </div>
                 <div class="flex items-center gap-2">
                   <a
-                    [routerLink]="['/books/manga/read', toRouteParam(item.chapterId)]"
+                    [routerLink]="[readerRouteFor(item.chapterId), toRouteParam(item.chapterId)]"
                     [queryParams]="{ mangaId: item.mangaId }"
                     class="rounded bg-[#800020] px-3 py-1 text-xs text-white hover:bg-[#660019]"
                   >Continue</a>
@@ -546,6 +546,14 @@ export class MangaLibraryComponent implements OnInit {
 
   toRouteParam(value: string) {
     return value;
+  }
+
+  detailRouteFor(entityId: string) {
+    return this.extractSource(entityId) === 'readcomicsonline' ? '/books/comics' : '/books/manga';
+  }
+
+  readerRouteFor(chapterId: string) {
+    return this.extractSource(chapterId) === 'readcomicsonline' ? '/books/comics/read' : '/books/manga/read';
   }
 
   private extractSource(entityId: string): string {

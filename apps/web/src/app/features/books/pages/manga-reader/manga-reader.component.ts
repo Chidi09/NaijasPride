@@ -73,7 +73,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
         [class.-translate-y-full]="!showControls()"
       >
         <div class="pointer-events-auto mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
-          <a routerLink="/books/manga" class="rounded border border-white/20 dark:border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-white/10 dark:hover:bg-[#5f1327]/20">Back</a>
+          <a [routerLink]="libraryRootPath()" class="rounded border border-white/20 dark:border-[#5f1327] px-3 py-2 text-xs text-[#d6b87a] hover:bg-white/10 dark:hover:bg-[#5f1327]/20">Back</a>
           <div class="min-w-0 text-center">
             <p class="truncate text-sm font-semibold text-[#d6b87a]">{{ title() || 'Reader' }}</p>
             <div class="mt-1 flex items-center justify-center gap-2 text-[11px] text-gray-300 dark:text-gray-300">
@@ -175,6 +175,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('swiperEl') swiperEl?: ElementRef<any>;
   @ViewChild('webtoonScroll') webtoonScroll?: ElementRef<HTMLElement>;
 
+  libraryMode = signal<'manga' | 'comics'>('manga');
   isLoading = signal(true);
   title = signal('');
   sourceId = signal('mangadex');
@@ -205,6 +206,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.incognito.set(localStorage.getItem('np_reader_incognito') === '1');
 
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
+      this.resolveLibraryMode();
       const chapterId = this.fromRouteParam(params.get('chapterId'));
       if (!chapterId) return;
 
@@ -318,7 +320,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   goNextChapter() {
     const next = this.nextChapterId();
     if (!next) return;
-    this.router.navigate(['/books/manga/read', this.toRouteParam(next)], {
+    this.router.navigate([this.readBasePath(), this.toRouteParam(next)], {
       queryParams: {
         mangaId: this.mangaId(),
         title: this.title(),
@@ -329,7 +331,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   goPrevChapter() {
     const prev = this.prevChapterId();
     if (!prev) return;
-    this.router.navigate(['/books/manga/read', this.toRouteParam(prev)], {
+    this.router.navigate([this.readBasePath(), this.toRouteParam(prev)], {
       queryParams: {
         mangaId: this.mangaId(),
         title: this.title(),
@@ -345,6 +347,14 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     if (source === 'manhwatop') return 'ManhwaTop';
     if (source === 'readcomicsonline') return 'ReadComicsOnline';
     return source;
+  }
+
+  libraryRootPath() {
+    return this.libraryMode() === 'comics' ? '/books/comics' : '/books/manga';
+  }
+
+  private readBasePath() {
+    return this.libraryMode() === 'comics' ? '/books/comics/read' : '/books/manga/read';
   }
 
   private loadChapter() {
@@ -559,5 +569,10 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     } catch {
       return value;
     }
+  }
+
+  private resolveLibraryMode() {
+    const routePath = this.route.snapshot.routeConfig?.path || '';
+    this.libraryMode.set(routePath.startsWith('books/comics') ? 'comics' : 'manga');
   }
 }
