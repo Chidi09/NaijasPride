@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, Injector, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -534,6 +534,7 @@ type MangaSourceHealth = {
 })
 export class MangaLibraryComponent implements OnInit {
   private http = inject(HttpClient);
+  private injector = inject(Injector);
 
   activeTab = signal<'search' | 'favorites' | 'history'>('search');
   query = signal('');
@@ -592,11 +593,16 @@ export class MangaLibraryComponent implements OnInit {
   showHome = computed(() => !this.query().trim() && !this.hasActiveFilters());
 
   ngOnInit() {
-    effect(() => {
+    // NOTE: `effect()` must run in an injection context OR receive an explicit injector.
+    // In production builds this page can throw NG0203 without the injector option.
+    effect(
+      () => {
       if (this.showHome()) {
         this.hasSearched.set(false);
       }
-    });
+      },
+      { injector: this.injector }
+    );
 
     const savedSource = localStorage.getItem('np_manga_source');
     if (savedSource) {
