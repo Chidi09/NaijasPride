@@ -106,7 +106,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
           <div #webtoonScroll class="h-full w-full overflow-y-auto overflow-x-hidden" (click)="toggleControls()" (scroll)="onWebtoonScroll()">
             <div class="mx-auto w-full max-w-3xl">
               @for (page of pages(); track page) {
-                <img [src]="page" alt="Manga page" loading="lazy" class="block w-full m-0 p-0 select-none" draggable="false">
+                <img [src]="page" alt="Manga page" loading="lazy" referrerpolicy="no-referrer" class="block w-full m-0 p-0 select-none" draggable="false">
               }
             </div>
           </div>
@@ -116,7 +116,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
               @for (page of pages(); track page; let i = $index) {
                 <swiper-slide class="flex h-full w-full items-center justify-center bg-black">
                   <div class="swiper-zoom-container flex h-full w-full items-center justify-center">
-                    <img [src]="page" [alt]="'Page ' + (i + 1)" loading="lazy" class="max-h-screen max-w-full object-contain select-none" draggable="false">
+                    <img [src]="page" [alt]="'Page ' + (i + 1)" loading="lazy" referrerpolicy="no-referrer" class="max-h-screen max-w-full object-contain select-none" draggable="false">
                   </div>
                 </swiper-slide>
               }

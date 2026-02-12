@@ -286,7 +286,7 @@ type MangaSourceHealth = {
                   <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] text-left hover:border-[#800020]">
                     <div class="relative aspect-[3/4]">
                       @if (manga.coverUrl) {
-                        <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
+                        <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
                       } @else {
                         <div class="flex h-full items-center justify-center bg-zinc-800 text-3xl">📘</div>
                       }
@@ -342,7 +342,7 @@ type MangaSourceHealth = {
                 <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block">
                   <div class="relative aspect-[3/4]">
                     @if (manga.coverUrl) {
-                      <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
+                      <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
                     } @else {
                       <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
                     }
@@ -377,7 +377,7 @@ type MangaSourceHealth = {
                 <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="block">
                   <div class="relative aspect-[3/4]">
                     @if (fav.coverUrl) {
-                      <img [src]="fav.coverUrl" [alt]="fav.title" class="absolute inset-0 h-full w-full object-cover">
+                      <img [src]="fav.coverUrl" [alt]="fav.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
                     } @else {
                       <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
                     }

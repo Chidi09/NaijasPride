@@ -55,11 +55,9 @@ export class LandingComponent implements OnInit, OnDestroy {
 
   private loadYoutubeMovies() {
     this.http.get<{
-      status: string;
-      data: {
-        movies: MovieSummary[];
-        pagination: { total: number };
-      };
+      status?: string;
+      success?: boolean;
+      data?: MovieSummary[] | { movies?: MovieSummary[] };
     }>('/api/v1/movies', {
       params: {
         isStreamOnly: 'true',
@@ -68,11 +66,18 @@ export class LandingComponent implements OnInit, OnDestroy {
       },
     }).subscribe({
       next: (response) => {
-        this.youtubeMovies.set(response.data.movies);
+        const data = response.data;
+        const movies = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.movies)
+            ? data.movies
+            : [];
+        this.youtubeMovies.set(movies);
         this.isLoadingYoutube.set(false);
       },
       error: (error) => {
         console.error('Error loading YouTube movies:', error);
+        this.youtubeMovies.set([]);
         this.isLoadingYoutube.set(false);
       },
     });

@@ -78,7 +78,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
         <section class="mb-8 grid gap-6 md:grid-cols-[260px_1fr]">
           <div class="relative aspect-[3/4] overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/40 bg-[#e5d2c6] dark:bg-zinc-900">
             @if (manga.coverUrl) {
-              <img [src]="manga.coverUrl" [alt]="manga.title" class="absolute inset-0 h-full w-full object-cover">
+              <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
             } @else {
               <div class="flex h-full items-center justify-center text-4xl">📘</div>
             }
@@ -237,37 +237,39 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
           }
         </section>
 
-        <section>
-          <h2 class="mb-4 text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Similar {{ isComicsMode() ? 'Comics' : 'Manga' }}</h2>
-          @if (isSimilarLoading()) {
-            <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-              @for (_ of [1,2,3,4,5,6]; track _) {
-                <div class="aspect-[3/4] animate-pulse rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#e5d2c6] dark:bg-zinc-900"></div>
-              }
-            </div>
-          }
-          @if (!isSimilarLoading()) {
-            <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-              @for (item of similar(); track item.id) {
-                <a [routerLink]="[detailBasePath(), toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/30 bg-[#f1e5dd] dark:bg-[#120a0d] hover:border-[#800020]">
-                  <div class="relative aspect-[3/4]">
-                    @if (item.coverUrl) {
-                      <img [src]="item.coverUrl" [alt]="item.title" class="absolute inset-0 h-full w-full object-cover">
-                    } @else {
-                      <div class="flex h-full items-center justify-center bg-[#dcc4b8] dark:bg-zinc-800 text-3xl">📘</div>
-                    }
-                  </div>
-                  <div class="p-2">
-                    <p class="line-clamp-2 text-xs text-[#24181b] dark:text-white">{{ item.title }}</p>
-                    @if (item.latestChapter) {
-                      <p class="mt-1 text-[11px] text-[#9a6d1f] dark:text-[#d6b87a]">Ch. {{ item.latestChapter }}</p>
-                    }
-                  </div>
-                </a>
-              }
-            </div>
-          }
-        </section>
+        @if (supportsSimilar()) {
+          <section>
+            <h2 class="mb-4 text-lg font-semibold text-[#9a6d1f] dark:text-[#d6b87a]">Similar {{ isComicsMode() ? 'Comics' : 'Manga' }}</h2>
+            @if (isSimilarLoading()) {
+              <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                @for (_ of [1,2,3,4,5,6]; track _) {
+                  <div class="aspect-[3/4] animate-pulse rounded border border-[#d8c2b8] dark:border-zinc-800 bg-[#e5d2c6] dark:bg-zinc-900"></div>
+                }
+              </div>
+            }
+            @if (!isSimilarLoading()) {
+              <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                @for (item of similar(); track item.id) {
+                  <a [routerLink]="[detailBasePath(), toRouteParam(item.id)]" class="overflow-hidden rounded border border-[#d8c2b8] dark:border-[#5f1327]/30 bg-[#f1e5dd] dark:bg-[#120a0d] hover:border-[#800020]">
+                    <div class="relative aspect-[3/4]">
+                      @if (item.coverUrl) {
+                        <img [src]="item.coverUrl" [alt]="item.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
+                      } @else {
+                        <div class="flex h-full items-center justify-center bg-[#dcc4b8] dark:bg-zinc-800 text-3xl">📘</div>
+                      }
+                    </div>
+                    <div class="p-2">
+                      <p class="line-clamp-2 text-xs text-[#24181b] dark:text-white">{{ item.title }}</p>
+                      @if (item.latestChapter) {
+                        <p class="mt-1 text-[11px] text-[#9a6d1f] dark:text-[#d6b87a]">Ch. {{ item.latestChapter }}</p>
+                      }
+                    </div>
+                  </a>
+                }
+              </div>
+            }
+          </section>
+        }
       }
 
       @if (showBackToTop()) {
@@ -296,6 +298,7 @@ export class MangaDetailComponent implements OnInit {
   selectedLanguage = signal('en');
   sourceId = signal('mangadex');
   supportsLanguages = computed(() => this.sourceId() === 'mangadex');
+  supportsSimilar = computed(() => this.sourceId() === 'mangadex');
   isComicsMode = computed(() => this.libraryMode() === 'comics');
   visibleChapterCount = signal(30);
   visibleChapters = computed(() => this.chapters().slice(0, this.visibleChapterCount()));
@@ -425,7 +428,7 @@ export class MangaDetailComponent implements OnInit {
   private loadData(mangaId: string) {
     this.isLoading.set(true);
     this.isChaptersLoading.set(true);
-    this.isSimilarLoading.set(true);
+    this.isSimilarLoading.set(false);
     const parsed = parseSourceEntityId(mangaId);
     if (!parsed) {
       this.detail.set(null);
@@ -451,14 +454,23 @@ export class MangaDetailComponent implements OnInit {
 
     this.loadChapters(mangaId);
 
-    const similarEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/similar-by-id?mangaId=${encodeURIComponent(mangaId)}&limit=6`;
-    this.http.get<{ status: string; data: MangaSummary[] }>(similarEndpoint).subscribe({
-      next: (response) => {
-        this.similar.set(response.data);
-        this.isSimilarLoading.set(false);
-      },
-      error: () => this.isSimilarLoading.set(false),
-    });
+    if (parsed.sourceId === 'mangadex') {
+      this.isSimilarLoading.set(true);
+      const similarEndpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/similar-by-id?mangaId=${encodeURIComponent(mangaId)}&limit=6`;
+      this.http.get<{ status: string; data: MangaSummary[] }>(similarEndpoint).subscribe({
+        next: (response) => {
+          this.similar.set(response.data);
+          this.isSimilarLoading.set(false);
+        },
+        error: () => {
+          this.similar.set([]);
+          this.isSimilarLoading.set(false);
+        },
+      });
+    } else {
+      this.similar.set([]);
+      this.isSimilarLoading.set(false);
+    }
 
     if (this.isAuthenticated()) {
       this.http.get<{ status: string; data: { isFavorite: boolean } }>(`/api/v1/books/manga/favorites/${mangaId}/check`).subscribe({

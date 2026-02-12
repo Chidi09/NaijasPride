@@ -65,6 +65,7 @@ type SourceDiscoverResponse = {
                       <img 
                         [src]="featured().book!.coverUrl" 
                         [alt]="featured().book!.title"
+                        referrerpolicy="no-referrer"
                         class="w-full h-full object-cover"
                       >
                     </div>
@@ -98,6 +99,7 @@ type SourceDiscoverResponse = {
                       <img 
                         [src]="featured().comic!.coverUrl" 
                         [alt]="featured().comic!.title"
+                        referrerpolicy="no-referrer"
                         class="w-full h-full object-cover"
                       >
                     </div>
@@ -128,6 +130,7 @@ type SourceDiscoverResponse = {
                       <img 
                         [src]="featured().manga!.coverUrl" 
                         [alt]="featured().manga!.title"
+                        referrerpolicy="no-referrer"
                         class="w-full h-full object-cover transition-opacity duration-500"
                         [class.opacity-0]="isMangaChanging()"
                         [class.opacity-100]="!isMangaChanging()"
@@ -185,6 +188,7 @@ type SourceDiscoverResponse = {
                         <img 
                           [src]="book.coverUrl" 
                           [alt]="book.title"
+                          referrerpolicy="no-referrer"
                           class="absolute inset-0 w-full h-full object-cover"
                         >
                       } @else {
@@ -237,6 +241,7 @@ type SourceDiscoverResponse = {
                         <img 
                           [src]="comic.coverUrl" 
                           [alt]="comic.title"
+                          referrerpolicy="no-referrer"
                           class="absolute inset-0 w-full h-full object-cover"
                         >
                       } @else {
@@ -289,6 +294,7 @@ type SourceDiscoverResponse = {
                         <img 
                           [src]="m.coverUrl" 
                           [alt]="m.title"
+                          referrerpolicy="no-referrer"
                           class="absolute inset-0 w-full h-full object-cover"
                         >
                       } @else {

@@ -95,7 +95,7 @@ type SearchResponse = {
                   <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                     <div class="aspect-[2/3] relative">
                       @if (comic.coverUrl) {
-                        <img [src]="comic.coverUrl" [alt]="comic.title" class="absolute inset-0 h-full w-full object-cover">
+                        <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
                       } @else {
                         <div class="h-full w-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
                           <span class="text-2xl">📖</span>
@@ -123,7 +123,7 @@ type SearchResponse = {
                     <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                       <div class="aspect-[2/3] relative">
                         @if (comic.coverUrl) {
-                          <img [src]="comic.coverUrl" [alt]="comic.title" class="absolute inset-0 h-full w-full object-cover">
+                          <img [src]="comic.coverUrl" [alt]="comic.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
                         } @else {
                           <div class="h-full w-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
                             <span class="text-2xl">📖</span>
