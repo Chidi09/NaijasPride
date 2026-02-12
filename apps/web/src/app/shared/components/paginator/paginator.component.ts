@@ -19,13 +19,17 @@ import { CommonModule } from '@angular/common';
 
         <div class="flex gap-1">
           @for (page of visiblePages; track page) {
-            <button 
-              (click)="changePage(page)"
-              class="w-10 h-10 flex items-center justify-center rounded-sm text-sm font-medium transition-all"
-              [ngClass]="currentPage === page ? 'bg-cinema-500 text-white' : 'text-[#705c55] dark:text-gray-400 hover:bg-[#ead7cc] dark:hover:bg-white/5'"
-            >
-              {{ page }}
-            </button>
+            @if (page === -1) {
+              <span class="w-10 h-10 flex items-center justify-center text-[#705c55] dark:text-gray-500">…</span>
+            } @else {
+              <button 
+                (click)="changePage(page)"
+                class="w-10 h-10 flex items-center justify-center rounded-sm text-sm font-medium transition-all"
+                [ngClass]="currentPage === page ? 'bg-cinema-500 text-white' : 'text-[#705c55] dark:text-gray-400 hover:bg-[#ead7cc] dark:hover:bg-white/5'"
+              >
+                {{ page }}
+              </button>
+            }
           }
         </div>
 

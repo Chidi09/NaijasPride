@@ -28,7 +28,7 @@
             },
             "inlineStyleLanguage": "scss",
             "assets": ["src/favicon.ico", "src/assets", "src/manifest.webmanifest", "src/sw.js"],
-            "styles": ["src/styles.scss"],
+            "styles": ["src/styles.scss", "src/material-theme.scss"],
             "scripts": []
           }
         },

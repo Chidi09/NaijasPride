@@ -131,14 +131,35 @@
   <!-- ==================== REGULAR TRENDING SECTION ==================== -->
   <section class="py-16 px-8 border-t border-[#dcc5b8] dark:border-zinc-900 bg-[#f4e7de] dark:bg-black">
     <h2 class="text-2xl font-bold mb-8 pl-4 border-l-4 border-[#800020]">Trending Now</h2>
-    <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide">
-      <div *ngFor="let i of [1,2,3,4,5,6]" class="min-w-[200px] h-[300px] bg-[#dfc8bb] dark:bg-zinc-800 rounded-lg hover:scale-105 transition duration-300 relative group cursor-pointer overflow-hidden">
-        <img src="assets/images/logo-full.png" alt="Trending poster" class="w-full h-full object-cover opacity-80 group-hover:opacity-100">
-        <div class="absolute bottom-0 p-4 bg-gradient-to-t from-black to-transparent w-full">
-          <p class="font-bold">Top Gun: Maverick</p>
-          <span class="text-xs text-green-400">98% Match</span>
+    <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" *ngIf="trendingMovies().length > 0">
+      <a
+        *ngFor="let movie of trendingMovies()"
+        [routerLink]="['/movies', movie.id]"
+        class="min-w-[200px] h-[300px] bg-[#dfc8bb] dark:bg-zinc-800 rounded-lg hover:scale-105 transition duration-300 relative group cursor-pointer overflow-hidden"
+      >
+        <img
+          *ngIf="movie.thumbnailUrl"
+          [src]="movie.thumbnailUrl"
+          [alt]="movie.title"
+          referrerpolicy="no-referrer"
+          class="w-full h-full object-cover opacity-90 group-hover:opacity-100"
+        >
+        <div *ngIf="!movie.thumbnailUrl" class="w-full h-full flex items-center justify-center bg-[#dcc4b8] dark:bg-zinc-700">
+          <span class="text-4xl">🎬</span>
         </div>
-      </div>
+        <div class="absolute bottom-0 p-4 bg-gradient-to-t from-black/90 to-transparent w-full text-white">
+          <p class="font-bold line-clamp-2">{{ movie.title }}</p>
+          <div class="mt-1 flex items-center gap-2 text-xs text-gray-200">
+            <span *ngIf="movie.rating" class="text-green-400">{{ movie.rating }}% Match</span>
+            <span>{{ movie.year }}</span>
+            <span *ngIf="movie.genre?.length">• {{ movie.genre[0] }}</span>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="flex gap-4 overflow-x-auto pb-8" *ngIf="isLoadingTrending()">
+      <div *ngFor="let i of [1,2,3,4,5,6]" class="min-w-[200px] h-[300px] bg-[#dfc8bb] dark:bg-zinc-800 rounded-lg animate-pulse"></div>
     </div>
   </section>
 
@@ -209,24 +230,24 @@
   <footer class="py-12 px-8 bg-[#f7eee7] dark:bg-black text-[#7d6962] dark:text-gray-500 text-sm border-t border-[#dcc5b8] dark:border-zinc-900">
     <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
       <ul>
-        <li class="mb-2 hover:underline cursor-pointer">FAQ</li>
-        <li class="mb-2 hover:underline cursor-pointer">Investor Relations</li>
-        <li class="mb-2 hover:underline cursor-pointer">Privacy</li>
+        <li class="mb-2"><a routerLink="/faq" class="hover:underline">FAQ</a></li>
+        <li class="mb-2"><a routerLink="/investors" class="hover:underline">Investor Relations</a></li>
+        <li class="mb-2"><a routerLink="/privacy" class="hover:underline">Privacy</a></li>
       </ul>
       <ul>
-        <li class="mb-2 hover:underline cursor-pointer">Help Center</li>
-        <li class="mb-2 hover:underline cursor-pointer">Jobs</li>
-        <li class="mb-2 hover:underline cursor-pointer">Cookie Preferences</li>
+        <li class="mb-2"><a routerLink="/help" class="hover:underline">Help Center</a></li>
+        <li class="mb-2"><a routerLink="/jobs" class="hover:underline">Jobs</a></li>
+        <li class="mb-2"><a routerLink="/cookies" class="hover:underline">Cookie Preferences</a></li>
       </ul>
       <ul>
-        <li class="mb-2 hover:underline cursor-pointer">Account</li>
-        <li class="mb-2 hover:underline cursor-pointer">Ways to Watch</li>
-        <li class="mb-2 hover:underline cursor-pointer">Corporate Information</li>
+        <li class="mb-2"><a routerLink="/account" class="hover:underline">Account</a></li>
+        <li class="mb-2"><a routerLink="/ways-to-watch" class="hover:underline">Ways to Watch</a></li>
+        <li class="mb-2"><a routerLink="/corporate" class="hover:underline">Corporate Information</a></li>
       </ul>
       <ul>
-        <li class="mb-2 hover:underline cursor-pointer">Media Center</li>
-        <li class="mb-2 hover:underline cursor-pointer">Terms of Use</li>
-        <li class="mb-2 hover:underline cursor-pointer">Contact Us</li>
+        <li class="mb-2"><a routerLink="/media" class="hover:underline">Media Center</a></li>
+        <li class="mb-2"><a routerLink="/terms" class="hover:underline">Terms of Use</a></li>
+        <li class="mb-2"><a routerLink="/contact" class="hover:underline">Contact Us</a></li>
       </ul>
     </div>
     <p class="text-center mt-12">&copy; 2026 NaijasPride Nigeria.</p>

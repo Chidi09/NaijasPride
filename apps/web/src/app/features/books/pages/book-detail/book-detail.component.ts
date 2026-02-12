@@ -3,14 +3,16 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Book } from '@naijaspride/types';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 
 @Component({
   selector: 'app-book-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     @if (book(); as book) {
-      <div class="container mx-auto px-4 py-12">
+      <div class="container mx-auto px-4 py-12 books-theme">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
           <!-- Book Cover -->
           <div class="md:col-span-1">
@@ -33,7 +35,9 @@ import { Book } from '@naijaspride/types';
                 <a 
                   [href]="book.downloadUrl"
                   target="_blank"
-                  class="mt-6 block w-full bg-cinema-500 text-white text-center py-3 rounded-lg font-bold hover:bg-cinema-400 transition-colors"
+                  mat-flat-button
+                  color="primary"
+                  class="mt-6 w-full"
                 >
                   Download {{ book.format || 'PDF' }}
                   @if (book.fileSize) {
@@ -81,10 +85,10 @@ import { Book } from '@naijaspride/types';
             }
             
             @if (book.description) {
-              <div class="bg-[#f1e5dd] dark:bg-cinema-800/50 rounded-lg p-6">
+              <mat-card class="p-6" style="background: var(--bg-card); border: 1px solid var(--border-color);">
                 <h2 class="text-lg font-bold text-[#24181b] dark:text-white mb-4">Description</h2>
                 <p class="text-[#725f58] dark:text-gray-400 leading-relaxed">{{ book.description }}</p>
-              </div>
+              </mat-card>
             }
             
             @if (book.isbn) {

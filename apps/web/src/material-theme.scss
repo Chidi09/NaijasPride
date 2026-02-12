@@ -1,0 +1,106 @@
+@use '@angular/material' as mat;
+
+// Angular Material theme (scoped to Material components only).
+// We keep the rest of the site styling (Tailwind + CSS variables) unchanged.
+
+$np-burgundy: (
+  50: #fdeef2,
+  100: #f7cfd9,
+  200: #f0aebf,
+  300: #e98ca4,
+  400: #e46f90,
+  500: #800020,
+  600: #73001d,
+  700: #66001a,
+  800: #520014,
+  900: #3a000e,
+  A100: #ffcad7,
+  A200: #ff96b1,
+  A400: #ff5f86,
+  A700: #ff3a6c,
+  contrast: (
+    50: #1d1416,
+    100: #1d1416,
+    200: #1d1416,
+    300: #1d1416,
+    400: #ffffff,
+    500: #ffffff,
+    600: #ffffff,
+    700: #ffffff,
+    800: #ffffff,
+    900: #ffffff,
+    A100: #1d1416,
+    A200: #1d1416,
+    A400: #ffffff,
+    A700: #ffffff,
+  ),
+);
+
+$np-gold: (
+  50: #fbf6e9,
+  100: #f4e9c8,
+  200: #eddba5,
+  300: #e5cc80,
+  400: #dfc067,
+  500: #d6b87a,
+  600: #cda95f,
+  700: #c19a4b,
+  800: #b48b3b,
+  900: #9b731f,
+  A100: #fff3cf,
+  A200: #ffe29c,
+  A400: #ffd469,
+  A700: #ffcb4f,
+  contrast: (
+    50: #1d1416,
+    100: #1d1416,
+    200: #1d1416,
+    300: #1d1416,
+    400: #1d1416,
+    500: #1d1416,
+    600: #1d1416,
+    700: #1d1416,
+    800: #1d1416,
+    900: #ffffff,
+    A100: #1d1416,
+    A200: #1d1416,
+    A400: #1d1416,
+    A700: #1d1416,
+  ),
+);
+
+$primary: mat.define-palette($np-burgundy, 500);
+$accent: mat.define-palette($np-gold, 500);
+$warn: mat.define-palette(mat.$red-palette);
+
+$typography: mat.define-typography-config(
+  $font-family: 'Plus Jakarta Sans, sans-serif',
+);
+
+$light-theme: mat.define-light-theme((
+  color: (
+    primary: $primary,
+    accent: $accent,
+    warn: $warn,
+  ),
+  typography: $typography,
+  density: 0,
+));
+
+$dark-theme: mat.define-dark-theme((
+  color: (
+    primary: $primary,
+    accent: $accent,
+    warn: $warn,
+  ),
+  typography: $typography,
+  density: 0,
+));
+
+@include mat.core();
+
+@include mat.all-component-themes($light-theme);
+
+.dark {
+  @include mat.all-component-colors($dark-theme);
+}

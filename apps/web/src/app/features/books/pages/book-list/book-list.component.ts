@@ -4,6 +4,8 @@ import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Book, PaginationMeta } from '@naijaspride/types';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 
 type MangaPreview = {
   id: string;
@@ -19,33 +21,19 @@ type MangaDiscoverPayload = {
 @Component({
   selector: 'app-book-list',
   standalone: true,
-  imports: [CommonModule, RouterLink, PaginatorComponent],
+  imports: [CommonModule, RouterLink, PaginatorComponent, MatButtonModule, MatCardModule],
   template: `
-    <div class="container mx-auto px-4 py-12">
-      <div class="flex items-center justify-between mb-8">
+    <div class="container mx-auto px-4 py-12 books-theme">
+      <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>
           <h1 class="text-3xl font-serif text-[#24181b] dark:text-white">Library</h1>
           <p class="text-[#8a756e] dark:text-gray-400 mt-2">Discover our collection of Nollywood books and magazines</p>
         </div>
-        <div class="flex gap-2">
-          <a
-            routerLink="/books/comics"
-            class="px-4 py-2 bg-[#f1e5dd] dark:bg-cinema-800 text-[#24181b] dark:text-white rounded hover:bg-[#e6d5c9] dark:hover:bg-cinema-700 transition-colors"
-          >
-            Comics
-          </a>
-          <a 
-            routerLink="/books/manga" 
-            class="px-4 py-2 bg-[#800020] text-white rounded hover:bg-[#660019] transition-colors"
-          >
-            Manga
-          </a>
-          <a 
-            routerLink="/movies" 
-            class="px-4 py-2 bg-[#f1e5dd] dark:bg-cinema-800 text-[#24181b] dark:text-white rounded hover:bg-[#e6d5c9] dark:hover:bg-cinema-700 transition-colors"
-          >
-            Movies
-          </a>
+        <div class="flex flex-wrap gap-2">
+          <a mat-stroked-button color="primary" routerLink="/books">Hub</a>
+          <a mat-stroked-button color="primary" routerLink="/books/comics">Comics</a>
+          <a mat-flat-button color="primary" routerLink="/books/manga">Manga</a>
+          <a mat-stroked-button color="primary" routerLink="/movies">Movies</a>
         </div>
       </div>
 
@@ -60,17 +48,18 @@ type MangaDiscoverPayload = {
       @if (books().length > 0) {
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
           @for (book of books(); track book.id) {
-            <a [routerLink]="['/books', book.slug]" class="group">
-              <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded-sm overflow-hidden transition-transform group-hover:scale-105">
-                <div class="aspect-[2/3] relative">
+            <a [routerLink]="['/books', book.slug]" class="block">
+              <mat-card class="h-full overflow-hidden hover:shadow-md transition-shadow" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+                <div class="aspect-[2/3] relative bg-[var(--bg-elevated)]">
                   @if (book.coverUrl) {
                     <img 
                       [src]="book.coverUrl" 
                       [alt]="book.title"
                       class="absolute inset-0 w-full h-full object-cover"
+                      referrerpolicy="no-referrer"
                     >
                   } @else {
-                    <div class="w-full h-full bg-[#dcc4b8] dark:bg-cinema-700 flex items-center justify-center">
+                    <div class="w-full h-full flex items-center justify-center">
                       <span class="text-4xl">📚</span>
                     </div>
                   }
@@ -82,7 +71,7 @@ type MangaDiscoverPayload = {
                     <p class="text-[#9a857d] dark:text-gray-500 text-xs mt-1">{{ book.year }}</p>
                   }
                 </div>
-              </div>
+              </mat-card>
             </a>
           }
         </div>

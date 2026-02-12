@@ -29,6 +29,10 @@ export class LandingComponent implements OnInit, OnDestroy {
   youtubeMovies = signal<MovieSummary[]>([]);
   isLoadingYoutube = signal(true);
 
+  // Trending movies
+  trendingMovies = signal<MovieSummary[]>([]);
+  isLoadingTrending = signal(true);
+
   private router = inject(Router);
   private http = inject(HttpClient);
 
@@ -47,6 +51,9 @@ export class LandingComponent implements OnInit, OnDestroy {
 
     // Load YouTube movies
     this.loadYoutubeMovies();
+
+    // Load trending movies
+    this.loadTrendingMovies();
   }
 
   ngOnDestroy() {
@@ -81,6 +88,34 @@ export class LandingComponent implements OnInit, OnDestroy {
         this.isLoadingYoutube.set(false);
       },
     });
+  }
+
+  private loadTrendingMovies() {
+    this.isLoadingTrending.set(true);
+    this.http
+      .get<{ success?: boolean; status?: string; data?: MovieSummary[]; meta?: any }>(
+        '/api/v1/movies',
+        {
+          params: {
+            sortBy: 'trending',
+            limit: '12',
+            page: '1',
+          },
+        },
+      )
+      .subscribe({
+        next: (response) => {
+          // API returns { success: true, data: MovieSummary[] }
+          const list = Array.isArray((response as any).data) ? ((response as any).data as MovieSummary[]) : [];
+          this.trendingMovies.set(list);
+          this.isLoadingTrending.set(false);
+        },
+        error: (error) => {
+          console.error('Error loading trending movies:', error);
+          this.trendingMovies.set([]);
+          this.isLoadingTrending.set(false);
+        },
+      });
   }
 
   getStarted() {

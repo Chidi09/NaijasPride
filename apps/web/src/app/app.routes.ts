@@ -21,6 +21,104 @@ export const routes: Routes = [
     canActivate: [guestLandingGuard],
     loadComponent: () => import('./pages/landing/landing.component').then(m => m.LandingComponent)
   },
+
+  // Static/footer pages
+  {
+    path: 'faq',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'FAQ',
+      body: 'Answers to common questions about NaijasPride.\n\nWe are building this page out now.'
+    }
+  },
+  {
+    path: 'investors',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Investor Relations',
+      body: 'Investor relations information will appear here.\n\nFor now, contact us via the Contact page.'
+    }
+  },
+  {
+    path: 'privacy',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Privacy',
+      body: 'Privacy policy details will appear here.\n\nWe are finalizing the policy text.'
+    }
+  },
+  {
+    path: 'help',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Help Center',
+      body: 'Need help?\n\n1) Check your internet connection\n2) Try refreshing\n3) If the issue persists, contact support.'
+    }
+  },
+  {
+    path: 'jobs',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Jobs',
+      body: 'We are hiring.\n\nOpen roles will be listed here soon.'
+    }
+  },
+  {
+    path: 'cookies',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Cookie Preferences',
+      body: 'Cookie preferences and controls will be added here.\n\nAt the moment, we only use cookies needed for authentication/session where applicable.'
+    }
+  },
+  {
+    path: 'account',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Account',
+      body: 'Manage your account from the Profile page.\n\nGo to Profile to see your watchlist and history.'
+    }
+  },
+  {
+    path: 'ways-to-watch',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Ways to Watch',
+      body: 'Watch on web, mobile, and TV.\n\nWe are improving device support and performance.'
+    }
+  },
+  {
+    path: 'corporate',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Corporate Information',
+      body: 'Corporate information will be published here.'
+    }
+  },
+  {
+    path: 'media',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Media Center',
+      body: 'Press and media resources will be available here.'
+    }
+  },
+  {
+    path: 'terms',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Terms of Use',
+      body: 'Terms of use will appear here.\n\nWe are finalizing the legal text.'
+    }
+  },
+  {
+    path: 'contact',
+    loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
+    data: {
+      title: 'Contact Us',
+      body: 'Contact us for support, content requests, or business inquiries.\n\nEmail: support@naijaspride.com (placeholder)'
+    }
+  },
   {
     path: 'browse',
     loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')

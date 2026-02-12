@@ -427,11 +427,20 @@ export class MoviesService {
     quality: PrismaQuality[];
     rating: number | null;
     thumbnailUrl: string | null;
+    coverUrl?: string | null;
+    posterUrl?: string | null;
+    backdropUrl?: string | null;
     downloadCount: number;
     viewCount: number;
     isStreamOnly: boolean;
     youtubeId: string | null;
   }): MovieSummary {
+    const bestThumb =
+      raw.thumbnailUrl ||
+      raw.posterUrl ||
+      raw.coverUrl ||
+      raw.backdropUrl ||
+      null;
     return {
       id: raw.id,
       title: raw.title,
@@ -440,7 +449,7 @@ export class MoviesService {
       genre: raw.genre as unknown as Genre[],
       quality: raw.quality as unknown as MovieSummary['quality'],
       rating: raw.rating,
-      thumbnailUrl: raw.thumbnailUrl,
+      thumbnailUrl: bestThumb,
       downloadCount: raw.downloadCount,
       viewCount: raw.viewCount,
       nollywood: raw.genre.includes('Nollywood' as PrismaGenre),

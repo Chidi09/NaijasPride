@@ -5,6 +5,8 @@ import { HttpClient } from '@angular/common/http';
 import { Book, PaginationMeta } from '@naijaspride/types';
 import { interval, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 
 type ContentItem = {
   id: string;
@@ -38,9 +40,9 @@ type SourceDiscoverResponse = {
 @Component({
   selector: 'app-book-hub',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
-    <div class="min-h-screen bg-[var(--bg-primary)] pb-20">
+    <div class="min-h-screen bg-[var(--bg-primary)] pb-20 books-theme">
       <!-- Hero Section with Featured Content -->
       <div class="bg-gradient-to-b from-cinema-800 to-cinema-900 py-12 px-6">
         <div class="max-w-7xl mx-auto">
@@ -53,9 +55,8 @@ type SourceDiscoverResponse = {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
             <!-- Featured Book -->
             <div class="group">
-              <a [routerLink]="featured().book?.slug ? ['/books', featured().book!.slug] : null"
-                 class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
-              >
+              <a [routerLink]="featured().book?.slug ? ['/books', featured().book!.slug] : null" class="block">
+                <mat-card class="overflow-hidden transition-all hover:scale-[1.01]" style="background: var(--bg-card); border: 1px solid var(--border-color);">
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-blue-400 uppercase">📚 Popular Book</span>
                 </div>
@@ -82,14 +83,14 @@ type SourceDiscoverResponse = {
                     }
                   </div>
                 </div>
+                </mat-card>
               </a>
             </div>
 
             <!-- Featured Comic -->
             <div class="group">
-              <a [routerLink]="featured().comic?.id ? ['/books/comics', toRouteParam(featured().comic!.id)] : ['/books/comics']"
-                 class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
-              >
+              <a [routerLink]="featured().comic?.id ? ['/books/comics', toRouteParam(featured().comic!.id)] : ['/books/comics']" class="block">
+                <mat-card class="overflow-hidden transition-all hover:scale-[1.01]" style="background: var(--bg-card); border: 1px solid var(--border-color);">
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-purple-400 uppercase">📖 Popular Comic</span>
                 </div>
@@ -113,14 +114,14 @@ type SourceDiscoverResponse = {
                     <p class="text-gray-400 text-sm">{{ featured().comic?.author || 'Unknown Author' }}</p>
                   </div>
                 </div>
+                </mat-card>
               </a>
             </div>
 
             <!-- Featured Manga (Auto-rotating) -->
             <div class="group relative">
-              <a [routerLink]="featured().manga?.id ? ['/books/manga', toRouteParam(featured().manga!.id)] : null"
-                 class="block bg-[#f0e4db] dark:bg-cinema-800/50 rounded-lg overflow-hidden transition-all hover:bg-[#e6d5c9] dark:hover:bg-cinema-800 hover:scale-[1.02]"
-              >
+              <a [routerLink]="featured().manga?.id ? ['/books/manga', toRouteParam(featured().manga!.id)] : null" class="block">
+                <mat-card class="overflow-hidden transition-all hover:scale-[1.01]" style="background: var(--bg-card); border: 1px solid var(--border-color);">
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-pink-400 uppercase">🎌 Trending Manga</span>
                 </div>
@@ -151,6 +152,7 @@ type SourceDiscoverResponse = {
                     }
                   </div>
                 </div>
+                </mat-card>
               </a>
             </div>
           </div>
@@ -167,7 +169,7 @@ type SourceDiscoverResponse = {
               <span class="text-2xl">📚</span>
               <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Books</h2>
             </div>
-            <a routerLink="/books/all" class="text-sm text-[#d6b87a] hover:text-white transition-colors">
+            <a routerLink="/books/all" mat-button color="primary">
               View All Books →
             </a>
           </div>
@@ -220,7 +222,7 @@ type SourceDiscoverResponse = {
               <span class="text-2xl">📖</span>
               <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Comics</h2>
             </div>
-            <a routerLink="/books/comics" class="text-sm text-[#d6b87a] hover:text-white transition-colors">
+            <a routerLink="/books/comics" mat-button color="primary">
               View All Comics →
             </a>
           </div>
@@ -273,7 +275,7 @@ type SourceDiscoverResponse = {
               <span class="text-2xl">🎌</span>
               <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Manga</h2>
             </div>
-            <a routerLink="/books/manga" class="text-sm text-[#d6b87a] hover:text-white transition-colors">
+            <a routerLink="/books/manga" mat-button color="primary">
               Open Manga Library →
             </a>
           </div>

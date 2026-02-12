@@ -1,7 +1,7 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MovieCardYoutubeComponent } from '../../../movies/components/movie-card-youtube/movie-card-youtube.component';
 import { MovieSummary } from '@naijaspride/types';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
@@ -72,7 +72,7 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
               >
                 <option value="latest">Latest Added</option>
                 <option value="popular">Most Viewed</option>
-                <option value="year">Release Year</option>
+                <option value="newest">Release Year</option>
               </select>
             </div>
 
@@ -116,6 +116,8 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
 })
 export class StreamOnlyMoviesComponent implements OnInit {
   private http = inject(HttpClient);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   
   movies = signal<MovieSummary[]>([]);
   isLoading = signal(true);
@@ -126,7 +128,15 @@ export class StreamOnlyMoviesComponent implements OnInit {
   readonly pageSize = 50;
 
   ngOnInit() {
-    this.loadMovies();
+    // URL -> state sync (fixes pagination back-button issues)
+    this.route.queryParamMap.subscribe((params) => {
+      const page = Math.max(1, Number(params.get('page') || 1) || 1);
+      const sortBy = (params.get('sortBy') || 'latest').trim();
+
+      this.currentPage.set(page);
+      this.sortBy.set(sortBy);
+      this.loadMovies();
+    });
   }
 
   loadMovies() {
@@ -162,12 +172,25 @@ export class StreamOnlyMoviesComponent implements OnInit {
     const select = event.target as HTMLSelectElement;
     this.sortBy.set(select.value);
     this.currentPage.set(1);
+    this.syncUrl();
     this.loadMovies();
   }
 
   onPageChange(page: number) {
     this.currentPage.set(page);
+    this.syncUrl();
     this.loadMovies();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  private syncUrl() {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        page: this.currentPage(),
+        sortBy: this.sortBy(),
+      },
+      replaceUrl: true,
+    });
   }
 }

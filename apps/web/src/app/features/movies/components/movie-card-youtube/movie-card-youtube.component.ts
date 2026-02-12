@@ -49,7 +49,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
           <div class="absolute top-2 right-2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded">
             4K
           </div>
-        } @else if (movie.quality?.includes('Q1080p')) {
+        } @else if (movie.quality?.includes('1080p') || movie.quality?.includes('720p')) {
           <div class="absolute top-2 right-2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded">
             HD
           </div>

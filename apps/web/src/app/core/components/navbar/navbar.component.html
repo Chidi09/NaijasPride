@@ -9,7 +9,7 @@
           <app-brand-logo
             variant="full"
             alt="NaijasPride"
-            className="h-16 w-auto max-w-[320px] md:max-w-[500px] object-contain origin-top-left scale-[1.18] md:scale-[1.25] transition-transform hover:scale-[1.22] md:hover:scale-[1.3]"
+            className="h-10 md:h-12 w-auto max-w-[220px] md:max-w-[280px] object-contain transition-transform hover:scale-[1.02]"
           />
         </a>
 
@@ -59,7 +59,7 @@
         <button
           class="text-[#3b2d30] hover:text-[#6f1a2f] dark:text-white dark:hover:text-gray-300 relative"
           type="button"
-          (click)="notificationsOpen.set(!notificationsOpen())"
+          (click)="toggleNotifications()"
         >
           🔔
           <span class="absolute top-0 right-0 h-2 w-2 bg-red-600 rounded-full"></span>
@@ -67,8 +67,20 @@
         @if (notificationsOpen()) {
           <div class="absolute right-0 top-full mt-2 w-72 rounded-lg border border-[#dcc5b7] bg-white/95 shadow-xl dark:border-gray-800 dark:bg-black/95">
             <div class="border-b border-[#dcc5b7] px-4 py-2 text-xs uppercase tracking-wider text-[#8b766d] dark:border-gray-800 dark:text-gray-500">Notifications</div>
-            @for (item of notifications(); track item) {
-              <div class="px-4 py-3 text-sm text-[#5f4d47] hover:bg-[#f4e4da] dark:text-gray-300 dark:hover:bg-zinc-800">{{ item }}</div>
+            @if (notificationsLoading()) {
+              <div class="px-4 py-4 text-sm text-[#8b766d] dark:text-gray-400">Loading...</div>
+            } @else {
+              @for (item of notifications(); track item.text) {
+                @if (item.routerLink) {
+                  <a
+                    [routerLink]="item.routerLink"
+                    (click)="notificationsOpen.set(false)"
+                    class="block px-4 py-3 text-sm text-[#5f4d47] hover:bg-[#f4e4da] dark:text-gray-300 dark:hover:bg-zinc-800"
+                  >{{ item.text }}</a>
+                } @else {
+                  <div class="px-4 py-3 text-sm text-[#5f4d47] hover:bg-[#f4e4da] dark:text-gray-300 dark:hover:bg-zinc-800">{{ item.text }}</div>
+                }
+              }
             }
           </div>
         }

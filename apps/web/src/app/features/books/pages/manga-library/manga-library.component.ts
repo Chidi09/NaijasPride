@@ -3,6 +3,15 @@ import { HttpClient } from '@angular/common/http';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
 
 type MangaSummary = {
   id: string;
@@ -74,365 +83,317 @@ type MangaSourceHealth = {
 @Component({
   selector: 'app-manga-library',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    FormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatExpansionModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    MatTabsModule,
+  ],
   template: `
-    <div class="container mx-auto px-4 py-10">
-      <div class="mb-8 flex items-center justify-between gap-3">
-        <div>
-          <h1 class="font-['Cinzel'] text-3xl text-white">Manga Library</h1>
-          <p class="mt-2 text-sm text-gray-400">Search Manga, Manhwa and Manhua with advanced filters.</p>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            @for (source of sources(); track source.id) {
-              <button
-                type="button"
-                (click)="setSource(source.id)"
-                [disabled]="isSwitchingSource()"
-                class="rounded border px-2 py-1 text-[11px] transition-all relative"
-                [class.border-[#800020]]="selectedSource() === source.id"
-                [class.text-[#d6b87a]]="selectedSource() === source.id"
-                [class.border-zinc-700]="selectedSource() !== source.id"
-                [class.text-gray-300]="selectedSource() !== source.id"
-                [class.opacity-50]="isSwitchingSource()"
-              >
-                @if (isSwitchingSource() && selectedSource() === source.id) {
-                  <span class="inline-flex items-center gap-1">
-                    <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {{ source.displayName }}
-                  </span>
-                } @else {
-                  {{ source.displayName }}
-                }
-              </button>
-            }
+    <div class="container mx-auto px-4 py-10 books-theme">
+      <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h1 class="text-3xl md:text-4xl font-serif text-[var(--text-primary)]">Manga Library</h1>
+          <p class="mt-2 text-sm text-[var(--text-muted)]">Search Manga, Manhwa and Manhua with advanced filters.</p>
+        </div>
+        <a mat-stroked-button color="primary" routerLink="/books">Back to Books</a>
+      </div>
+
+      <mat-card class="mb-6" style="background: var(--bg-elevated); border: 1px solid var(--border-color);">
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs uppercase tracking-wider text-[var(--text-muted)]">Source</span>
+            <mat-chip-listbox aria-label="Manga sources" class="flex flex-wrap">
+              @for (source of sources(); track source.id) {
+                <mat-chip-option
+                  [selected]="selectedSource() === source.id"
+                  [disabled]="isSwitchingSource()"
+                  (click)="setSource(source.id)"
+                >{{ source.displayName }}</mat-chip-option>
+              }
+            </mat-chip-listbox>
           </div>
-          <div class="mt-2 flex flex-wrap gap-2">
+
+          <div class="flex flex-wrap gap-2">
             @for (health of sourceHealth(); track health.sourceId) {
-              <span class="rounded border px-2 py-1 text-[11px]"
+              <span
+                class="rounded border px-2 py-1 text-[11px]"
                 [class.border-emerald-700]="health.ok && health.circuitState === 'closed'"
-                [class.text-emerald-300]="health.ok && health.circuitState === 'closed'"
+                [class.text-emerald-700]="health.ok && health.circuitState === 'closed'"
                 [class.border-amber-700]="health.circuitState === 'half_open'"
-                [class.text-amber-300]="health.circuitState === 'half_open'"
+                [class.text-amber-700]="health.circuitState === 'half_open'"
                 [class.border-red-700]="!health.ok || health.circuitState === 'open'"
-                [class.text-red-300]="!health.ok || health.circuitState === 'open'"
+                [class.text-red-700]="!health.ok || health.circuitState === 'open'"
                 [attr.title]="health.degradationReasons.join(', ')"
               >{{ health.displayName }} {{ health.latencyMs }}ms</span>
             }
           </div>
         </div>
-        <a routerLink="/books" class="rounded border border-[#5f1327] px-4 py-2 text-sm text-[#d6b87a] hover:bg-[#5f1327]/20">Back to Books</a>
-      </div>
-
-      <div class="mb-6 flex gap-2 border-b border-[#5f1327]/30">
-        <button
-          (click)="activeTab.set('search')"
-          [class]="activeTab() === 'search' ? 'border-b-2 border-[#800020] text-[#d6b87a]' : 'text-gray-400 hover:text-white'"
-          class="px-4 py-2 text-sm font-medium transition"
-        >Search</button>
-        <button
-          (click)="activeTab.set('favorites'); loadFavorites()"
-          [class]="activeTab() === 'favorites' ? 'border-b-2 border-[#800020] text-[#d6b87a]' : 'text-gray-400 hover:text-white'"
-          class="px-4 py-2 text-sm font-medium transition"
-        >Favorites ({{ favorites().length }})</button>
-        <button
-          (click)="activeTab.set('history'); loadHistory()"
-          [class]="activeTab() === 'history' ? 'border-b-2 border-[#800020] text-[#d6b87a]' : 'text-gray-400 hover:text-white'"
-          class="px-4 py-2 text-sm font-medium transition"
-        >History</button>
-      </div>
+      </mat-card>
 
       @if (isSwitchingSource()) {
-        <div class="rounded-xl border border-[#5f1327]/50 bg-[#120a0d]/70 p-12">
-          <div class="flex flex-col items-center justify-center text-center">
-            <div class="relative mb-4">
-              <svg class="animate-spin h-12 w-12 text-[#800020]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+        <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-8">
+          <div class="flex flex-col items-center justify-center text-center gap-3">
+            <mat-progress-spinner diameter="46" mode="indeterminate"></mat-progress-spinner>
+            <div>
+              <h3 class="text-lg font-medium text-[var(--text-primary)]">Loading {{ selectedSource() | titlecase }}...</h3>
+              <p class="text-sm text-[var(--text-muted)]">Fetching manga catalog and tags. This may take a moment.</p>
             </div>
-            <h3 class="text-lg font-medium text-white mb-2">Loading {{ selectedSource() | titlecase }}...</h3>
-            <p class="text-sm text-gray-400">Fetching manga catalog and tags. This may take a moment.</p>
           </div>
-        </div>
-      }
+        </mat-card>
+      } @else {
+        <mat-tab-group
+          [selectedIndex]="activeTab() === 'search' ? 0 : activeTab() === 'favorites' ? 1 : 2"
+          (selectedIndexChange)="onTabChange($event)"
+        >
+          <mat-tab label="Search">
+            <div class="pt-6">
+              <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <mat-form-field appearance="outline" class="w-full">
+                    <mat-label>Search by title</mat-label>
+                    <input
+                      matInput
+                      [ngModel]="query()"
+                      (ngModelChange)="query.set($event)"
+                      (keyup.enter)="search()"
+                      placeholder="e.g. One Piece"
+                    />
+                  </mat-form-field>
 
-      @if (activeTab() === 'search' && !isSwitchingSource()) {
-        <div class="mb-8 rounded-xl border border-[#5f1327]/50 bg-[#120a0d]/70 p-4">
-          <div class="mb-3 flex flex-col gap-3 sm:flex-row">
-            <input
-              [ngModel]="query()"
-              (ngModelChange)="query.set($event)"
-              (keyup.enter)="search()"
-              type="text"
-              placeholder="Search by title..."
-              class="w-full rounded-lg border border-[#5f1327] bg-[#1b1014] px-4 py-3 text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020]"
-            >
-            <button
-              (click)="search()"
-              [disabled]="isLoading()"
-              class="rounded-lg bg-[#800020] px-5 py-3 text-sm font-semibold text-white hover:bg-[#660019] disabled:opacity-50"
-            >{{ isLoading() ? 'Searching...' : 'Search' }}</button>
-          </div>
+                  <button mat-flat-button color="primary" (click)="search()" [disabled]="isLoading()">
+                    {{ isLoading() ? 'Searching...' : 'Search' }}
+                  </button>
 
-          <button class="text-xs text-[#d6b87a] hover:text-white" (click)="showFilters.set(!showFilters())">
-            {{ showFilters() ? 'Hide Filters' : 'Show Filters' }}
-          </button>
+                  <button mat-button type="button" (click)="showFilters.set(!showFilters())">
+                    {{ showFilters() ? 'Hide filters' : 'Show filters' }}
+                  </button>
+                </div>
 
-          @if (showFilters()) {
-            <div class="mt-4 grid gap-4 rounded-lg border border-[#5f1327]/40 bg-black/20 p-4 md:grid-cols-2 lg:grid-cols-3">
-              <label class="text-xs text-gray-300">
-                <span class="mb-1 block">Sort</span>
-                <select [ngModel]="sort()" (ngModelChange)="sort.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
-                  <option value="relevance">Relevance</option>
-                  <option value="followedCount">Popularity</option>
-                  <option value="latestUploadedChapter">Latest Updates</option>
-                  <option value="createdAt">Newest Titles</option>
-                  <option value="year">Year</option>
-                </select>
-              </label>
+                @if (showFilters()) {
+                  <div class="mt-4">
+                    <mat-accordion>
+                      <mat-expansion-panel [expanded]="true">
+                        <mat-expansion-panel-header>
+                          <mat-panel-title>Filters</mat-panel-title>
+                          <mat-panel-description>Refine results</mat-panel-description>
+                        </mat-expansion-panel-header>
 
-              <label class="text-xs text-gray-300">
-                <span class="mb-1 block">Year</span>
-                <input type="number" [ngModel]="year()" (ngModelChange)="year.set($event || null)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
-              </label>
+                        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Sort</mat-label>
+                            <mat-select [ngModel]="sort()" (ngModelChange)="sort.set($event)">
+                              <mat-option value="relevance">Relevance</mat-option>
+                              <mat-option value="followedCount">Popularity</mat-option>
+                              <mat-option value="latestUploadedChapter">Latest Updates</mat-option>
+                              <mat-option value="createdAt">Newest Titles</mat-option>
+                              <mat-option value="year">Year</mat-option>
+                            </mat-select>
+                          </mat-form-field>
 
-              <label class="text-xs text-gray-300">
-                <span class="mb-1 block">Language</span>
-                <select [ngModel]="originalLanguage()" (ngModelChange)="originalLanguage.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
-                  <option value="">Any</option>
-                  <option value="ja">Japanese (Manga)</option>
-                  <option value="ko">Korean (Manhwa)</option>
-                  <option value="zh">Chinese (Manhua)</option>
-                  <option value="en">English</option>
-                </select>
-              </label>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Year</mat-label>
+                            <input matInput type="number" [ngModel]="year()" (ngModelChange)="year.set($event || null)" />
+                          </mat-form-field>
 
-              <label class="text-xs text-gray-300">
-                <span class="mb-1 block">Status</span>
-                <select [ngModel]="status()" (ngModelChange)="status.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
-                  <option value="">Any</option>
-                  <option value="ongoing">Ongoing</option>
-                  <option value="completed">Completed</option>
-                  <option value="hiatus">Hiatus</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </label>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Language</mat-label>
+                            <mat-select [ngModel]="originalLanguage()" (ngModelChange)="originalLanguage.set($event)">
+                              <mat-option value="">Any</mat-option>
+                              <mat-option value="ja">Japanese (Manga)</mat-option>
+                              <mat-option value="ko">Korean (Manhwa)</mat-option>
+                              <mat-option value="zh">Chinese (Manhua)</mat-option>
+                              <mat-option value="en">English</mat-option>
+                            </mat-select>
+                          </mat-form-field>
 
-              <label class="text-xs text-gray-300">
-                <span class="mb-1 block">Demographic</span>
-                <select [ngModel]="demographic()" (ngModelChange)="demographic.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
-                  <option value="">Any</option>
-                  <option value="shounen">Shounen</option>
-                  <option value="shoujo">Shoujo</option>
-                  <option value="seinen">Seinen</option>
-                  <option value="josei">Josei</option>
-                </select>
-              </label>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Status</mat-label>
+                            <mat-select [ngModel]="status()" (ngModelChange)="status.set($event)">
+                              <mat-option value="">Any</mat-option>
+                              <mat-option value="ongoing">Ongoing</mat-option>
+                              <mat-option value="completed">Completed</mat-option>
+                              <mat-option value="hiatus">Hiatus</mat-option>
+                              <mat-option value="cancelled">Cancelled</mat-option>
+                            </mat-select>
+                          </mat-form-field>
 
-              <label class="text-xs text-gray-300">
-                <span class="mb-1 block">Content Rating</span>
-                <select [ngModel]="contentRating()" (ngModelChange)="contentRating.set($event)" class="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-white">
-                  <option value="">Any</option>
-                  <option value="safe">Safe</option>
-                  <option value="suggestive">Suggestive</option>
-                  <option value="erotica">Erotica</option>
-                </select>
-              </label>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Demographic</mat-label>
+                            <mat-select [ngModel]="demographic()" (ngModelChange)="demographic.set($event)">
+                              <mat-option value="">Any</mat-option>
+                              <mat-option value="shounen">Shounen</mat-option>
+                              <mat-option value="shoujo">Shoujo</mat-option>
+                              <mat-option value="seinen">Seinen</mat-option>
+                              <mat-option value="josei">Josei</mat-option>
+                            </mat-select>
+                          </mat-form-field>
 
-              <div class="md:col-span-2 lg:col-span-3">
-                <p class="mb-2 text-xs text-gray-300">Tags</p>
-                <div class="max-h-56 space-y-3 overflow-auto rounded border border-zinc-700 bg-zinc-900 p-3">
-                  @for (group of groupedTags(); track group.group) {
-                    <div>
-                      <p class="mb-2 text-[11px] uppercase tracking-wide text-[#d6b87a]">{{ group.group }}</p>
-                      <div class="flex flex-wrap gap-2">
-                        @for (tag of group.items; track tag.id) {
-                          <button
-                            type="button"
-                            (click)="toggleTag(tag.id)"
-                            class="rounded border px-2 py-1 text-xs"
-                            [class.border-[#800020]]="selectedTagIds().includes(tag.id)"
-                            [class.text-[#d6b87a]]="selectedTagIds().includes(tag.id)"
-                            [class.border-zinc-700]="!selectedTagIds().includes(tag.id)"
-                            [class.text-gray-300]="!selectedTagIds().includes(tag.id)"
-                          >{{ tag.name }}</button>
-                        }
+                          <mat-form-field appearance="outline">
+                            <mat-label>Content rating</mat-label>
+                            <mat-select [ngModel]="contentRating()" (ngModelChange)="contentRating.set($event)">
+                              <mat-option value="">Any</mat-option>
+                              <mat-option value="safe">Safe</mat-option>
+                              <mat-option value="suggestive">Suggestive</mat-option>
+                              <mat-option value="erotica">Erotica</mat-option>
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+
+                        <div class="mt-4">
+                          <p class="text-xs uppercase tracking-wider text-[var(--text-muted)] mb-2">Tags</p>
+                          <div class="max-h-56 overflow-auto rounded border border-[var(--border-color)] p-3 bg-[var(--bg-secondary)]">
+                            @for (group of groupedTags(); track group.group) {
+                              <div class="mb-3">
+                                <p class="mb-2 text-[11px] uppercase tracking-wide text-[var(--accent)]">{{ group.group }}</p>
+                                <mat-chip-listbox class="flex flex-wrap">
+                                  @for (tag of group.items; track tag.id) {
+                                    <mat-chip-option
+                                      [selected]="selectedTagIds().includes(tag.id)"
+                                      (click)="toggleTag(tag.id)"
+                                    >{{ tag.name }}</mat-chip-option>
+                                  }
+                                </mat-chip-listbox>
+                              </div>
+                            }
+                          </div>
+                        </div>
+
+                        <div class="mt-4 flex flex-wrap gap-2">
+                          <button mat-flat-button color="primary" type="button" (click)="search()">Apply</button>
+                          <button mat-stroked-button type="button" (click)="clearFilters()">Clear</button>
+                        </div>
+                      </mat-expansion-panel>
+                    </mat-accordion>
+                  </div>
+                }
+              </mat-card>
+
+              <div class="mt-6">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                  <h2 class="text-lg font-semibold text-[var(--text-primary)]">Results</h2>
+                  @if (isDiscoverLoading()) {
+                    <span class="text-xs text-[var(--text-muted)]">Loading discover...</span>
+                  }
+                </div>
+
+                @if (results().length === 0 && !isLoading()) {
+                  <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-6">
+                    <p class="text-sm text-[var(--text-muted)]">No manga found. Try a different search or loosen filters.</p>
+                  </mat-card>
+                }
+
+                <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                  @for (manga of results(); track manga.id) {
+                    <mat-card
+                      style="background: var(--bg-card); border: 1px solid var(--border-color);"
+                      class="overflow-hidden hover:shadow-md transition-shadow"
+                    >
+                      <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block">
+                        <div class="relative aspect-[3/4] bg-[var(--bg-elevated)]">
+                          @if (manga.coverUrl) {
+                            <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
+                          } @else {
+                            <div class="flex h-full items-center justify-center text-4xl">📘</div>
+                          }
+                        </div>
+                        <div class="p-3">
+                          <p class="line-clamp-2 text-sm font-semibold text-[var(--text-primary)]">{{ manga.title }}</p>
+                          <p class="mt-1 text-xs text-[var(--text-muted)]">{{ manga.year || 'Unknown year' }} • {{ sourceLabel(manga.id) }}</p>
+                        </div>
+                      </a>
+
+                      <div class="px-3 pb-3">
+                        <button mat-stroked-button type="button" (click)="toggleFavorite(manga); $event.stopPropagation()">
+                          {{ isFavorite(manga.id) ? '★ Favorited' : '☆ Favorite' }}
+                        </button>
                       </div>
-                    </div>
+                    </mat-card>
                   }
                 </div>
               </div>
-
-              <div class="md:col-span-2 lg:col-span-3 flex gap-2">
-                <button (click)="search()" class="rounded bg-[#800020] px-4 py-2 text-xs text-white hover:bg-[#660019]">Apply Filters</button>
-                <button (click)="clearFilters()" class="rounded border border-zinc-700 px-4 py-2 text-xs text-gray-200 hover:bg-zinc-800">Clear</button>
-              </div>
             </div>
-          }
-        </div>
+          </mat-tab>
 
-        @if (isDiscoverLoading()) {
-          <div class="mb-6 text-sm text-gray-400">Loading discover sections...</div>
-        }
-
-        @if (discover(); as discover) {
-          <section class="mb-8 space-y-6">
-            <div>
-              <h2 class="mb-3 text-base font-semibold text-[#d6b87a]">Trending Now</h2>
-              <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
-                @for (manga of discover.trending; track manga.id) {
-                  <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="overflow-hidden rounded border border-[#5f1327]/30 bg-[#120a0d] text-left hover:border-[#800020]">
-                    <div class="relative aspect-[3/4]">
-                      @if (manga.coverUrl) {
-                        <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
-                      } @else {
-                        <div class="flex h-full items-center justify-center bg-zinc-800 text-3xl">📘</div>
-                      }
+          <mat-tab label="Favorites">
+            <div class="pt-6">
+              <div class="mb-3 text-sm text-[var(--text-muted)]">Favorites are saved to your account.</div>
+              @if (favorites().length === 0) {
+                <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-6">
+                  <p class="text-sm text-[var(--text-muted)]">No favorites yet.</p>
+                </mat-card>
+              }
+              <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4" *ngIf="favorites().length > 0">
+                @for (fav of favorites(); track fav.id) {
+                  <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="overflow-hidden">
+                    <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="block">
+                      <div class="relative aspect-[3/4] bg-[var(--bg-elevated)]">
+                        @if (fav.coverUrl) {
+                          <img [src]="fav.coverUrl" [alt]="fav.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
+                        } @else {
+                          <div class="flex h-full items-center justify-center text-4xl">📘</div>
+                        }
+                      </div>
+                      <div class="p-3">
+                        <p class="line-clamp-2 text-sm font-semibold text-[var(--text-primary)]">{{ fav.title }}</p>
+                      </div>
+                    </a>
+                    <div class="px-3 pb-3">
+                      <button mat-stroked-button color="warn" type="button" (click)="removeFavorite(fav.mangaId)">Remove</button>
                     </div>
-                    <p class="line-clamp-2 p-2 text-xs font-medium text-white">{{ manga.title }}</p>
-                    <p class="px-2 pb-2 text-[11px] text-gray-400">{{ sourceLabel(manga.id) }}</p>
-                  </a>
+                  </mat-card>
                 }
               </div>
             </div>
+          </mat-tab>
 
-            <div class="grid gap-6 md:grid-cols-2">
-              <div>
-                <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Recently Updated</h3>
-                <div class="space-y-2">
-                  @for (manga of discover.recentlyUpdated.slice(0, 6); track manga.id) {
-                    <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
-                      <span>{{ manga.title }}</span>
-                      <span class="ml-2 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</span>
-                      @if (manga.latestChapter) {
-                        <span class="ml-2 text-xs text-[#d6b87a]">Ch. {{ manga.latestChapter }}</span>
-                      }
-                    </a>
-                  }
-                </div>
+          <mat-tab label="History">
+            <div class="pt-6">
+              <div class="flex items-center justify-between gap-3 mb-4">
+                <p class="text-sm text-[var(--text-muted)]">Continue where you stopped.</p>
+                @if (history().length > 0) {
+                  <button mat-stroked-button color="warn" type="button" (click)="clearHistory()">Clear all</button>
+                }
               </div>
-              <div>
-                <h3 class="mb-3 text-sm font-semibold text-[#d6b87a]">Fresh Titles</h3>
-                <div class="space-y-2">
-                  @for (manga of discover.newTitles.slice(0, 6); track manga.id) {
-                    <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block w-full rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left text-sm text-gray-200 hover:border-[#800020]">
-                      <span>{{ manga.title }}</span>
-                      <span class="ml-2 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</span>
-                      @if (manga.latestChapter) {
-                        <span class="ml-2 text-xs text-[#d6b87a]">Ch. {{ manga.latestChapter }}</span>
-                      }
-                    </a>
-                  }
-                </div>
+
+              @if (history().length === 0) {
+                <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-6">
+                  <p class="text-sm text-[var(--text-muted)]">No reading history yet.</p>
+                </mat-card>
+              }
+
+              <div class="space-y-3" *ngIf="history().length > 0">
+                @for (item of history(); track item.id) {
+                  <mat-card style="background: var(--bg-card); border: 1px solid var(--border-color);" class="p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p class="text-sm text-[var(--text-primary)] font-medium">Chapter {{ item.chapterId.slice(0, 10) }}...</p>
+                        <p class="mt-1 text-xs text-[var(--text-muted)]">Page {{ item.pageIndex + 1 }} / {{ item.totalPages }}</p>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <a
+                          mat-flat-button
+                          color="primary"
+                          [routerLink]="[readerRouteFor(item.chapterId), toRouteParam(item.chapterId)]"
+                          [queryParams]="{ mangaId: item.mangaId }"
+                        >Continue</a>
+                        <button mat-stroked-button color="warn" type="button" (click)="removeHistoryEntry(item.chapterId)">Delete</button>
+                      </div>
+                    </div>
+                  </mat-card>
+                }
               </div>
             </div>
-          </section>
-        }
-
-        <section>
-          <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Results</h2>
-          @if (results().length === 0 && !isLoading()) {
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No manga found.</div>
-          }
-          <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-            @for (manga of results(); track manga.id) {
-              <div class="group relative overflow-hidden rounded-lg border border-[#5f1327]/30 bg-[#120a0d] transition hover:border-[#800020]">
-                <a [routerLink]="[detailRouteFor(manga.id), toRouteParam(manga.id)]" class="block">
-                  <div class="relative aspect-[3/4]">
-                    @if (manga.coverUrl) {
-                      <img [src]="manga.coverUrl" [alt]="manga.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
-                    } @else {
-                      <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
-                    }
-                  </div>
-                  <div class="p-3">
-                    <p class="line-clamp-2 text-sm font-semibold text-white">{{ manga.title }}</p>
-                    <p class="mt-1 text-xs text-gray-400">{{ manga.year || 'Unknown year' }}</p>
-                    <p class="mt-1 text-[11px] text-gray-500">{{ sourceLabel(manga.id) }}</p>
-                  </div>
-                </a>
-
-                <button
-                  type="button"
-                  (click)="toggleFavorite(manga); $event.stopPropagation()"
-                  class="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white hover:bg-[#800020]"
-                >{{ isFavorite(manga.id) ? '★' : '☆' }}</button>
-              </div>
-            }
-          </div>
-        </section>
-      }
-
-      @if (activeTab() === 'favorites') {
-        <section>
-          <h2 class="mb-4 text-lg font-semibold text-[#d6b87a]">Your Favorites</h2>
-          @if (favorites().length === 0) {
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No favorites yet.</div>
-          }
-          <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-            @for (fav of favorites(); track fav.id) {
-              <div class="overflow-hidden rounded-lg border border-[#5f1327]/30 bg-[#120a0d]">
-                <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="block">
-                  <div class="relative aspect-[3/4]">
-                    @if (fav.coverUrl) {
-                      <img [src]="fav.coverUrl" [alt]="fav.title" referrerpolicy="no-referrer" class="absolute inset-0 h-full w-full object-cover">
-                    } @else {
-                      <div class="flex h-full items-center justify-center bg-zinc-800 text-4xl">📘</div>
-                    }
-                  </div>
-                  <div class="p-3">
-                    <p class="line-clamp-2 text-sm font-semibold text-white">{{ fav.title }}</p>
-                  </div>
-                </a>
-                <div class="px-3 pb-3">
-                  <button (click)="removeFavorite(fav.mangaId)" class="w-full rounded border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20">Remove</button>
-                </div>
-              </div>
-            }
-          </div>
-        </section>
-      }
-
-      @if (activeTab() === 'history') {
-        <section>
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <h2 class="text-lg font-semibold text-[#d6b87a]">Reading History</h2>
-            @if (history().length > 0) {
-              <button
-                type="button"
-                (click)="clearHistory()"
-                class="rounded border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20"
-              >Clear All</button>
-            }
-          </div>
-          @if (history().length === 0) {
-            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-gray-400">No reading history yet.</div>
-          }
-          <div class="space-y-3">
-            @for (item of history(); track item.id) {
-              <div class="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
-                <div>
-                  <p class="text-sm text-white">Chapter ID: {{ item.chapterId.slice(0, 8) }}...</p>
-                  <p class="mt-1 text-xs text-gray-400">Page {{ item.pageIndex + 1 }} / {{ item.totalPages }}</p>
-                </div>
-                <div class="flex items-center gap-2">
-                  <a
-                    [routerLink]="[readerRouteFor(item.chapterId), toRouteParam(item.chapterId)]"
-                    [queryParams]="{ mangaId: item.mangaId }"
-                    class="rounded bg-[#800020] px-3 py-1 text-xs text-white hover:bg-[#660019]"
-                  >Continue</a>
-                  <button
-                    type="button"
-                    (click)="removeHistoryEntry(item.chapterId)"
-                    class="rounded border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20"
-                  >Delete</button>
-                </div>
-              </div>
-            }
-          </div>
-        </section>
+          </mat-tab>
+        </mat-tab-group>
       }
     </div>
   `,
@@ -491,6 +452,20 @@ export class MangaLibraryComponent implements OnInit {
       this.loadFavorites();
     }
     this.loadSources();
+  }
+
+  onTabChange(index: number) {
+    if (index === 0) {
+      this.activeTab.set('search');
+      return;
+    }
+    if (index === 1) {
+      this.activeTab.set('favorites');
+      this.loadFavorites();
+      return;
+    }
+    this.activeTab.set('history');
+    this.loadHistory();
   }
 
   private isAuthenticated() {

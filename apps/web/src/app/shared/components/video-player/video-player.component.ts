@@ -1,6 +1,5 @@
-import { Component, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild, ElementRef, inject, Output, EventEmitter } from '@angular/core';
+import { AfterViewInit, Component, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild, ElementRef, inject, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 import { debounceTime, takeUntil } from 'rxjs/operators';
 import { WatchApiService } from '../../../features/watch/services/watch-api.service';
@@ -24,13 +23,9 @@ interface VideoPlayerConfig {
     <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group">
       
       @if (youtubeId) {
-        <iframe 
-          [src]="safeYoutubeUrl" 
-          title="NaijasPride video stream"
-          class="w-full h-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-          allowfullscreen>
-        </iframe>
+        <div class="relative w-full h-full">
+          <div #youtubeContainer class="w-full h-full"></div>
+        </div>
       }
 
       @if (videoUrl && !youtubeId) {
@@ -126,29 +121,30 @@ interface VideoPlayerConfig {
             </div>
           }
 
-          <!-- Resume Dialog -->
-          @if (showResumeDialog && savedProgress > 0) {
-            <div class="absolute inset-0 flex items-center justify-center bg-black/70 z-50">
-              <div class="bg-gray-900 p-6 rounded-lg max-w-md text-center">
-                <h3 class="text-white text-xl font-bold mb-2">Resume Watching?</h3>
-                <p class="text-gray-400 mb-4">
-                  You left off at {{ formatTime(savedProgress) }}. Would you like to resume?
-                </p>
-                <div class="flex gap-4 justify-center">
-                  <button 
-                    (click)="resumeFromSaved()"
-                    class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-medium transition-colors">
-                    Resume
-                  </button>
-                  <button 
-                    (click)="startFromBeginning()"
-                    class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-full font-medium transition-colors">
-                    Start Over
-                  </button>
-                </div>
-              </div>
+        </div>
+      }
+
+      <!-- Resume Dialog (works for both MP4 and YouTube) -->
+      @if (showResumeDialog && savedProgress > 0) {
+        <div class="absolute inset-0 flex items-center justify-center bg-black/70 z-50">
+          <div class="bg-gray-900 p-6 rounded-lg max-w-md text-center">
+            <h3 class="text-white text-xl font-bold mb-2">Resume Watching?</h3>
+            <p class="text-gray-400 mb-4">
+              You left off at {{ formatTime(savedProgress) }}. Would you like to resume?
+            </p>
+            <div class="flex gap-4 justify-center">
+              <button 
+                (click)="resumeFromSaved()"
+                class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-medium transition-colors">
+                Resume
+              </button>
+              <button 
+                (click)="startFromBeginning()"
+                class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-full font-medium transition-colors">
+                Start Over
+              </button>
             </div>
-          }
+          </div>
         </div>
       }
 
@@ -165,7 +161,7 @@ interface VideoPlayerConfig {
     }
   `]
 })
-export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
+export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   @Input() youtubeId?: string | null;
   @Input() videoUrl?: string | null;
   @Input() movieId?: string;
@@ -178,15 +174,18 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   @Output() playerReady = new EventEmitter<void>();
 
   @ViewChild('videoPlayer') videoRef!: ElementRef<HTMLVideoElement>;
+  @ViewChild('youtubeContainer') youtubeContainer?: ElementRef<HTMLDivElement>;
 
-  private sanitizer = inject(DomSanitizer);
   private watchApi = inject(WatchApiService);
   private anonymousWatch = inject(AnonymousWatchService);
   private authState = inject(AuthStateService);
   private destroy$ = new Subject<void>();
   private progressUpdate = new Subject<number>();
-  
-  safeYoutubeUrl?: SafeResourceUrl;
+
+  private youtubePlayer: any | null = null;
+  private youtubePollTimer?: ReturnType<typeof setInterval>;
+  private youtubeInitInFlight = false;
+
   showControls = true;
   showResumeDialog = false;
   savedProgress = 0;
@@ -211,9 +210,9 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['youtubeId'] && this.youtubeId) {
-      const url = `https://www.youtube.com/embed/${this.youtubeId}?modestbranding=1&rel=0&showinfo=0&color=white`;
-      this.safeYoutubeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    if (changes['youtubeId']) {
+      // YouTube needs JS API for progress tracking and resume.
+      this.setupYouTubePlayer();
     }
 
     if (changes['movieId'] && this.movieId && this.config.autoResume) {
@@ -221,13 +220,37 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  ngAfterViewInit(): void {
+    this.setupYouTubePlayer();
+  }
+
   ngOnDestroy() {
+    this.stopYouTubePolling();
     if (this.videoRef?.nativeElement && this.config.saveProgress && this.movieId) {
       const currentTime = this.videoRef.nativeElement.currentTime;
       if (currentTime > 0) {
         this.saveProgress(Math.floor(currentTime));
       }
     }
+
+    if (this.youtubePlayer && this.config.saveProgress && this.movieId) {
+      try {
+        const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
+        if (current > 0) {
+          this.saveProgress(current);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      this.youtubePlayer?.destroy?.();
+    } catch {
+      // ignore
+    }
+    this.youtubePlayer = null;
+
     this.destroy$.next();
     this.destroy$.complete();
     
@@ -311,7 +334,14 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   resumeFromSaved() {
-    if (this.videoRef?.nativeElement) {
+    if (this.youtubeId && this.youtubePlayer) {
+      try {
+        this.youtubePlayer.seekTo?.(this.savedProgress, true);
+        this.youtubePlayer.playVideo?.();
+      } catch {
+        // ignore
+      }
+    } else if (this.videoRef?.nativeElement) {
       this.videoRef.nativeElement.currentTime = this.savedProgress;
       this.videoRef.nativeElement.play();
     }
@@ -321,7 +351,14 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
 
   startFromBeginning() {
     this.showResumeDialog = false;
-    if (this.videoRef?.nativeElement) {
+    if (this.youtubeId && this.youtubePlayer) {
+      try {
+        this.youtubePlayer.seekTo?.(0, true);
+        this.youtubePlayer.playVideo?.();
+      } catch {
+        // ignore
+      }
+    } else if (this.videoRef?.nativeElement) {
       this.videoRef.nativeElement.currentTime = 0;
       this.videoRef.nativeElement.play();
     }
@@ -329,8 +366,19 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   skip(seconds: number) {
+    if (this.youtubeId && this.youtubePlayer) {
+      try {
+        const current = Number(this.youtubePlayer.getCurrentTime?.() || 0);
+        const duration = Number(this.youtubePlayer.getDuration?.() || 0);
+        const next = Math.max(0, Math.min(current + seconds, duration || current + seconds));
+        this.youtubePlayer.seekTo?.(next, true);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
     if (!this.videoRef?.nativeElement) return;
-    
     const video = this.videoRef.nativeElement;
     const newTime = Math.max(0, Math.min(video.currentTime + seconds, video.duration || 0));
     video.currentTime = newTime;
@@ -359,6 +407,161 @@ export class VideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
     if (this.videoRef?.nativeElement && this.config.saveProgress) {
       this.saveProgress(Math.floor(this.videoRef.nativeElement.currentTime));
     }
+  }
+
+  private async setupYouTubePlayer() {
+    if (!this.youtubeId) {
+      return;
+    }
+    if (this.youtubeInitInFlight) {
+      return;
+    }
+
+    // Wait for view to render.
+    if (!this.youtubeContainer?.nativeElement) {
+      return;
+    }
+
+    this.youtubeInitInFlight = true;
+    try {
+      await this.loadYouTubeIFrameApi();
+      // Destroy previous player if any.
+      try {
+        this.youtubePlayer?.destroy?.();
+      } catch {
+        // ignore
+      }
+      this.youtubePlayer = null;
+
+      const container = this.youtubeContainer.nativeElement;
+      container.innerHTML = '';
+
+      const win = window as any;
+      const YT = win.YT;
+      if (!YT?.Player) {
+        return;
+      }
+
+      this.youtubePlayer = new YT.Player(container, {
+        videoId: this.youtubeId,
+        playerVars: {
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+        },
+        events: {
+          onReady: () => {
+            try {
+              this.duration = Math.floor(Number(this.youtubePlayer.getDuration?.() || 0));
+            } catch {
+              this.duration = 0;
+            }
+            this.playerReady.emit();
+          },
+          onStateChange: (event: any) => {
+            // YT.PlayerState: -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
+            const state = event?.data;
+            if (state === 1) {
+              this.isPlaying = true;
+              this.startYouTubePolling();
+            } else if (state === 2) {
+              this.isPlaying = false;
+              this.stopYouTubePolling();
+              try {
+                const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
+                if (current > 0) {
+                  this.saveProgress(current);
+                }
+              } catch {
+                // ignore
+              }
+            } else if (state === 0) {
+              this.isPlaying = false;
+              this.stopYouTubePolling();
+              try {
+                const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
+                if (current > 0) {
+                  this.saveProgress(current);
+                }
+              } catch {
+                // ignore
+              }
+            }
+          },
+        },
+      });
+    } finally {
+      this.youtubeInitInFlight = false;
+    }
+  }
+
+  private startYouTubePolling() {
+    if (this.youtubePollTimer) {
+      return;
+    }
+    this.youtubePollTimer = setInterval(() => {
+      if (!this.youtubePlayer || !this.config.saveProgress) {
+        return;
+      }
+      try {
+        const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
+        const duration = Math.floor(Number(this.youtubePlayer.getDuration?.() || 0));
+        if (duration > 0) {
+          this.duration = duration;
+        }
+        if (current >= 0) {
+          this.progressUpdate.next(current);
+        }
+      } catch {
+        // ignore
+      }
+    }, 1000);
+  }
+
+  private stopYouTubePolling() {
+    if (this.youtubePollTimer) {
+      clearInterval(this.youtubePollTimer);
+      this.youtubePollTimer = undefined;
+    }
+  }
+
+  private loadYouTubeIFrameApi(): Promise<void> {
+    const win = window as any;
+    if (win.YT?.Player) {
+      return Promise.resolve();
+    }
+
+    if (win.__npYoutubeApiPromise) {
+      return win.__npYoutubeApiPromise as Promise<void>;
+    }
+
+    win.__npYoutubeApiPromise = new Promise<void>((resolve) => {
+      const existing = document.querySelector('script[data-np-youtube-iframe-api="1"]') as HTMLScriptElement | null;
+      if (existing) {
+        // If script already exists, wait for callback.
+        const prev = win.onYouTubeIframeAPIReady;
+        win.onYouTubeIframeAPIReady = () => {
+          prev?.();
+          resolve();
+        };
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+      script.defer = true;
+      script.dataset['npYoutubeIframeApi'] = '1';
+      const prev = win.onYouTubeIframeAPIReady;
+      win.onYouTubeIframeAPIReady = () => {
+        prev?.();
+        resolve();
+      };
+      document.head.appendChild(script);
+    });
+
+    return win.__npYoutubeApiPromise as Promise<void>;
   }
 
   private saveProgress(progress: number) {

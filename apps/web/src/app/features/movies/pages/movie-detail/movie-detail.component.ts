@@ -1,6 +1,7 @@
 import { Component, effect, inject, input, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { Location } from '@angular/common';
 import { Meta, Title } from '@angular/platform-browser';
 import { MoviesQueryService } from '../../services/movies-query.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
@@ -25,7 +26,7 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
     @if (query.isError()) {
       <div class="container mx-auto px-4 py-20 text-center">
         <h2 class="text-2xl font-serif font-bold text-[#24181b] dark:text-white">Movie not found</h2>
-        <a routerLink="/movies" class="text-cinema-500 hover:text-cinema-100 mt-4 block">← Back to Movies</a>
+        <button type="button" (click)="goBack()" class="text-cinema-500 hover:text-cinema-100 mt-4 block mx-auto">← Back</button>
       </div>
     }
 
@@ -40,11 +41,20 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
           ></div>
           <div class="absolute inset-0 bg-gradient-to-t from-[#f8f0e9] via-[#f8f0e9]/70 to-white/20 dark:from-cinema-900 dark:via-cinema-900/70 dark:to-black/20"></div>
 
-          <div class="relative container mx-auto px-4 py-12 md:py-20 flex flex-col md:flex-row gap-8 items-center md:items-end">
-            
-            <div class="w-48 md:w-64 flex-shrink-0 rounded-sm shadow-2xl overflow-hidden border-2 border-white/10">
-              <img [src]="movie.posterUrl || movie.thumbnailUrl" [alt]="movie.title" class="w-full h-auto">
-            </div>
+           <div class="relative container mx-auto px-4 py-12 md:py-20 flex flex-col md:flex-row gap-8 items-center md:items-end">
+            <button
+              type="button"
+              (click)="goBack()"
+              class="absolute top-4 left-4 inline-flex items-center gap-2 text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white text-sm transition-colors"
+              aria-label="Go back"
+            >
+              <span aria-hidden="true">←</span>
+              Back
+            </button>
+             
+             <div class="w-48 md:w-64 flex-shrink-0 rounded-sm shadow-2xl overflow-hidden border-2 border-white/10">
+               <img [src]="movie.posterUrl || movie.thumbnailUrl" [alt]="movie.title" class="w-full h-auto">
+             </div>
 
             <div class="flex-grow text-center md:text-left space-y-4">
               <div class="flex flex-wrap gap-2 justify-center md:justify-start">
@@ -245,6 +255,7 @@ export class MovieDetailComponent {
   private profileService = inject(ProfileQueryService);
   private meta = inject(Meta);
   private title = inject(Title);
+  private location = inject(Location);
   auth = inject(AuthService);
   
   query = this.moviesService.getMovieDetailQuery(this.slug);
@@ -273,6 +284,10 @@ export class MovieDetailComponent {
         this.meta.updateTag({ name: 'twitter:image', content: movie.thumbnailUrl || '' });
       }
     });
+  }
+
+  goBack() {
+    this.location.back();
   }
 
   isInWatchlist(movieId: string): boolean {

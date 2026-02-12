@@ -3,6 +3,10 @@ import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 
 type ComicSummary = {
   id: string;
@@ -30,9 +34,9 @@ type SearchResponse = {
 @Component({
   selector: 'app-comics-library',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule],
+  imports: [CommonModule, RouterLink, FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule],
   template: `
-    <div class="container mx-auto px-4 py-10">
+    <div class="container mx-auto px-4 py-10 books-theme">
       <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 class="font-['Cinzel'] text-3xl text-[#24181b] dark:text-white">Comics Library</h1>
@@ -41,37 +45,21 @@ type SearchResponse = {
           </p>
         </div>
         <div class="flex gap-2">
-          <a
-            routerLink="/books/manga"
-            class="rounded border border-[#5f1327] px-4 py-2 text-sm text-[#d6b87a] hover:bg-[#5f1327]/20"
-          >Manga</a>
-          <a
-            routerLink="/books"
-            class="rounded border border-[#5f1327] px-4 py-2 text-sm text-[#d6b87a] hover:bg-[#5f1327]/20"
-          >Back to Hub</a>
+          <a mat-stroked-button color="primary" routerLink="/books/manga">Manga</a>
+          <a mat-stroked-button color="primary" routerLink="/books">Back to Hub</a>
         </div>
       </div>
 
-      <div class="mb-8 rounded-xl border border-[#d8c2b8] dark:border-[#5f1327]/50 bg-[#f7eee7] dark:bg-[#120a0d]/70 p-4">
-        <div class="flex flex-col gap-3 sm:flex-row">
-          <input
-            [(ngModel)]="query"
-            (keyup.enter)="search()"
-            type="text"
-            placeholder="Search comics by title..."
-            class="w-full rounded-lg border border-[#d8c2b8] dark:border-[#5f1327] bg-white dark:bg-[#1b1014] px-4 py-3 text-[#24181b] dark:text-[#f7eee7] placeholder-[#a88a78] outline-none focus:border-[#800020]"
-          >
-          <button
-            (click)="search()"
-            [disabled]="isSearching()"
-            class="rounded-lg bg-[#800020] px-5 py-3 text-sm font-semibold text-white hover:bg-[#660019] disabled:opacity-50"
-          >{{ isSearching() ? 'Searching...' : 'Search' }}</button>
-          <button
-            (click)="clearSearch()"
-            class="rounded-lg border border-[#5f1327] px-5 py-3 text-sm font-semibold text-[#d6b87a] hover:bg-[#5f1327]/20"
-          >Clear</button>
+      <mat-card class="mb-8 p-4" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Search comics</mat-label>
+            <input matInput [(ngModel)]="query" (keyup.enter)="search()" placeholder="Search comics by title..." />
+          </mat-form-field>
+          <button mat-flat-button color="primary" (click)="search()" [disabled]="isSearching()">{{ isSearching() ? 'Searching...' : 'Search' }}</button>
+          <button mat-stroked-button color="primary" type="button" (click)="clearSearch()">Clear</button>
         </div>
-      </div>
+      </mat-card>
 
       @if (error()) {
         <div class="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-500">

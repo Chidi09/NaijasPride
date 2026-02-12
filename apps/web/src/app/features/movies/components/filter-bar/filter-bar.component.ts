@@ -20,10 +20,10 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           <input
             type="text"
             [ngModel]="activeFilters.q"
-            (ngModelChange)="updateFilter('q', $event)"
+            (ngModelChange)="onQueryChange($event)"
             aria-label="Search movies"
             placeholder="Search..."
-            class="pl-9 pr-4 py-2 bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 rounded-sm text-sm text-[#2a1c1f] dark:text-white focus:ring-2 focus:ring-cinema-500 focus:border-transparent outline-none w-40 focus:w-60 transition-all placeholder-[#8f7a72] dark:placeholder-gray-600"
+            class="pl-9 pr-4 py-2 bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 rounded-sm text-sm text-[#2a1c1f] dark:text-white focus:ring-2 focus:ring-cinema-500/30 focus:border-cinema-500 outline-none w-full sm:w-56 md:w-40 md:focus:w-60 transition-all placeholder-[#8f7a72] dark:placeholder-gray-600"
           />
         </div>
 
@@ -33,7 +33,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           [ngModel]="activeFilters.genre?.[0] || ''" 
           (ngModelChange)="updateFilter('genre', $event ? [$event] : undefined)"
           aria-label="Filter by genre"
-          class="form-select"
+          class="appearance-none bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 text-[#5f4d47] dark:text-gray-300 py-2 px-4 rounded-sm text-sm leading-tight focus:outline-none focus:ring-2 focus:ring-cinema-500/30 focus:border-cinema-500 cursor-pointer hover:border-[#b99f92] dark:hover:border-white/20 transition-colors"
         >
           <option value="">All Genres</option>
           @for (g of genres; track g) {
@@ -45,7 +45,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           [ngModel]="activeFilters.year || ''"
           (ngModelChange)="updateFilter('year', $event ? +$event : undefined)"
           aria-label="Filter by year"
-          class="form-select"
+          class="appearance-none bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 text-[#5f4d47] dark:text-gray-300 py-2 px-4 rounded-sm text-sm leading-tight focus:outline-none focus:ring-2 focus:ring-cinema-500/30 focus:border-cinema-500 cursor-pointer hover:border-[#b99f92] dark:hover:border-white/20 transition-colors"
         >
           <option value="">All Years</option>
           @for (y of years; track y) {
@@ -57,7 +57,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           [ngModel]="activeFilters.quality || ''"
           (ngModelChange)="updateFilter('quality', $event || undefined)"
           aria-label="Filter by quality"
-          class="form-select"
+          class="appearance-none bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 text-[#5f4d47] dark:text-gray-300 py-2 px-4 rounded-sm text-sm leading-tight focus:outline-none focus:ring-2 focus:ring-cinema-500/30 focus:border-cinema-500 cursor-pointer hover:border-[#b99f92] dark:hover:border-white/20 transition-colors"
         >
           <option value="">All Qualities</option>
           @for (q of qualities; track q) {
@@ -71,7 +71,7 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           [ngModel]="activeFilters.sortBy || 'latest'"
           (ngModelChange)="updateFilter('sortBy', $event)"
           aria-label="Sort movies"
-          class="form-select text-[#6f5b54] dark:text-gray-400"
+          class="appearance-none bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 text-[#6f5b54] dark:text-gray-400 py-2 px-4 rounded-sm text-sm leading-tight focus:outline-none focus:ring-2 focus:ring-cinema-500/30 focus:border-cinema-500 cursor-pointer hover:border-[#b99f92] dark:hover:border-white/20 transition-colors"
         >
           <option value="latest">Latest</option>
           <option value="popular">Popular</option>
@@ -85,17 +85,17 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
           <span class="text-xs text-[#8a756e] dark:text-gray-500 self-center uppercase font-bold tracking-wider mr-1">Active:</span>
           
           @if (activeFilters.genre) {
-            <button (click)="updateFilter('genre', undefined)" class="chip" aria-label="Remove genre filter">
+            <button (click)="updateFilter('genre', undefined)" class="inline-flex items-center gap-1 bg-cinema-500/20 text-[#4f0f21] dark:text-cinema-100 text-xs px-2 py-1 rounded-sm hover:bg-cinema-500/30 transition-colors" aria-label="Remove genre filter">
               {{ activeFilters.genre[0] }} ✕
             </button>
           }
           @if (activeFilters.year) {
-            <button (click)="updateFilter('year', undefined)" class="chip" aria-label="Remove year filter">
+            <button (click)="updateFilter('year', undefined)" class="inline-flex items-center gap-1 bg-cinema-500/20 text-[#4f0f21] dark:text-cinema-100 text-xs px-2 py-1 rounded-sm hover:bg-cinema-500/30 transition-colors" aria-label="Remove year filter">
               {{ activeFilters.year }} ✕
             </button>
           }
           @if (activeFilters.quality) {
-            <button (click)="updateFilter('quality', undefined)" class="chip" aria-label="Remove quality filter">
+            <button (click)="updateFilter('quality', undefined)" class="inline-flex items-center gap-1 bg-cinema-500/20 text-[#4f0f21] dark:text-cinema-100 text-xs px-2 py-1 rounded-sm hover:bg-cinema-500/30 transition-colors" aria-label="Remove quality filter">
               {{ activeFilters.quality }} ✕
             </button>
           }
@@ -107,22 +107,12 @@ import { Genre, Quality, MovieSearchParams } from '@naijaspride/types';
       }
     </div>
   `,
-  styles: [`
-    .form-select {
-      @apply appearance-none bg-white dark:bg-cinema-800 border border-[#d8c2b8] dark:border-white/10 text-[#5f4d47] dark:text-gray-300 py-2 px-4 pr-8 rounded-sm text-sm leading-tight focus:outline-none focus:border-cinema-500 cursor-pointer hover:border-[#b99f92] dark:hover:border-white/20 transition-colors;
-      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-      background-position: right 0.5rem center;
-      background-repeat: no-repeat;
-      background-size: 1.5em 1.5em;
-    }
-    .chip {
-      @apply bg-cinema-500/20 text-[#4f0f21] dark:text-cinema-100 text-xs px-2 py-1 rounded-sm hover:bg-cinema-500/40 transition-colors cursor-pointer flex items-center gap-1;
-    }
-  `]
 })
 export class FilterBarComponent {
   @Input({ required: true }) activeFilters!: MovieSearchParams;
   @Output() filterChange = new EventEmitter<Partial<MovieSearchParams>>();
+
+  private queryDebounce?: ReturnType<typeof setTimeout>;
 
   // Enum to Array conversion for templates
   genres = Object.values(Genre);
@@ -134,6 +124,15 @@ export class FilterBarComponent {
 
   updateFilter(key: keyof MovieSearchParams, value: unknown) {
     this.filterChange.emit({ [key]: value });
+  }
+
+  onQueryChange(nextValue: string) {
+    if (this.queryDebounce) {
+      clearTimeout(this.queryDebounce);
+    }
+    this.queryDebounce = setTimeout(() => {
+      this.updateFilter('q', nextValue);
+    }, 250);
   }
 
   resetAll() {
