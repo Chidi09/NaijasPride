@@ -20,6 +20,6 @@ export class BrandLogoComponent {
   @Input() loading: 'eager' | 'lazy' = 'eager';
   @Input() decoding: 'auto' | 'sync' | 'async' = 'async';
 
-  readonly fullSrc = 'assets/images/logo-full.png';
+  readonly fullSrc = 'assets/images/logo.svg';
   readonly markSrc = 'assets/icons/android-chrome-192x192.png';
 }
