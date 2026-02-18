@@ -24,12 +24,12 @@ interface ArchiveSection {
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="relative min-h-screen bg-[#020202] text-[#dcdcdc] overflow-x-hidden"
+    <div class="relative min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-x-hidden"
          style="font-family: 'Plus Jakarta Sans', sans-serif;">
       
       <!-- PHASE 1-3: Opening Animation (Glitch → Dissolve → Hero) -->
       @if (phase() !== 'archive') {
-        <section class="fixed inset-0 z-40 flex flex-col justify-center items-center bg-[#020202]"
+        <section class="fixed inset-0 z-40 flex flex-col justify-center items-center bg-[var(--bg-primary)]"
                  [class.opacity-0]="phase() === 'dissolve'"
                  [class.transition-opacity]="phase() === 'dissolve'"
                  [class.duration-700]="phase() === 'dissolve'">
@@ -38,7 +38,7 @@ interface ArchiveSection {
           @if (phase() === 'glitch') {
             <button 
               (click)="skipAnimation()"
-              class="absolute top-8 right-8 text-[10px] tracking-[0.3em] text-[#dcdcdc]/40 hover:text-[#dcdcdc] transition-colors uppercase">
+              class="absolute top-8 right-8 text-[10px] tracking-[0.3em] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors uppercase">
               Skip Intro
             </button>
           }
@@ -48,7 +48,7 @@ interface ArchiveSection {
             <h1 class="font-serif text-[12vw] md:text-[10vw] leading-[0.85] tracking-tight">
               @for (char of brandChars; track $index) {
                 <span [class.text-[#8a1c1c]]="$index < burgundyCount"
-                      [class.text-[#dcdcdc]]="$index >= burgundyCount"
+                      [class.text-[var(--text-primary)]]="$index >= burgundyCount"
                       [class.opacity-0]="$index >= revealedChars()"
                       [class.animate-pulse]="$index === revealedChars() - 1 && phase() === 'glitch'">
                   {{ char }}
@@ -65,10 +65,10 @@ interface ArchiveSection {
 
           <!-- Location Pills -->
           @if (revealedChars() >= brandName.length && phase() === 'glitch') {
-            <div class="absolute bottom-24 flex gap-8 text-[10px] tracking-widest text-[#dcdcdc]/50">
-              <div class="flex items-center gap-2">
-                <div class="w-1.5 h-1.5 bg-[#8a1c1c] rounded-full animate-pulse"></div>
-                <span>LAGOS</span>
+              <div class="absolute bottom-24 flex gap-8 text-[10px] tracking-widest text-[var(--text-muted)]">
+                <div class="flex items-center gap-2">
+                  <div class="w-1.5 h-1.5 bg-[#8a1c1c] rounded-full animate-pulse"></div>
+                  <span>LAGOS</span>
               </div>
               <span class="opacity-30">•</span>
               <span>LONDON</span>
@@ -80,8 +80,8 @@ interface ArchiveSection {
           <!-- Scroll Indicator -->
           @if (phase() === 'hero') {
             <div class="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 animate-fade-in">
-              <span class="text-[10px] tracking-[0.3em] text-[#dcdcdc]/40">SCROLL TO EXPLORE</span>
-              <div class="w-[1px] h-16 bg-[#1a1a1a] overflow-hidden">
+              <span class="text-[10px] tracking-[0.3em] text-[var(--text-muted)]">SCROLL TO EXPLORE</span>
+              <div class="w-[1px] h-16 bg-[var(--border-color)] overflow-hidden">
                 <div class="w-full h-full bg-[#8a1c1c] animate-scroll-line"></div>
               </div>
             </div>
@@ -96,14 +96,14 @@ interface ArchiveSection {
           <!-- Hero Section -->
           <section class="h-screen relative flex flex-col justify-center items-center overflow-hidden">
             <!-- Deep black hero background for readability -->
-            <div class="absolute inset-0 z-0 bg-black"></div>
+            <div class="absolute inset-0 z-0 bg-[var(--bg-primary)]"></div>
             <div class="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,rgba(138,28,28,0.2),transparent_55%)]"></div>
 
             <div class="relative z-10 text-center px-4">
-              <h1 class="font-display text-[11vw] md:text-[5vw] leading-none text-white tracking-[0.22em] md:tracking-[0.35em] pr-[0.22em] md:pr-[0.35em] uppercase whitespace-nowrap">
+              <h1 class="font-display text-[11vw] md:text-[5vw] leading-none text-[var(--text-primary)] tracking-[0.22em] md:tracking-[0.35em] pr-[0.22em] md:pr-[0.35em] uppercase whitespace-nowrap">
                 NAIJAsPRIDE
               </h1>
-              <p class="mt-8 text-[10px] md:text-xs tracking-[0.35em] text-[#dcdcdc] font-bold uppercase">
+              <p class="mt-8 text-[10px] md:text-xs tracking-[0.35em] text-[var(--text-secondary)] font-bold uppercase">
                 COMICS • MOVIES • MUSIC
               </p>
             </div>
@@ -111,7 +111,7 @@ interface ArchiveSection {
 
           <!-- Archive Sections -->
           @for (section of archiveSections(); track section.id) {
-            <section class="min-h-screen relative flex items-center py-24 border-b border-[#1a1a1a] overflow-hidden"
+            <section class="min-h-screen relative flex items-center py-24 border-b border-[var(--border-color)] overflow-hidden"
                      [class.scroll-triggered]="scrollProgress() > 0.1 * ($index + 1)">
               
               <div class="absolute inset-0 z-0">
@@ -128,7 +128,7 @@ interface ArchiveSection {
                 
                 <!-- Visual Side -->
                 <div class="w-full md:w-1/2 group cursor-pointer relative" [routerLink]="[section.link]">
-                  <div class="relative aspect-[3/4] bg-[#1a1a1a] overflow-hidden"
+                  <div class="relative aspect-[3/4] bg-[var(--bg-elevated)] overflow-hidden"
                        [class.clip-diag-right]="section.align === 'left'"
                        [class.clip-diag-left]="section.align === 'right'">
                     
@@ -152,43 +152,43 @@ interface ArchiveSection {
                   </div>
                   
                   <!-- Floating Label -->
-                  <div class="absolute -top-6 bg-[rgba(10,10,10,0.6)] backdrop-blur-sm border border-white/5 px-6 py-3 border-l-2 border-[#8a1c1c] z-20"
-                       [class.-left-6]="section.align === 'right'"
-                       [class.-right-6]="section.align === 'left'">
-                    <span class="text-xs font-bold tracking-[0.3em] text-[#dcdcdc]">{{ section.type }}</span>
+                   <div class="absolute -top-6 bg-white/80 dark:bg-[rgba(10,10,10,0.6)] backdrop-blur-sm border border-black/10 dark:border-white/5 px-6 py-3 border-l-2 border-[#8a1c1c] z-20"
+                        [class.-left-6]="section.align === 'right'"
+                        [class.-right-6]="section.align === 'left'">
+                    <span class="text-xs font-bold tracking-[0.3em] text-[var(--text-primary)]">{{ section.type }}</span>
                   </div>
                 </div>
 
                 <!-- Text Side -->
                 <div class="w-full md:w-1/2 space-y-8">
                   <div class="flex flex-col">
-                    <span class="font-display text-8xl text-[#1a1a1a] font-bold leading-none mb-4 select-none"
+                    <span class="font-display text-8xl text-[var(--border-color)] font-bold leading-none mb-4 select-none"
                           style="-webkit-text-stroke: 1px rgba(100, 100, 100, 0.3); color: transparent;">
                       {{ section.number }}
                     </span>
                     
-                    <h2 class="font-serif text-4xl md:text-6xl lg:text-7xl text-[#dcdcdc] leading-[0.9] uppercase">
+                    <h2 class="font-serif text-4xl md:text-6xl lg:text-7xl text-[var(--text-primary)] leading-[0.9] uppercase">
                       {{ section.title }} <br/>
                       <span class="italic text-[#8a1c1c] opacity-80 normal-case">{{ section.titleAccent }}</span>
                     </h2>
                   </div>
 
-                  <p class="font-sans text-sm md:text-base text-[#bfb29e] opacity-70 leading-relaxed max-w-md border-l border-[#1a1a1a] pl-6">
+                  <p class="font-sans text-sm md:text-base text-[var(--text-secondary)] opacity-80 leading-relaxed max-w-md border-l border-[var(--border-color)] pl-6">
                     {{ section.description }}
                   </p>
 
                   <!-- Tech Specs Grid -->
-                  <div class="grid grid-cols-2 gap-y-4 gap-x-8 py-6 border-t border-[#1a1a1a] w-full max-w-md">
+                  <div class="grid grid-cols-2 gap-y-4 gap-x-8 py-6 border-t border-[var(--border-color)] w-full max-w-md">
                     @for (feature of section.features; track feature.label) {
                       <div class="flex flex-col">
                         <span class="text-[8px] tracking-widest text-[#8a1c1c] opacity-80 mb-1">{{ feature.label }}</span>
-                        <span class="font-sans text-xs tracking-wider text-[#dcdcdc]">{{ feature.value }}</span>
+                        <span class="font-sans text-xs tracking-wider text-[var(--text-primary)]">{{ feature.value }}</span>
                       </div>
                     }
                   </div>
 
                   <a [routerLink]="[section.link]" class="inline-block">
-                    <button class="flex items-center gap-4 text-xs tracking-[0.2em] text-[#dcdcdc] hover:text-[#8a1c1c] transition-colors group">
+                    <button class="flex items-center gap-4 text-xs tracking-[0.2em] text-[var(--text-primary)] hover:text-[#8a1c1c] transition-colors group">
                       ENTER SECTION
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                            class="group-hover:translate-x-2 transition-transform">
@@ -202,12 +202,12 @@ interface ArchiveSection {
           }
 
           <!-- Device Showcase Section -->
-          <section class="py-32 px-6 md:px-12 bg-[#020202] border-b border-[#1a1a1a]">
+          <section class="py-32 px-6 md:px-12 bg-[var(--bg-primary)] border-b border-[var(--border-color)]">
             <div class="max-w-7xl mx-auto">
               <div class="mb-24 text-center">
                 <span class="text-[10px] tracking-[0.4em] text-[#8a1c1c] font-bold block mb-4">COMPATIBILITY</span>
-                <h2 class="font-serif text-4xl md:text-6xl text-[#dcdcdc] mb-6">AVAILABLE EVERYWHERE</h2>
-                <p class="font-sans text-sm opacity-50 max-w-xl mx-auto">
+                <h2 class="font-serif text-4xl md:text-6xl text-[var(--text-primary)] mb-6">AVAILABLE EVERYWHERE</h2>
+                <p class="font-sans text-sm text-[var(--text-secondary)] max-w-xl mx-auto">
                   Your library travels with you. Seamless synchronization across all your devices.
                 </p>
               </div>
@@ -215,47 +215,47 @@ interface ArchiveSection {
               <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10 max-w-5xl mx-auto">
                 <!-- Mobile -->
                 <div class="flex flex-col items-center gap-4">
-                  <div class="w-full h-[320px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
+                  <div class="w-full h-[320px] border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
                     <img src="assets/images/mobile-phone.png" alt="Mobile app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
-                  <span class="text-[10px] tracking-[0.2em] text-[#dcdcdc]/70">MOBILE</span>
+                  <span class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)]">MOBILE</span>
                 </div>
 
                 <!-- Desktop -->
                 <div class="flex flex-col items-center gap-4">
-                  <div class="w-full h-[320px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
+                  <div class="w-full h-[320px] border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
                     <img src="assets/images/laptop-device.png" alt="Desktop app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
-                  <span class="text-[10px] tracking-[0.2em] text-[#dcdcdc]/70">DESKTOP</span>
+                  <span class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)]">DESKTOP</span>
                 </div>
 
                 <!-- TV -->
                 <div class="flex flex-col items-center gap-4">
-                  <div class="w-full h-[320px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
+                  <div class="w-full h-[320px] border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
                     <img src="assets/images/tv-device.png" alt="TV app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
-                  <span class="text-[10px] tracking-[0.2em] text-[#dcdcdc]/70">TV</span>
+                  <span class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)]">TV</span>
                 </div>
               </div>
             </div>
           </section>
 
           <!-- Pricing Section -->
-          <section class="py-32 px-6 md:px-12 bg-[#0a0a0a] border-b border-[#1a1a1a]">
+          <section class="py-32 px-6 md:px-12 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row gap-16 items-start">
               <div class="md:w-1/3">
                 <span class="text-[10px] tracking-[0.4em] text-[#8a1c1c] font-bold block mb-4">MEMBERSHIP</span>
-                <h2 class="font-serif text-4xl md:text-5xl text-[#dcdcdc] leading-tight mb-6 uppercase">
+                <h2 class="font-serif text-4xl md:text-5xl text-[var(--text-primary)] leading-tight mb-6 uppercase">
                   UNLOCK THE <br/> <span class="italic opacity-50 normal-case">Full Archive</span>
                 </h2>
-                <p class="font-sans text-sm opacity-50 leading-relaxed mb-8">
+                <p class="font-sans text-sm text-[var(--text-secondary)] leading-relaxed mb-8">
                   Join the community. Support independent creators and decentralized streaming.
                 </p>
               </div>
 
               <div class="md:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                 <!-- Free Tier -->
-                <div class="border border-[#1a1a1a] p-8 bg-[#020202] hover:border-[#dcdcdc] transition-colors group">
+                <div class="border border-[var(--border-color)] p-8 bg-[var(--bg-primary)] hover:border-[var(--text-primary)] transition-colors group">
                   <div class="mb-8">
                     <span class="text-xs tracking-widest opacity-60">GUEST</span>
                     <h3 class="font-serif text-4xl mt-2">Free</h3>
@@ -263,7 +263,7 @@ interface ArchiveSection {
                   </div>
                   <ul class="space-y-4 mb-8">
                     @for (item of ['Standard Definition', 'Limited Catalog', 'Community Read-Only']; track $index) {
-                      <li class="flex items-center gap-3 text-xs opacity-60">
+                      <li class="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="20 6 9 17 4 12"/>
                         </svg>
@@ -273,24 +273,24 @@ interface ArchiveSection {
                   </ul>
                   <button 
                     [routerLink]="['/register']"
-                    class="w-full py-4 border border-[#1a1a1a] text-[10px] tracking-[0.2em] uppercase hover:bg-[#1a1a1a] transition-colors">
+                    class="w-full py-4 border border-[var(--border-color)] text-[10px] tracking-[0.2em] uppercase hover:bg-[var(--bg-elevated)] transition-colors">
                     Start Free
                   </button>
                 </div>
 
                 <!-- Premium Tier -->
-                <div class="border border-[#8a1c1c] p-8 bg-[#1a1a1a] relative overflow-hidden">
+                <div class="border border-[#8a1c1c] p-8 bg-[var(--bg-elevated)] relative overflow-hidden">
                   <div class="absolute top-0 right-0 bg-[#8a1c1c] px-3 py-1">
                     <span class="text-[8px] tracking-widest text-black font-bold">RECOMMENDED</span>
                   </div>
                   <div class="mb-8">
                     <span class="text-xs tracking-widest text-[#8a1c1c]">MEMBER</span>
-                    <h3 class="font-serif text-4xl mt-2 text-[#dcdcdc]">₦1,000<span class="text-sm opacity-50">/mo</span></h3>
+                    <h3 class="font-serif text-4xl mt-2 text-[var(--text-primary)]">₦1,000<span class="text-sm opacity-50">/mo</span></h3>
                     <p class="text-[10px] tracking-widest mt-2 opacity-60">FULL ACCESS</p>
                   </div>
                   <ul class="space-y-4 mb-8">
                     @for (item of ['4K HDR Streaming', 'Offline Downloads', 'Exclusive Drops', 'Ad-Free Experience']; track $index) {
-                      <li class="flex items-center gap-3 text-xs text-[#dcdcdc]">
+                      <li class="flex items-center gap-3 text-xs text-[var(--text-primary)]">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-[#8a1c1c]">
                           <polyline points="20 6 9 17 4 12"/>
                         </svg>
@@ -300,7 +300,7 @@ interface ArchiveSection {
                   </ul>
                   <button 
                     [routerLink]="['/premium']"
-                    class="w-full py-4 bg-[#8a1c1c] text-black font-bold text-[10px] tracking-[0.2em] uppercase hover:bg-[#dcdcdc] transition-colors">
+                    class="w-full py-4 bg-[#8a1c1c] text-black font-bold text-[10px] tracking-[0.2em] uppercase hover:bg-[var(--text-primary)] transition-colors">
                     Join Now
                   </button>
                 </div>
@@ -311,7 +311,7 @@ interface ArchiveSection {
           @if (pwaInstallable()) {
             <div class="fixed right-4 bottom-4 z-30">
               <button (click)="installPwa()"
-                class="flex items-center gap-2 px-4 py-2 border border-[#8a1c1c] bg-black/70 text-[10px] tracking-widest hover:bg-[#8a1c1c] hover:text-black transition-all">
+                class="flex items-center gap-2 px-4 py-2 border border-[#8a1c1c] bg-white/85 dark:bg-black/70 text-[10px] tracking-widest hover:bg-[#8a1c1c] hover:text-black transition-all">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="7 10 12 15 17 10"/>
