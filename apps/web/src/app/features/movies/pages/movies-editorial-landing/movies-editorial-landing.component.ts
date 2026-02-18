@@ -1,5 +1,5 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, PLATFORM_ID, Input } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Component, OnInit, OnDestroy, inject, signal, computed, Input } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
@@ -8,11 +8,7 @@ import { MovieSummary } from '@naijaspride/types';
 // Icons
 const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
 const InfoIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
-const PlusIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`;
-const SearchIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
-const MenuIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>`;
 const ChevronRightIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>`;
-const StarIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 
 interface FeaturedResponse {
   success: boolean;
@@ -54,29 +50,6 @@ interface FeaturedResponse {
     .movie-card img { transition: opacity 0.5s ease; }
   `],
   template: `
-    <div class="grain-overlay"></div>
-    
-    <!-- Navigation -->
-    <nav [class.bg-[#050505]]="scrolled()" [class.bg-transparent]="!scrolled()" class="fixed top-0 left-0 w-full px-8 py-6 flex justify-between items-center z-50 transition-all duration-500 border-b border-transparent" [class.border-[#2a2a2a]]="scrolled()">
-      <div class="flex items-center gap-6">
-        <a routerLink="/" class="w-8 h-8 bg-[#4a0404] flex items-center justify-center rounded-sm">
-          <span class="serif-text text-xl font-bold text-[#e6e0d4]">N</span>
-        </a>
-        <div class="hidden md:flex gap-6 text-sm sans-text tracking-widest text-[#e6e0d4] opacity-80">
-          <a routerLink="/" class="hover:text-[#8a1c1c] transition-colors">HOME</a>
-          <a routerLink="/movies" class="font-bold text-[#e6e0d4]">MOVIES</a>
-          <a routerLink="/books" class="hover:text-[#8a1c1c] transition-colors">BOOKS</a>
-          <a routerLink="/music" class="hover:text-[#8a1c1c] transition-colors">MUSIC</a>
-        </div>
-      </div>
-      <div class="flex items-center gap-6 text-[#e6e0d4]">
-        <a routerLink="/movies" class="hover:text-[#8a1c1c] cursor-pointer transition-colors"><span [innerHTML]="searchIcon"></span></a>
-        <button class="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#e6e0d4] flex items-center justify-center">
-          <span class="text-xs font-bold">NP</span>
-        </button>
-      </div>
-    </nav>
-
     <!-- Hero Section -->
     <section class="relative h-[85vh] w-full overflow-hidden">
       <div class="absolute inset-0 z-0">
@@ -197,28 +170,10 @@ interface FeaturedResponse {
       }
     </div>
 
-    <!-- Footer (Same as Music Page) -->
-    <footer class="bg-[#050505] pt-24 pb-12 px-6 border-t border-[#1f1f1f]">
-      <div class="max-w-7xl mx-auto">
-        <div class="flex flex-col md:flex-row justify-between items-center mb-12">
-          <div class="text-center md:text-left">
-            <h2 class="display-text text-4xl md:text-6xl text-[#e6e0d4] mb-2">NAIJAS<span class="text-[#590d0d]">PRIDE</span></h2>
-            <p class="sans-text text-xs tracking-[0.3em] opacity-50">THE CULTURE CAPITAL</p>
-          </div>
-          <div class="flex gap-8 mt-8 md:mt-0">
-            <a href="https://youtube.com" target="_blank" class="text-xs sans-text tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">YOUTUBE</a>
-            <a href="#" class="text-xs sans-text tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">APPLE MUSIC</a>
-            <a href="#" class="text-xs sans-text tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">SPOTIFY</a>
-          </div>
-        </div>
-        <div class="text-center opacity-30 text-[10px] sans-text">&copy; 2026 NAIJASPRIDE MUSIC GROUP.</div>
-      </div>
-    </footer>
   `,
 })
 export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
-  private platformId = inject(PLATFORM_ID);
   private destroy$ = new Subject<void>();
 
   // Data
@@ -229,33 +184,20 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   streamOnly = signal<MovieSummary[]>([]);
   
   // UI State
-  scrolled = signal(false);
   isLoading = signal(true);
   
   // Icons
   playIcon = PlayIcon;
   infoIcon = InfoIcon;
-  plusIcon = PlusIcon;
-  searchIcon = SearchIcon;
   chevronIcon = ChevronRightIcon;
-  starIcon = StarIcon;
 
   ngOnInit() {
-    this.setupScrollListener();
     this.loadMovies();
   }
 
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  private setupScrollListener() {
-    if (isPlatformBrowser(this.platformId)) {
-      window.addEventListener('scroll', () => {
-        this.scrolled.set(window.scrollY > 50);
-      }, { passive: true });
-    }
   }
 
   private loadMovies() {

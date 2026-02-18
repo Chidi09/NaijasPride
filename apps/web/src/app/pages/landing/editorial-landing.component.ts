@@ -1,9 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, OnInit, OnDestroy, inject, signal, computed, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, OnInit, OnDestroy, inject, signal, computed, AfterViewInit } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { MovieSummary, BookSummary, MusicVideoSummary } from '@naijaspride/types';
-import { MusicPlayerService } from '../../features/music/services/music-player.service';
 
 type LandingPhase = 'glitch' | 'dissolve' | 'hero' | 'archive';
 
@@ -28,11 +27,6 @@ interface ArchiveSection {
     <div class="relative min-h-screen bg-[#020202] text-[#dcdcdc] overflow-x-hidden"
          style="font-family: 'Plus Jakarta Sans', sans-serif;">
       
-      <!-- Grain Overlay -->
-      <div class="fixed inset-0 pointer-events-none z-50 opacity-[0.08]"
-           style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noise%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noise)%22/%3E%3C/svg%3E');">
-      </div>
-
       <!-- PHASE 1-3: Opening Animation (Glitch → Dissolve → Hero) -->
       @if (phase() !== 'archive') {
         <section class="fixed inset-0 z-40 flex flex-col justify-center items-center bg-[#020202]"
@@ -99,74 +93,19 @@ interface ArchiveSection {
       @if (phase() === 'archive') {
         <div class="animate-fade-in-slow">
           
-          <!-- Navigation -->
-          <nav class="fixed top-0 left-0 w-full px-6 md:px-8 py-6 flex justify-between items-center z-40 mix-blend-difference border-b border-white/5 bg-black/50 backdrop-blur-sm">
-            <div class="flex items-center gap-4">
-              <div class="w-10 h-10 border border-[#bfb29e] flex items-center justify-center relative group overflow-hidden cursor-pointer"
-                   [routerLink]="['/']">
-                <div class="absolute inset-0 bg-[#bfb29e] translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                <span class="font-serif text-2xl font-bold relative z-10 group-hover:text-black">N</span>
-              </div>
-              <div class="hidden md:flex flex-col">
-                <span class="text-[10px] tracking-[0.3em] font-bold text-[#bfb29e]">NAIJASPRIDE</span>
-                <span class="text-[8px] tracking-widest opacity-50">EST. MMXXVI</span>
-              </div>
-            </div>
-            
-            <div class="hidden md:flex gap-12 text-[10px] tracking-[0.2em] font-bold text-[#bfb29e]">
-              <a routerLink="/books" class="cursor-pointer hover:text-white transition-colors opacity-60 hover:opacity-100">COMICS</a>
-              <a routerLink="/movies" class="cursor-pointer hover:text-white transition-colors opacity-60 hover:opacity-100">MOVIES</a>
-              <a routerLink="/music" class="cursor-pointer hover:text-white transition-colors opacity-60 hover:opacity-100">MUSIC</a>
-            </div>
-
-            <button class="flex items-center gap-3 group text-[#bfb29e]" (click)="scrollToFooter()">
-              <span class="text-[10px] tracking-widest group-hover:opacity-100 opacity-60 transition-opacity">MENU</span>
-              <div class="flex flex-col gap-1.5">
-                <div class="w-8 h-[1px] bg-[#bfb29e] group-hover:w-6 transition-all"></div>
-                <div class="w-8 h-[1px] bg-[#bfb29e] group-hover:w-4 transition-all ml-auto"></div>
-              </div>
-            </button>
-          </nav>
-
           <!-- Hero Section -->
-          <section class="h-screen relative flex flex-col justify-center items-center overflow-hidden" #heroSection>
-            <!-- Background -->
-            <div class="absolute inset-0 z-0">
-              <img 
-                [src]="heroBackdrop() || 'https://images.unsplash.com/photo-1620641788421-7a1c3724c07c?q=80&w=2000&auto=format&fit=crop'"
-                class="w-full h-full object-cover opacity-20 grayscale brightness-50"
-                alt="Texture"
-              />
-              <div class="absolute inset-0 bg-gradient-to-t from-[#020202] via-transparent to-[#020202]"></div>
-              <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#020202_100%)]"></div>
-            </div>
+          <section class="h-screen relative flex flex-col justify-center items-center overflow-hidden">
+            <!-- Deep black hero background for readability -->
+            <div class="absolute inset-0 z-0 bg-black"></div>
+            <div class="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,rgba(138,28,28,0.2),transparent_55%)]"></div>
 
             <div class="relative z-10 text-center px-4">
-              <h2 class="text-[10px] md:text-xs tracking-[0.5em] text-[#8a1c1c] mb-4 font-bold uppercase">
-                Comics • Movies • Music
-              </h2>
-              <h1 class="font-display text-[18vw] md:text-[15vw] leading-[0.8] text-[#bfb29e] mix-blend-overlay">
-                NAIJAS
+              <h1 class="font-display text-[11vw] md:text-[5vw] leading-none text-white tracking-[0.22em] md:tracking-[0.35em] pr-[0.22em] md:pr-[0.35em] uppercase whitespace-nowrap">
+                NAIJAsPRIDE
               </h1>
-              <div class="flex items-center justify-center gap-4 -mt-2 md:-mt-8">
-                <h1 class="font-serif text-[18vw] md:text-[15vw] leading-[0.8] text-[#380404] italic brightness-150">
-                  PRIDE
-                </h1>
-              </div>
-              
-              <p class="mt-8 text-xs md:text-sm tracking-widest text-[#dcdcdc] opacity-60 max-w-lg mx-auto leading-relaxed">
-                The premier archive for African digital culture. <br/> 
-                Read, Watch, and Listen in one place.
+              <p class="mt-8 text-[10px] md:text-xs tracking-[0.35em] text-[#dcdcdc] font-bold uppercase">
+                COMICS • MOVIES • MUSIC
               </p>
-            </div>
-
-            <div class="absolute bottom-12 left-0 w-full flex justify-center z-20">
-              <div class="flex flex-col gap-2 items-center">
-                <span class="text-[10px] tracking-widest text-[#bfb29e] opacity-40">SCROLL TO EXPLORE</span>
-                <div class="h-16 w-[1px] bg-[#1a1a1a] overflow-hidden">
-                  <div class="h-full w-full bg-[#8a1c1c] animate-scroll-line"></div>
-                </div>
-              </div>
             </div>
           </section>
 
@@ -273,40 +212,29 @@ interface ArchiveSection {
                 </p>
               </div>
 
-              <div class="flex flex-wrap justify-center items-end gap-12 md:gap-24 opacity-80">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10 max-w-5xl mx-auto">
                 <!-- Mobile -->
-                <div class="flex flex-col items-center gap-6">
-                  <div class="w-[120px] h-[240px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-2xl flex items-center justify-center relative overflow-hidden group hover:border-[#8a1c1c] transition-colors">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-[#dcdcdc] opacity-50 group-hover:opacity-100 transition-opacity">
-                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-                      <line x1="12" y1="18" x2="12" y2="18"/>
-                    </svg>
-                    <div class="absolute top-4 w-8 h-1 bg-[#1a1a1a] rounded-full"></div>
+                <div class="flex flex-col items-center gap-4">
+                  <div class="w-full h-[320px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
+                    <img src="assets/images/mobile-phone.png" alt="Mobile app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
-                  <span class="text-[10px] tracking-widest">MOBILE</span>
+                  <span class="text-[10px] tracking-[0.2em] text-[#dcdcdc]/70">MOBILE</span>
                 </div>
 
-                <!-- Tablet -->
-                <div class="flex flex-col items-center gap-6">
-                  <div class="w-[200px] h-[260px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-xl flex items-center justify-center relative overflow-hidden group hover:border-[#8a1c1c] transition-colors">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-[#dcdcdc] opacity-50 group-hover:opacity-100 transition-opacity">
-                      <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
-                      <line x1="12" y1="18" x2="12" y2="18"/>
-                    </svg>
+                <!-- Desktop -->
+                <div class="flex flex-col items-center gap-4">
+                  <div class="w-full h-[320px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
+                    <img src="assets/images/laptop-device.png" alt="Desktop app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
-                  <span class="text-[10px] tracking-widest">TABLET</span>
+                  <span class="text-[10px] tracking-[0.2em] text-[#dcdcdc]/70">DESKTOP</span>
                 </div>
 
-                <!-- TV/Desktop -->
-                <div class="flex flex-col items-center gap-6">
-                  <div class="w-[320px] h-[200px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-lg flex items-center justify-center relative overflow-hidden group hover:border-[#8a1c1c] transition-colors">
-                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-[#dcdcdc] opacity-50 group-hover:opacity-100 transition-opacity">
-                      <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
-                      <polyline points="17 2 12 7 7 2"/>
-                    </svg>
-                    <div class="absolute bottom-[-10px] w-24 h-2 bg-[#1a1a1a]"></div>
+                <!-- TV -->
+                <div class="flex flex-col items-center gap-4">
+                  <div class="w-full h-[320px] border border-[#1a1a1a] bg-[#0a0a0a] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
+                    <img src="assets/images/tv-device.png" alt="TV app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
-                  <span class="text-[10px] tracking-widest">TV & DESKTOP</span>
+                  <span class="text-[10px] tracking-[0.2em] text-[#dcdcdc]/70">TV</span>
                 </div>
               </div>
             </div>
@@ -380,105 +308,19 @@ interface ArchiveSection {
             </div>
           </section>
 
-          <!-- Editorial Footer - Corporate/Legal -->
-          <footer class="bg-[#020202] pt-24 pb-12 px-8 relative overflow-hidden border-t border-[#1a1a1a]" #footerSection>
-            
-            <div class="max-w-7xl mx-auto">
-              <!-- Top Section: Brand + Social -->
-              <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 pb-16 border-b border-[#1a1a1a]">
-                <div>
-                  <h2 class="font-display text-4xl md:text-6xl text-[#dcdcdc] mb-2">
-                    NAIJAS<span class="text-[#590d0d]">PRIDE</span>
-                  </h2>
-                  <p class="font-sans text-xs tracking-[0.3em] text-[#bfb29e] opacity-50">
-                    THE CULTURE CAPITAL
-                  </p>
-                </div>
-                
-                <div class="flex gap-8 mt-8 md:mt-0">
-                  <a href="https://youtube.com" target="_blank" rel="noopener" 
-                     class="text-xs tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">
-                    YOUTUBE
-                  </a>
-                  <a href="#" class="text-xs tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">
-                    APPLE MUSIC
-                  </a>
-                  <a href="#" class="text-xs tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">
-                    SPOTIFY
-                  </a>
-                </div>
-              </div>
-
-              <!-- Middle Section: Links Grid -->
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-12 mb-16">
-                <!-- Content -->
-                <div class="flex flex-col gap-4">
-                  <span class="font-serif text-lg italic text-[#8a1c1c]">Content</span>
-                  <div class="flex flex-col gap-2 text-[10px] tracking-widest text-[#dcdcdc] opacity-60">
-                    <a routerLink="/movies" class="hover:text-white hover:opacity-100 transition-all">Movies</a>
-                    <a routerLink="/books" class="hover:text-white hover:opacity-100 transition-all">Books & Comics</a>
-                    <a routerLink="/music" class="hover:text-white hover:opacity-100 transition-all">Music</a>
-                    <a routerLink="/browse" class="hover:text-white hover:opacity-100 transition-all">Browse All</a>
-                  </div>
-                </div>
-
-                <!-- Account -->
-                <div class="flex flex-col gap-4">
-                  <span class="font-serif text-lg italic text-[#8a1c1c]">Account</span>
-                  <div class="flex flex-col gap-2 text-[10px] tracking-widest text-[#dcdcdc] opacity-60">
-                    <a routerLink="/login" class="hover:text-white hover:opacity-100 transition-all">Sign In</a>
-                    <a routerLink="/register" class="hover:text-white hover:opacity-100 transition-all">Create Account</a>
-                    <a routerLink="/profile" class="hover:text-white hover:opacity-100 transition-all">Profile</a>
-                    <a routerLink="/premium" class="hover:text-white hover:opacity-100 transition-all">Premium</a>
-                  </div>
-                </div>
-
-                <!-- Support -->
-                <div class="flex flex-col gap-4">
-                  <span class="font-serif text-lg italic text-[#8a1c1c]">Support</span>
-                  <div class="flex flex-col gap-2 text-[10px] tracking-widest text-[#dcdcdc] opacity-60">
-                    <a routerLink="/help" class="hover:text-white hover:opacity-100 transition-all">Help Center</a>
-                    <a routerLink="/faq" class="hover:text-white hover:opacity-100 transition-all">FAQ</a>
-                    <a routerLink="/ways-to-watch" class="hover:text-white hover:opacity-100 transition-all">Ways to Watch</a>
-                    <a routerLink="/contact" class="hover:text-white hover:opacity-100 transition-all">Contact Us</a>
-                  </div>
-                </div>
-
-                <!-- Legal -->
-                <div class="flex flex-col gap-4">
-                  <span class="font-serif text-lg italic text-[#8a1c1c]">Legal</span>
-                  <div class="flex flex-col gap-2 text-[10px] tracking-widest text-[#dcdcdc] opacity-60">
-                    <a routerLink="/terms" class="hover:text-white hover:opacity-100 transition-all">Terms of Use</a>
-                    <a routerLink="/privacy" class="hover:text-white hover:opacity-100 transition-all">Privacy Policy</a>
-                    <a routerLink="/cookies" class="hover:text-white hover:opacity-100 transition-all">Cookie Policy</a>
-                    <a routerLink="/corporate" class="hover:text-white hover:opacity-100 transition-all">Corporate Info</a>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Bottom Section: Copyright + PWA Install -->
-              <div class="pt-8 border-t border-[#1a1a1a] flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="text-[10px] tracking-widest opacity-30 text-[#dcdcdc] text-center md:text-left">
-                  <span>&copy; 2026 NAIJASPRIDE MUSIC GROUP.</span>
-                  <span class="mx-2">|</span>
-                  <span>DESIGNED IN LAGOS</span>
-                </div>
-                
-                <!-- PWA Install Button (shows only when installable) -->
-                @if (pwaInstallable()) {
-                  <button (click)="installPwa()" 
-                          class="flex items-center gap-2 px-4 py-2 border border-[#8a1c1c] text-[10px] tracking-widest hover:bg-[#8a1c1c] hover:text-black transition-all">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    INSTALL APP
-                  </button>
-                }
-              </div>
+          @if (pwaInstallable()) {
+            <div class="fixed right-4 bottom-4 z-30">
+              <button (click)="installPwa()"
+                class="flex items-center gap-2 px-4 py-2 border border-[#8a1c1c] bg-black/70 text-[10px] tracking-widest hover:bg-[#8a1c1c] hover:text-black transition-all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                INSTALL APP
+              </button>
             </div>
-          </footer>
+          }
         </div>
       }
     </div>
@@ -543,11 +385,7 @@ interface ArchiveSection {
 })
 export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewInit {
   private http = inject(HttpClient);
-  private router = inject(Router);
-  private musicPlayer = inject(MusicPlayerService);
-
-  @ViewChild('heroSection') heroSection!: ElementRef;
-  @ViewChild('footerSection') footerSection!: ElementRef;
+  private readonly onScroll = this.handleScroll.bind(this);
 
   // Animation state
   phase = signal<LandingPhase>('glitch');
@@ -561,7 +399,6 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
   movies = signal<MovieSummary[]>([]);
   books = signal<BookSummary[]>([]);
   music = signal<MusicVideoSummary[]>([]);
-  heroBackdrop = signal<string | null>(null);
 
   // PWA Install
   private deferredPrompt: any = null;
@@ -666,14 +503,14 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
   ngAfterViewInit() {
     // Setup scroll listener for archive phase
     if (typeof window !== 'undefined') {
-      window.addEventListener('scroll', this.handleScroll.bind(this), { passive: true });
+      window.addEventListener('scroll', this.onScroll, { passive: true });
     }
   }
 
   ngOnDestroy() {
     this.timers.forEach(clearTimeout);
     if (typeof window !== 'undefined') {
-      window.removeEventListener('scroll', this.handleScroll.bind(this));
+      window.removeEventListener('scroll', this.onScroll);
     }
   }
 
@@ -727,9 +564,6 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       next: (res) => {
         const movies = Array.isArray(res.data) ? res.data : [];
         this.movies.set(movies);
-        if (movies[0]?.backdropUrl) {
-          this.heroBackdrop.set(movies[0].backdropUrl);
-        }
       },
       error: () => this.movies.set([])
     });
@@ -760,10 +594,6 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
     const docHeight = document.documentElement.scrollHeight - window.innerHeight;
     const progress = docHeight > 0 ? scrollTop / docHeight : 0;
     this.scrollProgress.set(progress);
-  }
-
-  scrollToFooter() {
-    this.footerSection?.nativeElement?.scrollIntoView({ behavior: 'smooth' });
   }
 
   async installPwa() {

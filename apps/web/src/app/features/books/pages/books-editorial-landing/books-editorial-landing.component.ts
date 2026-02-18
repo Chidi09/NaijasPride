@@ -19,13 +19,6 @@ const MoveUpRightIcon = `
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
 `;
 
-const SearchIcon = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-`;
-
-const MenuIcon = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
-`;
 
 type ContentItem = {
   id: string;
@@ -142,30 +135,6 @@ type FeaturedContent = {
     }
   `],
   template: `
-    <div class="grain-overlay"></div>
-    
-    <!-- Navigation -->
-    <nav class="fixed top-0 left-0 w-full px-6 py-6 flex justify-between items-center z-50 mix-blend-difference">
-      <div class="flex items-center gap-4">
-        <a routerLink="/" class="w-10 h-10 border border-[#e6e0d4] flex items-center justify-center relative overflow-hidden group cursor-pointer">
-          <div class="absolute inset-0 bg-[#e6e0d4] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out"></div>
-          <span class="serif-text text-2xl font-bold group-hover:text-[#050505] transition-colors relative z-10">N</span>
-        </a>
-        <span class="hidden md:block text-xs tracking-[0.2em] font-bold uppercase sans-text">NaijasPride / Comics</span>
-      </div>
-
-      <div class="flex items-center gap-8">
-        <button class="hidden md:flex items-center gap-2 hover:text-[#8a1c1c] transition-colors">
-          <span [innerHTML]="searchIcon"></span>
-          <span class="text-xs tracking-widest sans-text">SEARCH</span>
-        </button>
-        <button class="flex items-center gap-2 group">
-          <span class="text-xs tracking-widest group-hover:line-through decoration-[#8a1c1c] sans-text">MENU</span>
-          <span [innerHTML]="menuIcon" class="group-hover:rotate-90 transition-transform"></span>
-        </button>
-      </div>
-    </nav>
-
     <!-- Hero Section -->
     <section class="relative min-h-screen flex flex-col justify-center px-6 pt-24 pb-12 overflow-hidden border-b border-[#1f1f1f]">
       <!-- Background Elements -->
@@ -488,31 +457,6 @@ type FeaturedContent = {
       </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="bg-[#1f1f1f] pt-24 pb-12 px-6 border-t border-[#590d0d]">
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-24 max-w-7xl mx-auto">
-        <div>
-          <h2 class="serif-text text-5xl md:text-9xl text-[#050505] text-outline opacity-50">NAIJAS</h2>
-          <h2 class="serif-text text-5xl md:text-9xl text-[#e6e0d4] -mt-4 md:-mt-10 ml-8 md:ml-24">PRIDE</h2>
-        </div>
-        <div class="mt-12 md:mt-0 flex flex-col items-start md:items-end">
-          <p class="sans-text text-xs tracking-widest mb-4 text-[#e6e0d4] opacity-60">SUBSCRIBE TO THE NEWSLETTER</p>
-          <div class="flex border-b border-[#e6e0d4] pb-2 w-full md:w-80">
-            <input type="email" placeholder="Email Address" class="bg-transparent border-none outline-none text-[#e6e0d4] w-full placeholder:text-[#1f1f1f] sans-text">
-            <span [innerHTML]="arrowIcon" class="cursor-pointer"></span>
-          </div>
-        </div>
-      </div>
-      
-      <div class="flex flex-col md:flex-row justify-between text-[#e6e0d4] opacity-40 text-xs sans-text max-w-7xl mx-auto">
-        <div class="flex gap-6 mb-4 md:mb-0">
-          <a href="#" class="hover:text-[#8a1c1c] transition-colors">INSTAGRAM</a>
-          <a href="#" class="hover:text-[#8a1c1c] transition-colors">TWITTER</a>
-          <a href="#" class="hover:text-[#8a1c1c] transition-colors">DISCORD</a>
-        </div>
-        <p>&copy; 2026 NAIJASPRIDE. ALL RIGHTS RESERVED.</p>
-      </div>
-    </footer>
   `,
 })
 export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
@@ -541,8 +485,6 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   arrowIcon = ArrowRightIcon;
   gridIcon = GridIcon;
   arrowUpIcon = MoveUpRightIcon;
-  searchIcon = SearchIcon;
-  menuIcon = MenuIcon;
   
   // Manga rotation
   private mangaRotationIndex = 0;

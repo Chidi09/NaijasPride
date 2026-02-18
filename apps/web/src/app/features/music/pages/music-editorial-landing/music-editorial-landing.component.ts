@@ -10,8 +10,6 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 // Icons
 const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
 const ArrowIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
-const SearchIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
-const MenuIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>`;
 const DiscIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="2"/></svg>`;
 const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
 
@@ -42,28 +40,6 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
     .playlist-row:hover { background-color: rgba(31, 31, 31, 0.3); padding-left: 16px; }
   `],
   template: `
-    <div class="grain-overlay"></div>
-    
-    <nav class="fixed top-0 left-0 w-full px-6 py-6 flex justify-between items-center z-50 mix-blend-difference">
-      <div class="flex items-center gap-4">
-        <a routerLink="/" class="w-10 h-10 border border-[#e6e0d4] flex items-center justify-center relative overflow-hidden group cursor-pointer">
-          <div class="absolute inset-0 bg-[#8a1c1c] translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-          <span [innerHTML]="discIcon" class="relative z-10 spin-slow group-hover:text-[#050505] transition-colors"></span>
-        </a>
-        <span class="hidden md:block text-xs tracking-[0.3em] font-bold uppercase sans-text">NaijasPride / Music</span>
-      </div>
-      <div class="flex items-center gap-8">
-        <a routerLink="/music/browse" class="hidden md:flex items-center gap-2 hover:text-[#8a1c1c] transition-colors">
-          <span [innerHTML]="searchIcon"></span>
-          <span class="text-xs tracking-widest sans-text">SEARCH</span>
-        </a>
-        <button class="flex items-center gap-2 group">
-          <span class="text-xs tracking-widest group-hover:line-through decoration-[#8a1c1c] sans-text">MENU</span>
-          <span [innerHTML]="menuIcon" class="group-hover:rotate-90 transition-transform"></span>
-        </button>
-      </div>
-    </nav>
-
     <section class="min-h-screen pt-32 pb-12 px-6 flex flex-col justify-between border-b border-[#1f1f1f] relative">
       <div class="absolute top-20 right-0 w-1/2 h-1/2 bg-gradient-to-b from-[#1f1f1f] to-transparent opacity-20 -z-10 blur-3xl"></div>
       <div class="max-w-8xl mx-auto w-full">
@@ -225,22 +201,6 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
       }
     </section>
 
-    <footer class="bg-[#050505] pt-24 pb-12 px-6 border-t border-[#1f1f1f]">
-      <div class="max-w-7xl mx-auto">
-        <div class="flex flex-col md:flex-row justify-between items-center mb-12">
-          <div class="text-center md:text-left">
-            <h2 class="display-text text-4xl md:text-6xl text-[#e6e0d4] mb-2">NAIJAS<span class="text-[#590d0d]">PRIDE</span></h2>
-            <p class="sans-text text-xs tracking-[0.3em] opacity-50">THE CULTURE CAPITAL</p>
-          </div>
-          <div class="flex gap-8 mt-8 md:mt-0">
-            <a href="https://youtube.com" target="_blank" class="text-xs sans-text tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">YOUTUBE</a>
-            <a href="#" class="text-xs sans-text tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">APPLE MUSIC</a>
-            <a href="#" class="text-xs sans-text tracking-widest border-b border-transparent hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-all pb-1">SPOTIFY</a>
-          </div>
-        </div>
-        <div class="text-center opacity-30 text-[10px] sans-text">&copy; 2026 NAIJASPRIDE MUSIC GROUP.</div>
-      </div>
-    </footer>
   `
 })
 export class MusicEditorialLandingComponent implements OnInit, OnDestroy {
@@ -260,8 +220,6 @@ export class MusicEditorialLandingComponent implements OnInit, OnDestroy {
   
   playIcon = PlayIcon;
   arrowIcon = ArrowIcon;
-  searchIcon = SearchIcon;
-  menuIcon = MenuIcon;
   discIcon = DiscIcon;
   volumeIcon = VolumeIcon;
 

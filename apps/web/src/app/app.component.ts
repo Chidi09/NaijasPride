@@ -1,6 +1,7 @@
-import { Component, OnInit, inject, computed } from '@angular/core';
-import { RouterOutlet, Router } from '@angular/router';
+import { Component, OnInit, inject } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from './core/components/navbar/navbar.component';
+import { SiteFooterComponent } from './core/components/site-footer/site-footer.component';
 import { DeviceService } from './core/services/device.service';
 import { ReaderStateService } from './core/services/reader-state.service';
 import { ThemeService } from './core/services/theme.service';
@@ -12,16 +13,20 @@ import { MusicPlayerService } from './features/music/services/music-player.servi
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, NavbarComponent, ToastContainerComponent, CookieConsentComponent, MiniPlayerComponent],
+  imports: [RouterOutlet, NavbarComponent, SiteFooterComponent, ToastContainerComponent, CookieConsentComponent, MiniPlayerComponent],
   template: `
     <div class="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300">
       @if (!readerState.navbarHidden()) {
         <app-navbar />
       }
 
-      <main [class.pt-20]="!readerState.navbarHidden()">
+      <main class="flex-1" [class.pt-16]="!readerState.navbarHidden()">
         <router-outlet />
       </main>
+
+      @if (!readerState.navbarHidden()) {
+        <app-site-footer />
+      }
 
       <app-toast-container />
       <app-cookie-consent />
@@ -41,6 +46,7 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.themeService.init();
+
     if (this.deviceService.isTV()) {
       document.body.classList.add('tv-mode');
     }
