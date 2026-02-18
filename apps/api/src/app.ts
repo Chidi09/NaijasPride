@@ -19,13 +19,22 @@ import { bookRoutes } from "./modules/books/books.routes";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { paymentRoutes } from "./modules/payments/payments.routes";
 import { profileRoutes } from "./modules/users/profile.routes";
+import { offlineRoutes } from "./modules/users/offline.routes";
+import { booksLibraryRoutes } from "./modules/books/books-library.routes";
+import { NewChapterService } from "./modules/books/new-chapter.service";
+import { MangaService } from "./modules/books/manga.service";
 import { adminRoutes } from "./modules/admin/admin.routes";
 import { watchRoutes } from "./modules/users/watch.routes";
+import { plansRoutes } from "./modules/payments/plans.routes";
+import { musicRoutes } from "./modules/music/music.routes";
+import { adminMusicRoutes } from "./modules/music/admin-music.routes";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
+import { YouTubeMusicService } from "./modules/music/youtube-music.service";
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
 import { sentryService } from "./shared/services/sentry.service";
+import { bookImportQueue } from "./shared/services/queue.service";
 
 const DEFAULT_BODY_LIMIT_BYTES = 1_048_576; // 1 MiB
 const DEFAULT_CORS_ORIGINS = [
@@ -237,8 +246,13 @@ const buildServer = async () => {
   await app.register(bookRoutes, { prefix: `${apiPrefix}/books` });
   await app.register(paymentRoutes, { prefix: `${apiPrefix}/payments` });
   await app.register(profileRoutes, { prefix: `${apiPrefix}/profile` });
+  await app.register(offlineRoutes, { prefix: `${apiPrefix}/profile` });
+  await app.register(booksLibraryRoutes, { prefix: `${apiPrefix}/library` });
   await app.register(adminRoutes, { prefix: `${apiPrefix}/admin` });
   await app.register(watchRoutes, { prefix: `${apiPrefix}/watch` });
+  await app.register(plansRoutes, { prefix: `${apiPrefix}/plans` });
+  await app.register(musicRoutes, { prefix: `${apiPrefix}/music` });
+  await app.register(adminMusicRoutes, { prefix: `${apiPrefix}/admin/music` });
 
   return app;
 };
@@ -250,15 +264,93 @@ const start = async () => {
 
     // Monitor configured YouTube channels every 6 hours.
     const channelService = new YouTubeChannelService(app.prisma);
+    const musicChannelService = new YouTubeMusicService(app.prisma);
     const sixHoursMs = 6 * 60 * 60 * 1000;
     setInterval(() => {
       channelService.monitorAllChannelsEvery6Hours().catch((error) => {
         app.log.error({ error }, "YouTube channel monitor failed");
       });
+      musicChannelService.monitorAll().catch((error) => {
+        app.log.error({ error }, "YouTube music channel monitor failed");
+      });
     }, sixHoursMs);
     channelService.monitorAllChannelsEvery6Hours().catch((error) => {
       app.log.error({ error }, "Initial YouTube channel monitor run failed");
     });
+    musicChannelService.monitorAll().catch((error) => {
+      app.log.error({ error }, "Initial YouTube music channel monitor run failed");
+    });
+
+    // New-chapter checker: poll manga sources for new chapters every hour
+    const newChapterIntervalMs = parseInt(process.env.NEW_CHAPTER_CHECK_INTERVAL_MS || '3600000', 10);
+    const mangaService = new MangaService(app.prisma);
+    const newChapterService = new NewChapterService(app.prisma, (mangaService as any).sourceManager);
+    const runNewChapterCheck = () => {
+      newChapterService.runCheck().catch((err) => {
+        app.log.error({ err }, '[NewChapterService] Check failed');
+      });
+    };
+    setInterval(runNewChapterCheck, newChapterIntervalMs);
+    // Initial run after 5 minutes (let the app warm up first)
+    setTimeout(runNewChapterCheck, 5 * 60 * 1000);
+
+    // Auto-import epubBooks titles gradually (queue-based).
+    const autoImportEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.EPUBBOOKS_AUTO_IMPORT_ENABLED || '').trim().toLowerCase()
+    );
+    if (autoImportEnabled) {
+      const intervalMsRaw = Number.parseInt(process.env.EPUBBOOKS_AUTO_IMPORT_INTERVAL_MS || '21600000', 10); // 6h
+      const intervalMs = Number.isFinite(intervalMsRaw) && intervalMsRaw >= 60_000 ? intervalMsRaw : 21_600_000;
+      const sort = (process.env.EPUBBOOKS_AUTO_IMPORT_SORT || 'title').trim().toLowerCase();
+      const maxBooksRaw = Number.parseInt(process.env.EPUBBOOKS_AUTO_IMPORT_MAX_BOOKS || '8', 10);
+      const concurrencyRaw = Number.parseInt(process.env.EPUBBOOKS_AUTO_IMPORT_CONCURRENCY || '2', 10);
+      const maxBooks = Number.isFinite(maxBooksRaw) && maxBooksRaw > 0 ? Math.min(maxBooksRaw, 50) : 8;
+      const concurrency = Number.isFinite(concurrencyRaw) && concurrencyRaw > 0 ? Math.min(concurrencyRaw, 6) : 2;
+
+      const enqueueAutoImport = async () => {
+        const queue = bookImportQueue.get();
+        if (!queue) {
+          app.log.warn('EPUBBOOKS_AUTO_IMPORT_ENABLED is on but REDIS_URL is not set; skipping auto import');
+          return;
+        }
+
+        // Avoid building a backlog if the worker is offline.
+        const counts = await queue.getJobCounts('active', 'waiting', 'delayed');
+        const backlog = (counts.active || 0) + (counts.waiting || 0) + (counts.delayed || 0);
+        if (backlog > 2) {
+          app.log.info({ backlog }, 'Skipping epubBooks auto import (queue backlog)');
+          return;
+        }
+
+        const job = await queue.add(
+          'import-epubbooks',
+          {
+            source: 'epubbooks',
+            mode: 'auto',
+            options: {
+              sort: sort === 'released' ? 'released' : 'title',
+              maxBooks,
+              concurrency,
+              dryRun: false,
+            },
+            requestedAt: Date.now(),
+          },
+          { removeOnComplete: true, removeOnFail: false }
+        );
+
+        app.log.info({ jobId: String(job.id), maxBooks, sort }, 'Queued epubBooks auto import');
+      };
+
+      setInterval(() => {
+        enqueueAutoImport().catch((error) => {
+          app.log.error({ error }, 'epubBooks auto import enqueue failed');
+        });
+      }, intervalMs);
+
+      enqueueAutoImport().catch((error) => {
+        app.log.error({ error }, 'Initial epubBooks auto import enqueue failed');
+      });
+    }
 
     await app.listen({ port, host: "0.0.0.0" });
     console.log(`🚀 NaijasPride API running on http://localhost:${port}`);

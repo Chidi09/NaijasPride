@@ -42,6 +42,36 @@ enum ContentStatus {
   deleted
 }
 
+// Music Video Genres
+enum MusicGenre {
+  Afrobeat
+  Afropop
+  HipHop    @map("Hip-Hop")
+  RAndB     @map("R&B")
+  Gospel
+  Highlife
+  Fuji
+  Reggae
+  Dancehall
+  Jazz
+  Soul
+  Pop
+  Rock
+  Amapiano
+  Traditional
+  Alternative
+}
+
+// Music Video Region
+enum MusicRegion {
+  Nigeria
+  Ghana
+  SouthAfrica
+  Kenya
+  Tanzania
+  International
+}
+
 // User Roles for Authentication
 enum Role {
   USER
@@ -99,6 +129,7 @@ model Movie {
   downloads       Download[]
   watchHistory    WatchHistory[]
   notifications   MovieNotification[]
+  offlineSaved    OfflineSavedContent[]
   cast            Cast[]
 
   @@index([slug])
@@ -147,6 +178,15 @@ model User {
   name          String?
   role          Role               @default(USER)
   isPremium     Boolean            @default(false)
+  emailVerified Boolean            @default(false)
+  
+  // Email verification
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  
+  // Password reset
+  passwordResetToken String?
+  passwordResetExpires DateTime?
   
   // Subscription Details
   planId        String?
@@ -160,12 +200,25 @@ model User {
   downloadHistory      Download[]
   watchHistory         WatchHistory[]
   notifications        MovieNotification[]
+  pushTokens           PushNotificationToken[]
+  offlineSaved         OfflineSavedContent[]
   bookProgress         BookProgress[]
+  bookHighlights       BookHighlight[]
+  bookFavorites        BookFavorite[]
   mangaProgress        MangaReadingProgress[]
   mangaFavorites       MangaFavorite[]
+  mangaNewChapterChecks MangaNewChapterCheck[]
+  offlineMangaChapters OfflineMangaChapter[]
+  offlineBooks         OfflineBook[]
+  musicHistory         MusicWatchHistory[]
+  musicLikes           MusicLike[]
+  musicPlaylists       MusicPlaylist[]
   
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
+  
+  @@index([emailVerificationToken])
+  @@index([passwordResetToken])
 }
 
 // Download History Model
@@ -209,6 +262,115 @@ model MovieNotification {
   @@index([movieId, sent])
 }
 
+// Store per-device FCM tokens for targeted push notifications
+model PushNotificationToken {
+  id          String   @id @default(uuid())
+  userId      String
+  token       String   @unique
+  platform    String?
+  deviceLabel String?
+  userAgent   String?
+  isActive    Boolean  @default(true)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+}
+
+// Book favorites (user's saved/library books)
+model BookFavorite {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  addedAt   DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId, addedAt])
+}
+
+// Track which manga chapters a user has seen so we can detect NEW ones
+// One row per (user, manga) — stores the latest chapter ID seen so far
+model MangaNewChapterCheck {
+  id                   String   @id @default(uuid())
+  userId               String
+  // Full source entity ID: "mangadex:uuid" / "weebcentral:id"
+  mangaId              String
+  mangaTitle           String
+  mangaCoverUrl        String?
+  // The chapterId (source entity ID) of the most recently notified chapter
+  lastSeenChapterId    String?
+  // ISO timestamp of the most recently seen chapter upload
+  lastSeenAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mangaId])
+  @@index([userId])
+}
+
+// Track content saved for offline viewing (PWA)
+model OfflineSavedContent {
+  id          String   @id @default(uuid())
+  userId      String
+  movieId     String
+  quality     String   // e.g. "1080p", "720p"
+  fileSizeBytes Int?   // stored size in bytes
+  savedAt     DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, movieId, quality])
+  @@index([userId])
+}
+
+// Track manga chapters saved for offline reading (PWA)
+model OfflineMangaChapter {
+  id            String   @id @default(uuid())
+  userId        String
+  // Full source entity ID: "mangadex:uuid" / "weebcentral:id"
+  mangaId       String
+  mangaTitle    String
+  chapterId     String   // source entity ID
+  chapterTitle  String?
+  pageCount     Int      @default(0)
+  fileSizeBytes Int?
+  savedAt       DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId, mangaId])
+}
+
+// Track books saved for offline reading (PWA)
+model OfflineBook {
+  id            String   @id @default(uuid())
+  userId        String
+  bookId        String
+  fileSizeBytes Int?
+  format        String   @default("epub")
+  savedAt       DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book          Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+}
+
 // Store Admin RSS Feeds
 model RssFeed {
   id          String   @id @default(uuid())
@@ -242,6 +404,9 @@ model Book {
   updatedAt     DateTime @updatedAt
   
   readProgress  BookProgress[]
+  highlights    BookHighlight[]
+  favorites     BookFavorite[]
+  offlineSaves  OfflineBook[]
 
   @@index([slug])
   @@index([year])
@@ -259,6 +424,27 @@ model BookProgress {
   book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([userId, bookId])
+}
+
+// Book highlights/annotations (per-user)
+model BookHighlight {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  kind      String
+  color     String
+  cfiRange  String?
+  excerpt   String?  @db.Text
+  page      Int?
+  rect      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, bookId])
+  @@index([bookId])
 }
 
 // Track manga reading progress (for MangaDex chapters)
@@ -297,6 +483,145 @@ model MangaFavorite {
   @@unique([userId, mangaId])
   @@index([userId, addedAt])
 }
+
+// ─── MUSIC VIDEOS ───────────────────────────────────────────────────────────
+
+model MusicVideo {
+  id              String        @id @default(uuid())
+  title           String
+  slug            String        @unique
+  artist          String
+  artistSlug      String        // URL-safe artist identifier
+  featuring       String[]      // Featured artists
+  album           String?
+  year            Int
+  genre           MusicGenre[]
+  region          MusicRegion   @default(Nigeria)
+  durationSeconds Int?
+
+  // YouTube
+  youtubeId       String        @unique
+  channelId       String?       // Source YouTube channel ID
+  channelTitle    String?
+
+  // Media
+  thumbnailUrl    String?       // YouTube default thumbnail
+  hdThumbnailUrl  String?       // maxresdefault
+
+  // Flags
+  isOfficial      Boolean       @default(true)   // Official MV vs fan upload
+  isExplicit      Boolean       @default(false)
+
+  // Engagement (different from movies — replays matter)
+  viewCount       Int           @default(0)       // Incremented on page view
+  playCount       Int           @default(0)       // Incremented on actual play
+  likeCount       Int           @default(0)       // Cached from MusicLike count
+  weeklyPlays     Int           @default(0)       // Reset weekly for trending
+
+  status          ContentStatus @default(active)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  publishedAt     DateTime?     // YouTube publish date
+
+  // Relations
+  watchHistory    MusicWatchHistory[]
+  likes           MusicLike[]
+  playlistItems   MusicPlaylistItem[]
+
+  @@index([artistSlug])
+  @@index([genre])
+  @@index([region])
+  @@index([status, weeklyPlays])
+  @@index([status, playCount])
+  @@index([status, createdAt])
+}
+
+// Per-user play history + replay tracking
+model MusicWatchHistory {
+  id          String     @id @default(uuid())
+  userId      String
+  musicId     String
+  progressSec Int        @default(0)   // Seconds watched
+  completed   Boolean    @default(false)
+  playCount   Int        @default(1)   // How many times replayed
+  lastPlayedAt DateTime  @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  music       MusicVideo @relation(fields: [musicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, musicId])
+  @@index([userId, lastPlayedAt])
+}
+
+// Likes (one per user per video)
+model MusicLike {
+  id        String     @id @default(uuid())
+  userId    String
+  musicId   String
+  createdAt DateTime   @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  music     MusicVideo @relation(fields: [musicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, musicId])
+  @@index([musicId])
+}
+
+// User + curated playlists
+model MusicPlaylist {
+  id          String              @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  coverUrl    String?
+  isPublic    Boolean             @default(false)
+  isCurated   Boolean             @default(false) // Admin-curated
+  curatedSlug String?             @unique          // URL slug for curated playlists
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       MusicPlaylistItem[]
+
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([isCurated])
+}
+
+model MusicPlaylistItem {
+  id         String        @id @default(uuid())
+  playlistId String
+  musicId    String
+  position   Int           @default(0)
+  addedAt    DateTime      @default(now())
+
+  playlist   MusicPlaylist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  music      MusicVideo    @relation(fields: [musicId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, musicId])
+  @@index([playlistId, position])
+}
+
+// Music-specific YouTube channels (separate from movie channels)
+model MusicChannel {
+  id            String   @id @default(uuid())
+  name          String
+  channelId     String   @unique
+  url           String
+  artistName    String?  // Canonical artist name for this channel
+  region        MusicRegion @default(Nigeria)
+  isActive      Boolean  @default(true)
+  lastSyncedAt  DateTime?
+  totalVideos   Int      @default(0)
+  importedCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ─── YOUTUBE CHANNELS (MOVIES) ──────────────────────────────────────────────
 
 // YouTube Channels for bulk importing
 model YouTubeChannel {

@@ -2,7 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { randomBytes } from 'crypto';
 import { emailService } from '../../shared/services/email.service';
+import { getPushService } from '../../shared/services/push-notification.service';
 import { OAuth2Client } from 'google-auth-library';
 
 const requireEnv = (name: string) => {
@@ -45,6 +47,19 @@ export const googleAuthSchema = z.object({
   idToken: z.string().min(20),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(20),
+  password: z.string().min(6),
+});
+
+export const verifyEmailSchema = z.object({
+  token: z.string().min(20),
+});
+
 type AccessPayload = {
   id: string;
   email: string;
@@ -76,8 +91,12 @@ export class AuthService {
       },
     });
 
-    // Send welcome email (don't await - don't block response)
+    // Send welcome + verification emails (fire-and-forget)
     emailService.sendWelcomeEmail(user.email, user.name || undefined).catch(console.error);
+    getPushService(this.prisma).sendWelcome(user.id, user.name || undefined).catch(console.error);
+
+    // Auto-send verification email on signup
+    this.sendVerificationEmail(user.id).catch(console.error);
 
     const { password, ...result } = user;
     return result;
@@ -151,6 +170,7 @@ export class AuthService {
       });
 
       emailService.sendWelcomeEmail(user.email, user.name || undefined).catch(console.error);
+      getPushService(this.prisma).sendWelcome(user.id, user.name || undefined).catch(console.error);
     } else if (!user.name && name) {
       user = await this.prisma.user.update({
         where: { id: user.id },
@@ -159,6 +179,106 @@ export class AuthService {
     }
 
     return this.createSession(user);
+  }
+
+  async requestPasswordReset(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Don't reveal if user exists
+      return { success: true };
+    }
+
+    const resetToken = randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: resetToken,
+        passwordResetExpires: resetExpires,
+      },
+    });
+
+    // Send email asynchronously
+    emailService.sendPasswordResetEmail(user.email, resetToken, user.name || undefined).catch(console.error);
+
+    return { success: true };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        passwordResetToken: token,
+        passwordResetExpires: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+
+    emailService.sendPasswordChangedEmail(user.email, user.name || undefined).catch(console.error);
+    getPushService(this.prisma).sendPasswordChanged(user.id).catch(console.error);
+
+    return { success: true };
+  }
+
+  async sendVerificationEmail(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    if (user.emailVerified) throw new Error('Email already verified');
+
+    const verificationToken = randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationToken: verificationToken,
+        emailVerificationExpires: verificationExpires,
+      },
+    });
+
+    emailService.sendVerificationEmail(user.email, verificationToken, user.name || undefined).catch(console.error);
+
+    return { success: true };
+  }
+
+  async verifyEmail(token: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        emailVerificationToken: token,
+        emailVerificationExpires: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new Error('Invalid or expired verification token');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+      },
+    });
+
+    getPushService(this.prisma).sendEmailVerified(user.id).catch(console.error);
+
+    return { success: true, email: user.email };
   }
 
   private createSession(user: { id: string; email: string; role: string; password: string }) {

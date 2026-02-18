@@ -18,6 +18,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
 import screenfull from 'screenfull';
 import { ReaderStateService } from '../../../../core/services/reader-state.service';
+import { MangaOfflineService } from '../../../../core/services/manga-offline.service';
 
 type ApiReaderMode = 'webtoon' | 'reversed' | 'standard' | 'double-page';
 type ReaderMode = ApiReaderMode;
@@ -169,6 +170,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private readerState = inject(ReaderStateService);
+  private mangaOffline = inject(MangaOfflineService);
   private destroy$ = new Subject<void>();
   private progressUpdate$ = new Subject<number>();
 
@@ -383,7 +385,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.libraryMode() === 'comics' ? '/books/comics/read' : '/books/manga/read';
   }
 
-  private loadChapter() {
+  private async loadChapter() {
     this.isLoading.set(true);
     this.externalUrl.set(null);
 
@@ -393,6 +395,33 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.pages.set([]);
       this.isLoading.set(false);
       return;
+    }
+
+    // Try offline cache first (Kotatsu-style offline reading)
+    if (this.mangaOffline.isAvailable(chapterId)) {
+      const offlinePages = await this.mangaOffline.getAllPageUrls(chapterId);
+      const validPages = offlinePages.filter((u): u is string => u !== null);
+      if (validPages.length > 0) {
+        this.pages.set(validPages);
+        this.externalUrl.set(null);
+        this.pageIndex.set(0);
+
+        const preferred = localStorage.getItem('np_reader_mode') as ReaderMode | null;
+        this.readingMode.set(
+          preferred && ['webtoon', 'reversed', 'standard', 'double-page'].includes(preferred)
+            ? (preferred as ReaderMode)
+            : 'webtoon'
+        );
+
+        this.isLoading.set(false);
+        if (this.mangaId() && this.isAuthenticated()) {
+          this.loadProgress(chapterId);
+        }
+        if (this.readingMode() !== 'webtoon') {
+          setTimeout(() => this.initSwiper(), 0);
+        }
+        return;
+      }
     }
 
     const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/pages-by-id?chapterId=${encodeURIComponent(chapterId)}`;

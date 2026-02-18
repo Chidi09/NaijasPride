@@ -6,6 +6,9 @@ import { Book } from '@naijaspride/types';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
+import { BookOfflineService } from '../../../../core/services/book-offline.service';
+import { LibraryService } from '../../../../core/services/library.service';
+import { AuthService } from '../../../../core/auth/auth.service';
 
 @Component({
   selector: 'app-book-detail',
@@ -79,6 +82,58 @@ import { MatChipsModule } from '@angular/material/chips';
                   }
                 </div>
               }
+
+              <!-- Offline save -->
+              @if (bookOffline.isSupported && isReadableInApp(book)) {
+                <div class="mt-3">
+                  @if (bookOffline.isAvailable(book.id)) {
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      color="warn"
+                      class="w-full"
+                      (click)="removeOffline(book)"
+                    >
+                      Remove Offline Copy
+                    </button>
+                  } @else if (bookOffline.getStatus(book.id) === 'downloading') {
+                    <div class="text-xs text-center text-[var(--text-muted)] py-1">
+                      Downloading… {{ bookOffline.getProgress(book.id) }}%
+                    </div>
+                    <div class="h-1 w-full bg-[#d9c4b7] dark:bg-white/10 rounded overflow-hidden">
+                      <div class="h-full bg-cinema-500 transition-all" [style.width.%]="bookOffline.getProgress(book.id)"></div>
+                    </div>
+                  } @else {
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      color="primary"
+                      class="w-full"
+                      (click)="saveOffline(book)"
+                    >
+                      Save for Offline
+                      @if (bookOffline.getStatus(book.id) === 'error') {
+                        <span class="ml-1 text-red-400 text-xs">(retry)</span>
+                      }
+                    </button>
+                  }
+                </div>
+              }
+
+              <!-- Add to favorites -->
+              @if (auth.currentUser()) {
+                <div class="mt-2">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    [color]="library.isFavoriteBook(book.id) ? 'warn' : 'primary'"
+                    class="w-full"
+                    (click)="toggleFavorite(book)"
+                  >
+                    {{ library.isFavoriteBook(book.id) ? '★ Favorited' : '☆ Add to Favorites' }}
+                  </button>
+                </div>
+              }
             </div>
           </div>
           
@@ -142,6 +197,9 @@ import { MatChipsModule } from '@angular/material/chips';
 export class BookDetailComponent implements OnInit {
   slug = input.required<string>();
   private http = inject(HttpClient);
+  bookOffline = inject(BookOfflineService);
+  library = inject(LibraryService);
+  auth = inject(AuthService);
 
   book = signal<Book | null>(null);
   isLoading = signal(true);
@@ -157,6 +215,10 @@ export class BookDetailComponent implements OnInit {
         next: (response) => {
           this.book.set(response.data);
           this.isLoading.set(false);
+          // Load favorite state
+          if (this.auth.currentUser()) {
+            this.library.checkBookFavorite(response.data.id).catch(() => {/* ignore */});
+          }
         },
         error: (error) => {
           console.error('Error loading book:', error);
@@ -164,6 +226,28 @@ export class BookDetailComponent implements OnInit {
           this.isLoading.set(false);
         }
       });
+  }
+
+  saveOffline(book: Book) {
+    const apiFileUrl = `/api/v1/books/${encodeURIComponent(book.slug)}/file?disposition=inline`;
+    this.bookOffline.download({
+      bookId: book.id,
+      bookTitle: book.title,
+      bookSlug: book.slug,
+      author: book.author,
+      format: book.format,
+      apiFileUrl,
+      coverUrl: book.coverUrl ?? undefined,
+      fileSizeBytes: book.fileSize ?? undefined,
+    }).catch(console.error);
+  }
+
+  removeOffline(book: Book) {
+    this.bookOffline.remove(book.id).catch(console.error);
+  }
+
+  toggleFavorite(book: Book) {
+    this.library.toggleBookFavorite(book.id).catch(console.error);
   }
 
   isEpubBook(book: Book): boolean {

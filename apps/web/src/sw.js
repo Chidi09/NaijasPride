@@ -1,5 +1,13 @@
 const STATIC_CACHE = "np-static-v1";
 const RUNTIME_CACHE = "np-runtime-v1";
+const OFFLINE_CACHE = "np-offline-v1";   // movies
+const MANGA_CACHE   = "np-manga-v1";     // manga chapter pages
+const BOOK_CACHE    = "np-books-v1";     // book files (PDF/EPUB)
+
+const OFFLINE_URL_PREFIX = "/offline/movie/";
+const MANGA_URL_PREFIX   = "/offline/manga/";
+const BOOK_URL_PREFIX    = "/offline/book/";
+
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -9,6 +17,8 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
+const KEEP_CACHES = new Set([STATIC_CACHE, RUNTIME_CACHE, OFFLINE_CACHE, MANGA_CACHE, BOOK_CACHE]);
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -16,7 +26,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
+            .filter((key) => !KEEP_CACHES.has(key))
             .map((key) => caches.delete(key)),
         ),
       )
@@ -40,6 +50,54 @@ self.addEventListener("fetch", (event) => {
 
   const requestUrl = new URL(event.request.url);
   const sameOrigin = requestUrl.origin === self.location.origin;
+
+  // ── Offline video: cache-only ─────────────────────────────────────────────
+  if (sameOrigin && requestUrl.pathname.startsWith(OFFLINE_URL_PREFIX)) {
+    event.respondWith(
+      caches.open(OFFLINE_CACHE).then((cache) =>
+        cache.match(requestUrl.pathname).then((cached) => {
+          if (cached) return cached;
+          return new Response("Offline video not found. Please re-download.", {
+            status: 404,
+            headers: { "Content-Type": "text/plain" },
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  // ── Offline manga pages: cache-only ───────────────────────────────────────
+  if (sameOrigin && requestUrl.pathname.startsWith(MANGA_URL_PREFIX)) {
+    event.respondWith(
+      caches.open(MANGA_CACHE).then((cache) =>
+        cache.match(requestUrl.pathname).then((cached) => {
+          if (cached) return cached;
+          return new Response("Manga page not cached. Please re-download this chapter.", {
+            status: 404,
+            headers: { "Content-Type": "text/plain" },
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  // ── Offline books: cache-only ─────────────────────────────────────────────
+  if (sameOrigin && requestUrl.pathname.startsWith(BOOK_URL_PREFIX)) {
+    event.respondWith(
+      caches.open(BOOK_CACHE).then((cache) =>
+        cache.match(requestUrl.pathname).then((cached) => {
+          if (cached) return cached;
+          return new Response("Book not cached. Please re-download.", {
+            status: 404,
+            headers: { "Content-Type": "text/plain" },
+          });
+        })
+      )
+    );
+    return;
+  }
 
   if (!sameOrigin) return;
 
@@ -83,5 +141,54 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => caches.match(event.request)),
+  );
+});
+
+const parsePushPayload = (event) => {
+  if (!event.data) {
+    return null;
+  }
+
+  try {
+    return event.data.json();
+  } catch {
+    return { notification: { title: "NaijasPride", body: event.data.text() } };
+  }
+};
+
+self.addEventListener("push", (event) => {
+  const payload = parsePushPayload(event) || {};
+  const notification = payload.notification || payload.data || {};
+
+  const title = notification.title || "NaijasPride";
+  const body = notification.body || "You have a new update.";
+  const icon = notification.icon || "/assets/icons/android-chrome-192x192.png";
+  const badge = notification.badge || "/assets/icons/android-chrome-192x192.png";
+  const url = notification.url || "/";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge,
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification?.data?.url || "/";
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const client of windows) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      return clients.openWindow(targetUrl);
+    }),
   );
 });

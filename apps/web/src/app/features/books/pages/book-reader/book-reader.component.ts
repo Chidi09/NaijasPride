@@ -21,6 +21,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSidenavModule } from '@angular/material/sidenav';
 
 import { ReaderStateService } from '../../../../core/services/reader-state.service';
+import { BookOfflineService } from '../../../../core/services/book-offline.service';
 import { ReaderGesturesService } from '../../reader/services/reader-gestures.service';
 import { ReaderService } from '../../reader/services/reader.service';
 import { ReaderTtsService } from '../../reader/services/reader-tts.service';
@@ -360,6 +361,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private readerState = inject(ReaderStateService);
   private gestures = inject(ReaderGesturesService);
+  private bookOffline = inject(BookOfflineService);
   readonly tts = inject(ReaderTtsService);
 
   readonly reader = inject(ReaderService);
@@ -561,6 +563,11 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
         const format = (data?.format || '').trim().toLowerCase();
         this.readerType.set(format === 'pdf' ? 'pdf' : 'epub');
+
+        // Use offline cached file when available (Kotatsu-style offline reading)
+        if (data?.id && this.bookOffline.isAvailable(data.id)) {
+          this.fileUrl.set(this.bookOffline.getOfflineFileUrl(data.id));
+        }
 
         this.metaLoading.set(false);
       },

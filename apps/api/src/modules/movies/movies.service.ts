@@ -8,7 +8,8 @@ import {
   MovieSummary, 
   PaginationMeta,
 } from '@naijaspride/types';
-import { ZeptoMailClient } from '../notifications/zepto.client';
+import { emailService } from '../../shared/services/email.service';
+import { getPushService } from '../../shared/services/push-notification.service';
 import { MetadataService } from './metadata.service';
 import { getRedis } from '../../shared/services/redis.service';
 
@@ -38,6 +39,17 @@ export class MoviesService {
 
     // Invalidate cache on creation
     await this.invalidateSearchCache();
+
+    // If newly created movie is immediately active, send new-content push to genre fans
+    if (!data.status || data.status === 'active') {
+      this.sendNewContentNotifications(
+        movie.id,
+        movie.title,
+        movie.slug,
+        movie.genre as string[],
+        movie.thumbnailUrl ?? undefined,
+      ).catch(console.error);
+    }
     
     return this.mapToMovie(movie);
   }
@@ -219,12 +231,17 @@ export class MoviesService {
       }
     });
 
-    // 2. Check if it's now High Quality (720p, 1080p, or 4K)
-    const hdQualities = ['720p', '1080p', '4K', '4k'];
-    const isHD = hdQualities.includes(quality);
-
-    if (newStatus === 'active' && isHD) {
-      await this.sendHdNotifications(movieId, movie.title, quality);
+    // 2. Notify subscribers when movie goes active (any quality)
+    if (newStatus === 'active') {
+      await this.sendAvailableNotifications(movieId, movie.title, movie.slug, quality, movie.thumbnailUrl ?? undefined);
+      // Also notify genre fans of new content
+      this.sendNewContentNotifications(
+        movieId,
+        movie.title,
+        movie.slug,
+        movie.genre as string[],
+        movie.thumbnailUrl ?? undefined,
+      ).catch(console.error);
     }
 
     // Invalidate cache
@@ -261,66 +278,91 @@ export class MoviesService {
   /**
    * Send "Movie is ready in HD" emails to users waiting for this movie
    */
-  private async sendHdNotifications(movieId: string, movieTitle: string, quality: string): Promise<void> {
+  private async sendAvailableNotifications(
+    movieId: string,
+    movieTitle: string,
+    movieSlug: string,
+    quality: string,
+    thumbnailUrl?: string,
+  ): Promise<void> {
     try {
-      // Find users waiting for this movie
       const waiters = await this.prisma.movieNotification.findMany({
-        where: { 
-          movieId, 
-          sent: false 
-        },
-        include: { user: true }
+        where: { movieId, sent: false },
+        include: { user: { select: { id: true, email: true, name: true } } },
       });
 
       if (waiters.length === 0) return;
 
-      console.log(`[Notifications] Sending HD alerts to ${waiters.length} users for "${movieTitle}"`);
-
-      // Prepare email payloads
-      const emailPayloads = waiters.map((record: {
-        id: string;
-        user: { email: string; name: string | null };
-      }) => ({
-        to: record.user.email,
-        subject: `🎬 ${movieTitle} is now available in ${quality}!`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-            <h1 style="color: #dc2626;">Good news, ${record.user.name || 'Movie Lover'}! 👋</h1>
-            
-            <p style="font-size: 16px; line-height: 1.6;">
-              You asked us to notify you when <strong>${movieTitle}</strong> was available in good quality.
-            </p>
-            
-            <p style="font-size: 16px; line-height: 1.6;">
-              🎉 It is now available in <strong style="color: #dc2626;">${quality}</strong>. No more cam-rips!
-            </p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="https://naijaspride.com/movies/${movieId}" 
-                 style="background: #dc2626; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-                Watch Now 🍿
-              </a>
-            </div>
-            
-            <p style="font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 20px;">
-              This is an automated message from NaijasPride. You received this because you requested to be notified when this movie became available.
-            </p>
-          </div>
-        `
-      }));
-
-      // Send emails in bulk with rate limiting
-      const results = await ZeptoMailClient.sendBulk(emailPayloads, 100);
-      console.log(`[Notifications] Sent: ${results.success}, Failed: ${results.failed}`);
-
-      // Mark notifications as sent
+      // Mark as sent first to prevent double-sends on retry
       const notificationIds = waiters.map((w: { id: string }) => w.id);
       await this.prisma.movieNotification.updateMany({
         where: { id: { in: notificationIds } },
-        data: { sent: true }
+        data: { sent: true },
       });
+
+      console.log(`[Notifications] Sending movie-available notifications for "${movieTitle}" to ${waiters.length} subscriber(s)`);
+
+      // Fire individual branded emails (fire-and-forget per subscriber)
+      for (const waiter of waiters) {
+        emailService.sendMovieAvailableEmail(
+          waiter.user.email,
+          waiter.user.name ?? undefined,
+          movieTitle,
+          movieSlug,
+          quality,
+          thumbnailUrl,
+        ).catch(console.error);
+      }
+
+      // Send push notifications to all waiters at once
+      const waiterUserIds = waiters.map((w: { user: { id: string } }) => w.user.id);
+      getPushService(this.prisma)
+        .sendMovieAvailable(waiterUserIds, movieTitle, movieSlug, quality, thumbnailUrl)
+        .catch(console.error);
     } catch (error) {
-      console.error('[Notifications] Failed to send HD notifications:', error);
+      console.error('[Notifications] Failed to send movie-available notifications:', error);
+    }
+  }
+
+  /**
+   * Send "New content added" push notifications to users who have watched
+   * movies in any of the same genres (up to 500 users to avoid spam blasts).
+   */
+  private async sendNewContentNotifications(
+    movieId: string,
+    movieTitle: string,
+    movieSlug: string,
+    genres: string[],
+    thumbnailUrl?: string,
+  ): Promise<void> {
+    try {
+      if (genres.length === 0) return;
+
+      // Find users who have previously watched movies in the same genre(s).
+      // Capped at 500 to avoid hammering FCM on a large user base in one shot.
+      const watchHistoryRows = await this.prisma.watchHistory.findMany({
+        where: {
+          movie: { genre: { hasSome: genres as PrismaGenre[] } },
+        },
+        select: { userId: true },
+        distinct: ['userId'],
+        take: 500,
+      });
+
+      if (watchHistoryRows.length === 0) return;
+
+      const userIds = watchHistoryRows.map((r: { userId: string }) => r.userId);
+      const primaryGenre = genres[0] ?? 'Nigerian Cinema';
+
+      await getPushService(this.prisma).sendNewContentAlert(
+        userIds,
+        movieTitle,
+        movieSlug,
+        primaryGenre,
+        thumbnailUrl,
+      );
+    } catch (error) {
+      console.error('[Notifications] Failed to send new-content push notifications:', error);
     }
   }
 

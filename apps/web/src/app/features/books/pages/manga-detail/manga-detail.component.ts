@@ -9,6 +9,9 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MangaOfflineService } from '../../../../core/services/manga-offline.service';
+import { LibraryService } from '../../../../core/services/library.service';
+import { AuthService } from '../../../../core/auth/auth.service';
 
 type MangaDetail = {
   id: string;
@@ -167,10 +170,28 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
               </mat-card>
             }
 
-            <div class="mt-5">
+            <div class="mt-5 flex flex-wrap gap-2 items-center">
               <button mat-stroked-button color="primary" type="button" (click)="toggleFavorite()">
                 {{ isFavorite() ? '★ Favorited' : '☆ Add to Favorites' }}
               </button>
+
+              @if (auth.currentUser()) {
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [color]="library.isWatchingManga(currentMangaId()) ? 'warn' : 'primary'"
+                  (click)="toggleChapterWatch()"
+                  [title]="library.isWatchingManga(currentMangaId()) ? 'Stop notifications for new chapters' : 'Notify me when new chapters drop'"
+                >
+                  {{ library.isWatchingManga(currentMangaId()) ? '🔔 Watching' : '🔕 Watch Chapters' }}
+                </button>
+              }
+
+              @if (mangaOffline.downloadedChapterCount(currentMangaId()) > 0) {
+                <span class="text-xs text-green-500 border border-green-500/30 px-2 py-1 rounded">
+                  {{ mangaOffline.downloadedChapterCount(currentMangaId()) }} chapter(s) offline
+                </span>
+              }
             </div>
           </div>
         </section>
@@ -324,31 +345,76 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                     </div>
                   </a>
                 } @else {
-                  <a
+                  <div
                     [attr.id]="'np-chapter-' + chapter.id"
-                    [routerLink]="[readBasePath(), toRouteParam(chapter.id)]"
-                    [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
-                    (click)="rememberContinue(chapter)"
-                    class="np-chapter-row"
+                    class="np-chapter-row flex items-center gap-2"
                   >
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <div class="np-chapter-title">
-                          {{ chapterLabel(chapter) }}
-                          @if (chapterSubtitle(chapter)) {
-                            <span class="np-chapter-subtitle">{{ chapterSubtitle(chapter) }}</span>
+                    <a
+                      class="flex-1 min-w-0"
+                      [routerLink]="[readBasePath(), toRouteParam(chapter.id)]"
+                      [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }"
+                      (click)="rememberContinue(chapter)"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="np-chapter-title">
+                            {{ chapterLabel(chapter) }}
+                            @if (mangaOffline.isAvailable(chapter.id)) {
+                              <span class="ml-1 text-[10px] text-green-500">● offline</span>
+                            }
+                            @if (chapterSubtitle(chapter)) {
+                              <span class="np-chapter-subtitle">{{ chapterSubtitle(chapter) }}</span>
+                            }
+                          </div>
+                          <div class="np-chapter-meta">
+                            @if (chapter.branch) { <span>{{ chapter.branch }}</span> }
+                            @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
+                          </div>
+                          <!-- Download progress bar -->
+                          @if (mangaOffline.getStatus(chapter.id) === 'downloading' || mangaOffline.getStatus(chapter.id) === 'queued') {
+                            <div class="mt-1 h-0.5 w-full bg-[#d9c4b7] dark:bg-white/10 rounded overflow-hidden">
+                              <div class="h-full bg-cinema-500 transition-all" [style.width.%]="mangaOffline.getProgress(chapter.id)"></div>
+                            </div>
+                          }
+                          @if (mangaOffline.getStatus(chapter.id) === 'error') {
+                            <div class="text-[10px] text-red-400">Failed — tap retry</div>
                           }
                         </div>
-                        <div class="np-chapter-meta">
-                          @if (chapter.branch) { <span>{{ chapter.branch }}</span> }
-                          @if (chapter.volume) { <span>Vol. {{ chapter.volume }}</span> }
-                        </div>
+                        <span class="shrink-0 text-xs text-[var(--text-muted)]">
+                          {{ chapter.publishedAt ? (chapter.publishedAt | date: 'MMM d, y') : '' }}
+                        </span>
                       </div>
-                      <span class="shrink-0 text-xs text-[var(--text-muted)]">
-                        {{ chapter.publishedAt ? (chapter.publishedAt | date: 'MMM d, y') : '' }}
-                      </span>
-                    </div>
-                  </a>
+                    </a>
+
+                    <!-- Download / offline button -->
+                    @if (mangaOffline.isSupported) {
+                      @if (mangaOffline.isAvailable(chapter.id)) {
+                        <button
+                          type="button"
+                          class="shrink-0 p-1.5 rounded text-green-500 hover:text-red-400 transition-colors"
+                          title="Downloaded — tap to remove"
+                          (click)="removeChapterOffline(chapter.id); $event.stopPropagation()"
+                        >
+                          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                          </svg>
+                        </button>
+                      } @else if (mangaOffline.getStatus(chapter.id) === 'downloading' || mangaOffline.getStatus(chapter.id) === 'queued') {
+                        <span class="shrink-0 w-4 h-4 border-2 border-cinema-400/30 border-t-cinema-400 rounded-full animate-spin inline-block"></span>
+                      } @else {
+                        <button
+                          type="button"
+                          class="shrink-0 p-1.5 rounded text-[var(--text-muted)] hover:text-cinema-500 transition-colors"
+                          title="Save chapter for offline reading"
+                          (click)="downloadChapter(chapter, manga.title, manga.coverUrl); $event.stopPropagation()"
+                        >
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                          </svg>
+                        </button>
+                      }
+                    }
+                  </div>
                 }
               }
             </div>
@@ -417,6 +483,9 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
 export class MangaDetailComponent implements OnInit {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
+  mangaOffline = inject(MangaOfflineService);
+  library = inject(LibraryService);
+  auth = inject(AuthService);
 
   libraryMode = signal<'manga' | 'comics'>('manga');
   isLoading = signal(true);
@@ -704,6 +773,8 @@ export class MangaDetailComponent implements OnInit {
         next: (response) => this.favorite.set(response.data.isFavorite),
         error: () => this.favorite.set(false),
       });
+      // Load chapter-watch subscriptions so isWatchingManga() is up to date
+      this.library.loadChapterWatches().catch(() => {/* ignore */});
     } else {
       this.favorite.set(false);
     }
@@ -740,6 +811,51 @@ export class MangaDetailComponent implements OnInit {
     }).subscribe({
       next: () => this.favorite.set(true),
     });
+  }
+
+  /** Returns the composite sourceId:rawId for the currently loaded manga. */
+  currentMangaId(): string {
+    return this.detail()?.id ?? '';
+  }
+
+  toggleChapterWatch() {
+    const manga = this.detail();
+    if (!manga || !this.auth.currentUser()) return;
+    this.library.toggleMangaWatch({
+      mangaId: manga.id,
+      mangaTitle: manga.title,
+      mangaCoverUrl: manga.coverUrl ?? undefined,
+    }).catch(console.error);
+  }
+
+  downloadChapter(chapter: MangaChapter, mangaTitle: string, coverUrl: string | null) {
+    const manga = this.detail();
+    if (!manga) return;
+
+    const parsed = parseSourceEntityId(chapter.id);
+    if (!parsed) return;
+
+    const endpoint = `/api/v1/books/manga/source/${encodeURIComponent(parsed.sourceId)}/pages-by-id?chapterId=${encodeURIComponent(chapter.id)}`;
+    this.http.get<{ status: string; data: { pages: string[] } }>(endpoint).subscribe({
+      next: (res) => {
+        const pageUrls = res.data?.pages ?? [];
+        if (pageUrls.length === 0) return;
+        this.mangaOffline.enqueue({
+          mangaId: manga.id,
+          mangaTitle,
+          chapterId: chapter.id,
+          chapterTitle: this.chapterLabel(chapter),
+          chapterNumber: chapter.chapter ?? '',
+          coverUrl: coverUrl ?? undefined,
+          pageUrls,
+        });
+      },
+      error: (err) => console.error('[MangaDetail] Failed to fetch pages for offline download', err),
+    });
+  }
+
+  removeChapterOffline(chapterId: string) {
+    this.mangaOffline.remove(chapterId).catch(console.error);
   }
 
   chapterLabel(chapter: MangaChapter): string {
