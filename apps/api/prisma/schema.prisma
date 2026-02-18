@@ -213,7 +213,8 @@ model User {
   musicHistory         MusicWatchHistory[]
   musicLikes           MusicLike[]
   musicPlaylists       MusicPlaylist[]
-  
+  wrappedStats         UserWrappedStats[]
+
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   
@@ -619,6 +620,26 @@ model MusicChannel {
   updatedAt     DateTime @updatedAt
 
   @@index([isActive])
+}
+
+// ─── WRAPPED / STATS ────────────────────────────────────────────────────────
+
+// Stores aggregated Wrapped stats + generated card URLs per user per period
+model UserWrappedStats {
+  id          String   @id @default(uuid())
+  userId      String
+  // "2025-01" for monthly, "2025-annual" for annual
+  period      String
+  statsJson   Json     // WrappedStats object (see wrapped-stats.service.ts)
+  cardUrls    Json     // { hero, topMovie, topMusic, topBook, genres, summary }
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period])
+  @@index([userId])
+  @@index([period])
 }
 
 // ─── YOUTUBE CHANNELS (MOVIES) ──────────────────────────────────────────────

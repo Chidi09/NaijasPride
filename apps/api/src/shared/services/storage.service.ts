@@ -1,128 +1,154 @@
-import { Storage } from '@google-cloud/storage';
 import crypto from 'crypto';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const BUCKET_NAME = process.env.GCS_BUCKET_NAME || 'naijaspride-content';
-const CDN_HOST = process.env.CDN_HOST; // e.g., 'https://cdn.naijaspride.com'
-const CDN_TOKEN_KEY = process.env.CDN_TOKEN_KEY; // BunnyCDN Token Authentication key
-const storage = new Storage();
+const STORAGE_PUBLIC_BASE_URL = (process.env.STORAGE_PUBLIC_BASE_URL || process.env.S3_PUBLIC_BASE_URL || '').trim();
 
 const STORAGE_BACKEND = (process.env.STORAGE_BACKEND || '').trim().toLowerCase();
-const S3_ENDPOINT = process.env.SUPABASE_S3_ENDPOINT || process.env.S3_ENDPOINT;
-const S3_REGION = process.env.SUPABASE_S3_REGION || process.env.S3_REGION || 'eu-west-1';
-const S3_ACCESS_KEY_ID = process.env.SUPABASE_S3_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID;
-const S3_SECRET_ACCESS_KEY = process.env.SUPABASE_S3_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY;
-const S3_BUCKET_NAME = process.env.SUPABASE_S3_BUCKET || process.env.S3_BUCKET || BUCKET_NAME;
 
-const shouldUseS3 =
-  STORAGE_BACKEND === 'supabase_s3' ||
-  STORAGE_BACKEND === 's3' ||
-  (!!S3_ENDPOINT && !!S3_ACCESS_KEY_ID && !!S3_SECRET_ACCESS_KEY);
+type S3RuntimeConfig = {
+  endpoint: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+};
 
-const s3Client = shouldUseS3
-  ? new S3Client({
-      region: S3_REGION,
-      endpoint: S3_ENDPOINT,
-      credentials: {
-        accessKeyId: S3_ACCESS_KEY_ID || '',
-        secretAccessKey: S3_SECRET_ACCESS_KEY || '',
-      },
-      forcePathStyle: true,
-    })
-  : null;
+const resolveR2Config = (): S3RuntimeConfig => {
+  const endpoint = process.env.S3_ENDPOINT?.trim();
+  const region = process.env.S3_REGION?.trim() || 'auto';
+  const accessKeyId = process.env.S3_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
+  const bucket = process.env.S3_BUCKET?.trim();
+
+  if (!endpoint) {
+    throw new Error(
+      'R2 Storage Error: S3_ENDPOINT is required. ' +
+      'Set STORAGE_BACKEND="r2" and provide R2 credentials.'
+    );
+  }
+  if (!accessKeyId) {
+    throw new Error(
+      'R2 Storage Error: S3_ACCESS_KEY_ID is required. ' +
+      'Get this from your Cloudflare R2 API tokens.'
+    );
+  }
+  if (!secretAccessKey) {
+    throw new Error(
+      'R2 Storage Error: S3_SECRET_ACCESS_KEY is required. ' +
+      'Get this from your Cloudflare R2 API tokens.'
+    );
+  }
+  if (!bucket) {
+    throw new Error(
+      'R2 Storage Error: S3_BUCKET is required. ' +
+      'Set this to your R2 bucket name (e.g., "naijaspride").'
+    );
+  }
+
+  return { endpoint, region, accessKeyId, secretAccessKey, bucket };
+};
+
+// Validate configuration at startup - fail fast if R2 is not configured
+let s3Config: S3RuntimeConfig;
+try {
+  s3Config = resolveR2Config();
+} catch (error) {
+  console.error('[Storage] Configuration error:', (error as Error).message);
+  console.error('[Storage] Please set the following environment variables:');
+  console.error('  - STORAGE_BACKEND="r2"');
+  console.error('  - S3_ENDPOINT="https://<account>.r2.cloudflarestorage.com"');
+  console.error('  - S3_REGION="auto"');
+  console.error('  - S3_BUCKET="your-bucket-name"');
+  console.error('  - S3_ACCESS_KEY_ID="your-access-key"');
+  console.error('  - S3_SECRET_ACCESS_KEY="your-secret-key"');
+  console.error('  - STORAGE_PUBLIC_BASE_URL="https://media.yourdomain.com" (optional, for public URLs)');
+  throw error;
+}
+
+const s3Client = new S3Client({
+  region: s3Config.region,
+  endpoint: s3Config.endpoint,
+  credentials: {
+    accessKeyId: s3Config.accessKeyId,
+    secretAccessKey: s3Config.secretAccessKey,
+  },
+  forcePathStyle: true,
+});
 
 /**
- * CDN-Enabled Storage Service
+ * R2-Only Storage Service
  * 
- * Uploads go to GCS (Origin), downloads are served from CDN for better performance
- * and lower bandwidth costs. Supports BunnyCDN Token Authentication for security.
+ * All storage operations go through Cloudflare R2 via S3-compatible API.
+ * No fallbacks to GCS or other providers.
  */
 export class StorageService {
+  private toPublicUrl(baseUrl: string, key: string): string {
+    const trimmedBase = (baseUrl || '').trim().replace(/\/+$/, '');
+    const trimmedKey = (key || '').trim().replace(/^\/+/, '');
+    return `${trimmedBase}/${trimmedKey}`;
+  }
+
   /**
-   * Generate signed URL for file upload (always goes to GCS)
+   * Generate signed URL for file upload to R2
    */
   async getUploadUrl(filename: string, contentType: string) {
-    if (s3Client) {
-      const command = new PutObjectCommand({
-        Bucket: S3_BUCKET_NAME,
-        Key: filename,
-        ContentType: contentType,
-      });
-      return getSignedUrl(s3Client, command, { expiresIn: 15 * 60 });
-    }
-
-    const [url] = await storage
-      .bucket(BUCKET_NAME)
-      .file(filename)
-      .getSignedUrl({
-        version: 'v4',
-        action: 'write',
-        expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-        contentType,
-      });
-    return url;
+    const command = new PutObjectCommand({
+      Bucket: s3Config.bucket,
+      Key: filename,
+      ContentType: contentType,
+    });
+    return getSignedUrl(s3Client, command, { expiresIn: 15 * 60 });
   }
 
   /**
-   * Get download URL - prefers CDN if configured, falls back to GCS signed URL
+   * Get download URL from R2
+   * - Uses public URL if STORAGE_PUBLIC_BASE_URL is set
+   * - Otherwise generates signed URL
    */
-  async getDownloadUrl(filename: string) {
-    if (s3Client) {
-      const command = new GetObjectCommand({
-        Bucket: S3_BUCKET_NAME,
-        Key: filename,
-      });
-      return getSignedUrl(s3Client, command, { expiresIn: 60 * 60 });
+  async getDownloadUrl(filename: string, options?: { expiresInSeconds?: number }) {
+    const expiresInSecondsRaw = options?.expiresInSeconds;
+    const expiresInSeconds =
+      typeof expiresInSecondsRaw === 'number' && Number.isFinite(expiresInSecondsRaw) && expiresInSecondsRaw > 0
+        ? Math.floor(expiresInSecondsRaw)
+        : 60 * 60;
+
+    if (STORAGE_PUBLIC_BASE_URL) {
+      return this.toPublicUrl(STORAGE_PUBLIC_BASE_URL, filename);
     }
 
-    // If CDN is configured, use CDN URL with token authentication
-    if (CDN_HOST) {
-      return this.getCdnUrl(filename);
-    }
-
-    // Fallback to GCS signed URL
-    const [url] = await storage
-      .bucket(BUCKET_NAME)
-      .file(filename)
-      .getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + 60 * 60 * 1000, // 1 hour
-      });
-    return url;
+    const command = new GetObjectCommand({
+      Bucket: s3Config.bucket,
+      Key: filename,
+    });
+    return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
   }
 
   /**
-   * Generate CDN URL with optional token authentication
-   * Supports BunnyCDN Token Authentication
+   * Get the raw S3 client for advanced operations
    */
-  private getCdnUrl(filename: string, expirationHours: number = 1): string {
-    const url = `${CDN_HOST}/${filename}`;
-
-    // If token authentication is not configured, return plain CDN URL
-    if (!CDN_TOKEN_KEY) {
-      return url;
-    }
-
-    // BunnyCDN Token Authentication
-    // https://support.bunnycdn.com/hc/en-us/articles/360016055099-How-to-sign-URLs-with-BunnyCDN-Token-Authentication
-    const expires = Math.floor(Date.now() / 1000) + (expirationHours * 3600);
-    const tokenPath = `/${filename}`;
-    const tokenString = `${CDN_TOKEN_KEY}${tokenPath}${expires}`;
-    const token = crypto.createHash('sha256').update(tokenString).digest('base64url');
-
-    return `${CDN_HOST}/${filename}?token=${token}&expires=${expires}`;
+  static getClient(): S3Client {
+    return s3Client;
   }
 
   /**
-   * Check if CDN is enabled
+   * Get the bucket name
    */
-  static isCdnEnabled(): boolean {
-    return !!CDN_HOST;
+  static getBucket(): string {
+    return s3Config.bucket;
   }
 
-  static getBackend(): 'gcs' | 's3' {
-    return s3Client ? 's3' : 'gcs';
+  /**
+   * Check if public URL mode is enabled
+   */
+  static isPublicUrlEnabled(): boolean {
+    return !!STORAGE_PUBLIC_BASE_URL;
+  }
+
+  /**
+   * Always returns 's3' (R2 is S3-compatible)
+   */
+  static getBackend(): 's3' {
+    return 's3';
   }
 }

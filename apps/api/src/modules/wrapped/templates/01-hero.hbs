@@ -1,0 +1,58 @@
+<div class="card grad-dark">
+  <div class="glow-top-right"></div>
+  <div class="glow-bottom-left"></div>
+
+  <!-- Logo -->
+  <div class="logo-bar">
+    <div class="logo-mark">NP</div>
+    <span class="logo-text">NaijasPride</span>
+    <span class="logo-year">{{periodLabel}}</span>
+  </div>
+
+  <!-- Hero content -->
+  <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 80px; text-align:center; gap:40px;">
+
+    <div class="badge">✦ {{#if isAnnual}}Annual{{else}}Monthly{{/if}} Wrapped</div>
+
+    <div style="display:flex; flex-direction:column; gap:16px; align-items:center;">
+      <p style="font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:500; color:var(--text-muted); letter-spacing:0.2em; text-transform:uppercase;">Your</p>
+      <h1 class="font-cinzel" style="font-size:{{#if isAnnual}}140px{{else}}120px{{/if}}; font-weight:900; color:var(--gold); line-height:0.9; letter-spacing:-0.02em;">{{periodLabel}}</h1>
+      <h2 class="font-cinzel" style="font-size:52px; font-weight:700; color:var(--text-primary); letter-spacing:0.06em;">Wrapped</h2>
+    </div>
+
+    <div class="divider" style="width:120px;"></div>
+
+    <!-- Quick stat trio -->
+    <div style="display:flex; gap:60px; align-items:flex-start; justify-content:center; margin-top:20px;">
+      <div class="stat-block" style="align-items:center;">
+        <span class="stat-number" style="font-size:64px;">{{totalHours}}</span>
+        <span class="stat-label" style="font-size:12px;">Hours</span>
+      </div>
+      <div style="width:1px; height:80px; background:var(--border); align-self:center;"></div>
+      <div class="stat-block" style="align-items:center;">
+        <span class="stat-number" style="font-size:64px;">{{totalMoviesWatched}}</span>
+        <span class="stat-label" style="font-size:12px;">Movies</span>
+      </div>
+      <div style="width:1px; height:80px; background:var(--border); align-self:center;"></div>
+      <div class="stat-block" style="align-items:center;">
+        <span class="stat-number" style="font-size:64px;">{{totalMusicPlays}}</span>
+        <span class="stat-label" style="font-size:12px;">Songs</span>
+      </div>
+    </div>
+
+    <!-- Fun fact -->
+    <div style="margin-top:40px; padding:32px 48px; border:1px solid var(--border); border-radius:20px; background:rgba(18,10,13,0.8); max-width:800px;">
+      <p class="font-cormorant" style="font-size:28px; font-weight:400; font-style:italic; color:var(--text-secondary); line-height:1.5;">
+        "{{funFact}}"
+      </p>
+    </div>
+
+    {{#if milestoneLabel}}
+    <div style="padding:12px 32px; background:var(--burgundy); border-radius:999px;">
+      <p style="font-family:'Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:700; color:#fff5f2; letter-spacing:0.08em;">🏆 {{milestoneLabel}}</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="watermark-bar">naijaspride.com · swipe to explore your year</div>
+</div>

@@ -1,0 +1,298 @@
+# =============================================================================
+# NaijasPride — DigitalOcean App Platform Spec
+# =============================================================================
+# Deploy:   doctl apps create --spec .do/app.yaml
+# Update:   doctl apps update <APP_ID> --spec .do/app.yaml
+#
+# Infrastructure:
+#   Frontend  → Vercel          (naijaspride.com)
+#   API       → DO App Platform (api.naijaspride.com)
+#   Workers   → DO App Platform (same app, worker components)
+#   Database  → Supabase PostgreSQL (external, referenced via env vars)
+#   Cache     → DO Managed Valkey (Redis-compatible, $15/mo)
+#   Storage   → Cloudflare R2  (media.naijaspride.com via CF Worker)
+# =============================================================================
+
+name: naijaspride
+
+region: nyc  # New York — change to fra (Frankfurt) or sgp (Singapore) if closer to users
+
+# ---------------------------------------------------------------------------
+# Managed Valkey (Redis-compatible) — used by BullMQ job queues
+# ---------------------------------------------------------------------------
+databases:
+  - name: naijaspride-valkey
+    engine: VALKEY
+    version: "7"
+    size: db-s-1vcpu-1gb   # $15/mo — smallest Managed Valkey tier
+    num_nodes: 1
+
+# ---------------------------------------------------------------------------
+# Services & Workers
+# ---------------------------------------------------------------------------
+services:
+  # ── 1. Fastify API ─────────────────────────────────────────────────────────
+  - name: api
+    dockerfile_path: apps/api/Dockerfile
+    source_dir: /
+
+    # DO App Platform injects PORT automatically; Fastify binds to it.
+    http_port: 3000
+
+    instance_count: 1
+    instance_size_slug: basic-xs   # 512 MB RAM, 1 vCPU — upgrade to basic-s (1 GB) if needed
+
+    # Custom domain — point api.naijaspride.com CNAME to DO App URL in your DNS
+    domains:
+      - domain: api.naijaspride.com
+        type: PRIMARY
+
+    # Health check — DO will only route traffic once this passes.
+    # DO also uses this to drain old instances before terminating them (zero-downtime).
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    # Autoscaling (optional — uncomment when you need it)
+    # autoscaling:
+    #   min_instance_count: 1
+    #   max_instance_count: 3
+    #   metrics:
+    #     - type: CPU
+    #       percent: 70
+
+    # Run migrations before the new instance starts accepting traffic.
+    # This means: build → migrate → health check passes → old instance drained → swap.
+    run_command: >
+      sh -c "npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && node apps/api/dist/app.js"
+
+    envs:
+      # ── Runtime ──────────────────────────────────────────────────────────
+      - key: NODE_ENV
+        value: production
+
+      # DO App Platform injects PORT for you — no need to set it here.
+      # Fastify reads process.env.PORT in app.ts.
+
+      # ── Database (Supabase) ──────────────────────────────────────────────
+      # Use PgBouncer pooler URL for runtime connections
+      - key: DATABASE_URL
+        value: ""          # Set in DO Dashboard → App → Settings → Env Vars
+        type: SECRET
+
+      # Direct URL (no pooler) for Prisma migrate deploy
+      - key: DIRECT_URL
+        value: ""
+        type: SECRET
+
+      # ── Cache (DO Managed Valkey — auto-injected as ${naijaspride-valkey.REDIS_URL}) ──
+      - key: REDIS_URL
+        value: ${naijaspride-valkey.REDIS_URL}
+
+      # ── Auth ─────────────────────────────────────────────────────────────
+      - key: JWT_SECRET
+        value: ""
+        type: SECRET
+      - key: JWT_REFRESH_SECRET
+        value: ""
+        type: SECRET
+      - key: JWT_ACCESS_TOKEN_TTL
+        value: "7d"
+      - key: JWT_REFRESH_TOKEN_TTL
+        value: "120d"
+      - key: GOOGLE_CLIENT_IDS
+        value: ""
+        type: SECRET
+
+      # ── CORS ─────────────────────────────────────────────────────────────
+      - key: CORS_ORIGINS
+        value: "https://naijaspride.com,https://www.naijaspride.com"
+      - key: BODY_LIMIT_BYTES
+        value: "1048576"
+
+      # ── Storage (Cloudflare R2) ───────────────────────────────────────────
+      - key: STORAGE_BACKEND
+        value: r2
+      - key: S3_ENDPOINT
+        value: ""          # https://<account-id>.r2.cloudflarestorage.com
+        type: SECRET
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        value: naijaspride
+      - key: S3_ACCESS_KEY_ID
+        value: ""
+        type: SECRET
+      - key: S3_SECRET_ACCESS_KEY
+        value: ""
+        type: SECRET
+      - key: STORAGE_PUBLIC_BASE_URL
+        value: "https://media.naijaspride.com"
+
+      # ── Payments ─────────────────────────────────────────────────────────
+      - key: PAYSTACK_SECRET_KEY
+        value: ""
+        type: SECRET
+      - key: FRONTEND_URL
+        value: "https://naijaspride.com"
+
+      # ── External APIs ────────────────────────────────────────────────────
+      - key: YOUTUBE_API_KEY
+        value: ""
+        type: SECRET
+      - key: TMDB_API_KEY
+        value: ""
+        type: SECRET
+
+      # ── Email ─────────────────────────────────────────────────────────────
+      - key: ZEPTOMAIL_API_KEY
+        value: ""
+        type: SECRET
+
+      # ── Manga sources ────────────────────────────────────────────────────
+      - key: MANGA_SOURCES_ENABLED
+        value: "weebcentral,asura,mangadex"
+      - key: MANGA_DEFAULT_SOURCE
+        value: "weebcentral"
+      - key: MADARA_SOURCES_JSON
+        value: "[]"
+      - key: MANGAREADER_SOURCES_JSON
+        value: "[]"
+      - key: ZEISTMANGA_SOURCES_JSON
+        value: "[]"
+      - key: WPCOMICS_SOURCES_JSON
+        value: "[]"
+      - key: MMRCMS_SOURCES_JSON
+        value: "[]"
+      - key: FLARESOLVERR_URL
+        value: ""          # Leave blank if not using FlareSolverr (manga scraping degrades gracefully)
+      - key: FLARESOLVERR_LOG_LEVEL
+        value: "info"
+      - key: FLARESOLVERR_SESSION_MAX_AGE_MS
+        value: "1800000"
+      - key: MANGA_SOURCE_HEALTH_CACHE_MS
+        value: "30000"
+      - key: MANGA_SOURCE_ASURA_CB_FAILURES
+        value: "5"
+      - key: MANGA_SOURCE_ASURA_CB_RECOVERY_MS
+        value: "30000"
+      - key: MANGA_SOURCE_WEEBCENTRAL_CB_FAILURES
+        value: "5"
+      - key: MANGA_SOURCE_WEEBCENTRAL_CB_RECOVERY_MS
+        value: "30000"
+
+      # ── Book auto-import ──────────────────────────────────────────────────
+      - key: EPUBBOOKS_AUTO_IMPORT_ENABLED
+        value: "true"
+      - key: EPUBBOOKS_AUTO_IMPORT_INTERVAL_MS
+        value: "21600000"
+      - key: EPUBBOOKS_AUTO_IMPORT_MAX_BOOKS
+        value: "8"
+      - key: EPUBBOOKS_AUTO_IMPORT_CONCURRENCY
+        value: "2"
+
+      # ── Movie download URL TTL ────────────────────────────────────────────
+      - key: MOVIE_DOWNLOAD_URL_TTL_SECONDS
+        value: "21600"
+
+      # ── Observability ────────────────────────────────────────────────────
+      - key: SENTRY_DSN
+        value: ""
+        type: SECRET
+      - key: SENTRY_ENVIRONMENT
+        value: production
+
+# ---------------------------------------------------------------------------
+# Workers — these run in the same Docker image but with a different CMD.
+# They share env vars with the API service via the same app.
+# ---------------------------------------------------------------------------
+workers:
+  # ── 2. Torrent + HLS Packaging Worker ──────────────────────────────────────
+  - name: torrent-worker
+    dockerfile_path: apps/api/Dockerfile
+    source_dir: /
+
+    instance_count: 1
+    instance_size_slug: basic-s   # 1 GB RAM — needs headroom for ffmpeg + WebTorrent
+
+    run_command: node apps/api/dist/workers/torrent.worker.js
+
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: ""
+        type: SECRET
+      - key: REDIS_URL
+        value: ${naijaspride-valkey.REDIS_URL}
+      - key: STORAGE_BACKEND
+        value: r2
+      - key: S3_ENDPOINT
+        value: ""
+        type: SECRET
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        value: naijaspride
+      - key: S3_ACCESS_KEY_ID
+        value: ""
+        type: SECRET
+      - key: S3_SECRET_ACCESS_KEY
+        value: ""
+        type: SECRET
+      - key: STORAGE_PUBLIC_BASE_URL
+        value: "https://media.naijaspride.com"
+      - key: TORRENT_DOWNLOAD_DIR
+        value: "/tmp/naijaspride/torrent-downloads"
+      - key: TORRENT_TRANSCODE_MKV
+        value: "true"
+      - key: TORRENT_PACKAGE_HLS
+        value: "true"
+      - key: FFMPEG_PATH
+        value: "/usr/bin/ffmpeg"
+
+  # ── 3. Book Import Worker ───────────────────────────────────────────────────
+  - name: book-import-worker
+    dockerfile_path: apps/api/Dockerfile
+    source_dir: /
+
+    instance_count: 1
+    instance_size_slug: basic-xs   # 512 MB RAM — sufficient for crawling + uploads
+
+    run_command: node apps/api/dist/workers/book-import.worker.js
+
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: ""
+        type: SECRET
+      - key: REDIS_URL
+        value: ${naijaspride-valkey.REDIS_URL}
+      - key: STORAGE_BACKEND
+        value: r2
+      - key: S3_ENDPOINT
+        value: ""
+        type: SECRET
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        value: naijaspride
+      - key: S3_ACCESS_KEY_ID
+        value: ""
+        type: SECRET
+      - key: S3_SECRET_ACCESS_KEY
+        value: ""
+        type: SECRET
+      - key: STORAGE_PUBLIC_BASE_URL
+        value: "https://media.naijaspride.com"
+      - key: EPUBBOOKS_AUTO_IMPORT_ENABLED
+        value: "true"
+      - key: EPUBBOOKS_AUTO_IMPORT_MAX_BOOKS
+        value: "8"
+      - key: EPUBBOOKS_AUTO_IMPORT_CONCURRENCY
+        value: "2"

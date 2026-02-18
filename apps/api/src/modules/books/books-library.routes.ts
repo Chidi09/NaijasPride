@@ -13,6 +13,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { getPushService } from '../../shared/services/push-notification.service';
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,13 @@ const OfflineMangaChapterRemoveSchema = z.object({
   chapterId: z.string().min(1).max(512),
 });
 
+const OfflineMangaFailureSchema = z.object({
+  mangaId: z.string().min(1).max(512),
+  mangaTitle: z.string().min(1).max(512),
+  chapterId: z.string().min(1).max(512).optional(),
+  reason: z.string().trim().min(1).max(280),
+});
+
 const OfflineBookBodySchema = z.object({
   bookId:       z.string().uuid(),
   format:       z.string().min(1).max(32).default('epub'),
@@ -41,6 +49,11 @@ const OfflineBookBodySchema = z.object({
 
 const OfflineBookRemoveSchema = z.object({
   bookId: z.string().uuid(),
+});
+
+const OfflineBookFailureSchema = z.object({
+  bookId: z.string().uuid(),
+  reason: z.string().trim().min(1).max(280),
 });
 
 const MangaChapterCheckBodySchema = z.object({
@@ -165,6 +178,16 @@ export const booksLibraryRoutes = async (app: FastifyInstance) => {
         },
         select: { id: true, chapterId: true, pageCount: true, fileSizeBytes: true, savedAt: true },
       });
+
+      getPushService(app.prisma)
+        .sendDownloadComplete(
+          userId,
+          'manga',
+          `${body.mangaTitle} - ${body.chapterTitle || body.chapterId}`,
+          `/books/manga/${encodeURIComponent(body.mangaId)}`,
+        )
+        .catch(console.error);
+
       return reply.send({ status: 'success', data: saved });
     },
   });
@@ -178,6 +201,28 @@ export const booksLibraryRoutes = async (app: FastifyInstance) => {
       const { chapterId } = request.body as z.infer<typeof OfflineMangaChapterRemoveSchema>;
       await app.prisma.offlineMangaChapter.deleteMany({ where: { userId, chapterId } });
       return reply.send({ status: 'success', message: 'Removed offline chapter record' });
+    },
+  });
+
+  /** POST /api/v1/library/manga/offline/failure — Report a failed chapter download */
+  app.post('/manga/offline/failure', {
+    preHandler: [app.authenticate],
+    schema: { body: OfflineMangaFailureSchema },
+    handler: async (request, reply) => {
+      const userId = request.user.userId;
+      const body = request.body as z.infer<typeof OfflineMangaFailureSchema>;
+
+      getPushService(app.prisma)
+        .sendDownloadFailed(
+          userId,
+          'manga',
+          `${body.mangaTitle}${body.chapterId ? ` (${body.chapterId})` : ''}`,
+          body.reason,
+          `/books/manga/${encodeURIComponent(body.mangaId)}`,
+        )
+        .catch(console.error);
+
+      return reply.send({ status: 'success' });
     },
   });
 
@@ -208,7 +253,7 @@ export const booksLibraryRoutes = async (app: FastifyInstance) => {
 
       const book = await app.prisma.book.findUnique({
         where: { id: body.bookId },
-        select: { id: true },
+        select: { id: true, title: true, slug: true, coverUrl: true },
       });
       if (!book) return reply.status(404).send({ status: 'error', message: 'Book not found' });
 
@@ -218,6 +263,17 @@ export const booksLibraryRoutes = async (app: FastifyInstance) => {
         create: { userId, bookId: body.bookId, format: body.format, fileSizeBytes: body.fileSizeBytes ?? null },
         select: { id: true, bookId: true, format: true, fileSizeBytes: true, savedAt: true },
       });
+
+      getPushService(app.prisma)
+        .sendDownloadComplete(
+          userId,
+          'book',
+          book.title,
+          `/books/${book.slug}`,
+          book.coverUrl ?? undefined,
+        )
+        .catch(console.error);
+
       return reply.send({ status: 'success', data: saved });
     },
   });
@@ -230,6 +286,29 @@ export const booksLibraryRoutes = async (app: FastifyInstance) => {
       const { bookId } = request.params as { bookId: string };
       await app.prisma.offlineBook.deleteMany({ where: { userId, bookId } });
       return reply.send({ status: 'success', message: 'Removed offline book record' });
+    },
+  });
+
+  /** POST /api/v1/library/books/offline/failure — Report a failed book download */
+  app.post('/books/offline/failure', {
+    preHandler: [app.authenticate],
+    schema: { body: OfflineBookFailureSchema },
+    handler: async (request, reply) => {
+      const userId = request.user.userId;
+      const body = request.body as z.infer<typeof OfflineBookFailureSchema>;
+
+      const book = await app.prisma.book.findUnique({
+        where: { id: body.bookId },
+        select: { title: true, slug: true },
+      });
+
+      if (book) {
+        getPushService(app.prisma)
+          .sendDownloadFailed(userId, 'book', book.title, body.reason, `/books/${book.slug}`)
+          .catch(console.error);
+      }
+
+      return reply.send({ status: 'success' });
     },
   });
 

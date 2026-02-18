@@ -5,7 +5,8 @@ interface EmailPayload {
   subject: string;
   html: string;
   text?: string;
-  from?: string;
+  from?: string;       // sender email address
+  fromName?: string;   // sender display name
 }
 
 export class ZeptoMailClient {
@@ -28,7 +29,7 @@ export class ZeptoMailClient {
         {
           from: {
             address: payload.from || "noreply@naijaspride.com",
-            name: payload.from ? undefined : "NaijasPride",
+            name: payload.fromName || "NaijasPride",
           },
           to: Array.isArray(payload.to)
             ? payload.to.map((email) => ({ email_address: { address: email } }))

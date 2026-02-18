@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, OnDestroy, inject, signal, computed, AfterViewInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MovieSummary, BookSummary, MusicVideoSummary } from '@naijaspride/types';
+import { FirebaseMessagingService } from '../../core/services/firebase-messaging.service';
+import { firstValueFrom } from 'rxjs';
 
-type LandingPhase = 'glitch' | 'dissolve' | 'hero' | 'archive';
+type LandingPhase = 'glitch' | 'dissolve' | 'archive';
 type InstallPlatform = 'ios' | 'android' | 'desktop' | 'other';
 type InstallGuideTarget = 'mobile' | 'desktop' | 'tv';
 
@@ -54,10 +56,16 @@ interface ArchiveSection {
           <div class="text-center">
             <h1 class="font-serif text-[12vw] md:text-[10vw] leading-[0.85] tracking-tight">
               @for (char of brandChars; track $index) {
-                <span [class.text-[#8a1c1c]]="$index < burgundyCount"
-                      [class.text-white]="$index >= burgundyCount"
-                      [class.opacity-0]="$index >= revealedChars()"
-                      [class.animate-pulse]="$index === revealedChars() - 1 && phase() === 'glitch'">
+                <span
+                  class="inline-block transition-all duration-300 ease-out"
+                  [class.text-[#8a1c1c]]="$index < burgundyCount"
+                  [class.text-white]="$index >= burgundyCount"
+                  [class.opacity-0]="$index >= revealedChars()"
+                  [class.translate-y-2]="$index >= revealedChars()"
+                  [class.opacity-100]="$index < revealedChars()"
+                  [class.translate-y-0]="$index < revealedChars()"
+                  [class.text-[0.72em]]="char === 's'"
+                  [class.align-super]="char === 's'">
                   {{ char }}
                 </span>
               }
@@ -84,15 +92,6 @@ interface ArchiveSection {
             </div>
           }
 
-          <!-- Scroll Indicator -->
-          @if (phase() === 'hero') {
-            <div class="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 animate-fade-in">
-              <span class="text-[10px] tracking-[0.3em] text-white/50">SCROLL TO EXPLORE</span>
-              <div class="w-[1px] h-16 bg-white/20 overflow-hidden">
-                <div class="w-full h-full bg-[#8a1c1c] animate-scroll-line"></div>
-              </div>
-            </div>
-          }
         </section>
       }
 
@@ -102,13 +101,14 @@ interface ArchiveSection {
           
           <!-- Hero Section -->
           <section class="h-screen relative flex flex-col justify-center items-center overflow-hidden">
-            <!-- Deep black hero background for readability -->
-            <div class="absolute inset-0 z-0 bg-black"></div>
-            <div class="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,rgba(138,28,28,0.2),transparent_55%)]"></div>
+            <div class="absolute inset-0 z-0 bg-[var(--bg-primary)]"></div>
+            <div class="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,rgba(138,28,28,0.18),transparent_58%)]"></div>
 
             <div class="relative z-10 text-center px-4">
-              <h1 class="font-display text-[10vw] md:text-[4.8vw] leading-none tracking-[0.2em] md:tracking-[0.32em] pr-[0.2em] md:pr-[0.32em] uppercase whitespace-nowrap">
-                <span class="text-[#8a1c1c]">NAIJAs</span><span class="text-white">PRIDE</span>
+              <h1 class="font-display text-[10vw] md:text-[4.8vw] leading-none tracking-[0.2em] md:tracking-[0.32em] pr-[0.2em] md:pr-[0.32em] whitespace-nowrap">
+                <span class="text-[#8a1c1c] uppercase">NAIJA</span>
+                <span class="text-[#8a1c1c] lowercase text-[0.72em] align-super">s</span>
+                <span class="text-white bg-black px-1.5 py-0.5 ml-1 rounded-sm">PRIDE</span>
               </h1>
               <p class="mt-8 text-[10px] md:text-xs tracking-[0.35em] text-[var(--text-secondary)] font-bold uppercase">
                 COMICS • MOVIES • MUSIC
@@ -289,6 +289,22 @@ interface ArchiveSection {
                   </ol>
                 </div>
               }
+
+              <div class="max-w-3xl mx-auto mt-6 border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 md:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h3 class="font-serif text-xl text-[var(--text-primary)]">Notifications</h3>
+                  <p class="text-sm text-[var(--text-secondary)]">Enable push notifications for new drops and release alerts.</p>
+                </div>
+                <button
+                  (click)="enablePushNotifications()"
+                  class="px-4 py-2 border border-[var(--border-color)] text-[10px] tracking-[0.18em] uppercase hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-colors">
+                  Enable Notifications
+                </button>
+              </div>
+
+              @if (pushStatus()) {
+                <p class="max-w-3xl mx-auto mt-3 text-xs text-[var(--text-secondary)]">{{ pushStatus() }}</p>
+              }
             </div>
           </section>
 
@@ -424,6 +440,7 @@ interface ArchiveSection {
 })
 export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewInit {
   private http = inject(HttpClient);
+  private firebaseMessaging = inject(FirebaseMessagingService);
   private readonly onScroll = this.handleScroll.bind(this);
 
   // Animation state
@@ -444,6 +461,7 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
   pwaInstallable = signal(false);
   platform = signal<InstallPlatform>('other');
   installGuide = signal<InstallGuide | null>(null);
+  pushStatus = signal<string | null>(null);
 
   // Computed
   brandChars = this.brandName.split('');
@@ -558,9 +576,9 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private startSequence() {
-    const charDelay = 180;
-    const holdTime = 600;
-    const dissolveTime = 700;
+    const charDelay = 120;
+    const holdTime = 350;
+    const dissolveTime = 450;
 
     // Phase 1: Reveal characters
     for (let i = 0; i < this.brandName.length; i++) {
@@ -577,15 +595,8 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
     }, dissolveStart);
     this.timers.push(t2);
 
-    // Phase 3: Brief hero pause
-    const heroStart = dissolveStart + dissolveTime;
-    const t3 = setTimeout(() => {
-      this.phase.set('hero');
-    }, heroStart);
-    this.timers.push(t3);
-
-    // Phase 4: Archive content
-    const archiveStart = heroStart + 800;
+    // Phase 3: Archive content
+    const archiveStart = dissolveStart + dissolveTime;
     const t4 = setTimeout(() => {
       this.phase.set('archive');
     }, archiveStart);
@@ -736,5 +747,39 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
         'Pin the app for faster access and full-screen playback.',
       ],
     });
+  }
+
+  async enablePushNotifications() {
+    try {
+      const token = await this.firebaseMessaging.requestPermissionAndGetToken();
+      if (token) {
+        try {
+          await firstValueFrom(
+            this.http.post('/api/v1/profile/push-tokens', {
+              token,
+              platform: this.platform(),
+              deviceLabel: this.platform() === 'desktop' ? 'Desktop Browser' : 'Mobile Browser',
+            })
+          );
+          this.pushStatus.set('Notifications enabled and linked to your account.');
+        } catch (error) {
+          if (error instanceof HttpErrorResponse && error.status === 401) {
+            this.pushStatus.set('Notifications are enabled, but sign in to link this device to your account.');
+            return;
+          }
+          this.pushStatus.set('Notifications enabled locally, but we could not sync this device right now.');
+        }
+        return;
+      }
+
+      if (this.firebaseMessaging.notificationPermission() === 'denied') {
+        this.pushStatus.set('Notifications are blocked in your browser settings. Allow notifications and try again.');
+        return;
+      }
+
+      this.pushStatus.set('Notifications were not enabled yet. Please try again on a supported browser.');
+    } catch {
+      this.pushStatus.set('Could not enable notifications on this browser right now.');
+    }
   }
 }

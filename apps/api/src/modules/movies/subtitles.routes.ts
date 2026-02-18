@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyPluginOptions } from "fastify";
-import { SubtitleService } from "./subtitles.service";
+import { SubtitleService, downloadAndConvertSubtitle } from "./subtitles.service";
 import { z } from "zod";
 
 const SearchSchema = z.object({
@@ -56,9 +56,16 @@ export const subtitleRoutes = async (
           );
         }
 
+        // Transform subtitles to include download URL
+        const subtitlesWithUrl = subtitles.map(sub => ({
+          ...sub,
+          url: `/api/v1/movies/subtitles/${sub.url}/download`,
+          name: sub.filename,
+        }));
+
         return reply.send({
           status: "success",
-          data: subtitles,
+          data: subtitlesWithUrl,
           meta: {
             movieId: id,
             imdbId: movie.imdbId,
@@ -108,13 +115,51 @@ export const subtitleRoutes = async (
     },
   });
 
+  // GET /api/movies/subtitles/:fileId - Download and convert subtitle to VTT
+  app.get("/subtitles/:fileId/download", {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const { fileId } = request.params as { fileId: string };
+
+        // Get download link from OpenSubtitles
+        const downloadResult = await subtitleService.getDownloadLink(fileId);
+
+        if (!downloadResult) {
+          return reply.status(404).send({
+            status: "error",
+            message: "Download link not available",
+          });
+        }
+
+        // Download and convert to VTT
+        const { content, isVtt } = await downloadAndConvertSubtitle(
+          downloadResult.link,
+          downloadResult.fileName
+        );
+
+        // Set appropriate headers
+        reply.header("Content-Type", "text/vtt");
+        reply.header("Content-Disposition", `inline; filename="subtitle.vtt"`);
+        
+        return reply.send(content);
+      } catch (error) {
+        console.error("Subtitle download error:", error);
+        return reply.status(500).send({
+          status: "error",
+          message: "Failed to download subtitle",
+        });
+      }
+    },
+  });
+
   // POST /api/movies/:id/notify - Register for "Notify me when available"
   app.post("/:id/notify", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
         const { id: movieId } = request.params as { id: string };
-        const userId = (request.user as any).userId;
+        const userId = request.user.userId;
 
         // Check if movie exists
         const movie = await app.prisma.movie.findUnique({

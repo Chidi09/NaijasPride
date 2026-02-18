@@ -3,7 +3,12 @@ import { PaystackService } from './paystack.service';
 import { z } from 'zod';
 
 const initializePaymentSchema = z.object({
-  plan: z.enum(['monthly', 'yearly']),
+  // Accept either a plan slug (mobile/standard/family) or legacy monthly/yearly
+  plan: z.string().min(1),
+});
+
+const verifyPaymentSchema = z.object({
+  reference: z.string().min(1),
 });
 
 export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
@@ -22,9 +27,35 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       const { plan } = req.body as z.infer<typeof initializePaymentSchema>;
       const user = req.user;
 
-      const amount = plan === 'yearly' ? 1_200_000 : 150_000; // kobo
-      const data = await service.initializeTransaction(user.email, amount);
+      // Look up the plan price from DB by slug, fall back to legacy monthly/yearly amounts
+      let amountKobo: number;
+      const dbPlan = await fastify.prisma.plan.findUnique({ where: { slug: plan } });
+      if (dbPlan) {
+        amountKobo = dbPlan.price * 100; // price is in Naira, Paystack needs kobo
+      } else {
+        // Legacy fallback: monthly = ₦1,500, yearly = ₦12,000
+        amountKobo = plan === 'yearly' ? 1_200_000 : 150_000;
+      }
+
+      const data = await service.initializeTransaction(user.email, amountKobo);
       return { success: true, data };
+    }
+  );
+
+  // Verify a Paystack transaction reference (called from /payment/callback page)
+  fastify.post(
+    '/verify',
+    {
+      onRequest: [fastify.authenticate],
+      schema: { body: verifyPaymentSchema },
+    },
+    async (req, reply) => {
+      const { reference } = req.body as z.infer<typeof verifyPaymentSchema>;
+      const result = await service.verifyTransaction(reference);
+      if (result.verified) {
+        return { success: true, message: 'Payment verified. Membership activated.' };
+      }
+      return reply.status(400).send({ success: false, message: 'Payment not confirmed by Paystack.' });
     }
   );
 

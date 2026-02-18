@@ -76,7 +76,7 @@ export class ReaderTtsService {
     const voice = this.resolveVoice(this.state().voiceUri);
     if (voice) {
       try {
-        u.voice = voice as any;
+        u.voice = voice;
       } catch {
         // ignore
       }
@@ -88,7 +88,7 @@ export class ReaderTtsService {
     u.onend = () => {
       this.state.update((s) => ({ ...s, speaking: false, paused: false }));
     };
-    u.onerror = (event: any) => {
+    u.onerror = (event: SpeechSynthesisErrorEvent) => {
       const message = typeof event?.error === 'string' ? event.error : 'TTS error';
       this.state.update((s) => ({ ...s, speaking: false, paused: false, lastError: message }));
     };
@@ -146,10 +146,10 @@ export class ReaderTtsService {
       const list = window.speechSynthesis.getVoices() || [];
       const normalized: TtsVoice[] = list
         .map((v) => ({
-          uri: String((v as any).voiceURI || ''),
-          name: String((v as any).name || ''),
-          lang: String((v as any).lang || ''),
-          isDefault: !!(v as any).default,
+          uri: String(v.voiceURI || ''),
+          name: String(v.name || ''),
+          lang: String(v.lang || ''),
+          isDefault: !!v.default,
         }))
         .filter((v) => !!v.uri && !!v.name);
 
@@ -164,10 +164,10 @@ export class ReaderTtsService {
     try {
       const list = window.speechSynthesis.getVoices() || [];
       if (!uri) {
-        const def = list.find((v: any) => !!v?.default);
+        const def = list.find((v) => !!v.default);
         return def || null;
       }
-      const match = list.find((v: any) => String(v?.voiceURI || '') === uri);
+      const match = list.find((v) => String(v.voiceURI || '') === uri);
       return match || null;
     } catch {
       return null;

@@ -1,0 +1,16 @@
+name = "naijaspride-media"
+main = "src/index.ts"
+compatibility_date = "2026-02-14"
+
+# Fill these in before deploying.
+# account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+#
+# Optional: configure a custom route in Wrangler.
+# You can also set this up in the Cloudflare dashboard.
+# routes = [
+#   { pattern = "media.naijaspride.com/*", zone_name = "naijaspride.com" }
+# ]
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "naijaspride"

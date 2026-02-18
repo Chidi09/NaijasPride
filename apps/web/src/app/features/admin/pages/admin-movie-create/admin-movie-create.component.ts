@@ -1,9 +1,9 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators, FormArray } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AdminMoviesService } from '../../services/admin-movies.service';
-import { Genre, Quality } from '@naijaspride/types';
+import { CreateMovieRequest, Genre, Quality } from '@naijaspride/types';
 
 @Component({
   selector: 'app-admin-movie-create',
@@ -148,12 +148,16 @@ export class AdminMovieCreateComponent {
     description: [''],
     genre: [[] as string[], [Validators.required]],
     quality: [[] as string[], [Validators.required]],
-    fileUrls: this.fb.group({}), // Dynamic keys
+    fileUrls: this.createFileUrlsGroup(), // Dynamic keys
     thumbnailUrl: ['', [Validators.required]], // Temporarily required for demo
     coverUrl: [''],
     youtubeId: [''],
     isStreamOnly: [false]
   });
+
+  private createFileUrlsGroup(): FormGroup<Record<string, AbstractControl>> {
+    return new FormGroup<Record<string, AbstractControl>>({});
+  }
 
   onCheckboxChange(e: any, controlName: 'genre' | 'quality') {
     const value = e.target.value;
@@ -172,7 +176,7 @@ export class AdminMovieCreateComponent {
     // If quality changed, update fileUrl controls
     if (controlName === 'quality') {
       this.selectedQualities = current;
-      const fileUrlsGroup = this.form.get('fileUrls') as any;
+      const fileUrlsGroup = this.form.controls.fileUrls as FormGroup<Record<string, AbstractControl>>;
       
       // Add control if missing
       if (checked && !fileUrlsGroup.contains(value)) {
@@ -187,7 +191,23 @@ export class AdminMovieCreateComponent {
 
   onSubmit() {
     if (this.form.valid) {
-      this.mutation.mutate(this.form.value as any, {
+      const raw = this.form.getRawValue();
+      const payload: CreateMovieRequest & { thumbnailUrl?: string; coverUrl?: string } = {
+        title: raw.title || '',
+        description: raw.description || undefined,
+        year: Number(raw.year),
+        genre: (raw.genre ?? []).map((value) => value as Genre),
+        quality: (raw.quality ?? []).map((value) => value as Quality),
+        fileUrls: Object.fromEntries(
+          Object.entries(raw.fileUrls || {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && !!entry[1])
+        ),
+        youtubeId: raw.youtubeId || undefined,
+        isStreamOnly: !!raw.isStreamOnly,
+        thumbnailUrl: raw.thumbnailUrl || undefined,
+        coverUrl: raw.coverUrl || undefined,
+      };
+
+      this.mutation.mutate(payload, {
         onSuccess: () => {
           this.router.navigate(['/movies']); // Redirect to public list to see it
         }

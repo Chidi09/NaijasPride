@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --burgundy:      #800020;
+    --burgundy-dark: #660019;
+    --burgundy-mid:  #992143;
+    --gold:          #d6b87a;
+    --gold-dim:      #9a6d1f;
+    --bg:            #0a0a0a;
+    --bg-card:       #120a0d;
+    --bg-elevated:   #1b1014;
+    --text-primary:  #f9f9f2;
+    --text-secondary:#d7c4b6;
+    --text-muted:    #a88a78;
+    --border:        #5f1327;
+  }
+
+  body {
+    width: 1080px;
+    height: 1920px;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    width: 1080px;
+    height: 1920px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Typography helpers */
+  .font-cinzel    { font-family: 'Cinzel', serif; }
+  .font-cormorant { font-family: 'Cormorant Garamond', Georgia, serif; }
+  .font-jakarta   { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Gradient backgrounds */
+  .grad-dark {
+    background: linear-gradient(160deg, #120a0d 0%, #0a0a0a 60%, #1b1014 100%);
+  }
+  .grad-burgundy {
+    background: linear-gradient(160deg, #800020 0%, #660019 50%, #3d1a24 100%);
+  }
+  .grad-gold {
+    background: linear-gradient(160deg, #d6b87a 0%, #9a6d1f 60%, #6b4d10 100%);
+  }
+  .grad-overlay {
+    background: linear-gradient(to bottom, transparent 0%, rgba(10,10,10,0.7) 50%, #0a0a0a 100%);
+  }
+
+  /* Decorative glow spots */
+  .glow-top-right {
+    position: absolute;
+    top: -200px; right: -200px;
+    width: 700px; height: 700px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(128,0,32,0.35) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .glow-bottom-left {
+    position: absolute;
+    bottom: -200px; left: -200px;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(214,184,122,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Logo */
+  .logo-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 48px 60px 0;
+  }
+  .logo-mark {
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    background: var(--burgundy);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cinzel', serif;
+    font-weight: 900;
+    font-size: 22px;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+  }
+  .logo-text {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.08em;
+  }
+  .logo-year {
+    margin-left: auto;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* Gold pill badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 18px;
+    border: 1.5px solid var(--gold);
+    border-radius: 999px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* Stats block */
+  .stat-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-number {
+    font-family: 'Cinzel', serif;
+    font-weight: 900;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .stat-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  /* Thin gold divider */
+  .divider {
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(to right, var(--gold), transparent);
+    border-radius: 2px;
+  }
+
+  /* Genre pill */
+  .genre-pill {
+    display: inline-flex;
+    padding: 8px 20px;
+    border: 1px solid rgba(214,184,122,0.4);
+    border-radius: 999px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gold);
+    background: rgba(214,184,122,0.08);
+  }
+
+  /* Watermark bottom bar */
+  .watermark-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: linear-gradient(to top, rgba(10,10,10,0.95), transparent);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+{{{body}}}
+</body>
+</html>

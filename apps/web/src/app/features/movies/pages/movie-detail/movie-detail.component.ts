@@ -7,6 +7,7 @@ import { HttpClient } from '@angular/common/http';
 import { MoviesQueryService } from '../../services/movies-query.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
 import { AuthService } from '../../../../core/auth/auth.service';
+import { OfflineStorageService } from '../../../../core/services/offline-storage.service';
 import { CastMember, Quality, Movie } from '@naijaspride/types';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { of, switchMap } from 'rxjs';
@@ -238,30 +239,93 @@ import { of, switchMap } from 'rxjs';
                 <div class="space-y-3">
                   @for (q of movie.quality; track q) {
                     <div class="flex items-center justify-between p-3 rounded-sm border border-[#d9c4b7] dark:border-white/10 hover:border-cinema-500/50 hover:bg-cinema-500/10 transition-colors group">
-                      <div>
+                      <div class="min-w-0 flex-1 mr-2">
                         <div class="font-bold text-[#24181b] dark:text-white">{{ q }}</div>
                         <div class="text-xs text-[#725f58] dark:text-gray-500">
                           {{ getFileSize(movie.fileSizes, q) }}
                         </div>
+                        <!-- Offline download progress bar -->
+                        @if (getOfflineStatus(movie.id, q) === 'downloading' || getOfflineStatus(movie.id, q) === 'queued') {
+                          <div class="mt-1 h-1 bg-[#d9c4b7] dark:bg-white/10 rounded-full overflow-hidden">
+                            <div
+                              class="h-full bg-cinema-500 transition-all duration-300"
+                              [style.width.%]="getOfflineProgress(movie.id, q) ?? 0"
+                            ></div>
+                          </div>
+                          <div class="text-[10px] text-cinema-500 mt-0.5">
+                            {{ getOfflineStatus(movie.id, q) === 'queued' ? 'Queued…' : '' }} {{ getOfflineProgress(movie.id, q) }}%
+                          </div>
+                        }
+                        @if (getOfflineStatus(movie.id, q) === 'error') {
+                          <div class="text-[10px] text-red-400 mt-0.5">Download failed — tap retry</div>
+                        }
                       </div>
-                      
-                      <a 
-                        [href]="movie.fileUrls[q]" 
-                        target="_blank"
-                        class="bg-cinema-500 hover:bg-cinema-400 text-white text-xs font-bold px-4 py-2 rounded-sm transition-colors"
-                      >
-                        Download
-                      </a>
+
+                      <div class="flex gap-1.5 flex-shrink-0">
+                        <!-- External download link -->
+                        <a
+                          [href]="movie.fileUrls[q]"
+                          target="_blank"
+                          class="bg-cinema-500 hover:bg-cinema-400 text-white text-xs font-bold px-3 py-2 rounded-sm transition-colors"
+                          title="Download file"
+                        >
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                          </svg>
+                        </a>
+
+                        <!-- Save for offline (PWA) — only for authenticated premium users -->
+                        @if (auth.currentUser() && offline.isSupported) {
+                          @if (getOfflineStatus(movie.id, q) === 'complete') {
+                            <!-- Saved — tap to remove -->
+                            <button
+                              (click)="removeOffline(movie.id, q)"
+                              class="bg-green-600/20 border border-green-500/40 text-green-400 text-xs font-bold px-3 py-2 rounded-sm transition-colors hover:bg-red-600/20 hover:border-red-500/40 hover:text-red-400"
+                              title="Saved offline — tap to remove"
+                            >
+                              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                              </svg>
+                            </button>
+                          } @else if (getOfflineStatus(movie.id, q) === 'downloading' || getOfflineStatus(movie.id, q) === 'queued') {
+                            <!-- Downloading spinner -->
+                            <button disabled class="border border-cinema-500/40 text-cinema-400 text-xs font-bold px-3 py-2 rounded-sm opacity-60 cursor-not-allowed">
+                              <span class="w-3.5 h-3.5 border-2 border-cinema-400/30 border-t-cinema-400 rounded-full animate-spin inline-block"></span>
+                            </button>
+                          } @else {
+                            <!-- Save for offline button -->
+                            <button
+                              (click)="saveOffline(movie, q)"
+                              class="border border-[#d9c4b7] dark:border-white/20 text-[#725f58] dark:text-gray-400 text-xs font-bold px-3 py-2 rounded-sm transition-colors hover:border-cinema-500/50 hover:text-cinema-500"
+                              title="Save for offline viewing"
+                            >
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                              </svg>
+                            </button>
+                          }
+                        }
+                      </div>
                     </div>
                   }
                 </div>
 
+                <!-- Offline library link -->
+                @if (auth.currentUser() && offline.isSupported && hasOfflineSaves(movie.id)) {
+                  <div class="mt-3 p-3 rounded-sm bg-green-500/10 border border-green-500/20 text-sm text-green-400 flex items-center gap-2">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M3 12v3c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3H3zm13-9H4C3.45 3 3 3.45 3 4v6h14V4c0-.55-.45-1-1-1z"/>
+                    </svg>
+                    Available offline
+                  </div>
+                }
+
                 <div class="mt-6 pt-4 border-t border-[#d9c4b7] dark:border-white/5 text-center">
                    <p class="text-xs text-[#725f58] dark:text-gray-500 mb-2">Premium Quality Downloads</p>
                    <div class="flex justify-center gap-4 text-[#a08070] dark:text-gray-600 text-xs">
-                      <span>🔒 Secure</span>
-                      <span>⚡ Fast</span>
-                      <span>🎬 4K</span>
+                      <span>Secure</span>
+                      <span>Fast</span>
+                      <span>4K</span>
                    </div>
                 </div>
               }
@@ -321,6 +385,7 @@ export class MovieDetailComponent {
   private location = inject(Location);
   private http = inject(HttpClient);
   auth = inject(AuthService);
+  offline = inject(OfflineStorageService);
   
   query = this.moviesService.getMovieDetailQuery(this.slug);
   watchlistMutation = this.profileService.toggleWatchlistMutation();
@@ -454,6 +519,39 @@ export class MovieDetailComponent {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('');
+  }
+
+  // ── Offline / Save for offline ────────────────────────────────────────────
+
+  getOfflineStatus(movieId: string, quality: string) {
+    return this.offline.getStatus(movieId, quality);
+  }
+
+  getOfflineProgress(movieId: string, quality: string): number | null {
+    return this.offline.getProgress(movieId, quality);
+  }
+
+  hasOfflineSaves(movieId: string): boolean {
+    return this.offline.downloads().some(d => d.movieId === movieId && d.status === 'complete');
+  }
+
+  saveOffline(movie: Movie, quality: string) {
+    const fileUrl = (movie.fileUrls as Record<string, string>)[quality];
+    if (!fileUrl) return;
+    const fileSizeBytes = (movie.fileSizes as Record<string, number>)[quality];
+    this.offline.download({
+      movieId: movie.id,
+      movieTitle: movie.title,
+      movieSlug: movie.slug,
+      quality,
+      fileUrl,
+      fileSizeBytes,
+      thumbnailUrl: movie.thumbnailUrl ?? undefined,
+    }).catch(err => console.error('[Offline] Download failed:', err));
+  }
+
+  removeOffline(movieId: string, quality: string) {
+    this.offline.remove(movieId, quality).catch(console.error);
   }
 
   private isStreamableVideoUrl(url: string): boolean {

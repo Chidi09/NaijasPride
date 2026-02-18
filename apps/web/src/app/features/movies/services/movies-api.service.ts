@@ -11,11 +11,25 @@ import {
 export class MoviesApiService {
   private http = inject(HttpClient);
 
+  private toHttpParams(params: MovieSearchParams): Record<string, string | number | boolean> {
+    const out: Record<string, string | number | boolean> = {};
+
+    for (const [key, value] of Object.entries(params || {})) {
+      if (value === undefined || value === null || value === '') continue;
+      if (Array.isArray(value)) {
+        if (value.length === 0) continue;
+        out[key] = value.join(',');
+        continue;
+      }
+      out[key] = value as string | number | boolean;
+    }
+
+    return out;
+  }
+
   getMovies(params: MovieSearchParams) {
-    // Convert generic params to HttpParams friendly object if needed, 
-    // but HttpClient handles basic objects well.
     return this.http.get<ApiResponse<MovieSummary[]>>('/api/v1/movies', {
-      params: params as any,
+      params: this.toHttpParams(params),
     });
   }
 

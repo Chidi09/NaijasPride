@@ -5,6 +5,7 @@ import { SiteFooterComponent } from './core/components/site-footer/site-footer.c
 import { DeviceService } from './core/services/device.service';
 import { ReaderStateService } from './core/services/reader-state.service';
 import { ThemeService } from './core/services/theme.service';
+import { FirebaseMessagingService } from './core/services/firebase-messaging.service';
 import { ToastContainerComponent } from './shared/components/toast-container/toast-container.component';
 import { CookieConsentComponent } from './shared/components/cookie-consent/cookie-consent.component';
 import { MiniPlayerComponent } from './features/music/components/mini-player/mini-player.component';
@@ -41,11 +42,13 @@ import { MusicPlayerService } from './features/music/services/music-player.servi
 export class AppComponent implements OnInit {
   private deviceService = inject(DeviceService);
   private themeService = inject(ThemeService);
+  private firebaseMessaging = inject(FirebaseMessagingService);
   protected readerState = inject(ReaderStateService);
   protected musicPlayer = inject(MusicPlayerService);
 
   ngOnInit() {
     this.themeService.init();
+    void this.firebaseMessaging.init();
 
     if (this.deviceService.isTV()) {
       document.body.classList.add('tv-mode');

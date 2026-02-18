@@ -20,6 +20,17 @@ import { PdfSearchIndexService } from '../services/pdf-search-index.service';
 
 type ServerProgress = { page: number; updatedAt: number } | null;
 
+type PdfTextItem = {
+  str?: string;
+  transform?: number[];
+  width?: number;
+  height?: number;
+};
+
+type PdfTextContent = {
+  items?: PdfTextItem[];
+};
+
 @Component({
   selector: 'app-pdf-viewer',
   standalone: true,
@@ -105,7 +116,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   private lastSearchQuery: string | null = null;
   private highlightUntil = 0;
-  private pageTextContentCache = new Map<number, any>();
+  private pageTextContentCache = new Map<number, PdfTextContent>();
 
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -440,7 +451,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       this.pageTextContentCache.set(page, content);
       const parts: string[] = [];
 
-      for (const item of (content?.items || []) as any[]) {
+      for (const item of this.getTextItems(content)) {
         const str = typeof item?.str === 'string' ? item.str : '';
         if (str) parts.push(str);
       }
@@ -522,7 +533,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       const content = this.pageTextContentCache.get(page) ?? (await pdfPage.getTextContent());
       this.pageTextContentCache.set(page, content);
 
-      const items = (content?.items || []) as any[];
+      const items = this.getTextItems(content);
       if (!items.length) return;
 
       const scale = typeof viewport?.scale === 'number' ? viewport.scale : this.zoom;
@@ -577,6 +588,12 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     }
 
     return { x, y: y - h, w, h };
+  }
+
+  private getTextItems(content: unknown): PdfTextItem[] {
+    if (!content || typeof content !== 'object') return [];
+    const items = (content as PdfTextContent).items;
+    return Array.isArray(items) ? items : [];
   }
 
   private mul6(a: number[], b: number[]): number[] {

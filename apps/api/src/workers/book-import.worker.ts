@@ -1,0 +1,159 @@
+import { Worker } from 'bullmq';
+import IORedis from 'ioredis';
+import { PrismaClient } from '@prisma/client';
+import { importEpubBooksCatalog, type EpubBooksImportOptions, type EpubBooksImportSort } from '../modules/books/external/epubbooks/importer';
+
+type BookImportJobData = {
+  source: 'epubbooks';
+  mode: 'manual' | 'auto';
+  options?: Partial<EpubBooksImportOptions> & {
+    sort?: EpubBooksImportSort;
+  };
+  requestedByUserId?: string;
+  requestedAt?: number;
+};
+
+const REDIS_URL = process.env.REDIS_URL;
+if (!REDIS_URL) {
+  console.error('[BookImportWorker] REDIS_URL is not set. Exiting.');
+  process.exit(1);
+}
+
+const connection = new IORedis(REDIS_URL, {
+  maxRetriesPerRequest: null,
+});
+
+const prisma = new PrismaClient();
+
+const AUTO_CURSOR_KEY = (process.env.EPUBBOOKS_AUTO_IMPORT_CURSOR_KEY || 'np:epubbooks:auto:page').trim();
+const AUTO_DEFAULT_SORT = ((process.env.EPUBBOOKS_AUTO_IMPORT_SORT || 'title').trim().toLowerCase() as EpubBooksImportSort) || 'title';
+const AUTO_DEFAULT_MAX_BOOKS = Number.parseInt(process.env.EPUBBOOKS_AUTO_IMPORT_MAX_BOOKS || '8', 10);
+const AUTO_DEFAULT_CONCURRENCY = Number.parseInt(process.env.EPUBBOOKS_AUTO_IMPORT_CONCURRENCY || '2', 10);
+const MAX_RETURN_RESULTS = Number.parseInt(process.env.BOOK_IMPORT_MAX_RETURN_RESULTS || '200', 10);
+
+const clampInt = (value: unknown, fallback: number, min = 1, max = 1_000_000) => {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  const n = Math.floor(parsed);
+  return Math.max(min, Math.min(max, n));
+};
+
+const readAutoCursor = async (): Promise<number> => {
+  try {
+    const raw = await connection.get(AUTO_CURSOR_KEY);
+    const page = Number.parseInt(raw || '1', 10);
+    return Number.isFinite(page) && page > 0 ? page : 1;
+  } catch {
+    return 1;
+  }
+};
+
+const writeAutoCursor = async (page: number): Promise<void> => {
+  const next = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  await connection.set(AUTO_CURSOR_KEY, String(next));
+};
+
+const buildSafeReturnValue = (result: any) => {
+  if (!result || typeof result !== 'object') return result;
+  const list = Array.isArray(result.results) ? result.results : [];
+  const cap = Number.isFinite(MAX_RETURN_RESULTS) && MAX_RETURN_RESULTS > 0 ? MAX_RETURN_RESULTS : 200;
+  return {
+    ...result,
+    results: list.slice(0, cap),
+    resultsTruncated: list.length > cap,
+  };
+};
+
+const worker = new Worker(
+  'book-import',
+  async (job) => {
+    const data = job.data as BookImportJobData;
+    if (!data || data.source !== 'epubbooks') {
+      throw new Error('Unsupported import source');
+    }
+
+    if (data.mode === 'auto') {
+      const currentPage = await readAutoCursor();
+
+      const sort = (data.options?.sort || AUTO_DEFAULT_SORT) as EpubBooksImportSort;
+      const maxBooks = clampInt(data.options?.maxBooks, AUTO_DEFAULT_MAX_BOOKS, 1, 100);
+      const concurrency = clampInt(data.options?.concurrency, AUTO_DEFAULT_CONCURRENCY, 1, 6);
+
+      const result = await importEpubBooksCatalog(prisma, {
+        startPage: currentPage,
+        endPage: currentPage,
+        sort,
+        maxBooks,
+        concurrency,
+        dryRun: false,
+      });
+
+      // If we hit a blank page, assume end of catalog and reset.
+      const nextPage = result.discovered > 0 ? currentPage + 1 : 1;
+      await writeAutoCursor(nextPage);
+
+      return buildSafeReturnValue({
+        ...result,
+        auto: {
+          cursorKey: AUTO_CURSOR_KEY,
+          fromPage: currentPage,
+          nextPage,
+        },
+      });
+    }
+
+    // Manual job
+    const opts = data.options || {};
+    const sort = ((opts.sort || 'title') as EpubBooksImportSort) || 'title';
+    const startPage = clampInt(opts.startPage, 1, 1, 500);
+    const endPage = clampInt(opts.endPage, startPage, 1, 500);
+    const concurrency = clampInt(opts.concurrency, 3, 1, 6);
+    const maxBooks = typeof opts.maxBooks === 'undefined' ? undefined : clampInt(opts.maxBooks, 100, 1, 5000);
+    const dryRun = !!opts.dryRun;
+
+    const result = await importEpubBooksCatalog(prisma, {
+      startPage,
+      endPage,
+      sort,
+      maxBooks,
+      concurrency,
+      dryRun,
+    });
+
+    return buildSafeReturnValue(result);
+  },
+  {
+    connection,
+    concurrency: clampInt(process.env.BOOK_IMPORT_WORKER_CONCURRENCY, 1, 1, 4),
+  }
+);
+
+worker.on('completed', (job) => {
+  console.log(`[BookImportWorker] Job ${job.id} completed`);
+});
+
+worker.on('failed', (job, err) => {
+  console.error(`[BookImportWorker] Job ${job?.id} failed: ${err.message}`);
+});
+
+const shutdown = async () => {
+  try {
+    await worker.close();
+  } catch {
+    // ignore
+  }
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // ignore
+  }
+  try {
+    await connection.quit();
+  } catch {
+    // ignore
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

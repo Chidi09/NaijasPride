@@ -10,6 +10,79 @@ interface SubtitleResult {
   downloads: number;
 }
 
+/**
+ * Converts SRT subtitle format to WebVTT format
+ * WebVTT format:
+ * WEBVTT
+ *
+ * 00:00:01.000 --> 00:00:04.000
+ * Subtitle text here
+ *
+ * 00:00:05.000 --> 00:00:08.000
+ * More text
+ */
+export function srtToVtt(srtContent: string): string {
+  // Add WEBVTT header
+  let vtt = 'WEBVTT\n\n';
+
+  // Remove BOM if present
+  const content = srtContent.replace(/^\uFEFF/, '');
+
+  // Split by subtitle blocks (separated by empty lines)
+  const blocks = content.split(/\n\s*\n/);
+
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    if (lines.length < 2) continue;
+
+    // First line might be a number (subtitle index) - skip it
+    let timeLineIndex = 0;
+    if (/^\d+$/.test(lines[0].trim())) {
+      timeLineIndex = 1;
+    }
+
+    if (timeLineIndex >= lines.length) continue;
+
+    // Convert time line from SRT to VTT format
+    // SRT: 00:00:01,000 --> 00:00:04,000
+    // VTT: 00:00:01.000 --> 00:00:04.000
+    const timeLine = lines[timeLineIndex];
+    const vttTimeLine = timeLine.replace(/,/g, '.');
+
+    // Collect subtitle text lines
+    const textLines = lines.slice(timeLineIndex + 1);
+    if (textLines.length === 0) continue;
+
+    vtt += `${vttTimeLine}\n${textLines.join('\n')}\n\n`;
+  }
+
+  return vtt.trim();
+}
+
+/**
+ * Downloads a subtitle and converts to VTT format
+ */
+export async function downloadAndConvertSubtitle(downloadUrl: string, fileName: string): Promise<{ content: string; isVtt: boolean }> {
+  try {
+    const response = await axios.get(downloadUrl, {
+      responseType: 'text',
+      timeout: 30000,
+    });
+
+    const content = response.data;
+    const isSrt = fileName.toLowerCase().endsWith('.srt');
+
+    if (isSrt) {
+      return { content: srtToVtt(content), isVtt: true };
+    } else {
+      return { content, isVtt: fileName.toLowerCase().endsWith('.vtt') };
+    }
+  } catch (error) {
+    console.error('Failed to download subtitle:', error);
+    throw new Error('Failed to download subtitle');
+  }
+}
+
 export class SubtitleService {
   private readonly API_URL = "https://api.opensubtitles.com/api/v1";
   private readonly API_KEY = process.env.OPENSUBTITLES_KEY || "";

@@ -3,16 +3,36 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { randomBytes } from 'crypto';
 import {
   AuthService,
+  forgotPasswordSchema,
   googleAuthSchema,
   loginSchema,
   refreshTokenSchema,
+  resetPasswordSchema,
   signupSchema,
+  verifyEmailSchema,
 } from './auth.service';
 
 const CSRF_COOKIE_NAME = 'np_csrf';
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+const getFirstForwardedIp = (value: string | string[] | undefined): string | undefined => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) return undefined;
+  const first = raw.split(',')[0]?.trim();
+  return first || undefined;
+};
+
+const getRequestIp = (request: { ip: string; headers: Record<string, unknown> }): string => {
+  const forwarded = getFirstForwardedIp(request.headers['x-forwarded-for'] as string | string[] | undefined);
+  return forwarded || request.ip;
+};
+
+const getUserAgent = (request: { headers: Record<string, unknown> }): string | undefined => {
+  const raw = request.headers['user-agent'];
+  return typeof raw === 'string' ? raw : undefined;
+};
 
 const buildCsrfCookie = (token: string) => {
   const attrs = [
@@ -69,7 +89,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     try {
-      const result = await service.login(request.body);
+      const result = await service.login(request.body, {
+        ipAddress: getRequestIp(request),
+        userAgent: getUserAgent(request),
+      });
       return { success: true, data: result };
     } catch (error: unknown) {
       return reply.status(401).send({
@@ -109,12 +132,96 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     try {
       const { idToken } = request.body as { idToken: string };
-      const result = await service.loginWithGoogleIdToken(idToken);
+      const result = await service.loginWithGoogleIdToken(idToken, {
+        ipAddress: getRequestIp(request),
+        userAgent: getUserAgent(request),
+      });
       return { success: true, data: result };
     } catch (error: unknown) {
       return reply.status(401).send({
         success: false,
         error: getErrorMessage(error, 'Google login failed'),
+      });
+    }
+  });
+
+  // Password Reset Routes
+  app.post('/forgot-password', {
+    schema: {
+      body: forgotPasswordSchema,
+    },
+    config: {
+      rateLimit: rateLimitByIp(3, '15 minutes'),
+    },
+  }, async (request, reply) => {
+    try {
+      const { email } = request.body;
+      await service.requestPasswordReset(email);
+      // Always return success to prevent email enumeration
+      return { success: true, message: 'If an account exists, a reset email has been sent' };
+    } catch (error: unknown) {
+      return reply.status(400).send({
+        success: false,
+        error: getErrorMessage(error, 'Failed to process request'),
+      });
+    }
+  });
+
+  app.post('/reset-password', {
+    schema: {
+      body: resetPasswordSchema,
+    },
+    config: {
+      rateLimit: rateLimitByIp(5, '15 minutes'),
+    },
+  }, async (request, reply) => {
+    try {
+      const { token, password } = request.body;
+      await service.resetPassword(token, password);
+      return { success: true, message: 'Password has been reset successfully' };
+    } catch (error: unknown) {
+      return reply.status(400).send({
+        success: false,
+        error: getErrorMessage(error, 'Invalid or expired reset token'),
+      });
+    }
+  });
+
+  // Email Verification Routes
+  app.post('/verify-email', {
+    schema: {
+      body: verifyEmailSchema,
+    },
+    config: {
+      rateLimit: rateLimitByIp(5, '15 minutes'),
+    },
+  }, async (request, reply) => {
+    try {
+      const { token } = request.body;
+      const result = await service.verifyEmail(token);
+      return { success: true, data: result, message: 'Email verified successfully' };
+    } catch (error: unknown) {
+      return reply.status(400).send({
+        success: false,
+        error: getErrorMessage(error, 'Invalid or expired verification token'),
+      });
+    }
+  });
+
+  app.post('/resend-verification', {
+    preHandler: [app.authenticate],
+    config: {
+      rateLimit: rateLimitByIp(3, '15 minutes'),
+    },
+  }, async (request, reply) => {
+    try {
+      const userId = request.user.userId;
+      await service.sendVerificationEmail(userId);
+      return { success: true, message: 'Verification email sent' };
+    } catch (error: unknown) {
+      return reply.status(401).send({
+        success: false,
+        error: getErrorMessage(error, 'Failed to send verification email'),
       });
     }
   });

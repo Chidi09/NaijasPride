@@ -10,8 +10,9 @@ import { RouterLink } from '@angular/router';
       <div class="max-w-7xl mx-auto px-6 md:px-8 pt-16 pb-10">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pb-10 border-b border-[var(--border-color)]">
           <div>
-            <h2 class="font-serif text-3xl md:text-4xl tracking-wide uppercase">
-              <span class="text-[#8a1c1c]">NAIJAs</span>
+            <h2 class="font-serif text-3xl md:text-4xl tracking-wide">
+              <span class="text-[#8a1c1c] uppercase">NAIJA</span>
+              <span class="text-[#8a1c1c] lowercase text-[0.72em] align-super">s</span>
               <span class="text-white bg-black px-1.5 py-0.5 ml-1 rounded-sm">PRIDE</span>
             </h2>
             <p class="mt-2 text-[10px] md:text-xs tracking-[0.3em] text-[var(--text-secondary)]">THE CULTURE CAPITAL</p>
@@ -38,6 +39,7 @@ import { RouterLink } from '@angular/router';
           <div>
             <h3 class="text-sm font-semibold mb-3">Account</h3>
             <div class="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
+              <a routerLink="/account" class="hover:text-[var(--text-primary)] transition-colors">Account</a>
               <a routerLink="/login" class="hover:text-[var(--text-primary)] transition-colors">Sign In</a>
               <a routerLink="/register" class="hover:text-[var(--text-primary)] transition-colors">Create Account</a>
               <a routerLink="/profile" class="hover:text-[var(--text-primary)] transition-colors">Profile</a>

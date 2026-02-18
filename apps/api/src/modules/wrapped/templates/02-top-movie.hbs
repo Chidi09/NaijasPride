@@ -1,0 +1,61 @@
+<div class="card" style="background:#0a0a0a;">
+
+  {{#if topMovie.imageUrl}}
+  <!-- Full-bleed poster top half -->
+  <div style="position:absolute; top:0; left:0; right:0; height:900px; overflow:hidden;">
+    <img src="{{topMovie.imageUrl}}" style="width:100%; height:100%; object-fit:cover; object-position:center top;" />
+    <div style="position:absolute; inset:0; background:linear-gradient(to bottom, rgba(10,10,10,0.1) 0%, rgba(10,10,10,0.5) 60%, #0a0a0a 100%);"></div>
+  </div>
+  {{else}}
+  <div style="position:absolute; top:0; left:0; right:0; height:900px; background:linear-gradient(160deg,#2d1a21,#0a0a0a);"></div>
+  {{/if}}
+
+  <div class="glow-top-right" style="opacity:0.5;"></div>
+
+  <!-- Logo -->
+  <div class="logo-bar" style="position:relative; z-index:2;">
+    <div class="logo-mark">NP</div>
+    <span class="logo-text">NaijasPride</span>
+    <span class="logo-year">{{periodLabel}}</span>
+  </div>
+
+  <!-- Content over bottom half -->
+  <div style="position:absolute; bottom:0; left:0; right:0; padding:60px; display:flex; flex-direction:column; gap:36px;">
+
+    <div class="badge" style="align-self:flex-start;">🎬 Top Movie</div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <p style="font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:600; color:var(--text-muted); letter-spacing:0.2em; text-transform:uppercase;">You loved</p>
+      <h1 class="font-cinzel" style="font-size:72px; font-weight:900; color:var(--text-primary); line-height:1.05; letter-spacing:0.02em;">{{topMovie.title}}</h1>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Stats row -->
+    <div style="display:flex; gap:48px; align-items:flex-start;">
+      <div class="stat-block">
+        <span class="stat-number" style="font-size:56px;">{{topMovie.minutes}}</span>
+        <span class="stat-label" style="font-size:12px;">Minutes watched</span>
+      </div>
+      {{#if topMovie.count}}
+      <div class="stat-block">
+        <span class="stat-number" style="font-size:56px;">{{topMovie.count}}×</span>
+        <span class="stat-label" style="font-size:12px;">Times watched</span>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Total movies context -->
+    <div style="padding:24px 32px; border:1px solid var(--border); border-radius:16px; background:rgba(18,10,13,0.85); display:inline-flex; align-items:center; gap:16px;">
+      <span class="font-cinzel" style="font-size:36px; font-weight:900; color:var(--gold);">{{totalMoviesWatched}}</span>
+      <div>
+        <p style="font-size:14px; font-weight:600; color:var(--text-primary);">Movies this {{#if isAnnual}}year{{else}}month{{/if}}</p>
+        <p style="font-size:12px; color:var(--text-muted);">{{totalHours}} hours of cinema</p>
+      </div>
+    </div>
+
+    <div class="watermark-bar" style="position:relative; background:transparent; justify-content:flex-start; padding:0;">
+      <span style="color:var(--text-muted); font-size:12px; letter-spacing:0.12em; text-transform:uppercase;">naijaspride.com</span>
+    </div>
+  </div>
+</div>

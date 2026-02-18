@@ -13,6 +13,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import type { ServiceAccount } from 'firebase-admin/app';
+import type { Messaging, MulticastMessage } from 'firebase-admin/messaging';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,34 +29,144 @@ export interface PushPayload {
   data?: Record<string, string>;
 }
 
+export const PUSH_EVENTS = {
+  WELCOME: 'welcome',
+  EMAIL_VERIFIED: 'email_verified',
+  SUBSCRIPTION_ACTIVATED: 'subscription_activated',
+  PAYMENT_RECEIVED: 'payment_received',
+  SUBSCRIPTION_EXPIRING: 'subscription_expiring',
+  SUBSCRIPTION_EXPIRED: 'subscription_expired',
+  MOVIE_AVAILABLE: 'movie_available',
+  NEW_CONTENT: 'new_content',
+  WATCHLIST_AVAILABLE: 'watchlist_available',
+  NEW_MUSIC_VIDEO: 'new_music_video',
+  PASSWORD_CHANGED: 'password_changed',
+  SECURITY_LOGIN: 'security_login',
+  NEW_MANGA_CHAPTER: 'new_manga_chapter',
+  NEW_BOOK: 'new_book',
+  DOWNLOAD_COMPLETE: 'download_complete',
+  DOWNLOAD_FAILED: 'download_failed',
+  ANNOUNCEMENT: 'announcement',
+  GENERIC: 'generic',
+} as const;
+
+export type PushEventType = (typeof PUSH_EVENTS)[keyof typeof PUSH_EVENTS];
+
 // ─── Lazy Firebase initialisation ─────────────────────────────────────────────
 
-let _messaging: import('firebase-admin/messaging').Messaging | null = null;
+let _messaging: Messaging | null = null;
+let _messagingInitPromise: Promise<Messaging | null> | null = null;
 
-async function getMessaging(): Promise<import('firebase-admin/messaging').Messaging | null> {
-  if (_messaging) return _messaging;
+const STALE_TOKEN_ERROR_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+]);
 
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!serviceAccountJson) {
-    console.warn('[Push] FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications disabled');
+const TRANSIENT_ERROR_CODES = new Set([
+  'messaging/internal-error',
+  'messaging/server-unavailable',
+  'messaging/unknown-error',
+  'app/network-error',
+  'ETIMEDOUT',
+  'ECONNRESET',
+]);
+
+const BATCH_SIZE = 500;
+const MAX_BATCH_ATTEMPTS = 3;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const parseServiceAccount = (rawJson: string): ServiceAccount | null => {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(rawJson);
+  } catch (error) {
+    console.error('[Push] FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON:', error);
     return null;
   }
 
-  try {
-    const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-    const { getMessaging: _getMsg } = await import('firebase-admin/messaging');
+  if (!raw || typeof raw !== 'object') {
+    console.error('[Push] FIREBASE_SERVICE_ACCOUNT_JSON must be an object');
+    return null;
+  }
 
-    if (!getApps().length) {
-      const serviceAccount = JSON.parse(serviceAccountJson);
-      initializeApp({ credential: cert(serviceAccount) });
+  const obj = raw as Record<string, unknown>;
+  const projectId = typeof obj.projectId === 'string'
+    ? obj.projectId
+    : typeof obj.project_id === 'string'
+      ? obj.project_id
+      : null;
+  const clientEmail = typeof obj.clientEmail === 'string'
+    ? obj.clientEmail
+    : typeof obj.client_email === 'string'
+      ? obj.client_email
+      : null;
+  const rawPrivateKey = typeof obj.privateKey === 'string'
+    ? obj.privateKey
+    : typeof obj.private_key === 'string'
+      ? obj.private_key
+      : null;
+
+  if (!projectId || !clientEmail || !rawPrivateKey) {
+    console.error('[Push] FIREBASE_SERVICE_ACCOUNT_JSON is missing required fields: project_id/projectId, client_email/clientEmail, private_key/privateKey');
+    return null;
+  }
+
+  const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+
+  return {
+    projectId,
+    clientEmail,
+    privateKey,
+  };
+};
+
+const getErrorCode = (error: unknown): string | null => {
+  if (!error || typeof error !== 'object') return null;
+  const candidate = error as { code?: unknown };
+  return typeof candidate.code === 'string' ? candidate.code : null;
+};
+
+const isTransientError = (error: unknown): boolean => {
+  const code = getErrorCode(error);
+  return !!code && TRANSIENT_ERROR_CODES.has(code);
+};
+
+async function getMessaging(): Promise<Messaging | null> {
+  if (_messaging) return _messaging;
+  if (_messagingInitPromise) return _messagingInitPromise;
+
+  _messagingInitPromise = (async () => {
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (!serviceAccountJson) {
+      console.warn('[Push] FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications disabled');
+      return null;
     }
 
-    _messaging = _getMsg();
-    console.log('[Push] Firebase Admin SDK initialised');
-    return _messaging;
-  } catch (err) {
-    console.error('[Push] Failed to initialise Firebase Admin SDK:', err);
-    return null;
+    const serviceAccount = parseServiceAccount(serviceAccountJson);
+    if (!serviceAccount) return null;
+
+    try {
+      const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+      const { getMessaging: _getMsg } = await import('firebase-admin/messaging');
+
+      if (!getApps().length) {
+        initializeApp({ credential: cert(serviceAccount) });
+      }
+
+      _messaging = _getMsg();
+      console.log('[Push] Firebase Admin SDK initialised');
+      return _messaging;
+    } catch (err) {
+      console.error('[Push] Failed to initialise Firebase Admin SDK:', err);
+      return null;
+    }
+  })();
+
+  try {
+    return await _messagingInitPromise;
+  } finally {
+    _messagingInitPromise = null;
   }
 }
 
@@ -109,7 +221,7 @@ export class PushNotificationService {
       title: 'Welcome to NaijasPride!',
       body: `Hi ${name ?? 'there'} — your account is live. Start streaming movies, music, books, and manga now.`,
       url: '/browse',
-      data: { event: 'welcome' },
+      data: { event: PUSH_EVENTS.WELCOME },
     });
   }
 
@@ -119,7 +231,7 @@ export class PushNotificationService {
       title: 'Email Verified',
       body: 'Your email address is confirmed. Your account is fully active.',
       url: '/browse',
-      data: { event: 'email_verified' },
+      data: { event: PUSH_EVENTS.EMAIL_VERIFIED },
     });
   }
 
@@ -133,7 +245,7 @@ export class PushNotificationService {
       title: 'PRO Activated!',
       body: `Your ${planName} subscription is live. 4K streaming, no ads, unlimited downloads. Renews ${renewalStr}.`,
       url: '/browse',
-      data: { event: 'subscription_activated', plan: planName },
+      data: { event: PUSH_EVENTS.SUBSCRIPTION_ACTIVATED, plan: planName },
     });
   }
 
@@ -143,7 +255,7 @@ export class PushNotificationService {
       title: 'Payment Received',
       body: `${amountFormatted} received for ${planName}. Your PRO benefits are now active.`,
       url: '/profile',
-      data: { event: 'payment_received', plan: planName },
+      data: { event: PUSH_EVENTS.PAYMENT_RECEIVED, plan: planName },
     });
   }
 
@@ -153,7 +265,7 @@ export class PushNotificationService {
       title: 'Subscription Expiring Soon',
       body: `Your NaijasPride PRO expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Renew now to keep streaming.`,
       url: '/profile',
-      data: { event: 'subscription_expiring', daysLeft: String(daysLeft) },
+      data: { event: PUSH_EVENTS.SUBSCRIPTION_EXPIRING, daysLeft: String(daysLeft) },
     });
   }
 
@@ -163,7 +275,7 @@ export class PushNotificationService {
       title: 'Subscription Expired',
       body: 'Your PRO access has ended. Renew to regain 4K streaming, no ads, and downloads.',
       url: '/profile',
-      data: { event: 'subscription_expired' },
+      data: { event: PUSH_EVENTS.SUBSCRIPTION_EXPIRED },
     });
   }
 
@@ -180,7 +292,7 @@ export class PushNotificationService {
       body: `${movieTitle} is now streaming in ${quality} on NaijasPride.`,
       url: `/movies/${movieSlug}`,
       imageUrl: thumbnailUrl,
-      data: { event: 'movie_available', slug: movieSlug, quality },
+      data: { event: PUSH_EVENTS.MOVIE_AVAILABLE, slug: movieSlug, quality },
     });
   }
 
@@ -197,7 +309,7 @@ export class PushNotificationService {
       body: `${title} just dropped in ${genre}. Watch it now!`,
       url: `/movies/${slug}`,
       imageUrl: thumbnailUrl,
-      data: { event: 'new_content', slug, genre },
+      data: { event: PUSH_EVENTS.NEW_CONTENT, slug, genre },
     });
   }
 
@@ -208,7 +320,7 @@ export class PushNotificationService {
       body: `${movieTitle} from your watchlist is now available to stream!`,
       url: `/movies/${movieSlug}`,
       imageUrl: thumbnailUrl,
-      data: { event: 'watchlist_available', slug: movieSlug },
+      data: { event: PUSH_EVENTS.WATCHLIST_AVAILABLE, slug: movieSlug },
     });
   }
 
@@ -219,7 +331,7 @@ export class PushNotificationService {
       body: `${artist} just dropped "${title}" — watch it on NaijasPride.`,
       url: `/music/${slug}`,
       imageUrl: thumbnailUrl,
-      data: { event: 'new_music_video', slug, artist },
+      data: { event: PUSH_EVENTS.NEW_MUSIC_VIDEO, slug, artist },
     });
   }
 
@@ -229,7 +341,23 @@ export class PushNotificationService {
       title: 'Password Changed',
       body: 'Your NaijasPride password was just changed. If this wasn\'t you, contact support immediately.',
       url: '/profile',
-      data: { event: 'password_changed' },
+      data: { event: PUSH_EVENTS.PASSWORD_CHANGED },
+    });
+  }
+
+  /** 12. Security alert for new login */
+  async sendSecurityLoginAlert(userId: string, ipAddress?: string, deviceLabel?: string) {
+    const location = ipAddress ? `IP: ${ipAddress}` : 'Unknown location';
+    const device = deviceLabel ? ` on ${deviceLabel}` : '';
+    return this.sendToUser(userId, {
+      title: 'Security Alert',
+      body: `New sign-in detected${device}. ${location}. If this was not you, reset your password now.`,
+      url: '/profile',
+      data: {
+        event: PUSH_EVENTS.SECURITY_LOGIN,
+        ipAddress: ipAddress ?? 'unknown',
+        deviceLabel: deviceLabel ?? 'unknown',
+      },
     });
   }
 
@@ -246,7 +374,7 @@ export class PushNotificationService {
       body: `${chapterLabel} is now available. Tap to read!`,
       url: `/books/manga/${encodeURIComponent(mangaId)}`,
       imageUrl: coverUrl,
-      data: { event: 'new_manga_chapter', mangaId, chapter: chapterLabel },
+      data: { event: PUSH_EVENTS.NEW_MANGA_CHAPTER, mangaId, chapter: chapterLabel },
     });
   }
 
@@ -263,7 +391,49 @@ export class PushNotificationService {
       body: `"${bookTitle}" by ${author} is now available to read on NaijasPride.`,
       url: `/books/${bookSlug}`,
       imageUrl: coverUrl,
-      data: { event: 'new_book', slug: bookSlug, author },
+      data: { event: PUSH_EVENTS.NEW_BOOK, slug: bookSlug, author },
+    });
+  }
+
+  /** Download completed on this account (from another session/device) */
+  async sendDownloadComplete(
+    userId: string,
+    contentType: 'movie' | 'manga' | 'book',
+    contentTitle: string,
+    targetUrl: string,
+    imageUrl?: string,
+  ) {
+    return this.sendToUser(userId, {
+      title: 'Download Complete',
+      body: `${contentTitle} is ready for offline ${contentType === 'movie' ? 'playback' : 'reading'}.`,
+      url: targetUrl,
+      imageUrl,
+      data: {
+        event: PUSH_EVENTS.DOWNLOAD_COMPLETE,
+        contentType,
+        contentTitle,
+      },
+    });
+  }
+
+  /** Download failed */
+  async sendDownloadFailed(
+    userId: string,
+    contentType: 'movie' | 'manga' | 'book',
+    contentTitle: string,
+    reason: string,
+    targetUrl?: string,
+  ) {
+    return this.sendToUser(userId, {
+      title: 'Download Failed',
+      body: `${contentTitle} could not be saved offline (${reason}). Please retry.`,
+      url: targetUrl ?? '/profile',
+      data: {
+        event: PUSH_EVENTS.DOWNLOAD_FAILED,
+        contentType,
+        contentTitle,
+        reason,
+      },
     });
   }
 
@@ -273,7 +443,17 @@ export class PushNotificationService {
       title,
       body,
       url: url ?? '/browse',
-      data: { event: 'announcement' },
+      data: { event: PUSH_EVENTS.ANNOUNCEMENT },
+    });
+  }
+
+  /** Generic event payload */
+  async sendGeneric(userId: string, title: string, body: string, url = '/browse', data?: Record<string, string>) {
+    return this.sendToUser(userId, {
+      title,
+      body,
+      url,
+      data: { event: PUSH_EVENTS.GENERIC, ...(data || {}) },
     });
   }
 
@@ -282,7 +462,7 @@ export class PushNotificationService {
   private async _sendToTokens(
     tokens: { id: string; token: string }[],
     payload: PushPayload,
-    messaging: import('firebase-admin/messaging').Messaging,
+    messaging: Messaging,
   ): Promise<number> {
     const FRONTEND_URL = process.env.FRONTEND_URL ?? 'https://naijaspride.com';
     const clickUrl = payload.url
@@ -291,82 +471,128 @@ export class PushNotificationService {
         : `${FRONTEND_URL}${payload.url}`
       : FRONTEND_URL;
 
-    // FCM sendEachForMulticast accepts up to 500 tokens per batch.
-    const BATCH = 500;
     const tokenList = tokens.map((t) => t.token);
     let successCount = 0;
-    const staleIds: string[] = [];
+    let failureCount = 0;
+    let retriedCount = 0;
+    let totalAttempts = 0;
+    const staleIds = new Set<string>();
 
-    for (let i = 0; i < tokenList.length; i += BATCH) {
-      const batch = tokenList.slice(i, i + BATCH);
+    for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+      let pending = tokens.slice(i, i + BATCH_SIZE);
+      let attempt = 0;
 
-      const message: import('firebase-admin/messaging').MulticastMessage = {
-        tokens: batch,
+      while (pending.length > 0) {
+        attempt += 1;
+        totalAttempts += 1;
+
+        const message = this._buildMessage(pending.map((item) => item.token), payload, clickUrl);
+
+        try {
+          const result = await messaging.sendEachForMulticast(message);
+          const retryCandidates: { id: string; token: string }[] = [];
+
+          result.responses.forEach((resp, idx) => {
+            const tokenObj = pending[idx];
+            if (!tokenObj) return;
+
+            if (resp.success) {
+              successCount += 1;
+              return;
+            }
+
+            const code = resp.error?.code ?? '';
+            if (STALE_TOKEN_ERROR_CODES.has(code)) {
+              staleIds.add(tokenObj.id);
+              failureCount += 1;
+              return;
+            }
+
+            const canRetry = TRANSIENT_ERROR_CODES.has(code) && attempt < MAX_BATCH_ATTEMPTS;
+            if (canRetry) {
+              retryCandidates.push(tokenObj);
+            } else {
+              failureCount += 1;
+            }
+          });
+
+          if (retryCandidates.length > 0 && attempt < MAX_BATCH_ATTEMPTS) {
+            retriedCount += retryCandidates.length;
+            pending = retryCandidates;
+            await sleep(Math.min(1200, 250 * 2 ** (attempt - 1)));
+            continue;
+          }
+
+          if (retryCandidates.length > 0) {
+            failureCount += retryCandidates.length;
+          }
+
+          pending = [];
+        } catch (error) {
+          const canRetry = isTransientError(error) && attempt < MAX_BATCH_ATTEMPTS;
+          if (canRetry) {
+            retriedCount += pending.length;
+            await sleep(Math.min(1200, 250 * 2 ** (attempt - 1)));
+            continue;
+          }
+          failureCount += pending.length;
+          console.error('[Push] Batch send failed:', error);
+          pending = [];
+        }
+      }
+    }
+
+    // Deactivate stale tokens in the background
+    if (staleIds.size > 0) {
+      this.prisma.pushNotificationToken
+        .updateMany({ where: { id: { in: [...staleIds] } }, data: { isActive: false } })
+        .catch(console.error);
+    }
+
+    console.log(
+      `[Push] Sent "${payload.title}": success=${successCount}, failed=${failureCount}, retried=${retriedCount}, stale=${staleIds.size}, tokens=${tokenList.length}, attempts=${totalAttempts}`,
+    );
+
+    return successCount;
+  }
+
+  private _buildMessage(tokens: string[], payload: PushPayload, clickUrl: string): MulticastMessage {
+    return {
+      tokens,
+      notification: {
+        title: payload.title,
+        body: payload.body,
+        imageUrl: payload.imageUrl,
+      },
+      webpush: {
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-96x96.png',
+          image: payload.imageUrl,
+          data: { url: clickUrl },
+        },
+        fcmOptions: { link: clickUrl },
+      },
+      android: {
         notification: {
           title: payload.title,
           body: payload.body,
           imageUrl: payload.imageUrl,
+          clickAction: clickUrl,
         },
-        webpush: {
-          notification: {
-            title: payload.title,
-            body: payload.body,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-96x96.png',
-            image: payload.imageUrl,
-            data: { url: clickUrl },
-          },
-          fcmOptions: { link: clickUrl },
-        },
-        android: {
-          notification: {
-            title: payload.title,
-            body: payload.body,
-            imageUrl: payload.imageUrl,
-            clickAction: clickUrl,
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: { title: payload.title, body: payload.body },
+            sound: 'default',
           },
         },
-        apns: {
-          payload: {
-            aps: {
-              alert: { title: payload.title, body: payload.body },
-              sound: 'default',
-            },
-          },
-        },
-        data: payload.data,
-      };
-
-      const result = await messaging.sendEachForMulticast(message);
-      successCount += result.successCount;
-
-      // Collect invalid / unregistered tokens for cleanup
-      result.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          const code = resp.error?.code ?? '';
-          if (
-            code === 'messaging/registration-token-not-registered' ||
-            code === 'messaging/invalid-registration-token'
-          ) {
-            const tokenObj = tokens[i + idx];
-            if (tokenObj) staleIds.push(tokenObj.id);
-          }
-        }
-      });
-    }
-
-    // Deactivate stale tokens in the background
-    if (staleIds.length > 0) {
-      this.prisma.pushNotificationToken
-        .updateMany({ where: { id: { in: staleIds } }, data: { isActive: false } })
-        .catch(console.error);
-    }
-
-    if (successCount > 0) {
-      console.log(`[Push] Sent ${successCount}/${tokenList.length} notifications: "${payload.title}"`);
-    }
-
-    return successCount;
+      },
+      data: payload.data,
+    };
   }
 }
 

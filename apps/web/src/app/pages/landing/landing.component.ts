@@ -147,7 +147,7 @@ export class LandingComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           // API returns { success: true, data: MovieSummary[] }
-          const list = Array.isArray((response as any).data) ? ((response as any).data as MovieSummary[]) : [];
+          const list = Array.isArray(response.data) ? response.data : [];
           this.trendingMovies.set(list);
           this.isLoadingTrending.set(false);
         },

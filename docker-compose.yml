@@ -1,33 +1,91 @@
+# =============================================================================
+# NaijasPride — Local Development Docker Compose
+# =============================================================================
+# This is for LOCAL DEVELOPMENT ONLY.
+# Production runs on DigitalOcean App Platform (see .do/app.yaml).
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose up -d redis     # Just Redis (if running API with ts-node-dev)
+#   docker compose down            # Stop everything
+#
+# The API service here mirrors the production Docker build so you can test
+# the compiled image locally before pushing.
+# =============================================================================
+
 services:
+  # ── Redis (Valkey-compatible) ─────────────────────────────────────────────
+  # Matches DO Managed Valkey in production (Redis 7 protocol-compatible).
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+
+  # ── FlareSolverr (manga scraping, optional) ───────────────────────────────
+  # Only needed if you're testing manga sources that require Cloudflare bypass.
+  # Comment this out if you're not working on manga features.
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
     environment:
       LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
       TZ: ${TZ:-Africa/Lagos}
+    ports:
+      - "8191:8191"
 
+  # ── API (production Docker image) ─────────────────────────────────────────
+  # Uses the same multi-stage Dockerfile as production.
+  # For faster iteration, prefer running `npm run dev --workspace api` directly
+  # with ts-node-dev and only start this service to test the compiled image.
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     depends_on:
+      - redis
       - flaresolverr
     ports:
-      - "${API_PORT:-3000}:3000"
+      - "${PORT:-3000}:3000"
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL:-}
+      DIRECT_URL: ${DIRECT_URL:-}
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-20m}
-      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-30d}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://naijaspride.vercel.app}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-7d}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-120d}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
       BODY_LIMIT_BYTES: ${BODY_LIMIT_BYTES:-1048576}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-r2}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET:-naijaspride}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-https://media.naijaspride.com}
       MANGA_SOURCES_ENABLED: ${MANGA_SOURCES_ENABLED:-mangadex,weebcentral,asura}
       FLARESOLVERR_URL: http://flaresolverr:8191
       FLARESOLVERR_SESSION_MAX_AGE_MS: ${FLARESOLVERR_SESSION_MAX_AGE_MS:-1800000}
       MANGA_SOURCE_ASURA_CB_FAILURES: ${MANGA_SOURCE_ASURA_CB_FAILURES:-5}
       MANGA_SOURCE_ASURA_CB_RECOVERY_MS: ${MANGA_SOURCE_ASURA_CB_RECOVERY_MS:-30000}
+      TORRENT_DOWNLOAD_DIR: /tmp/naijaspride/torrent-downloads
+      TORRENT_TRANSCODE_MKV: ${TORRENT_TRANSCODE_MKV:-true}
+      TORRENT_PACKAGE_HLS: ${TORRENT_PACKAGE_HLS:-true}
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      ZEPTOMAIL_API_KEY: ${ZEPTOMAIL_API_KEY:-}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+
+volumes:
+  redis_data:

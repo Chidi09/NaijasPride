@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyPluginOptions } from "fastify";
+import { Genre as PrismaGenre } from "@prisma/client";
 import { ProfileService } from "./profile.service";
 import { emailService } from "../../shared/services/email.service";
 import { getPushService } from "../../shared/services/push-notification.service";
@@ -321,7 +322,8 @@ export const profileRoutes = async (
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       const userId = request.user.userId;
-      const limit = Math.min(20, Math.max(1, Number((request.query as any).limit) || 12));
+      const { limit: rawLimit } = request.query as { limit?: number | string };
+      const limit = Math.min(20, Math.max(1, Number(rawLimit) || 12));
 
       try {
         // ── 1. Fetch user signals ─────────────────────────────────────────────
@@ -402,7 +404,7 @@ export const profileRoutes = async (
           where: {
             status: 'active',
             id: { notIn: [...seenIds] },
-            ...(topGenres.length > 0 && { genre: { hasSome: topGenres as any } }),
+            ...(topGenres.length > 0 && { genre: { hasSome: topGenres as PrismaGenre[] } }),
           },
           take: 200, // score in-memory from a large pool
           select: {
@@ -461,7 +463,7 @@ export const profileRoutes = async (
               isStreamOnly: true, quality: true,
             },
           });
-          recommendations.push(...backfill);
+          recommendations.push(...(backfill as typeof recommendations));
         }
 
         return reply.send({ success: true, data: recommendations, reason: 'personalised' });

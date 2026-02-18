@@ -7,7 +7,10 @@ import { YoutubeScoutService } from "./services/youtube-scout.service";
 import { RssScoutService } from "./services/rss-scout.service";
 import { TMDBMetadataService } from "./services/tmdb-metadata.service";
 import { YouTubeChannelService } from "./services/youtube-channel.service";
+import { adminQueueRoutes } from "./admin-queue.routes";
+import { adminUserRoutes } from "./admin-user.routes";
 import { z } from "zod";
+import { Genre as PrismaGenre } from "@prisma/client";
 
 // Validation schemas
 const RssUrlSchema = z.object({
@@ -52,6 +55,16 @@ const ChannelImportYoutubeSchema = z.object({
   isStreamOnly: z.boolean().optional().default(true),
   dryRun: z.boolean().optional().default(false),
 });
+
+const PRISMA_GENRE_SET = new Set(Object.values(PrismaGenre));
+
+const normalizeGenres = (rawGenres: string[] | undefined): PrismaGenre[] => {
+  const normalized = (rawGenres || ['Nollywood'])
+    .map((entry) => entry.trim())
+    .filter((entry): entry is PrismaGenre => PRISMA_GENRE_SET.has(entry as PrismaGenre));
+
+  return normalized.length > 0 ? normalized : [PrismaGenre.Nollywood];
+};
 
 const CreateRssFeedSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -236,7 +249,7 @@ export const adminRoutes = async (
                 slug,
                 description: data.description || null,
                 year: data.year,
-                genre: (data.genre || ["Nollywood"]) as any,
+                genre: normalizeGenres(data.genre),
                 quality: [],
                 language: "English",
                 thumbnailUrl: data.thumbnailUrl || null,
@@ -335,7 +348,7 @@ export const adminRoutes = async (
                   slug,
                   description: best.description || null,
                   year,
-                  genre: genre as any,
+                  genre: normalizeGenres(genre),
                   quality: [],
                   language: "English",
                   thumbnailUrl: best.thumbnail || null,
@@ -453,7 +466,7 @@ export const adminRoutes = async (
                     slug,
                     description: video.description || null,
                     year,
-                    genre: genre as any,
+                    genre: normalizeGenres(genre),
                     quality: [],
                     language: "English",
                     thumbnailUrl: video.thumbnail || null,
@@ -833,4 +846,10 @@ export const adminRoutes = async (
       }
     },
   });
+
+  // Register queue management routes
+  await app.register(adminQueueRoutes, { prefix: '' });
+
+  // Register user management routes
+  await app.register(adminUserRoutes, { prefix: '' });
 };

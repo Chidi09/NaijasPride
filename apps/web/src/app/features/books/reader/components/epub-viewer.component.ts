@@ -29,6 +29,17 @@ import { ReaderStorageService } from '../services/reader-storage.service';
 
 type ServerProgress = { page: number; updatedAt: number } | null;
 
+type RenditionContent = {
+  document?: {
+    body?: {
+      innerText?: string;
+    };
+  };
+  window?: {
+    getSelection?: () => Selection | null;
+  };
+};
+
 @Component({
   selector: 'app-epub-viewer',
   standalone: true,
@@ -170,7 +181,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
   getReadableText(maxChars = 4000): string {
     const n = Math.max(200, Math.min(40_000, Math.floor(maxChars)));
     try {
-      const contents = (this.rendition?.getContents?.() || []) as any[];
+      const contents = this.getRenditionContents();
       const parts: string[] = [];
       for (const c of contents) {
         const text = c?.document?.body?.innerText;
@@ -188,7 +199,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
   getSelectedText(maxChars = 2500): string {
     const n = Math.max(80, Math.min(20_000, Math.floor(maxChars)));
     try {
-      const contents = (this.rendition?.getContents?.() || []) as any[];
+      const contents = this.getRenditionContents();
       for (const c of contents) {
         const selected = c?.window?.getSelection?.()?.toString?.() || '';
         const trimmed = String(selected).replace(/\s+/g, ' ').trim();
@@ -298,7 +309,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     this.pendingSaveCfi = null;
 
     try {
-      this.epubBook = (ePub as any)(url);
+      this.epubBook = ePub(url);
       const spreadSetting =
         this.flow === 'paginated'
           ? this.spread === 'double'
@@ -608,6 +619,11 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
       mount.querySelector('.epubjs'),
     ].filter(Boolean) as HTMLElement[];
     return candidates[0] || mount;
+  }
+
+  private getRenditionContents(): RenditionContent[] {
+    const contents = this.rendition?.getContents?.();
+    return Array.isArray(contents) ? (contents as RenditionContent[]) : [];
   }
 
   private startAutoScroll(): void {

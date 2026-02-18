@@ -72,6 +72,11 @@ type RefreshPayload = {
   type: 'refresh';
 };
 
+type LoginContext = {
+  ipAddress?: string;
+  userAgent?: string;
+};
+
 export class AuthService {
   constructor(private prisma: PrismaClient) {}
 
@@ -102,14 +107,16 @@ export class AuthService {
     return result;
   }
 
-  async login(data: z.infer<typeof loginSchema>) {
+  async login(data: z.infer<typeof loginSchema>, context?: LoginContext) {
     const user = await this.prisma.user.findUnique({ where: { email: data.email } });
     if (!user) throw new Error('Invalid credentials');
 
     const isValid = await bcrypt.compare(data.password, user.password);
     if (!isValid) throw new Error('Invalid credentials');
 
-    return this.createSession(user);
+    const session = this.createSession(user);
+    this.maybeSendSecurityLoginAlert(user.id, context).catch(console.error);
+    return session;
   }
 
   async refreshSession(refreshToken: string) {
@@ -132,7 +139,7 @@ export class AuthService {
     return this.createSession(user);
   }
 
-  async loginWithGoogleIdToken(idToken: string) {
+  async loginWithGoogleIdToken(idToken: string, context?: LoginContext) {
     if (GOOGLE_CLIENT_IDS.length === 0) {
       throw new Error('Google auth is not configured. Set GOOGLE_CLIENT_IDS.');
     }
@@ -178,7 +185,9 @@ export class AuthService {
       });
     }
 
-    return this.createSession(user);
+    const session = this.createSession(user);
+    this.maybeSendSecurityLoginAlert(user.id, context).catch(console.error);
+    return session;
   }
 
   async requestPasswordReset(email: string) {
@@ -302,5 +311,57 @@ export class AuthService {
 
     const { password, ...userWithoutPass } = user;
     return { user: userWithoutPass, token, refreshToken };
+  }
+
+  private async maybeSendSecurityLoginAlert(userId: string, context?: LoginContext) {
+    if (!context?.userAgent) return;
+
+    const normalizedUa = context.userAgent.trim().slice(0, 255);
+    if (!normalizedUa) return;
+
+    const knownToken = await this.prisma.pushNotificationToken.findFirst({
+      where: {
+        userId,
+        isActive: true,
+        userAgent: normalizedUa,
+      },
+      select: { id: true },
+    });
+
+    // If this user-agent was already seen on an active push-enabled device,
+    // do not spam with repeated security notices.
+    if (knownToken) return;
+
+    const shortLabel = this.deriveDeviceLabel(normalizedUa);
+    getPushService(this.prisma)
+      .sendSecurityLoginAlert(userId, context.ipAddress, shortLabel)
+      .catch(console.error);
+  }
+
+  private deriveDeviceLabel(userAgent: string): string {
+    const ua = userAgent.toLowerCase();
+    const platform = ua.includes('android')
+      ? 'Android'
+      : ua.includes('iphone') || ua.includes('ipad')
+        ? 'iOS'
+        : ua.includes('mac os')
+          ? 'macOS'
+          : ua.includes('windows')
+            ? 'Windows'
+            : ua.includes('linux')
+              ? 'Linux'
+              : 'Device';
+
+    const browser = ua.includes('edg/')
+      ? 'Edge'
+      : ua.includes('chrome/')
+        ? 'Chrome'
+        : ua.includes('safari/') && !ua.includes('chrome/')
+          ? 'Safari'
+          : ua.includes('firefox/')
+            ? 'Firefox'
+            : 'Browser';
+
+    return `${platform} ${browser}`;
   }
 }

@@ -13,13 +13,24 @@ type ApiHighlight = {
   cfiRange?: string | null;
   excerpt?: string | null;
   page?: number | null;
-  rect?: any;
+  rect?: unknown;
   createdAt: string;
   updatedAt: string;
 };
 
-const isColor = (value: any): value is HighlightColor =>
+const isColor = (value: unknown): value is HighlightColor =>
   value === 'yellow' || value === 'green' || value === 'blue' || value === 'pink';
+
+const parseRect = (value: unknown): { x: number; y: number; w: number; h: number } | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as { x?: unknown; y?: unknown; w?: unknown; h?: unknown };
+  const x = Number(candidate.x);
+  const y = Number(candidate.y);
+  const w = Number(candidate.w);
+  const h = Number(candidate.h);
+  if (![x, y, w, h].every((n) => Number.isFinite(n))) return null;
+  return { x, y, w, h };
+};
 
 @Injectable({
   providedIn: 'root',
@@ -65,17 +76,13 @@ export class ReaderHighlightsService {
 
               if (h.kind === 'pdf') {
                 const page = Math.max(1, Math.floor(Number(h.page) || 1));
-                const rect = h.rect as any;
-                const x = Number(rect?.x);
-                const y = Number(rect?.y);
-                const w = Number(rect?.w);
-                const hh = Number(rect?.h);
-                if (![x, y, w, hh].every((n) => Number.isFinite(n))) return null;
+                const rect = parseRect(h.rect);
+                if (!rect) return null;
                 return {
                   id: String(h.id),
                   kind: 'pdf',
                   page,
-                  rect: { x, y, w, h: hh },
+                  rect,
                   color,
                   createdAt: at,
                 };
@@ -94,7 +101,7 @@ export class ReaderHighlightsService {
       return of(null);
     }
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       id: highlight.id,
       kind: highlight.kind,
       color: highlight.color,

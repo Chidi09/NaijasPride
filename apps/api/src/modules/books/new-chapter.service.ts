@@ -23,9 +23,17 @@
 import { PrismaClient } from '@prisma/client';
 import { getPushService } from '../../shared/services/push-notification.service';
 import { MangaSourceManager } from './sources/source-manager';
+import type { MangaChapter } from './sources/types';
 
 const INTER_FETCH_DELAY_MS = 1_500; // delay between each manga source fetch to be polite
 const MAX_CHAPTERS_FETCHED = 10;    // we only need the most recent chapters
+const PG_ADVISORY_LOCK_KEY = 8_106_242; // shared lock key across API instances
+
+const sourceIdFromEntityId = (entityId: string): string | null => {
+  const separator = entityId.indexOf(':');
+  if (separator <= 0) return null;
+  return entityId.slice(0, separator);
+};
 
 export class NewChapterService {
   constructor(
@@ -33,11 +41,41 @@ export class NewChapterService {
     private sourceManager: MangaSourceManager,
   ) {}
 
+  private async acquireDistributedLock(): Promise<boolean> {
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ acquired: boolean }>>`
+        SELECT pg_try_advisory_lock(${PG_ADVISORY_LOCK_KEY}) AS acquired
+      `;
+      return !!rows[0]?.acquired;
+    } catch {
+      // Non-Postgres or lock unavailable: continue without distributed lock.
+      return true;
+    }
+  }
+
+  private async releaseDistributedLock(): Promise<void> {
+    try {
+      await this.prisma.$queryRaw`
+        SELECT pg_advisory_unlock(${PG_ADVISORY_LOCK_KEY})
+      `;
+    } catch {
+      // Ignore unlock errors.
+    }
+  }
+
   /**
    * Run the full check cycle.
    * Called from a setInterval in app.ts (every CHECK_INTERVAL_MS).
    */
   async runCheck(): Promise<void> {
+    const startedAt = Date.now();
+    const lockAcquired = await this.acquireDistributedLock();
+    if (!lockAcquired) {
+      console.log('[NewChapterService] Skipping run — another instance holds lock');
+      return;
+    }
+
+    try {
     const watches = await this.prisma.mangaNewChapterCheck.findMany({
       select: {
         id: true,
@@ -57,18 +95,26 @@ export class NewChapterService {
     console.log(`[NewChapterService] Checking ${uniqueMangaIds.length} manga for ${watches.length} subscriptions`);
 
     // Map mangaId → latest chapters array (fetched once, reused for all users)
-    const latestChaptersMap = new Map<string, Array<{ id: string; chapter: string; title?: string; updatedAt?: string }>>();
+    const latestChaptersMap = new Map<string, MangaChapter[]>();
+    let fetchFailures = 0;
 
     for (const mangaId of uniqueMangaIds) {
       try {
+        const sourceId = sourceIdFromEntityId(mangaId);
+        if (!sourceId) {
+          fetchFailures += 1;
+          continue;
+        }
+
         const chapters = await this.sourceManager.getChaptersBySource(
-          mangaId.split(':')[0],
+          sourceId,
           mangaId,
           undefined,
           MAX_CHAPTERS_FETCHED,
         );
-        latestChaptersMap.set(mangaId, chapters as any);
+        latestChaptersMap.set(mangaId, chapters);
       } catch (err) {
+        fetchFailures += 1;
         console.warn(`[NewChapterService] Failed to fetch chapters for ${mangaId}:`, err);
       }
       // Polite delay between source fetches
@@ -78,6 +124,8 @@ export class NewChapterService {
     // Now process per-user subscriptions
     const push = getPushService(this.prisma);
     const now = new Date();
+    let notificationsSent = 0;
+    let recordsUpdated = 0;
 
     for (const watch of watches) {
       const chapters = latestChaptersMap.get(watch.mangaId);
@@ -97,6 +145,7 @@ export class NewChapterService {
           where: { id: watch.id },
           data: { lastSeenChapterId: latestChapter.id, lastSeenAt: now },
         });
+        recordsUpdated += 1;
         continue;
       }
 
@@ -112,17 +161,24 @@ export class NewChapterService {
         chapterLabel,
         watch.mangaCoverUrl ?? undefined,
       ).catch(console.error);
+      notificationsSent += 1;
 
       // Update the record
       await this.prisma.mangaNewChapterCheck.update({
         where: { id: watch.id },
         data: {
           lastSeenChapterId: latestChapter.id,
-          lastSeenAt: latestChapter.updatedAt ? new Date(latestChapter.updatedAt) : now,
+          lastSeenAt: latestChapter.publishedAt ? new Date(latestChapter.publishedAt) : now,
         },
       });
+      recordsUpdated += 1;
     }
 
-    console.log(`[NewChapterService] Check complete`);
+    console.log(
+      `[NewChapterService] Check complete: subscriptions=${watches.length}, uniqueManga=${uniqueMangaIds.length}, fetchFailures=${fetchFailures}, notifications=${notificationsSent}, updates=${recordsUpdated}, durationMs=${Date.now() - startedAt}`,
+    );
+    } finally {
+      await this.releaseDistributedLock();
+    }
   }
 }

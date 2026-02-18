@@ -11,6 +11,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { getPushService } from '../../shared/services/push-notification.service';
 
 const SaveOfflineSchema = z.object({
   movieId: z.string().uuid(),
@@ -21,6 +22,12 @@ const SaveOfflineSchema = z.object({
 const RemoveOfflineSchema = z.object({
   movieId: z.string().uuid(),
   quality: z.enum(['480p', '720p', '1080p', '4K']),
+});
+
+const OfflineFailureSchema = z.object({
+  movieId: z.string().uuid(),
+  quality: z.enum(['480p', '720p', '1080p', '4K']),
+  reason: z.string().trim().min(1).max(280),
 });
 
 export const offlineRoutes = async (app: FastifyInstance) => {
@@ -35,7 +42,7 @@ export const offlineRoutes = async (app: FastifyInstance) => {
       // Check the movie exists
       const movie = await app.prisma.movie.findUnique({
         where: { id: movieId },
-        select: { id: true, title: true, isStreamOnly: true },
+        select: { id: true, title: true, slug: true, thumbnailUrl: true, isStreamOnly: true },
       });
 
       if (!movie) return reply.status(404).send({ status: 'error', message: 'Movie not found' });
@@ -67,6 +74,16 @@ export const offlineRoutes = async (app: FastifyInstance) => {
         select: { id: true, quality: true, fileSizeBytes: true, savedAt: true },
       });
 
+      getPushService(app.prisma)
+        .sendDownloadComplete(
+          userId,
+          'movie',
+          movie.title,
+          `/movies/${movie.slug}`,
+          movie.thumbnailUrl ?? undefined,
+        )
+        .catch(console.error);
+
       return reply.send({ status: 'success', data: saved });
     },
   });
@@ -84,6 +101,29 @@ export const offlineRoutes = async (app: FastifyInstance) => {
       });
 
       return reply.send({ status: 'success', message: 'Removed from offline saves' });
+    },
+  });
+
+  // POST /api/v1/profile/offline/failure — Report a failed offline download
+  app.post('/offline/failure', {
+    preHandler: [app.authenticate],
+    schema: { body: OfflineFailureSchema },
+    handler: async (request, reply) => {
+      const userId = request.user.userId;
+      const { movieId, reason } = request.body as z.infer<typeof OfflineFailureSchema>;
+
+      const movie = await app.prisma.movie.findUnique({
+        where: { id: movieId },
+        select: { id: true, title: true, slug: true },
+      });
+
+      if (movie) {
+        getPushService(app.prisma)
+          .sendDownloadFailed(userId, 'movie', movie.title, reason, `/movies/${movie.slug}`)
+          .catch(console.error);
+      }
+
+      return reply.send({ status: 'success' });
     },
   });
 

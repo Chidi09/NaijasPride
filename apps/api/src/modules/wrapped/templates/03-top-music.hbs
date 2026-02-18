@@ -1,0 +1,69 @@
+<div class="card grad-dark">
+  <div class="glow-top-right"></div>
+  <div class="glow-bottom-left"></div>
+
+  <!-- Logo -->
+  <div class="logo-bar">
+    <div class="logo-mark">NP</div>
+    <span class="logo-text">NaijasPride</span>
+    <span class="logo-year">{{periodLabel}}</span>
+  </div>
+
+  <div style="flex:1; display:flex; flex-direction:column; padding:60px; gap:56px; justify-content:center;">
+
+    <div class="badge" style="align-self:flex-start;">🎵 Top Music</div>
+
+    <!-- Top artist section -->
+    <div style="display:flex; align-items:center; gap:40px;">
+      {{#if topArtist.imageUrl}}
+      <div style="width:180px; height:180px; border-radius:50%; overflow:hidden; border:3px solid var(--gold); flex-shrink:0;">
+        <img src="{{topArtist.imageUrl}}" style="width:100%; height:100%; object-fit:cover;" />
+      </div>
+      {{else}}
+      <div style="width:180px; height:180px; border-radius:50%; background:var(--burgundy); border:3px solid var(--gold); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <span style="font-family:'Cinzel',serif; font-size:64px; color:var(--gold); font-weight:900;">♪</span>
+      </div>
+      {{/if}}
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <p style="font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:600; color:var(--text-muted); letter-spacing:0.2em; text-transform:uppercase;">Your #1 Artist</p>
+        <h1 class="font-cinzel" style="font-size:64px; font-weight:900; color:var(--text-primary); line-height:1.05;">{{topArtist.title}}</h1>
+        <p class="font-cormorant" style="font-size:28px; font-style:italic; color:var(--gold);">{{topArtist.count}} plays</p>
+      </div>
+    </div>
+
+    <div class="divider" style="width:100%; background:linear-gradient(to right,var(--border),transparent);height:1px;"></div>
+
+    <!-- Top song -->
+    {{#if topSong}}
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <p style="font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:600; color:var(--text-muted); letter-spacing:0.2em; text-transform:uppercase;">Most played song</p>
+      <div style="display:flex; align-items:center; gap:28px; padding:28px 32px; border:1px solid var(--border); border-radius:16px; background:rgba(18,10,13,0.8);">
+        {{#if topSong.imageUrl}}
+        <img src="{{topSong.imageUrl}}" style="width:96px; height:96px; border-radius:12px; object-fit:cover; flex-shrink:0;" />
+        {{/if}}
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <h3 class="font-cinzel" style="font-size:32px; font-weight:700; color:var(--text-primary);">{{topSong.title}}</h3>
+          <p style="font-size:16px; color:var(--text-muted);">{{topSong.subtitle}}</p>
+          <p style="font-size:14px; font-weight:600; color:var(--gold);">{{topSong.count}} plays · {{topSong.minutes}} min</p>
+        </div>
+      </div>
+    </div>
+    {{/if}}
+
+    <!-- Total music stats -->
+    <div style="display:flex; gap:0; border:1px solid var(--border); border-radius:20px; overflow:hidden;">
+      <div style="flex:1; padding:32px; display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center; border-right:1px solid var(--border);">
+        <span class="stat-number" style="font-size:56px;">{{totalMusicPlays}}</span>
+        <span class="stat-label" style="font-size:11px;">Total plays</span>
+      </div>
+      <div style="flex:1; padding:32px; display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center;">
+        <span class="stat-number" style="font-size:56px;">{{musicMinutes}}</span>
+        <span class="stat-label" style="font-size:11px;">Minutes listened</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="watermark-bar">naijaspride.com</div>
+</div>

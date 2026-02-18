@@ -13,6 +13,27 @@ interface SignupResponse {
   error?: string;
 }
 
+type GoogleCredentialResponse = { credential?: string };
+
+type GoogleAccountsIdApi = {
+  initialize(config: {
+    client_id: string;
+    callback: (response: GoogleCredentialResponse) => void;
+    auto_select?: boolean;
+  }): void;
+  prompt(): void;
+};
+
+type RegisterWindow = Window & {
+  google?: {
+    accounts?: {
+      id?: GoogleAccountsIdApi;
+    };
+  };
+  handleGoogleCredentialResponse?: (response: GoogleCredentialResponse) => void;
+  __GOOGLE_CLIENT_ID__?: string;
+};
+
 @Component({
   selector: 'app-register',
   standalone: true,
@@ -185,13 +206,18 @@ export class RegisterComponent implements OnInit, OnDestroy {
   googleEnabled = false;
   private googleScriptEl: HTMLScriptElement | null = null;
 
+  private getRuntimeWindow(): RegisterWindow {
+    return window as RegisterWindow;
+  }
+
   ngOnInit() {
     this.initializeGoogleSignIn();
   }
 
   ngOnDestroy() {
-    if ((window as any).handleGoogleCredentialResponse) {
-      delete (window as any).handleGoogleCredentialResponse;
+    const win = this.getRuntimeWindow();
+    if (win.handleGoogleCredentialResponse) {
+      delete win.handleGoogleCredentialResponse;
     }
   }
 
@@ -233,7 +259,7 @@ export class RegisterComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const google = (window as any).google;
+    const google = this.getRuntimeWindow().google;
     if (!google?.accounts?.id?.prompt) {
       this.toast.error('Google Sign-In is unavailable right now. Please try again.');
       return;
@@ -262,7 +288,8 @@ export class RegisterComponent implements OnInit, OnDestroy {
     }
 
     this.googleLoading = true;
-    (window as any).handleGoogleCredentialResponse = (response: { credential?: string }) => {
+    const win = this.getRuntimeWindow();
+    win.handleGoogleCredentialResponse = (response: GoogleCredentialResponse) => {
       const credential = response?.credential;
       if (!credential) {
         this.toast.error('Google did not return an ID token.');
@@ -287,7 +314,7 @@ export class RegisterComponent implements OnInit, OnDestroy {
     this.googleScriptEl.async = true;
     this.googleScriptEl.defer = true;
     this.googleScriptEl.onload = () => {
-      const google = (window as any).google;
+      const google = this.getRuntimeWindow().google;
       if (!google?.accounts?.id) {
         this.googleLoading = false;
         return;
@@ -295,7 +322,7 @@ export class RegisterComponent implements OnInit, OnDestroy {
 
       google.accounts.id.initialize({
         client_id: this.googleClientId,
-        callback: (window as any).handleGoogleCredentialResponse,
+        callback: win.handleGoogleCredentialResponse!,
         auto_select: false,
       });
 
@@ -310,7 +337,7 @@ export class RegisterComponent implements OnInit, OnDestroy {
   }
 
   private readGoogleClientId(): string {
-    const runtimeValue = ((window as any).__GOOGLE_CLIENT_ID__ || '').trim();
+    const runtimeValue = (this.getRuntimeWindow().__GOOGLE_CLIENT_ID__ || '').trim();
     if (runtimeValue) return runtimeValue;
 
     const meta = document.querySelector('meta[name="google-client-id"]');

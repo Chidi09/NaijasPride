@@ -1,0 +1,77 @@
+<div class="card grad-dark">
+  <div class="glow-top-right" style="opacity:0.4;"></div>
+
+  <!-- Logo -->
+  <div class="logo-bar">
+    <div class="logo-mark">NP</div>
+    <span class="logo-text">NaijasPride</span>
+    <span class="logo-year">{{periodLabel}}</span>
+  </div>
+
+  <div style="flex:1; display:flex; padding:60px; gap:60px;">
+
+    <!-- Left: Book cover -->
+    <div style="flex:0 0 420px; display:flex; flex-direction:column; gap:28px;">
+      <div class="badge" style="align-self:flex-start;">📚 Top Book</div>
+
+      {{#if topBook.imageUrl}}
+      <div style="flex:1; border-radius:20px; overflow:hidden; box-shadow:0 40px 80px rgba(0,0,0,0.6); position:relative;">
+        <img src="{{topBook.imageUrl}}" style="width:100%; height:100%; object-fit:cover;" />
+        <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(10,10,10,0.4) 0%, transparent 40%);"></div>
+      </div>
+      {{else}}
+      <div style="flex:1; border-radius:20px; background:linear-gradient(160deg,var(--burgundy),var(--bg-card)); display:flex; align-items:center; justify-content:center;">
+        <span style="font-family:'Cinzel',serif; font-size:120px; color:var(--gold); opacity:0.3;">📖</span>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Right: Stats -->
+    <div style="flex:1; display:flex; flex-direction:column; gap:40px; justify-content:center;">
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <p style="font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:600; color:var(--text-muted); letter-spacing:0.2em; text-transform:uppercase;">You read</p>
+        <h1 class="font-cinzel" style="font-size:56px; font-weight:900; color:var(--text-primary); line-height:1.1;">{{topBook.title}}</h1>
+        {{#if topBook.subtitle}}
+        <p class="font-cormorant" style="font-size:28px; font-style:italic; color:var(--gold);">by {{topBook.subtitle}}</p>
+        {{/if}}
+      </div>
+
+      <div class="divider" style="width:80px;"></div>
+
+      <!-- Pages read stat -->
+      <div style="display:flex; align-items:flex-end; gap:20px;">
+        <span class="stat-number" style="font-size:96px;">{{topBook.count}}</span>
+        <span class="stat-label" style="font-size:14px; margin-bottom:22px;">pages</span>
+      </div>
+
+      <!-- Additional book stats -->
+      <div style="display:flex; flex-direction:column; gap:20px;">
+
+        <div style="padding:24px 32px; border:1px solid var(--border); border-radius:16px; background:rgba(18,10,13,0.8);">
+          <div style="display:flex; align-items:center; gap:20px;">
+            <span style="font-size:32px;">📝</span>
+            <div>
+              <p style="font-size:18px; font-weight:700; color:var(--text-primary);">{{totalHighlights}} Highlights</p>
+              <p style="font-size:13px; color:var(--text-muted);">Notes & quotes you saved</p>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:24px 32px; border:1px solid var(--border); border-radius:16px; background:rgba(18,10,13,0.8);">
+          <div style="display:flex; align-items:center; gap:20px;">
+            <span style="font-size:32px;">📚</span>
+            <div>
+              <p style="font-size:18px; font-weight:700; color:var(--text-primary);">{{totalBooksRead}} Books{{#if isAnnual}} this year{{else}} this month{{/if}}</p>
+              <p style="font-size:13px; color:var(--text-muted);">Total reading time: {{bookMinutes}} minutes</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <div class="watermark-bar">naijaspride.com</div>
+</div>

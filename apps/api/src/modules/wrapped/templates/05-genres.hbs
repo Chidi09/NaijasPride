@@ -1,0 +1,69 @@
+<div class="card" style="background:linear-gradient(160deg, #800020 0%, #660019 40%, #3d1a24 100%);">
+  <div style="position:absolute; top:-100px; right:-100px; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle, rgba(214,184,122,0.25) 0%, transparent 70%); pointer-events:none;"></div>
+  <div style="position:absolute; bottom:-150px; left:-150px; width:600px; height:600px; border-radius:50%; background:radial-gradient(circle, rgba(0,0,0,0.4) 0%, transparent 70%); pointer-events:none;"></div>
+
+  <!-- Logo -->
+  <div class="logo-bar">
+    <div class="logo-mark" style="background:var(--text-primary); color:var(--burgundy);">NP</div>
+    <span class="logo-text" style="color:var(--text-primary);">NaijasPride</span>
+    <span class="logo-year" style="color:rgba(249,249,242,0.6);">{{periodLabel}}</span>
+  </div>
+
+  <div style="flex:1; display:flex; flex-direction:column; align-items:center; padding:60px; gap:48px;">
+
+    <div class="badge" style="border-color:rgba(249,249,242,0.6); color:var(--text-primary); background:rgba(255,255,255,0.08);">
+      🎭 Your Genre Personality
+    </div>
+
+    <!-- Big personality title -->
+    <div style="text-align:center; display:flex; flex-direction:column; gap:16px;">
+      <p style="font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:500; color:rgba(249,249,242,0.7); letter-spacing:0.15em; text-transform:uppercase;">
+        You are a
+      </p>
+      <h1 class="font-cinzel" style="font-size:72px; font-weight:900; color:var(--text-primary); line-height:1.1; text-shadow:0 4px 30px rgba(0,0,0,0.4);">
+        {{genrePersonality}}
+      </h1>
+    </div>
+
+    <div class="divider" style="width:100px; background:var(--text-primary);"></div>
+
+    <!-- Genre breakdown -->
+    <div style="width:100%; max-width:880px; display:flex; flex-direction:column; gap:24px;">
+      {{#each topGenres}}
+      <div style="display:flex; align-items:center; gap:24px;">
+        <span style="width:140px; font-family:'Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:600; color:var(--text-primary); text-align:right; letter-spacing:0.05em;">
+          {{name}}
+        </span>
+        
+        <div style="flex:1; height:36px; background:rgba(0,0,0,0.25); border-radius:999px; overflow:hidden;">
+          <div style="height:100%; width:{{percentage}}%; background:linear-gradient(to right, var(--gold), #b8965c); border-radius:999px; display:flex; align-items:center; justify-content:flex-end; padding-right:16px;">
+            {{#ifPercentageHigh percentage}}
+            <span style="font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:700; color:#1d1416;">{{percentage}}%</span>
+            {{/ifPercentageHigh}}
+          </div>
+        </div>
+        
+        {{#unlessPercentageHigh percentage}}
+        <span style="font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:600; color:var(--text-primary); width:50px;">{{percentage}}%</span>
+        {{/unlessPercentageHigh}}
+      </div>
+      {{/each}}
+    </div>
+
+    <!-- Top genre emphasis -->
+    <div style="margin-top:20px; padding:28px 48px; background:rgba(0,0,0,0.25); border-radius:20px; text-align:center;">
+      <p class="font-cormorant" style="font-size:26px; font-style:italic; color:var(--gold);">
+        {{topGenres.0.name}} dominated your {{#if isAnnual}}year{{else}}month{{/if}} at {{topGenres.0.percentage}}%
+      </p>
+    </div>
+
+  </div>
+
+  <div class="watermark-bar" style="background:linear-gradient(to top,rgba(0,0,0,0.9),transparent); color:rgba(249,249,242,0.7);">
+    naijaspride.com
+  </div>
+</div>
+
+{{!-- Helper for conditional percentage display --}}
+{{#*inline "ifPercentageHigh"}}{{/inline}}
+{{#*inline "unlessPercentageHigh"}}{{/inline}}

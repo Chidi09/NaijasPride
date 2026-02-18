@@ -96,9 +96,9 @@ import { AuthService } from '../../../../core/auth/auth.service';
                     >
                       Remove Offline Copy
                     </button>
-                  } @else if (bookOffline.getStatus(book.id) === 'downloading') {
+                  } @else if (bookOffline.getStatus(book.id) === 'downloading' || bookOffline.getStatus(book.id) === 'queued') {
                     <div class="text-xs text-center text-[var(--text-muted)] py-1">
-                      Downloading… {{ bookOffline.getProgress(book.id) }}%
+                      {{ bookOffline.getStatus(book.id) === 'queued' ? 'Queued…' : 'Downloading…' }} {{ bookOffline.getProgress(book.id) }}%
                     </div>
                     <div class="h-1 w-full bg-[#d9c4b7] dark:bg-white/10 rounded overflow-hidden">
                       <div class="h-full bg-cinema-500 transition-all" [style.width.%]="bookOffline.getProgress(book.id)"></div>

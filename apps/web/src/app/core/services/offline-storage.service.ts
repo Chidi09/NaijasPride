@@ -1,116 +1,102 @@
 /**
  * OfflineStorageService
  *
- * Manages downloading and storing movie files locally for PWA offline playback.
+ * Movie offline downloader for NaijasPride PWA.
  *
- * Architecture:
- * - Video blobs are stored in the browser's Cache Storage under the
- *   "np-offline-v1" cache, keyed by a virtual URL  "/offline/movie/<id>/<quality>"
- * - Download state (progress, status) is stored in IndexedDB for persistence
- *   across page loads, separate from the blob cache
- * - The SW intercepts fetch requests matching "/offline/movie/*" and serves
- *   from the cache
- * - A server-side record (OfflineSavedContent) is written after a successful
- *   download so the backend knows what content is saved offline per user
- *
- * Constraints:
- * - Only available in browsers that support Cache Storage + fetch (all modern browsers)
- * - Storage quota: browsers allow 60–80% of available disk. We check before downloading.
- * - DRM content (Widevine/FairPlay) cannot be stored — not applicable here as
- *   NaijasPride serves plain MP4/HLS files from R2
- * - Stream-only and YouTube titles are excluded (server-enforced too)
+ * Improvements over the initial implementation:
+ * - Serial queue (prevents bandwidth saturation)
+ * - Queue persistence across reloads (queued/downloading jobs auto-resume)
+ * - Stream-to-cache via ReadableStream.tee() (no full-file memory buffering)
+ * - Failure reporting endpoint for push + monitoring
  */
 
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const OFFLINE_CACHE_NAME = 'np-offline-v1';
 const OFFLINE_META_DB = 'np_offline_meta_v1';
 const OFFLINE_META_STORE = 'downloads';
 const OFFLINE_CACHE_URL_PREFIX = '/offline/movie/';
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+const MAX_PARALLEL_DOWNLOADS = 1;
+const MAX_BATCH_PERSIST_INTERVAL_MS = 250;
 
-export type DownloadStatus = 'idle' | 'downloading' | 'complete' | 'error' | 'paused';
+export type DownloadStatus = 'idle' | 'queued' | 'downloading' | 'complete' | 'error' | 'paused';
 
 export interface OfflineDownloadMeta {
-  /** Composite key: movieId + '::' + quality */
   id: string;
   movieId: string;
   movieTitle: string;
   movieSlug: string;
   quality: string;
+  fileUrl: string;
   thumbnailUrl?: string;
   status: DownloadStatus;
-  /** 0–100 */
   progress: number;
-  /** bytes downloaded so far */
   bytesDownloaded: number;
-  /** total bytes (may be 0 if content-length was absent) */
   totalBytes: number;
-  savedAt: number; // timestamp
+  savedAt: number;
+  retryCount: number;
   error?: string;
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+type Deferred = {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
 
 @Injectable({ providedIn: 'root' })
 export class OfflineStorageService {
   private http = inject(HttpClient);
 
-  /** Reactive map of active/completed downloads: id → meta */
   private _downloads = signal<Map<string, OfflineDownloadMeta>>(new Map());
-
-  /** Public reactive list of all downloads */
   readonly downloads = computed(() => [...this._downloads().values()]);
 
   private _dbPromise: Promise<IDBDatabase> | null = null;
   private _supported: boolean | null = null;
 
-  /** Whether the browser supports offline storage */
+  private _queue: string[] = [];
+  private _active = new Map<string, AbortController>();
+  private _deferred = new Map<string, Deferred>();
+  private _isProcessing = false;
+
   get isSupported(): boolean {
     if (this._supported !== null) return this._supported;
     this._supported =
       typeof caches !== 'undefined' &&
       typeof indexedDB !== 'undefined' &&
-      typeof fetch !== 'undefined';
+      typeof fetch !== 'undefined' &&
+      typeof ReadableStream !== 'undefined';
     return this._supported;
   }
 
   constructor() {
     if (this.isSupported) {
-      this._loadMetaFromDb();
+      this._loadMetaFromDb()
+        .then(() => this._restoreQueue())
+        .catch((err) => console.warn('[OfflineStorage] Init failed:', err));
     }
   }
 
-  // ── Public API ───────────────────────────────────────────────────────────────
-
-  /** Returns the cached blob URL for a movie, or null if not downloaded */
   async getOfflineUrl(movieId: string, quality: string): Promise<string | null> {
     if (!this.isSupported) return null;
     try {
       const cache = await caches.open(OFFLINE_CACHE_NAME);
       const key = this._cacheKey(movieId, quality);
       const match = await cache.match(key);
-      if (!match) return null;
-      const blob = await match.blob();
-      return URL.createObjectURL(blob);
+      return match ? key : null;
     } catch {
       return null;
     }
   }
 
-  /** Check if a movie quality is available offline */
   isAvailableOffline(movieId: string, quality: string): boolean {
     const id = this._metaId(movieId, quality);
-    const meta = this._downloads().get(id);
-    return meta?.status === 'complete';
+    return this._downloads().get(id)?.status === 'complete';
   }
 
-  /** Return download progress (0-100) or null if not downloading */
   getProgress(movieId: string, quality: string): number | null {
     const id = this._metaId(movieId, quality);
     const meta = this._downloads().get(id);
@@ -123,10 +109,6 @@ export class OfflineStorageService {
     return this._downloads().get(id)?.status ?? 'idle';
   }
 
-  /**
-   * Start downloading a movie for offline playback.
-   * Streams the file with fetch + ReadableStream, writing progress to IndexedDB.
-   */
   async download(params: {
     movieId: string;
     movieTitle: string;
@@ -142,15 +124,18 @@ export class OfflineStorageService {
 
     const { movieId, movieTitle, movieSlug, quality, fileUrl, fileSizeBytes, thumbnailUrl } = params;
     const id = this._metaId(movieId, quality);
-
     const existing = this._downloads().get(id);
-    if (existing?.status === 'downloading') return; // already in progress
-    if (existing?.status === 'complete') return;    // already saved
 
-    // Check available storage
-    const hasSpace = await this._checkStorageQuota(fileSizeBytes ?? 0);
-    if (!hasSpace) {
-      throw new Error('Not enough storage space on this device. Free up space and try again.');
+    if (existing?.status === 'complete') return;
+    if (existing?.status === 'downloading' || existing?.status === 'queued') {
+      return this._getDeferred(id).promise;
+    }
+
+    if (!existing || existing.status === 'error' || existing.status === 'paused') {
+      const hasSpace = await this._checkStorageQuota(fileSizeBytes ?? 0);
+      if (!hasSpace) {
+        throw new Error('Not enough storage space on this device. Free up space and try again.');
+      }
     }
 
     const meta: OfflineDownloadMeta = {
@@ -159,86 +144,42 @@ export class OfflineStorageService {
       movieTitle,
       movieSlug,
       quality,
+      fileUrl,
       thumbnailUrl,
-      status: 'downloading',
-      progress: 0,
+      status: 'queued',
+      progress: existing?.status === 'paused' ? existing.progress : 0,
       bytesDownloaded: 0,
-      totalBytes: fileSizeBytes ?? 0,
+      totalBytes: fileSizeBytes ?? existing?.totalBytes ?? 0,
       savedAt: Date.now(),
+      retryCount: existing?.retryCount ?? 0,
+      error: undefined,
     };
 
     this._updateMeta(meta);
+    this._enqueue(id);
+    void this._processQueue();
 
-    try {
-      const response = await fetch(fileUrl, { mode: 'cors' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const contentLength = parseInt(response.headers.get('content-length') ?? '0', 10);
-      const total = contentLength || fileSizeBytes || 0;
-      meta.totalBytes = total;
-
-      // Stream the response body
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('ReadableStream not supported');
-
-      const chunks: Uint8Array[] = [];
-      let downloaded = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          downloaded += value.length;
-          meta.bytesDownloaded = downloaded;
-          meta.progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
-          this._updateMeta({ ...meta });
-        }
-      }
-
-      // Assemble blob and store in Cache Storage
-      const blob = new Blob(chunks);
-      const cacheKey = this._cacheKey(movieId, quality);
-      const cache = await caches.open(OFFLINE_CACHE_NAME);
-      await cache.put(cacheKey, new Response(blob, {
-        headers: {
-          'Content-Type': this._mimeForQuality(quality),
-          'Content-Length': String(blob.size),
-        },
-      }));
-
-      meta.status = 'complete';
-      meta.progress = 100;
-      meta.bytesDownloaded = blob.size;
-      meta.totalBytes = blob.size;
-      this._updateMeta(meta);
-
-      // Record on server (fire-and-forget — UI should still work if this fails)
-      firstValueFrom(
-        this.http.post('/api/v1/profile/offline', {
-          movieId,
-          quality,
-          fileSizeBytes: blob.size,
-        })
-      ).catch(console.error);
-
-    } catch (err) {
-      meta.status = 'error';
-      meta.error = err instanceof Error ? err.message : 'Download failed';
-      this._updateMeta(meta);
-      throw err;
-    }
+    return this._getDeferred(id).promise;
   }
 
-  /** Delete a downloaded movie from local storage */
   async remove(movieId: string, quality: string): Promise<void> {
     const id = this._metaId(movieId, quality);
+
+    const active = this._active.get(id);
+    if (active) {
+      active.abort();
+      this._active.delete(id);
+    }
+
+    this._queue = this._queue.filter((entry) => entry !== id);
+
     try {
       const cache = await caches.open(OFFLINE_CACHE_NAME);
       await cache.delete(this._cacheKey(movieId, quality));
-    } catch { /* cache may not exist */ }
+    } catch {
+      // ignore cache deletion failures
+    }
 
-    // Remove from IndexedDB
     const db = await this._openDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(OFFLINE_META_STORE, 'readwrite');
@@ -251,19 +192,27 @@ export class OfflineStorageService {
     map.delete(id);
     this._downloads.set(map);
 
-    // Notify server (fire-and-forget)
+    this._rejectDeferred(id, new Error('Download removed'));
+
     firstValueFrom(
       this.http.delete('/api/v1/profile/offline', {
         body: { movieId, quality },
-      })
+      }),
     ).catch(console.error);
   }
 
-  /** Clear ALL offline downloads */
   async clearAll(): Promise<void> {
+    for (const [, controller] of this._active.entries()) {
+      controller.abort();
+    }
+    this._active.clear();
+    this._queue = [];
+
     try {
       await caches.delete(OFFLINE_CACHE_NAME);
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
 
     const db = await this._openDb();
     await new Promise<void>((resolve, reject) => {
@@ -274,28 +223,200 @@ export class OfflineStorageService {
     });
 
     this._downloads.set(new Map());
+
+    for (const id of this._deferred.keys()) {
+      this._rejectDeferred(id, new Error('Downloads cleared'));
+    }
   }
 
-  /** Get estimated storage usage */
   async getStorageEstimate(): Promise<{ usage: number; quota: number } | null> {
     if (!navigator.storage?.estimate) return null;
     const est = await navigator.storage.estimate();
     return { usage: est.usage ?? 0, quota: est.quota ?? 0 };
   }
 
-  // ── Internal helpers ─────────────────────────────────────────────────────────
-
-  private _metaId(movieId: string, quality: string) {
+  private _metaId(movieId: string, quality: string): string {
     return `${movieId}::${quality}`;
   }
 
-  private _cacheKey(movieId: string, quality: string) {
+  private _cacheKey(movieId: string, quality: string): string {
     return `${OFFLINE_CACHE_URL_PREFIX}${movieId}/${quality}`;
   }
 
-  private _mimeForQuality(quality: string): string {
-    // All our files are MP4 (HLS manifests are not stored as offline blobs)
+  private _mimeForQuality(): string {
     return 'video/mp4';
+  }
+
+  private _enqueue(id: string): void {
+    if (this._queue.includes(id)) return;
+    this._queue.push(id);
+  }
+
+  private _restoreQueue(): void {
+    const items = [...this._downloads().values()];
+    const map = new Map(this._downloads());
+
+    for (const item of items) {
+      if ((item.status === 'queued' || item.status === 'downloading' || item.status === 'paused') && item.fileUrl) {
+        map.set(item.id, { ...item, status: 'queued', error: undefined });
+        this._enqueue(item.id);
+      } else if (item.status === 'queued' || item.status === 'downloading' || item.status === 'paused') {
+        map.set(item.id, {
+          ...item,
+          status: 'error',
+          error: 'Download metadata is incomplete. Retry download.',
+        });
+      }
+    }
+
+    this._downloads.set(map);
+    if (this._queue.length > 0) {
+      void this._processQueue();
+    }
+  }
+
+  private async _processQueue(): Promise<void> {
+    if (this._isProcessing) return;
+    this._isProcessing = true;
+
+    try {
+      while (this._queue.length > 0) {
+        const activeCount = this._active.size;
+        if (activeCount >= MAX_PARALLEL_DOWNLOADS) break;
+
+        const id = this._queue.shift();
+        if (!id) continue;
+        const meta = this._downloads().get(id);
+        if (!meta || meta.status === 'complete') {
+          this._resolveDeferred(id);
+          continue;
+        }
+
+        try {
+          await this._downloadOne(meta);
+          this._resolveDeferred(id);
+        } catch (error) {
+          this._rejectDeferred(id, error);
+        }
+      }
+    } finally {
+      this._isProcessing = false;
+      if (this._queue.length > 0 && this._active.size < MAX_PARALLEL_DOWNLOADS) {
+        void this._processQueue();
+      }
+    }
+  }
+
+  private async _downloadOne(meta: OfflineDownloadMeta): Promise<void> {
+    const controller = new AbortController();
+    this._active.set(meta.id, controller);
+
+    const current: OfflineDownloadMeta = {
+      ...meta,
+      status: 'downloading',
+      progress: 0,
+      bytesDownloaded: 0,
+      error: undefined,
+    };
+    this._updateMeta(current);
+
+    try {
+      const response = await fetch(current.fileUrl, {
+        mode: 'cors',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.body) throw new Error('ReadableStream not supported by this response');
+
+      const contentLength = Number.parseInt(response.headers.get('content-length') ?? '0', 10);
+      const totalBytes = Number.isFinite(contentLength) && contentLength > 0
+        ? contentLength
+        : current.totalBytes;
+
+      current.totalBytes = totalBytes;
+      this._updateMeta(current);
+
+      const [cacheStream, progressStream] = response.body.tee();
+      const cacheKey = this._cacheKey(current.movieId, current.quality);
+
+      const contentType = response.headers.get('content-type') || this._mimeForQuality();
+      const headers = new Headers({
+        'Content-Type': contentType,
+      });
+      if (totalBytes > 0) {
+        headers.set('Content-Length', String(totalBytes));
+      }
+
+      const cachePutPromise = caches.open(OFFLINE_CACHE_NAME).then((cache) =>
+        cache.put(cacheKey, new Response(cacheStream, { headers })),
+      );
+
+      const reader = progressStream.getReader();
+      let downloaded = 0;
+      let lastPersistAt = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+
+        downloaded += value.byteLength;
+        const now = Date.now();
+        const shouldPersist = now - lastPersistAt >= MAX_BATCH_PERSIST_INTERVAL_MS;
+        if (!shouldPersist) continue;
+
+        lastPersistAt = now;
+        current.bytesDownloaded = downloaded;
+        current.progress = totalBytes > 0 ? Math.min(99, Math.round((downloaded / totalBytes) * 100)) : 0;
+        this._updateMeta({ ...current });
+      }
+
+      await cachePutPromise;
+
+      current.status = 'complete';
+      current.progress = 100;
+      current.bytesDownloaded = totalBytes > 0 ? totalBytes : downloaded;
+      current.totalBytes = totalBytes > 0 ? totalBytes : downloaded;
+      current.savedAt = Date.now();
+      current.retryCount = 0;
+      this._updateMeta({ ...current });
+
+      firstValueFrom(
+        this.http.post('/api/v1/profile/offline', {
+          movieId: current.movieId,
+          quality: current.quality,
+          fileSizeBytes: current.bytesDownloaded,
+        }),
+      ).catch(console.error);
+    } catch (error) {
+      const reason = error instanceof DOMException && error.name === 'AbortError'
+        ? 'Download cancelled'
+        : error instanceof Error
+          ? error.message
+          : 'Download failed';
+
+      const failed: OfflineDownloadMeta = {
+        ...current,
+        status: 'error',
+        error: reason,
+        retryCount: (current.retryCount || 0) + 1,
+      };
+      this._updateMeta(failed);
+
+      firstValueFrom(
+        this.http.post('/api/v1/profile/offline/failure', {
+          movieId: failed.movieId,
+          quality: failed.quality,
+          reason,
+        }),
+      ).catch(console.error);
+
+      throw error;
+    } finally {
+      this._active.delete(meta.id);
+    }
   }
 
   private _updateMeta(meta: OfflineDownloadMeta): void {
@@ -327,11 +448,6 @@ export class OfflineStorageService {
 
       const map = new Map<string, OfflineDownloadMeta>();
       for (const item of items) {
-        // Stale "downloading" entries from a previous interrupted session → mark as error
-        if (item.status === 'downloading' || item.status === 'paused') {
-          item.status = 'error';
-          item.error = 'Download was interrupted. Tap to retry.';
-        }
         map.set(item.id, item);
       }
       this._downloads.set(map);
@@ -344,7 +460,7 @@ export class OfflineStorageService {
     if (this._dbPromise) return this._dbPromise;
 
     this._dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open(OFFLINE_META_DB, 1);
+      const req = indexedDB.open(OFFLINE_META_DB, 2);
       req.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains(OFFLINE_META_STORE)) {
@@ -362,14 +478,42 @@ export class OfflineStorageService {
   }
 
   private async _checkStorageQuota(neededBytes: number): Promise<boolean> {
-    if (!navigator.storage?.estimate) return true; // assume OK if API unavailable
+    if (!navigator.storage?.estimate) return true;
     try {
       const { usage = 0, quota = 0 } = await navigator.storage.estimate();
       const available = quota - usage;
-      // Need at least the file size + 50 MB headroom
       return available > neededBytes + 50 * 1024 * 1024;
     } catch {
       return true;
     }
+  }
+
+  private _getDeferred(id: string): Deferred {
+    const existing = this._deferred.get(id);
+    if (existing) return existing;
+
+    let resolve!: () => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<void>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    const deferred = { promise, resolve, reject };
+    this._deferred.set(id, deferred);
+    return deferred;
+  }
+
+  private _resolveDeferred(id: string): void {
+    const deferred = this._deferred.get(id);
+    if (!deferred) return;
+    deferred.resolve();
+    this._deferred.delete(id);
+  }
+
+  private _rejectDeferred(id: string, error: unknown): void {
+    const deferred = this._deferred.get(id);
+    if (!deferred) return;
+    deferred.reject(error);
+    this._deferred.delete(id);
   }
 }

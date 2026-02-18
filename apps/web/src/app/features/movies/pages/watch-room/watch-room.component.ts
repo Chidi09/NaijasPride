@@ -1,10 +1,11 @@
-import { Component, inject, input } from "@angular/core";
+import { Component, inject, input, signal, effect } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MoviesQueryService } from "../../services/movies-query.service";
 import { VideoPlayerComponent } from "../../../../shared/components/video-player/video-player.component";
 import { BrandedIntroComponent } from "../../../../shared/components/branded-intro/branded-intro.component";
 import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
+import { OfflineStorageService } from "../../../../core/services/offline-storage.service";
 
 @Component({
   selector: "app-watch-room",
@@ -50,7 +51,15 @@ import { Movie } from "@naijaspride/types";
               >
               </app-video-player>
             } @else {
-              @if (primaryStreamUrl(m); as streamUrl) {
+              @if (resolvedStreamUrl(); as streamUrl) {
+                @if (isOffline()) {
+                  <div class="mb-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                    Playing saved offline copy
+                  </div>
+                }
                 <app-video-player
                   [videoUrl]="streamUrl"
                   [movieId]="m.id"
@@ -78,7 +87,9 @@ import { Movie } from "@naijaspride/types";
                 @if (m.youtubeId) {
                   Streaming via YouTube • Support the creators by subscribing to
                   their channel.
-                } @else if (primaryStreamUrl(m)) {
+                } @else if (isOffline()) {
+                  Playing from offline storage • No internet required.
+                } @else if (resolvedStreamUrl()) {
                   Streaming via NaijasPride • Enjoy the show.
                 } @else {
                   Download-only right now.
@@ -113,15 +124,44 @@ import { Movie } from "@naijaspride/types";
 export class WatchRoomComponent {
   slug = input.required<string>();
   private movieQuery = inject(MoviesQueryService);
+  private offlineService = inject(OfflineStorageService);
   query = this.movieQuery.getMovieDetailQuery(this.slug);
 
   showIntro = true;
+  isOffline = signal(false);
+  resolvedStreamUrl = signal<string | null>(null);
 
   playerConfig = {
     showSkipButtons: true,
     autoResume: true,
     saveProgress: true,
   };
+
+  constructor() {
+    effect(() => {
+      const m = this.query.data()?.data;
+      if (!m) return;
+      this._resolveStreamUrl(m);
+    });
+  }
+
+  private async _resolveStreamUrl(movie: Movie) {
+    // 1. Check offline cache first (highest priority — works when offline)
+    const preferred = ['4K', '1080p', '720p', '480p'];
+    for (const q of preferred) {
+      if (this.offlineService.isAvailableOffline(movie.id, q)) {
+        const offlineUrl = await this.offlineService.getOfflineUrl(movie.id, q);
+        if (offlineUrl) {
+          this.resolvedStreamUrl.set(offlineUrl);
+          this.isOffline.set(true);
+          return;
+        }
+      }
+    }
+    // 2. Fall back to remote stream
+    this.resolvedStreamUrl.set(this.primaryStreamUrl(movie));
+    this.isOffline.set(false);
+  }
 
   movie() {
     return this.query.data()?.data;

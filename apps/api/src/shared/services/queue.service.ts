@@ -3,7 +3,7 @@ import IORedis from 'ioredis';
 
 // Lazy Redis + Queue initialization — only connects if REDIS_URL is set
 let _connection: IORedis | null = null;
-let _queue: Queue | null = null;
+const _queues = new Map<string, Queue>();
 
 const getConnection = (): IORedis | null => {
   if (_connection) return _connection;
@@ -14,19 +14,24 @@ const getConnection = (): IORedis | null => {
   return _connection;
 };
 
-const getQueue = (): Queue | null => {
-  if (_queue) return _queue;
+const getQueue = (name: string): Queue | null => {
+  const normalized = (name || '').trim();
+  if (!normalized) return null;
+  const existing = _queues.get(normalized);
+  if (existing) return existing;
   const connection = getConnection();
   if (!connection) return null;
-  _queue = new Queue('torrent-processing', { connection });
-  return _queue;
+  const queue = new Queue(normalized, { connection });
+  _queues.set(normalized, queue);
+  return queue;
 };
 
-export const torrentQueue = { get: getQueue };
+export const torrentQueue = { get: () => getQueue('torrent-processing') };
+export const bookImportQueue = { get: () => getQueue('book-import') };
 
 export class QueueService {
   async addTorrentJob(magnetLink: string, movieId: string) {
-    const queue = getQueue();
+    const queue = torrentQueue.get();
     if (!queue) {
       console.warn(`[Queue] REDIS_URL not set — skipping torrent job for movie ${movieId}`);
       return;
@@ -37,5 +42,18 @@ export class QueueService {
       timestamp: Date.now(),
     });
     console.log(`[Queue] Added job for movie ${movieId}`);
+  }
+
+  async addBookImportJob(payload: Record<string, unknown>) {
+    const queue = bookImportQueue.get();
+    if (!queue) {
+      console.warn(`[Queue] REDIS_URL not set — skipping book import job`);
+      return;
+    }
+    await queue.add('import-books', payload, {
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
+    console.log(`[Queue] Added book import job`);
   }
 }

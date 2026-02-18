@@ -28,7 +28,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
     data: {
       title: 'FAQ',
-      body: 'Answers to common questions about NaijasPride.\n\nWe are building this page out now.'
+      body: 'Answers to common questions about NaijasPride.\n\n1) Do I need an account to browse?\nYou can browse as a guest. You need an account to save progress, manage profile settings, and use premium features.\n\n2) How do I install the app?\nOn mobile, use "Add to Home Screen" from your browser menu. On desktop, use the install icon in Chrome or Edge.\n\n3) How do subscriptions work?\nPremium billing is monthly in NGN. You can manage your plan from your profile and account settings pages.\n\n4) Where can I get support?\nUse the Help Center and Contact pages for account, playback, and payment support.'
     }
   },
   {
@@ -99,7 +99,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
     data: {
       title: 'Help Center',
-      body: 'Need help?\n\n1) Check your internet connection\n2) Try refreshing\n3) If the issue persists, contact support.'
+      body: 'Need help? Start with this checklist.\n\n1) Playback issues\n- Check connection speed and refresh the page.\n- Try lowering quality in the player settings.\n\n2) Sign-in issues\n- Confirm your email and password.\n- Use "Forgot Password" if needed.\n\n3) Book/Comics reader issues\n- Reload the chapter/page.\n- Reopen from your library to resume progress sync.\n\n4) Still stuck?\nContact support via the Contact page with your browser/device details and screenshots.'
     }
   },
   {
@@ -173,7 +173,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
     data: {
       title: 'Ways to Watch',
-      body: 'Watch on web, mobile, and TV.\n\nWe are improving device support and performance.'
+      body: 'NaijasPride works across web, mobile, and TV setups.\n\nDesktop\n- Open in Chrome or Edge.\n- Install as an app from the address bar install icon for a native-like experience.\n\nMobile\n- iPhone/iPad: Safari → Share → Add to Home Screen.\n- Android: Chrome menu → Install App / Add to Home Screen.\n\nTV\n- Open naijaspride.com in your smart TV browser.\n- You can also cast from desktop or mobile when supported.'
     }
   },
   {
@@ -181,7 +181,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
     data: {
       title: 'Corporate Information',
-      body: 'Corporate information will be published here.'
+      body: 'NaijasPride Music Group\n\nNaijasPride is a digital culture platform focused on movies, books/comics, and music experiences for African and global audiences.\n\nBusiness Inquiries\n- Partnerships and licensing: business@naijaspride.com\n- Press and media: media@naijaspride.com\n\nOperational Base\n- Lagos, Nigeria\n\nFor user support, please use the Contact and Help Center pages.'
     }
   },
   {
@@ -257,7 +257,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
     data: {
       title: 'Contact Us',
-      body: 'Contact us for support, content requests, or business inquiries.\n\nEmail: support@naijaspride.com (placeholder)'
+      body: 'Contact us for support, content requests, or business inquiries.\n\nSupport\n- support@naijaspride.com\n\nPrivacy\n- privacy@naijaspride.com\n\nLegal\n- legal@naijaspride.com\n\nBusiness\n- business@naijaspride.com\n\nPlease include your account email and device/browser details for faster help.'
     }
   },
   {
@@ -420,6 +420,13 @@ export const routes: Routes = [
     path: 'music/:slug',
     loadComponent: () => import('./features/music/pages/music-watch/music-watch.component')
       .then(m => m.MusicWatchComponent),
+  },
+
+  // WRAPPED ROUTES (Monthly/Annual Stats)
+  {
+    path: 'wrapped',
+    loadChildren: () => import('./features/wrapped/wrapped.routes')
+      .then(m => m.WRAPPED_ROUTES)
   },
 
   // ADMIN ROUTES

@@ -1,9 +1,19 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { BooksService } from './books.service';
 import { MangaService } from './manga.service';
 import { z } from 'zod';
 import axios from 'axios';
 import { StorageService } from '../../shared/services/storage.service';
+import {
+  fetchEpubBooksBookDetail,
+  fetchEpubBooksFileStream,
+  pickEpubBooksOffer,
+  type EpubBooksRequestedFormat,
+} from './external/epubbooks/epubbooks';
+import { importEpubBooksCatalog } from './external/epubbooks/importer';
+import { QueueService, bookImportQueue } from '../../shared/services/queue.service';
+import { getPushService } from '../../shared/services/push-notification.service';
 
 const createBookSchema = z.object({
   title: z.string().trim().min(1),
@@ -98,6 +108,91 @@ const bookDownloadSchema = z.object({
   key: z.string().trim().min(1),
 });
 
+const bookFileParamSchema = z.object({
+  slug: z.string().trim().min(1),
+});
+
+const bookFileQuerySchema = z.object({
+  disposition: z.enum(['inline', 'attachment']).optional().default('inline'),
+  // Only relevant for epubBooks (EPUB vs Kindle).
+  format: z.enum(['epub', 'kindle']).optional(),
+});
+
+const bookProgressParamSchema = z.object({
+  slug: z.string().trim().min(1),
+});
+
+const bookProgressUpsertSchema = z.object({
+  slug: z.string().trim().min(1),
+  // For PDFs: real page number (1-based). For EPUBs: epub.js location index + 1.
+  page: z.number().int().min(1).max(10_000_000),
+});
+
+const highlightColorSchema = z.enum(['yellow', 'green', 'blue', 'pink']);
+
+const highlightRectSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  w: z.number().min(0).max(1),
+  h: z.number().min(0).max(1),
+});
+
+const bookHighlightCreateSchema = z
+  .object({
+    id: z.string().trim().min(8).optional(),
+    kind: z.enum(['epub', 'pdf']),
+    color: highlightColorSchema,
+    cfiRange: z.string().trim().min(1).optional(),
+    excerpt: z.string().trim().max(800).optional(),
+    page: z.number().int().min(1).max(10_000_000).optional(),
+    rect: highlightRectSchema.optional(),
+    createdAt: z.number().int().min(0).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === 'epub') {
+      if (!value.cfiRange) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'cfiRange is required for epub highlights', path: ['cfiRange'] });
+      }
+      return;
+    }
+
+    if (value.kind === 'pdf') {
+      if (!value.page) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'page is required for pdf highlights', path: ['page'] });
+      }
+      if (!value.rect) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'rect is required for pdf highlights', path: ['rect'] });
+      }
+    }
+  });
+
+const bookHighlightDeleteParamSchema = z.object({
+  slug: z.string().trim().min(1),
+  highlightId: z.string().trim().min(1),
+});
+
+const epubBooksParamSchema = z.object({
+  externalSlug: z
+    .string()
+    .trim()
+    .min(3)
+    .regex(/^\d+-[a-z0-9-]+$/i, 'Invalid epubBooks book slug'),
+});
+
+const epubBooksFileQuerySchema = z.object({
+  format: z.enum(['epub', 'kindle']).optional().default('epub'),
+  disposition: z.enum(['inline', 'attachment']).optional().default('attachment'),
+});
+
+const epubBooksImportSchema = z.object({
+  startPage: z.coerce.number().int().min(1).default(1),
+  endPage: z.coerce.number().int().min(1).max(500).default(1),
+  sort: z.enum(['title', 'released']).optional().default('title'),
+  maxBooks: z.coerce.number().int().min(1).max(5000).optional(),
+  concurrency: z.coerce.number().int().min(1).max(6).optional().default(3),
+  dryRun: z.coerce.boolean().optional().default(false),
+});
+
 const mangaChaptersSchema = z.object({
   mangaId: z.string().trim().min(1),
 });
@@ -147,6 +242,33 @@ export const bookRoutes = async (
   const mangaService = new MangaService(app.prisma);
   const storageService = new StorageService();
 
+  // Lightweight helpers for streaming external files.
+  const inferContentTypeFromFilename = (filename: string | null): string | null => {
+    const name = (filename || '').toLowerCase();
+    if (!name) return null;
+    if (name.endsWith('.epub')) return 'application/epub+zip';
+    if (name.endsWith('.mobi') || name.endsWith('.azw') || name.endsWith('.azw3')) {
+      return 'application/x-mobipocket-ebook';
+    }
+    if (name.endsWith('.pdf')) return 'application/pdf';
+    if (name.endsWith('.txt')) return 'text/plain; charset=utf-8';
+    return null;
+  };
+
+  const extractFilenameFromContentDisposition = (value: string | string[] | undefined): string | null => {
+    const header = Array.isArray(value) ? value[0] : value;
+    if (!header) return null;
+    const match = header.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i);
+    if (!match) return null;
+    const name = match[1]?.trim();
+    if (!name) return null;
+    try {
+      return decodeURIComponent(name.replace(/^\"|\"$/g, ''));
+    } catch {
+      return name.replace(/^\"|\"$/g, '');
+    }
+  };
+
   const toArray = (value?: string | string[]) => {
     if (!value) return undefined;
     return Array.isArray(value) ? value : [value];
@@ -158,6 +280,50 @@ export const bookRoutes = async (
       .replace(/[^a-z0-9._-]+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '') || 'book-file';
+
+  const extractDownloadKeyFromUrl = (downloadUrl: string): string | null => {
+    if (!downloadUrl) return null;
+    try {
+      const url = new URL(downloadUrl, 'http://localhost');
+      // Accept both /api/v1/books/download and /api/books/download etc.
+      if (!url.pathname.endsWith('/books/download') && !url.pathname.includes('/books/download')) {
+        return null;
+      }
+      const key = url.searchParams.get('key');
+      return key ? key.trim() : null;
+    } catch {
+      const match = downloadUrl.match(/[?&]key=([^&]+)/i);
+      if (!match) return null;
+      try {
+        return decodeURIComponent(match[1] || '');
+      } catch {
+        return match[1] || null;
+      }
+    }
+  };
+
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  const mapWithConcurrency = async <T, R>(
+    items: T[],
+    concurrency: number,
+    mapper: (item: T, index: number) => Promise<R>
+  ): Promise<R[]> => {
+    const limit = Math.max(1, Math.min(concurrency, items.length || 1));
+    const results: R[] = new Array(items.length);
+    let cursor = 0;
+
+    const workers = Array.from({ length: limit }, async () => {
+      while (true) {
+        const current = cursor++;
+        if (current >= items.length) return;
+        results[current] = await mapper(items[current] as T, current);
+      }
+    });
+
+    await Promise.all(workers);
+    return results;
+  };
 
   const allowedBookMimeTypes = new Set([
     'application/pdf',
@@ -861,6 +1027,480 @@ export const bookRoutes = async (
     },
   });
 
+  // === External book files: epubBooks ===
+  // GET /api/books/external/epubbooks/:externalSlug - Fetch metadata directly from epubBooks.
+  app.get('/external/epubbooks/:externalSlug', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT },
+    schema: {
+      params: epubBooksParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { externalSlug } = request.params as z.infer<typeof epubBooksParamSchema>;
+        const data = await fetchEpubBooksBookDetail(externalSlug);
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch epubBooks metadata',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/external/epubbooks/:externalSlug/file?format=epub|kindle&disposition=inline|attachment
+  // Streams the file through our API to avoid CORS + ephemeral links.
+  app.get('/external/epubbooks/:externalSlug/file', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      params: epubBooksParamSchema,
+      querystring: epubBooksFileQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { externalSlug } = request.params as z.infer<typeof epubBooksParamSchema>;
+        const { format, disposition } = epubBooksFileQuerySchema.parse(request.query ?? {});
+
+        const detail = await fetchEpubBooksBookDetail(externalSlug);
+        const offer = pickEpubBooksOffer(detail.offers, format as EpubBooksRequestedFormat);
+        if (!offer) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'No download offer available for this epubBooks title',
+          });
+        }
+
+        const upstream = await fetchEpubBooksFileStream(offer.dlid);
+        const upstreamDisposition = upstream.headers['content-disposition'];
+        const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
+        const fallbackFilename = `${externalSlug}.${format === 'kindle' ? 'mobi' : 'epub'}`;
+        const filename = upstreamFilename || fallbackFilename;
+
+        const contentType =
+          inferContentTypeFromFilename(filename) ||
+          (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
+          'application/octet-stream';
+
+        const contentLength = upstream.headers['content-length'];
+        if (typeof contentLength === 'string') {
+          reply.header('content-length', contentLength);
+        }
+
+        reply.header('content-type', contentType);
+        reply.header('cache-control', 'private, max-age=0');
+        reply.header('content-disposition', `${disposition}; filename="${filename.replace(/\"/g, '')}"`);
+        return reply.send(upstream.stream);
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to stream epubBooks file',
+        });
+      }
+    },
+  });
+
+  // POST /api/books/import/epubbooks - Import public-domain books metadata into our DB (Admin only)
+  // Note: This stores a stable internal file URL (`/api/v1/books/:slug/file`) and proxies downloads on-demand.
+  app.post('/import/epubbooks', {
+    preHandler: [app.authenticate],
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      body: epubBooksImportSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            status: 'error',
+            message: 'Forbidden: Admin access required',
+          });
+        }
+
+        const payload = epubBooksImportSchema.parse(request.body ?? {});
+
+        // If Redis is available, queue non-dry-run imports to avoid request timeouts.
+        const queue = bookImportQueue.get();
+        if (queue && !payload.dryRun) {
+          const job = await queue.add(
+            'import-epubbooks',
+            {
+              source: 'epubbooks',
+              mode: 'manual',
+              options: {
+                startPage: payload.startPage,
+                endPage: payload.endPage,
+                sort: payload.sort,
+                maxBooks: payload.maxBooks,
+                concurrency: payload.concurrency,
+                dryRun: false,
+              },
+              requestedByUserId: request.user.id,
+              requestedAt: Date.now(),
+            },
+            { removeOnComplete: true, removeOnFail: false }
+          );
+
+          return reply.send({
+            status: 'success',
+            data: {
+              mode: 'queued',
+              jobId: String(job.id),
+              queue: 'book-import',
+            },
+          });
+        }
+
+        const result = await importEpubBooksCatalog(app.prisma, {
+          startPage: payload.startPage,
+          endPage: payload.endPage,
+          sort: payload.sort,
+          maxBooks: payload.maxBooks,
+          concurrency: payload.concurrency,
+          dryRun: payload.dryRun,
+        });
+
+        return reply.send({ status: 'success', data: result });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to import epubBooks catalog',
+        });
+      }
+    },
+  });
+
+  const importJobParamSchema = z.object({
+    jobId: z.string().trim().min(1),
+  });
+
+  // GET /api/books/import/jobs/:jobId - Inspect queued import job state (Admin only)
+  app.get('/import/jobs/:jobId', {
+    preHandler: [app.authenticate],
+    schema: {
+      params: importJobParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            status: 'error',
+            message: 'Forbidden: Admin access required',
+          });
+        }
+
+        const queue = bookImportQueue.get();
+        if (!queue) {
+          return reply.status(503).send({
+            status: 'error',
+            message: 'Redis queue is not configured (REDIS_URL not set)',
+          });
+        }
+
+        const { jobId } = request.params as z.infer<typeof importJobParamSchema>;
+        const job = await queue.getJob(jobId);
+        if (!job) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Job not found',
+          });
+        }
+
+        const state = await job.getState();
+        return reply.send({
+          status: 'success',
+          data: {
+            id: String(job.id),
+            name: job.name,
+            state,
+            progress: job.progress,
+            timestamp: job.timestamp,
+            processedOn: job.processedOn,
+            finishedOn: job.finishedOn,
+            failedReason: job.failedReason,
+            returnValue: job.returnvalue,
+          },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch job status',
+        });
+      }
+    },
+  });
+
+  // === Book Reading Progress (server-side) ===
+  // Stored in BookProgress.page (1-based). For EPUB we store locationIndex+1.
+  app.get('/progress/:slug', {
+    preHandler: [app.authenticate],
+    schema: {
+      params: bookProgressParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug } = request.params as z.infer<typeof bookProgressParamSchema>;
+        const userId = request.user.id;
+
+        const book = await app.prisma.book.findUnique({ where: { slug } });
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        const progress = await app.prisma.bookProgress.findUnique({
+          where: { userId_bookId: { userId, bookId: book.id } },
+        });
+
+        return reply.send({
+          status: 'success',
+          data: progress
+            ? {
+                page: progress.page,
+                updatedAt: progress.updatedAt.toISOString(),
+              }
+            : null,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch book progress',
+        });
+      }
+    },
+  });
+
+  app.post('/progress', {
+    preHandler: [app.authenticate],
+    schema: {
+      body: bookProgressUpsertSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { slug, page } = request.body as z.infer<typeof bookProgressUpsertSchema>;
+
+        const book = await app.prisma.book.findUnique({ where: { slug } });
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        const progress = await app.prisma.bookProgress.upsert({
+          where: { userId_bookId: { userId, bookId: book.id } },
+          update: {
+            page,
+          },
+          create: {
+            userId,
+            bookId: book.id,
+            page,
+          },
+        });
+
+        return reply.send({
+          status: 'success',
+          data: {
+            page: progress.page,
+            updatedAt: progress.updatedAt.toISOString(),
+          },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to save book progress',
+        });
+      }
+    },
+  });
+
+  // === Book Highlights (server-side) ===
+  // Stored per-user; supports EPUB cfiRange highlights and PDF rect highlights.
+  app.get('/highlights/:slug', {
+    preHandler: [app.authenticate],
+    schema: {
+      params: bookProgressParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug } = request.params as z.infer<typeof bookProgressParamSchema>;
+        const userId = request.user.id;
+
+        const book = await app.prisma.book.findUnique({ where: { slug } });
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        const highlights = await app.prisma.bookHighlight.findMany({
+          where: { userId, bookId: book.id },
+          orderBy: { createdAt: 'desc' },
+          take: 1000,
+        });
+
+        return reply.send({
+          status: 'success',
+          data: highlights.map((h) => ({
+            id: h.id,
+            kind: h.kind,
+            color: h.color,
+            cfiRange: h.cfiRange,
+            excerpt: h.excerpt,
+            page: h.page,
+            rect: h.rect,
+            createdAt: h.createdAt.toISOString(),
+            updatedAt: h.updatedAt.toISOString(),
+          })),
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch highlights',
+        });
+      }
+    },
+  });
+
+  app.post('/highlights/:slug', {
+    preHandler: [app.authenticate],
+    schema: {
+      params: bookProgressParamSchema,
+      body: bookHighlightCreateSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug } = request.params as z.infer<typeof bookProgressParamSchema>;
+        const userId = request.user.id;
+        const payload = bookHighlightCreateSchema.parse(request.body ?? {});
+
+        const book = await app.prisma.book.findUnique({ where: { slug } });
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        const createdAt =
+          typeof payload.createdAt === 'number' && Number.isFinite(payload.createdAt) && payload.createdAt > 0
+            ? new Date(payload.createdAt)
+            : undefined;
+
+        const highlight = await app.prisma.bookHighlight.create({
+          data: {
+            id: payload.id,
+            userId,
+            bookId: book.id,
+            kind: payload.kind,
+            color: payload.color,
+            cfiRange: payload.kind === 'epub' ? payload.cfiRange : null,
+            excerpt: payload.kind === 'epub' ? payload.excerpt ?? null : null,
+            page: payload.kind === 'pdf' ? payload.page ?? null : null,
+            rect: payload.kind === 'pdf' ? (payload.rect ?? Prisma.JsonNull) : Prisma.JsonNull,
+            ...(createdAt ? { createdAt } : {}),
+          },
+        });
+
+        return reply.send({
+          status: 'success',
+          data: {
+            id: highlight.id,
+            kind: highlight.kind,
+            color: highlight.color,
+            cfiRange: highlight.cfiRange,
+            excerpt: highlight.excerpt,
+            page: highlight.page,
+            rect: highlight.rect,
+            createdAt: highlight.createdAt.toISOString(),
+            updatedAt: highlight.updatedAt.toISOString(),
+          },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to create highlight',
+        });
+      }
+    },
+  });
+
+  app.delete('/highlights/:slug/:highlightId', {
+    preHandler: [app.authenticate],
+    schema: {
+      params: bookHighlightDeleteParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug, highlightId } = request.params as z.infer<typeof bookHighlightDeleteParamSchema>;
+        const userId = request.user.id;
+
+        const book = await app.prisma.book.findUnique({ where: { slug } });
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        const found = await app.prisma.bookHighlight.findFirst({
+          where: { id: highlightId, userId, bookId: book.id },
+          select: { id: true },
+        });
+        if (!found) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Highlight not found',
+          });
+        }
+
+        await app.prisma.bookHighlight.delete({ where: { id: highlightId } });
+        return reply.send({ status: 'success', data: { id: highlightId } });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to delete highlight',
+        });
+      }
+    },
+  });
+
+  app.delete('/highlights/:slug', {
+    preHandler: [app.authenticate],
+    schema: {
+      params: bookProgressParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug } = request.params as z.infer<typeof bookProgressParamSchema>;
+        const userId = request.user.id;
+
+        const book = await app.prisma.book.findUnique({ where: { slug } });
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        await app.prisma.bookHighlight.deleteMany({
+          where: { userId, bookId: book.id },
+        });
+
+        return reply.send({ status: 'success', data: { cleared: true } });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to clear highlights',
+        });
+      }
+    },
+  });
+
   // GET /api/books/download?key=books/... - Resolve a stable book key to a signed URL
   app.get('/download', {
     schema: {
@@ -879,6 +1519,122 @@ export const bookRoutes = async (
         return reply.status(404).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Book file not found',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/:slug/file - Stream the actual book file bytes.
+  // This avoids client-side CORS issues (EPUB/PDF readers typically need ArrayBuffers).
+  app.get('/:slug/file', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      params: bookFileParamSchema,
+      querystring: bookFileQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug } = request.params as z.infer<typeof bookFileParamSchema>;
+        const { disposition, format } = bookFileQuerySchema.parse(request.query ?? {});
+
+        const book = await booksService.findBySlug(slug);
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        // epubBooks imported slugs look like: epubbooks-44-pride-and-prejudice
+        const isEpubBooks = slug.toLowerCase().startsWith('epubbooks-') || (book.publisher || '').toLowerCase() === 'epubbooks';
+        if (isEpubBooks) {
+          const externalSlug = slug.toLowerCase().startsWith('epubbooks-') ? slug.slice('epubbooks-'.length) : null;
+          if (!externalSlug) {
+            return reply.status(400).send({
+              status: 'error',
+              message: 'Invalid epubBooks slug format',
+            });
+          }
+
+          // Default to EPUB unless caller explicitly asks for Kindle.
+          const effectiveFormat: EpubBooksRequestedFormat = (format || 'epub') as EpubBooksRequestedFormat;
+          const detail = await fetchEpubBooksBookDetail(externalSlug);
+          const offer = pickEpubBooksOffer(detail.offers, effectiveFormat);
+          if (!offer) {
+            return reply.status(404).send({
+              status: 'error',
+              message: 'No download offer available for this epubBooks title',
+            });
+          }
+
+          const upstream = await fetchEpubBooksFileStream(offer.dlid);
+          const upstreamDisposition = upstream.headers['content-disposition'];
+          const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
+          const fallbackFilename = `${externalSlug}.${effectiveFormat === 'kindle' ? 'mobi' : 'epub'}`;
+          const filename = upstreamFilename || fallbackFilename;
+
+          const contentType =
+            inferContentTypeFromFilename(filename) ||
+            (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
+            'application/octet-stream';
+
+          const contentLength = upstream.headers['content-length'];
+          if (typeof contentLength === 'string') {
+            reply.header('content-length', contentLength);
+          }
+
+          reply.header('content-type', contentType);
+          reply.header('cache-control', 'private, max-age=0');
+          reply.header('content-disposition', `${disposition}; filename="${filename.replace(/\"/g, '')}"`);
+          return reply.send(upstream.stream);
+        }
+
+        // Otherwise, treat as internally hosted (GCS/S3/CDN) via storageKey.
+        if (!book.downloadUrl) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'This book does not have a downloadable file',
+          });
+        }
+
+        const key = extractDownloadKeyFromUrl(book.downloadUrl);
+        if (!key) {
+          return reply.status(400).send({
+            status: 'error',
+            message: 'Unsupported download URL format for streaming',
+          });
+        }
+
+        const signedUrl = await storageService.getDownloadUrl(key);
+        const upstream = await axios.get(signedUrl, {
+          responseType: 'stream',
+          timeout: 60_000,
+          validateStatus: (status) => status >= 200 && status < 400,
+        });
+
+        const fallbackExt = (book.format || '').toLowerCase() === 'pdf' ? 'pdf' : (book.format || '').toLowerCase() === 'epub' ? 'epub' : 'bin';
+        const safeTitle = sanitizeStorageFilename(book.title || 'book');
+        const filename = `${safeTitle}.${fallbackExt}`;
+        const upstreamFilename = extractFilenameFromContentDisposition(upstream.headers['content-disposition']);
+        const effectiveFilename = upstreamFilename || filename;
+
+        const contentType =
+          inferContentTypeFromFilename(effectiveFilename) ||
+          (upstream.headers['content-type'] as string | undefined) ||
+          'application/octet-stream';
+
+        if (typeof upstream.headers['content-length'] === 'string') {
+          reply.header('content-length', upstream.headers['content-length']);
+        }
+
+        reply.header('content-type', contentType);
+        reply.header('cache-control', 'private, max-age=0');
+        reply.header('content-disposition', `${disposition}; filename="${effectiveFilename.replace(/\"/g, '')}"`);
+        return reply.send(upstream.data);
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to stream book file',
         });
       }
     },
@@ -969,7 +1725,26 @@ export const bookRoutes = async (
           ...basePayload,
           genre: normalizedGenre,
         });
-        
+
+        app.prisma.pushNotificationToken
+          .findMany({
+            where: { isActive: true },
+            select: { userId: true },
+            distinct: ['userId'],
+          })
+          .then((devices) => {
+            const userIds = devices.map((entry) => entry.userId);
+            if (userIds.length === 0) return;
+            return getPushService(app.prisma).sendNewBook(
+              userIds,
+              book.title,
+              book.slug,
+              book.author,
+              book.coverUrl ?? undefined,
+            );
+          })
+          .catch(console.error);
+
         return reply.status(201).send({
           status: 'success',
           data: book

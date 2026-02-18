@@ -497,7 +497,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   onKey(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
     const tag = (target?.tagName || '').toLowerCase();
-    const isTypingTarget = tag === 'input' || tag === 'textarea' || (target as any)?.isContentEditable;
+    const isTypingTarget = tag === 'input' || tag === 'textarea' || !!target?.isContentEditable;
 
     const isMeta = event.metaKey || event.ctrlKey;
 
@@ -743,9 +743,9 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private newId(): string {
     try {
-      const anyCrypto = (globalThis as any).crypto;
-      if (anyCrypto?.randomUUID) {
-        return anyCrypto.randomUUID();
+      const runtimeCrypto = globalThis.crypto;
+      if (runtimeCrypto?.randomUUID) {
+        return runtimeCrypto.randomUUID();
       }
     } catch {
       // ignore

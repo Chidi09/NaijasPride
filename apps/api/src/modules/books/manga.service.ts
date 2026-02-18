@@ -78,6 +78,10 @@ export class MangaService {
     return this.sourceManager.getAvailableSources();
   }
 
+  getSourceManager(): MangaSourceManager {
+    return this.sourceManager;
+  }
+
   getSourceHealth() {
     const now = Date.now();
     if (this.sourceHealthCache && this.sourceHealthCache.expiresAt > now) {

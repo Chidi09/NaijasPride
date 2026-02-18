@@ -43,6 +43,14 @@ interface QualityLevel {
   label: string;
 }
 
+type YouTubeWindow = Window & {
+  YT?: {
+    Player?: new (container: Element, options: unknown) => unknown;
+  };
+  __npYoutubeApiPromise?: Promise<void>;
+  onYouTubeIframeAPIReady?: (() => void) | null;
+};
+
 @Component({
   selector: 'app-video-player',
   standalone: true,
@@ -641,9 +649,8 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     const seq = ++this.hlsInitSeq;
 
     try {
-      const mod = await import('hls.js');
+      const { default: Hls } = await import('hls.js');
       if (seq !== this.hlsInitSeq) return;
-      const Hls = (mod as any).default;
       if (!Hls?.isSupported?.()) {
         console.warn('[VideoPlayer] HLS.js not supported in this browser');
         return;
@@ -949,7 +956,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
       const container = this.youtubeContainer.nativeElement;
       container.innerHTML = '';
 
-      const win = window as any;
+      const win = window as YouTubeWindow;
       const YT = win.YT;
       if (!YT?.Player) {
         return;
@@ -1040,7 +1047,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   }
 
   private loadYouTubeIFrameApi(): Promise<void> {
-    const win = window as any;
+    const win = window as YouTubeWindow;
     if (win.YT?.Player) {
       return Promise.resolve();
     }
