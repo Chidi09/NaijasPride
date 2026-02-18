@@ -66,6 +66,10 @@ export interface MovieSummary {
   quality: Quality[];
   rating: number | null;
   thumbnailUrl: string | null;
+  coverUrl?: string | null;
+  posterUrl?: string | null;
+  backdropUrl?: string | null;
+  durationMinutes?: number | null;
   downloadCount: number;
   viewCount: number;
   nollywood: boolean;

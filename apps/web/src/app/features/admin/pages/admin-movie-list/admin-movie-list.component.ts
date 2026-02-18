@@ -49,19 +49,28 @@ import { AdminMoviesService } from '../../services/admin-movies.service';
                   <p class="text-xs text-[#9f7d73]">{{ movie.year }} • {{ movie.genre.join(', ') }}</p>
                 </div>
 
-                <button
-                  type="button"
-                  (click)="syncMetadata(movie)"
-                  [disabled]="syncMutation.isPending()"
-                  class="px-4 py-2 text-xs font-bold bg-cinema-500 text-white rounded-md hover:bg-cinema-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  @if (syncMutation.isPending() && syncingMovieId() === movie.id) {
-                    <span class="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1"></span>
-                    Syncing...
-                  } @else {
-                    Auto-Fill Info
-                  }
-                </button>
+                <div class="flex items-center gap-2">
+                  <a
+                    [routerLink]="['/admin/movies', movie.id, 'edit']"
+                    class="px-4 py-2 text-xs font-bold border border-[#5f1327] text-[#d6b87a] rounded-md hover:bg-[#2a131a]"
+                  >
+                    Edit
+                  </a>
+                  
+                  <button
+                    type="button"
+                    (click)="syncMetadata(movie)"
+                    [disabled]="syncMutation.isPending()"
+                    class="px-4 py-2 text-xs font-bold bg-cinema-500 text-white rounded-md hover:bg-cinema-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    @if (syncMutation.isPending() && syncingMovieId() === movie.id) {
+                      <span class="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1"></span>
+                      Syncing...
+                    } @else {
+                      Auto-Fill Info
+                    }
+                  </button>
+                </div>
               </div>
             }
           </div>

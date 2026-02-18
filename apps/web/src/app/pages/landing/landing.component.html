@@ -85,7 +85,7 @@
     <!-- Dynamic YouTube Movies Carousel -->
     <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" *ngIf="youtubeMovies().length > 0">
       <div *ngFor="let movie of youtubeMovies()"
-           [routerLink]="['/movies', movie.id]"
+           [routerLink]="['/movies', movie.slug || movie.id]"
            class="min-w-[280px] group cursor-pointer">
         <!-- Thumbnail -->
          <div class="aspect-video bg-[#e5d2c6] dark:bg-zinc-800 rounded-lg overflow-hidden relative">
@@ -134,7 +134,7 @@
     <div class="flex gap-4 overflow-x-auto pb-8 scrollbar-hide" *ngIf="trendingMovies().length > 0">
       <a
         *ngFor="let movie of trendingMovies()"
-        [routerLink]="['/movies', movie.id]"
+        [routerLink]="['/movies', movie.slug || movie.id]"
         class="min-w-[200px] h-[300px] bg-[#dfc8bb] dark:bg-zinc-800 rounded-lg hover:scale-105 transition duration-300 relative group cursor-pointer overflow-hidden"
       >
         <img
@@ -163,6 +163,107 @@
     </div>
   </section>
 
+  <!-- ==================== MOST WATCHED ==================== -->
+  <section class="py-16 px-8 border-t border-[#dcc5b8] dark:border-zinc-900 bg-[#f7eee7] dark:bg-zinc-950">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h2 class="text-2xl font-bold pl-4 border-l-4 border-[#800020]">Most Watched</h2>
+        <p class="text-sm text-[#8a756e] dark:text-gray-500 pl-4 mt-1">The movies everyone keeps coming back to</p>
+      </div>
+      <a routerLink="/browse" [queryParams]="{sortBy: 'trending'}" class="text-[#800020] hover:text-[#660019] font-semibold text-sm flex items-center gap-1">
+        See All <span>&rsaquo;</span>
+      </a>
+    </div>
+
+    <!-- Cards -->
+    <div class="flex gap-4 overflow-x-auto pb-4 scrollbar-hide" *ngIf="!isLoadingMostWatched() && mostWatched().length > 0">
+      <a *ngFor="let movie of mostWatched(); let i = index"
+         [routerLink]="['/movies', movie.slug || movie.id]"
+         class="min-w-[160px] md:min-w-[180px] group cursor-pointer flex-shrink-0">
+        <div class="relative rounded-lg overflow-hidden aspect-[2/3] bg-[#dfc8bb] dark:bg-zinc-800">
+          <!-- Rank badge -->
+          <div class="absolute top-2 left-2 z-10 w-7 h-7 rounded-full bg-[#800020] text-white text-xs font-black flex items-center justify-center shadow-lg">
+            {{ i + 1 }}
+          </div>
+          <img *ngIf="movie.thumbnailUrl"
+               [src]="movie.thumbnailUrl"
+               [alt]="movie.title"
+               class="w-full h-full object-cover group-hover:scale-105 transition duration-300 opacity-90 group-hover:opacity-100">
+          <div *ngIf="!movie.thumbnailUrl" class="w-full h-full flex items-center justify-center">
+            <span class="text-3xl">🎬</span>
+          </div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div class="absolute bottom-3 left-3 right-3">
+              <p class="text-white text-xs font-semibold line-clamp-2">{{ movie.title }}</p>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 text-[#24181b] dark:text-white text-xs font-medium line-clamp-1 group-hover:text-[#800020] dark:group-hover:text-[#d6b87a] transition">{{ movie.title }}</p>
+        <p class="text-[#8a756e] dark:text-gray-500 text-[11px]">{{ movie.year }} • {{ movie.genre?.[0] }}</p>
+      </a>
+    </div>
+
+    <!-- Loading -->
+    <div class="flex gap-4 overflow-x-auto pb-4" *ngIf="isLoadingMostWatched()">
+      <div *ngFor="let i of [1,2,3,4,5,6,7,8]" class="min-w-[160px] flex-shrink-0">
+        <div class="aspect-[2/3] bg-[#dfc8bb] dark:bg-zinc-800 rounded-lg animate-pulse"></div>
+        <div class="mt-2 h-3 bg-[#dfc8bb] dark:bg-zinc-800 rounded w-4/5 animate-pulse"></div>
+      </div>
+    </div>
+
+    <!-- Empty state — silently hidden, nothing to show yet -->
+  </section>
+
+  <!-- ==================== COMING SOON / ANTICIPATED ==================== -->
+  <section class="py-16 px-8 border-t border-[#dcc5b8] dark:border-zinc-900 bg-[#f0e3d8] dark:bg-black" *ngIf="isLoadingComingSoon() || comingSoon().length > 0">
+    <div class="mb-8">
+      <h2 class="text-2xl font-bold pl-4 border-l-4 border-[#d6b87a]">Coming Soon</h2>
+      <p class="text-sm text-[#8a756e] dark:text-gray-500 pl-4 mt-1">Highly anticipated — be the first to know when they drop</p>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5" *ngIf="!isLoadingComingSoon() && comingSoon().length > 0">
+      <a *ngFor="let movie of comingSoon()"
+         [routerLink]="['/movies', movie.slug || movie.id]"
+         class="group cursor-pointer">
+        <div class="relative rounded-xl overflow-hidden aspect-[2/3] bg-[#dfc8bb] dark:bg-zinc-800">
+          <!-- Coming Soon ribbon -->
+          <div class="absolute top-0 right-0 z-10 bg-[#d6b87a] text-[#24181b] text-[9px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-wider">
+            Coming Soon
+          </div>
+          <img *ngIf="movie.thumbnailUrl || movie.posterUrl"
+               [src]="movie.thumbnailUrl || movie.posterUrl"
+               [alt]="movie.title"
+               class="w-full h-full object-cover opacity-70 group-hover:opacity-90 group-hover:scale-105 transition duration-300">
+          <div *ngIf="!movie.thumbnailUrl && !movie.posterUrl" class="w-full h-full flex items-center justify-center">
+            <span class="text-4xl">🎞️</span>
+          </div>
+          <!-- Blur overlay with title always visible -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-3">
+            <p class="text-white font-bold text-sm line-clamp-2 drop-shadow">{{ movie.title }}</p>
+            <div class="flex items-center gap-2 mt-1 text-xs text-gray-300">
+              <span>{{ movie.year }}</span>
+              <span *ngIf="movie.genre?.length">• {{ movie.genre[0] }}</span>
+            </div>
+            <!-- Notification count if any -->
+            <div *ngIf="movie._count?.notifications && movie._count.notifications > 0"
+                 class="mt-2 flex items-center gap-1 text-[10px] text-[#d6b87a]">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              {{ movie._count.notifications }} waiting
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Loading -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5" *ngIf="isLoadingComingSoon()">
+      <div *ngFor="let i of [1,2,3,4]">
+        <div class="aspect-[2/3] bg-[#dfc8bb] dark:bg-zinc-800 rounded-xl animate-pulse"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== LOCAL & GLOBAL PROMO ==================== -->
   <section class="py-20 px-8 bg-[#f7eee7] dark:bg-black grid md:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
     <div class="order-2 md:order-1">
       <h2 class="text-5xl font-bold mb-6">Local &amp; Global.</h2>

@@ -1,0 +1,724 @@
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { Book, PaginationMeta } from '@naijaspride/types';
+import { interval, Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
+
+// Lucide icons as SVG components
+const ArrowRightIcon = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+`;
+
+const GridIcon = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+`;
+
+const MoveUpRightIcon = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+`;
+
+const SearchIcon = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+`;
+
+const MenuIcon = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+`;
+
+type ContentItem = {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+  author?: string;
+  year?: number;
+  type: 'book' | 'comic' | 'manga';
+  slug?: string;
+  latestChapter?: string | null;
+  tag?: string;
+  description?: string;
+};
+
+type FeaturedContent = {
+  book: ContentItem | null;
+  comic: ContentItem | null;
+  manga: ContentItem | null;
+};
+
+@Component({
+  selector: 'app-books-editorial-landing',
+  standalone: true,
+  imports: [CommonModule, RouterLink],
+  styles: [`
+    :host {
+      display: block;
+      min-height: 100vh;
+      background: #050505;
+      color: #e6e0d4;
+    }
+
+    /* Typography */
+    .serif-text { 
+      font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+      font-weight: 400;
+    }
+    .sans-text { 
+      font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+      font-weight: 300;
+    }
+
+    /* Grain overlay */
+    .grain-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    }
+
+    /* Image clip path */
+    .clip-image-diag {
+      clip-path: polygon(8% 0, 100% 0, 100% 92%, 92% 100%, 0 100%, 0 8%);
+    }
+
+    /* Text outline */
+    .text-outline {
+      -webkit-text-stroke: 1px #e6e0d4;
+      color: transparent;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #050505; }
+    ::-webkit-scrollbar-thumb { background: #590d0d; }
+
+    /* Hover animations */
+    .hover-lift {
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease;
+    }
+    .hover-lift:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    .image-zoom {
+      transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease;
+    }
+    .group:hover .image-zoom {
+      transform: scale(1.08);
+    }
+
+    /* Marquee */
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .animate-marquee {
+      animation: marquee 25s linear infinite;
+    }
+
+    /* Scroll reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Category hover */
+    .category-item {
+      transition: padding-left 0.3s ease, color 0.3s ease;
+    }
+    .category-item:hover {
+      padding-left: 16px;
+    }
+  `],
+  template: `
+    <div class="grain-overlay"></div>
+    
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 w-full px-6 py-6 flex justify-between items-center z-50 mix-blend-difference">
+      <div class="flex items-center gap-4">
+        <a routerLink="/" class="w-10 h-10 border border-[#e6e0d4] flex items-center justify-center relative overflow-hidden group cursor-pointer">
+          <div class="absolute inset-0 bg-[#e6e0d4] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out"></div>
+          <span class="serif-text text-2xl font-bold group-hover:text-[#050505] transition-colors relative z-10">N</span>
+        </a>
+        <span class="hidden md:block text-xs tracking-[0.2em] font-bold uppercase sans-text">NaijasPride / Comics</span>
+      </div>
+
+      <div class="flex items-center gap-8">
+        <button class="hidden md:flex items-center gap-2 hover:text-[#8a1c1c] transition-colors">
+          <span [innerHTML]="searchIcon"></span>
+          <span class="text-xs tracking-widest sans-text">SEARCH</span>
+        </button>
+        <button class="flex items-center gap-2 group">
+          <span class="text-xs tracking-widest group-hover:line-through decoration-[#8a1c1c] sans-text">MENU</span>
+          <span [innerHTML]="menuIcon" class="group-hover:rotate-90 transition-transform"></span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="relative min-h-screen flex flex-col justify-center px-6 pt-24 pb-12 overflow-hidden border-b border-[#1f1f1f]">
+      <!-- Background Elements -->
+      <div class="absolute top-0 right-0 w-1/3 h-full bg-[#1f1f1f] opacity-20 -z-10"></div>
+      <div class="absolute top-1/4 left-10 w-64 h-64 border border-[#590d0d] rounded-full opacity-30 -z-10 blur-3xl"></div>
+      
+      <div class="max-w-7xl mx-auto w-full z-10">
+        <div class="reveal visible">
+          <h1 class="serif-text text-[14vw] leading-[0.8] text-[#e6e0d4] mix-blend-overlay">
+            VISUAL
+          </h1>
+          <div class="flex flex-col md:flex-row items-start md:items-end justify-between">
+            <h1 class="serif-text text-[14vw] leading-[0.8] text-[#8a1c1c] italic ml-0 md:ml-12">
+              LIT.
+            </h1>
+            <div class="mb-4 md:mb-8 md:mr-12 max-w-sm">
+              <p class="sans-text text-sm md:text-base text-[#e6e0d4] opacity-80 leading-relaxed text-justify">
+                A curated subsection of NAIJASPRIDE dedicated to the art of sequential storytelling. From Lagosian cyberpunk to traditional folklore reimagined in ink.
+              </p>
+              <a routerLink="/books/all" class="mt-6 px-6 py-3 border border-[#e6e0d4] text-[#e6e0d4] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] transition-all duration-300 inline-block sans-text">
+                ENTER ARCHIVE
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Decorative Line -->
+      <div class="absolute bottom-12 left-0 h-[1px] bg-[#8a1c1c]" [style.width.%]="scrollProgress() * 100"></div>
+    </section>
+
+    <!-- Featured Weekly Drops -->
+    <section class="py-24 px-6 bg-[#050505]">
+      <div class="max-w-7xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#1f1f1f] pb-6 reveal">
+          <h2 class="serif-text text-5xl md:text-7xl text-[#e6e0d4]">
+            WEEKLY <span class="text-[#590d0d] italic">DROPS</span>
+          </h2>
+          <div class="flex gap-2 mt-4 md:mt-0">
+            <button routerLink="/books/all" class="w-10 h-10 border border-[#1f1f1f] flex items-center justify-center hover:bg-[#e6e0d4] hover:text-[#050505] transition-colors">
+              <span [innerHTML]="gridIcon"></span>
+            </button>
+            <button routerLink="/books/all" class="w-10 h-10 border border-[#1f1f1f] flex items-center justify-center hover:bg-[#e6e0d4] hover:text-[#050505] transition-colors">
+              <span [innerHTML]="arrowIcon"></span>
+            </button>
+          </div>
+        </div>
+
+        @if (isLoading()) {
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+            @for (i of [1,2,3]; track i) {
+              <div class="animate-pulse">
+                <div class="aspect-[3/4] bg-[#1f1f1f] clip-image-diag mb-4"></div>
+                <div class="h-6 bg-[#1f1f1f] w-3/4 mb-2"></div>
+                <div class="h-4 bg-[#1f1f1f] w-1/2"></div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+            <!-- Featured Book -->
+            @if (featured().book) {
+              <a [routerLink]="['/books', featured()!.book!.slug]" class="group cursor-pointer reveal" [style.transition-delay]="'0ms'">
+                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[#1f1f1f] hover-lift">
+                  <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity duration-500 z-10 mix-blend-multiply"></div>
+                  
+                  @if (featured()!.book!.coverUrl) {
+                    <img 
+                      [src]="featured()!.book!.coverUrl" 
+                      [alt]="featured()!.book!.title"
+                      class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                      loading="lazy"
+                    >
+                  } @else {
+                    <div class="w-full h-full flex items-center justify-center">
+                      <span class="text-6xl">📚</span>
+                    </div>
+                  }
+                  
+                  <div class="absolute top-4 right-4 bg-[#050505] px-2 py-1 z-20">
+                    <span class="text-[10px] tracking-widest text-[#e6e0d4] uppercase sans-text">BOOK</span>
+                  </div>
+                </div>
+
+                <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
+                  <div>
+                    <h3 class="serif-text text-2xl text-[#e6e0d4] italic">{{ featured()!.book!.title }}</h3>
+                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">By {{ featured()!.book!.author || 'Unknown Author' }}</p>
+                  </div>
+                  <div class="text-right">
+                    <span class="block text-[#8a1c1c] sans-text text-xs font-bold">{{ featured()!.book!.year || '2024' }}</span>
+                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[#e6e0d4] opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                  </div>
+                </div>
+              </a>
+            }
+
+            <!-- Featured Comic -->
+            @if (featured().comic) {
+              <a [routerLink]="['/books/comics', toRouteParam(featured()!.comic!.id)]" class="group cursor-pointer reveal" [style.transition-delay]="'100ms'">
+                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[#1f1f1f] hover-lift">
+                  <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity duration-500 z-10 mix-blend-multiply"></div>
+                  
+                  @if (featured()!.comic!.coverUrl) {
+                    <img 
+                      [src]="featured()!.comic!.coverUrl" 
+                      [alt]="featured()!.comic!.title"
+                      class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                      loading="lazy"
+                    >
+                  } @else {
+                    <div class="w-full h-full flex items-center justify-center">
+                      <span class="text-6xl">📖</span>
+                    </div>
+                  }
+                  
+                  <div class="absolute top-4 right-4 bg-[#050505] px-2 py-1 z-20">
+                    <span class="text-[10px] tracking-widest text-[#e6e0d4] uppercase sans-text">COMIC</span>
+                  </div>
+                </div>
+
+                <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
+                  <div>
+                    <h3 class="serif-text text-2xl text-[#e6e0d4] italic">{{ featured()!.comic!.title }}</h3>
+                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">ReadComicsOnline</p>
+                  </div>
+                  <div class="text-right">
+                    @if (featured()!.comic!.latestChapter) {
+                      <span class="block text-[#8a1c1c] sans-text text-xs font-bold">Ch. {{ featured()!.comic!.latestChapter }}</span>
+                    }
+                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[#e6e0d4] opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                  </div>
+                </div>
+              </a>
+            }
+
+            <!-- Featured Manga (Rotating) -->
+            @if (featured().manga) {
+              <a [routerLink]="['/books/manga', toRouteParam(featured()!.manga!.id)]" class="group cursor-pointer reveal" [style.transition-delay]="'200ms'">
+                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[#1f1f1f] hover-lift">
+                  <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity duration-500 z-10 mix-blend-multiply"></div>
+                  
+                  @if (featured()!.manga!.coverUrl) {
+                    <img 
+                      [src]="featured()!.manga!.coverUrl" 
+                      [alt]="featured()!.manga!.title"
+                      class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                      loading="lazy"
+                      [class.opacity-0]="isMangaChanging()"
+                      [class.opacity-100]="!isMangaChanging()"
+                      style="transition: opacity 0.3s ease, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease"
+                    >
+                  } @else {
+                    <div class="w-full h-full flex items-center justify-center">
+                      <span class="text-6xl">🎌</span>
+                    </div>
+                  }
+                  
+                  <div class="absolute top-4 right-4 bg-[#050505] px-2 py-1 z-20">
+                    <span class="text-[10px] tracking-widest text-[#e6e0d4] uppercase sans-text">MANGA</span>
+                  </div>
+                </div>
+
+                <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
+                  <div>
+                    <h3 class="serif-text text-2xl text-[#e6e0d4] italic transition-opacity duration-300" [class.opacity-0]="isMangaChanging()" [class.opacity-100]="!isMangaChanging()">{{ featured()!.manga!.title }}</h3>
+                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">Trending Now</p>
+                  </div>
+                  <div class="text-right">
+                    @if (featured()!.manga!.latestChapter) {
+                      <span class="block text-[#8a1c1c] sans-text text-xs font-bold transition-opacity duration-300" [class.opacity-0]="isMangaChanging()" [class.opacity-100]="!isMangaChanging()">Ch. {{ featured()!.manga!.latestChapter }}</span>
+                    }
+                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[#e6e0d4] opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                  </div>
+                </div>
+              </a>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Marquee -->
+    <div class="py-12 bg-[#590d0d] overflow-hidden border-y border-[#e6e0d4]">
+      <div class="flex whitespace-nowrap animate-marquee">
+        @for (i of [1,2,3,4]; track i) {
+          <span class="serif-text text-6xl md:text-8xl text-[#e6e0d4] mx-8">LATEST CHAPTERS</span>
+          <span class="sans-text text-4xl text-[#050505] mx-4">✦</span>
+          <span class="serif-text text-6xl md:text-8xl text-outline mx-8">READ NOW</span>
+          <span class="sans-text text-4xl text-[#050505] mx-4">✦</span>
+        }
+      </div>
+    </div>
+
+    <!-- Content Sections -->
+    <section class="py-24 px-6 max-w-7xl mx-auto">
+      
+      <!-- Books Section -->
+      <div class="mb-20 reveal">
+        <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
+          <div class="flex items-baseline gap-4">
+            <span class="serif-text text-6xl md:text-8xl text-[#1f1f1f]">01</span>
+            <h2 class="serif-text text-4xl md:text-6xl text-[#e6e0d4] group-hover:italic group-hover:text-[#8a1c1c] transition-all">BOOKS</h2>
+          </div>
+          <a routerLink="/books/all" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
+            VIEW ALL <span [innerHTML]="arrowIcon"></span>
+          </a>
+        </div>
+
+        @if (isBooksLoading()) {
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            @for (i of [1,2,3,4,5,6]; track i) {
+              <div class="animate-pulse">
+                <div class="aspect-[2/3] bg-[#1f1f1f] clip-image-diag mb-3"></div>
+                <div class="h-4 bg-[#1f1f1f] w-3/4"></div>
+              </div>
+            }
+          </div>
+        } @else if (books().length > 0) {
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            @for (book of books().slice(0, 6); track book.id; let idx = $index) {
+              <a [routerLink]="['/books', book.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
+                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[#1f1f1f]">
+                  @if (book.coverUrl) {
+                    <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
+                  } @else {
+                    <div class="w-full h-full flex items-center justify-center text-3xl">📚</div>
+                  }
+                </div>
+                <h3 class="serif-text text-lg text-[#e6e0d4] truncate">{{ book.title }}</h3>
+                <p class="sans-text text-xs text-[#e6e0d4] opacity-50 uppercase tracking-wide">{{ book.author }}</p>
+              </a>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Comics Section -->
+      <div class="mb-20 reveal">
+        <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
+          <div class="flex items-baseline gap-4">
+            <span class="serif-text text-6xl md:text-8xl text-[#1f1f1f]">02</span>
+            <h2 class="serif-text text-4xl md:text-6xl text-[#e6e0d4]">COMICS</h2>
+          </div>
+          <a routerLink="/books/comics" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
+            VIEW ALL <span [innerHTML]="arrowIcon"></span>
+          </a>
+        </div>
+
+        @if (isComicsLoading()) {
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            @for (i of [1,2,3,4,5,6]; track i) {
+              <div class="animate-pulse">
+                <div class="aspect-[2/3] bg-[#1f1f1f] clip-image-diag mb-3"></div>
+                <div class="h-4 bg-[#1f1f1f] w-3/4"></div>
+              </div>
+            }
+          </div>
+        } @else if (comics().length > 0) {
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            @for (comic of comics().slice(0, 6); track comic.id; let idx = $index) {
+              <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
+                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[#1f1f1f]">
+                  @if (comic.coverUrl) {
+                    <img [src]="comic.coverUrl" [alt]="comic.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
+                  } @else {
+                    <div class="w-full h-full flex items-center justify-center text-3xl">📖</div>
+                  }
+                  @if (comic.latestChapter) {
+                    <div class="absolute bottom-2 left-2 bg-[#050505] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ comic.latestChapter }}</div>
+                  }
+                </div>
+                <h3 class="serif-text text-lg text-[#e6e0d4] truncate">{{ comic.title }}</h3>
+              </a>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Manga Section -->
+      <div class="reveal">
+        <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
+          <div class="flex items-baseline gap-4">
+            <span class="serif-text text-6xl md:text-8xl text-[#1f1f1f]">03</span>
+            <h2 class="serif-text text-4xl md:text-6xl text-[#e6e0d4]">MANGA</h2>
+          </div>
+          <a routerLink="/books/manga" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
+            OPEN LIBRARY <span [innerHTML]="arrowIcon"></span>
+          </a>
+        </div>
+
+        @if (isMangaLoading()) {
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            @for (i of [1,2,3,4,5,6]; track i) {
+              <div class="animate-pulse">
+                <div class="aspect-[2/3] bg-[#1f1f1f] clip-image-diag mb-3"></div>
+                <div class="h-4 bg-[#1f1f1f] w-3/4"></div>
+              </div>
+            }
+          </div>
+        } @else if (manga().length > 0) {
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            @for (m of manga().slice(0, 6); track m.id; let idx = $index) {
+              <a [routerLink]="['/books/manga', toRouteParam(m.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
+                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[#1f1f1f]">
+                  @if (m.coverUrl) {
+                    <img [src]="m.coverUrl" [alt]="m.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
+                  } @else {
+                    <div class="w-full h-full flex items-center justify-center text-3xl">🎌</div>
+                  }
+                  @if (m.latestChapter) {
+                    <div class="absolute bottom-2 left-2 bg-[#050505] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ m.latestChapter }}</div>
+                  }
+                </div>
+                <h3 class="serif-text text-lg text-[#e6e0d4] truncate">{{ m.title }}</h3>
+              </a>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-[#1f1f1f] pt-24 pb-12 px-6 border-t border-[#590d0d]">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-24 max-w-7xl mx-auto">
+        <div>
+          <h2 class="serif-text text-5xl md:text-9xl text-[#050505] text-outline opacity-50">NAIJAS</h2>
+          <h2 class="serif-text text-5xl md:text-9xl text-[#e6e0d4] -mt-4 md:-mt-10 ml-8 md:ml-24">PRIDE</h2>
+        </div>
+        <div class="mt-12 md:mt-0 flex flex-col items-start md:items-end">
+          <p class="sans-text text-xs tracking-widest mb-4 text-[#e6e0d4] opacity-60">SUBSCRIBE TO THE NEWSLETTER</p>
+          <div class="flex border-b border-[#e6e0d4] pb-2 w-full md:w-80">
+            <input type="email" placeholder="Email Address" class="bg-transparent border-none outline-none text-[#e6e0d4] w-full placeholder:text-[#1f1f1f] sans-text">
+            <span [innerHTML]="arrowIcon" class="cursor-pointer"></span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex flex-col md:flex-row justify-between text-[#e6e0d4] opacity-40 text-xs sans-text max-w-7xl mx-auto">
+        <div class="flex gap-6 mb-4 md:mb-0">
+          <a href="#" class="hover:text-[#8a1c1c] transition-colors">INSTAGRAM</a>
+          <a href="#" class="hover:text-[#8a1c1c] transition-colors">TWITTER</a>
+          <a href="#" class="hover:text-[#8a1c1c] transition-colors">DISCORD</a>
+        </div>
+        <p>&copy; 2026 NAIJASPRIDE. ALL RIGHTS RESERVED.</p>
+      </div>
+    </footer>
+  `,
+})
+export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
+  private http = inject(HttpClient);
+  private destroy$ = new Subject<void>();
+  
+  // Content signals
+  books = signal<Book[]>([]);
+  comics = signal<ContentItem[]>([]);
+  manga = signal<ContentItem[]>([]);
+  
+  // Loading states
+  isBooksLoading = signal(true);
+  isComicsLoading = signal(true);
+  isMangaLoading = signal(true);
+  isLoading = computed(() => this.isBooksLoading() || this.isComicsLoading() || this.isMangaLoading());
+  
+  // Featured content
+  featured = signal<FeaturedContent>({ book: null, comic: null, manga: null });
+  isMangaChanging = signal(false);
+  
+  // Scroll progress for hero line
+  scrollProgress = signal(0);
+  
+  // Icons
+  arrowIcon = ArrowRightIcon;
+  gridIcon = GridIcon;
+  arrowUpIcon = MoveUpRightIcon;
+  searchIcon = SearchIcon;
+  menuIcon = MenuIcon;
+  
+  // Manga rotation
+  private mangaRotationIndex = 0;
+  private allTrendingManga: ContentItem[] = [];
+
+  ngOnInit() {
+    this.loadBooks();
+    this.loadComics();
+    this.loadManga();
+    this.setupScrollListener();
+    this.setupIntersectionObserver();
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private setupScrollListener() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', () => {
+        const scrollY = window.scrollY;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        this.scrollProgress.set(Math.min(1, scrollY / 500));
+      }, { passive: true });
+    }
+  }
+
+  private setupIntersectionObserver() {
+    if (typeof window !== 'undefined' && 'IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+      setTimeout(() => {
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+      }, 100);
+    }
+  }
+
+  loadBooks() {
+    this.isBooksLoading.set(true);
+    this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>('/api/v1/books?page=1&limit=20&kind=book')
+      .subscribe({
+        next: (response) => {
+          this.books.set(response.data);
+          if (response.data.length > 0) {
+            const book = response.data[0];
+            this.featured.update(f => ({
+              ...f,
+              book: {
+                id: book.id,
+                title: book.title,
+                coverUrl: book.coverUrl,
+                author: book.author,
+                year: book.year,
+                type: 'book',
+                slug: book.slug
+              }
+            }));
+          }
+          this.isBooksLoading.set(false);
+        },
+        error: () => {
+          this.isBooksLoading.set(false);
+        }
+      });
+  }
+
+  loadComics() {
+    this.isComicsLoading.set(true);
+    this.http.get<{
+      status: string;
+      data: {
+        trending: Array<{
+          id: string;
+          title: string;
+          coverUrl: string | null;
+          latestChapter?: string | null;
+        }>
+      }
+    }>('/api/v1/books/manga/source/readcomicsonline/discover?limit=20')
+      .subscribe({
+        next: (response) => {
+          const comics = response.data.trending.map((entry) => ({
+            id: entry.id,
+            title: entry.title,
+            coverUrl: entry.coverUrl,
+            author: 'ReadComicsOnline',
+            type: 'comic' as const,
+            latestChapter: entry.latestChapter ?? null,
+          }));
+
+          this.comics.set(comics);
+          if (comics.length > 0) {
+            this.featured.update(f => ({
+              ...f,
+              comic: comics[0]
+            }));
+          }
+          this.isComicsLoading.set(false);
+        },
+        error: () => {
+          this.isComicsLoading.set(false);
+        }
+      });
+  }
+
+  loadManga() {
+    this.isMangaLoading.set(true);
+    const sourceId = localStorage.getItem('np_manga_source')?.trim().toLowerCase() || 'weebcentral';
+    
+    this.http.get<{ 
+      status: string; 
+      data: { 
+        trending: Array<{
+          id: string;
+          title: string;
+          coverUrl: string | null;
+          latestChapter?: string | null;
+        }> 
+      } 
+    }>(`/api/v1/books/manga/source/${encodeURIComponent(sourceId)}/discover?limit=20`)
+      .subscribe({
+        next: (response) => {
+          const mangaItems = response.data.trending.map(m => ({
+            id: m.id,
+            title: m.title,
+            coverUrl: m.coverUrl,
+            type: 'manga' as const,
+            latestChapter: m.latestChapter
+          }));
+          
+          this.manga.set(mangaItems);
+          this.allTrendingManga = mangaItems;
+          
+          if (mangaItems.length > 0) {
+            this.featured.update(f => ({ ...f, manga: mangaItems[0] }));
+            this.startMangaRotation();
+          }
+          
+          this.isMangaLoading.set(false);
+        },
+        error: () => {
+          this.isMangaLoading.set(false);
+        }
+      });
+  }
+
+  private startMangaRotation() {
+    interval(5000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (this.allTrendingManga.length > 1) {
+          this.isMangaChanging.set(true);
+          
+          setTimeout(() => {
+            this.mangaRotationIndex = (this.mangaRotationIndex + 1) % this.allTrendingManga.length;
+            this.featured.update(f => ({
+              ...f,
+              manga: this.allTrendingManga[this.mangaRotationIndex]
+            }));
+            
+            setTimeout(() => {
+              this.isMangaChanging.set(false);
+            }, 100);
+          }, 300);
+        }
+      });
+  }
+
+  toRouteParam(value: string) {
+    return encodeURIComponent(value);
+  }
+}

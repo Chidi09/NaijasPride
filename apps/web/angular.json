@@ -2,6 +2,11 @@
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "newProjectRoot": "projects",
+  "cli": {
+    "cache": {
+      "enabled": true
+    }
+  },
   "projects": {
     "web": {
       "projectType": "application",
@@ -14,24 +19,57 @@
       "root": "",
       "sourceRoot": "src",
       "prefix": "app",
-      "architect": {
-        "build": {
-          "builder": "@angular-devkit/build-angular:application",
-          "options": {
-            "outputPath": "dist/web",
-            "index": "src/index.html",
-            "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
-            "tsConfig": "tsconfig.json",
-            "optimization": {
-              "fonts": false
+        "architect": {
+          "build": {
+            "builder": "@angular-devkit/build-angular:application",
+            "options": {
+              "outputPath": "dist/web",
+              "index": "src/index.html",
+              "browser": "src/main.ts",
+              "polyfills": ["zone.js"],
+              "tsConfig": "tsconfig.json",
+              "optimization": false,
+              "sourceMap": true,
+              "namedChunks": true,
+              "extractLicenses": false,
+              "outputHashing": "none",
+              "inlineStyleLanguage": "scss",
+              "assets": ["src/favicon.ico", "src/assets", "src/manifest.webmanifest", "src/sw.js"],
+              "styles": ["src/styles.scss", "src/material-theme.scss"],
+              "scripts": []
             },
-            "inlineStyleLanguage": "scss",
-            "assets": ["src/favicon.ico", "src/assets", "src/manifest.webmanifest", "src/sw.js"],
-            "styles": ["src/styles.scss", "src/material-theme.scss"],
-            "scripts": []
-          }
-        },
+            "configurations": {
+              "production": {
+                "optimization": {
+                  "scripts": true,
+                  "styles": {
+                    "minify": true,
+                    "inlineCritical": true
+                  },
+                  "fonts": false
+                },
+                "sourceMap": false,
+                "namedChunks": false,
+                "extractLicenses": true,
+                "outputHashing": "all"
+              },
+              "development": {
+                "optimization": false,
+                "sourceMap": true,
+                "namedChunks": true,
+                "extractLicenses": false,
+                "outputHashing": "none"
+              },
+              "fast": {
+                "optimization": false,
+                "sourceMap": false,
+                "namedChunks": true,
+                "extractLicenses": false,
+                "outputHashing": "none"
+              }
+            },
+            "defaultConfiguration": "production"
+          },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {

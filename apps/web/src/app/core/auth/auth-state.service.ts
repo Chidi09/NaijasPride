@@ -51,6 +51,11 @@ export class AuthStateService {
     this.currentUser.set(null);
   }
 
+  updateUser(user: AuthUser) {
+    localStorage.setItem(this.userKey, JSON.stringify(user));
+    this.currentUser.set(user);
+  }
+
   private getUserFromStorage() {
     const user = localStorage.getItem(this.userKey);
     if (!user) return null;

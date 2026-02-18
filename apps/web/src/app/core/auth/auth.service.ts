@@ -46,6 +46,16 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
+  refreshUser() {
+    return this.http.get<{ success: boolean; data: AuthUser }>('/api/v1/profile').pipe(
+      tap((response) => {
+        if (response.success) {
+          this.authState.updateUser(response.data);
+        }
+      })
+    );
+  }
+
   private setSession(data: AuthResponse['data'], returnUrl?: string) {
     this.authState.setSession(data);
 

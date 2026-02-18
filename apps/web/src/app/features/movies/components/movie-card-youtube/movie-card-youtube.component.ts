@@ -18,7 +18,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
   imports: [CommonModule, RouterLink, NgOptimizedImage],
   template: `
     <div 
-      [routerLink]="['/movies', movie.id]" 
+      [routerLink]="['/movies', movie.slug || movie.id]" 
       class="group cursor-pointer transition-transform duration-200 ease-out hover:scale-105"
     >
       <!-- Thumbnail Container - 16:9 Aspect Ratio -->

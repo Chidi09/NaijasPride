@@ -11,7 +11,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
   imports: [CommonModule, RouterLink, NgOptimizedImage],
   template: `
     <div 
-      [routerLink]="['/movies', movie.id]" 
+      [routerLink]="['/movies', movie.slug || movie.id]" 
       class="group relative bg-[#efe1d7] dark:bg-cinema-800 rounded-sm overflow-hidden cursor-pointer transition-all duration-300 ease-out hover:z-10 hover:scale-105 hover:shadow-2xl hover:shadow-black/30 dark:hover:shadow-black/50"
     >
       <div class="aspect-[2/3] relative">

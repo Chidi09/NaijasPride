@@ -71,6 +71,15 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
             </button>
           </div>
 
+          <div class="flex items-center justify-between">
+            <a [routerLink]="['/forgot-password']" class="text-sm text-[#800020] dark:text-[#d6b87a] hover:underline">
+              Forgot password?
+            </a>
+            <a [routerLink]="['/register']" class="text-sm text-[#800020] dark:text-[#d6b87a] hover:underline">
+              Create account
+            </a>
+          </div>
+
           <div class="relative py-1">
             <div class="absolute inset-0 flex items-center">
               <div class="w-full border-t border-[#d8b7a8] dark:border-[#5f1327]"></div>

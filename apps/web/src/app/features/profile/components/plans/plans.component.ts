@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { HttpClient } from "@angular/common/http";
 import { ProfileQueryService } from "../../services/profile-query.service";
 
 interface Plan {
@@ -97,19 +98,24 @@ interface Plan {
             </ul>
 
             <button
-              class="w-full py-3 rounded font-bold transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
+              class="w-full py-3 rounded font-bold transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
               [class.bg-red-600]="!plan.popular"
               [class.hover:bg-red-700]="!plan.popular"
               [class.bg-white]="plan.popular"
               [class.text-red-600]="plan.popular"
               [class.hover:bg-gray-200]="plan.popular"
+              [disabled]="loading === plan.slug"
               (click)="subscribe(plan)"
             >
-              Subscribe
+              {{ loading === plan.slug ? 'Redirecting...' : 'Subscribe' }}
             </button>
           </div>
         }
       </div>
+
+      @if (error) {
+        <p class="text-red-400 text-sm text-center mt-6">{{ error }}</p>
+      }
 
       <!-- Compare Plans Section -->
       <div class="max-w-6xl mx-auto mt-20">
@@ -232,6 +238,10 @@ export class PlansComponent implements OnInit {
     },
   ];
 
+  private http = inject(HttpClient);
+  loading: string | null = null;
+  error: string | null = null;
+
   ngOnInit() {}
 
   formatPrice(price: number): string {
@@ -239,7 +249,23 @@ export class PlansComponent implements OnInit {
   }
 
   subscribe(plan: Plan) {
-    console.log("Subscribe to:", plan.name);
-    // TODO: Integrate with payment gateway (Paystack, Flutterwave, etc.)
+    this.loading = plan.slug;
+    this.error = null;
+
+    this.http.post<{ success: boolean; data: { authorization_url: string } }>(
+      '/api/v1/payments/initialize',
+      { plan: plan.slug }
+    ).subscribe({
+      next: (res) => {
+        this.loading = null;
+        if (res.data?.authorization_url) {
+          window.location.href = res.data.authorization_url;
+        }
+      },
+      error: (err) => {
+        this.loading = null;
+        this.error = err?.error?.message || 'Could not start payment. Please try again.';
+      }
+    });
   }
 }

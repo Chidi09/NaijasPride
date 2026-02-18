@@ -21,14 +21,17 @@ if (isSentryWebEnabled()) {
   console.info('Sentry web error tracking enabled');
 }
 
+// Register service worker for PWA support
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .getRegistrations()
-      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+      .register('/sw.js')
+      .then((registration) => {
+        console.log('SW registered: ', registration);
+      })
       .catch((err) => {
-        captureSentryWebException(err, { phase: 'service-worker-unregister' });
-        console.error('Service worker cleanup failed', err);
+        captureSentryWebException(err, { phase: 'service-worker-register' });
+        console.error('Service worker registration failed', err);
       });
   });
 }

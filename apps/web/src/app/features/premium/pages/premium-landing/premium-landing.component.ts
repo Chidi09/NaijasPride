@@ -112,12 +112,14 @@ export class PremiumLandingComponent {
     this.loading = true;
     this.error = null;
     
-    this.http.post('/api/v1/payments/subscribe', { plan: this.plan })
+    this.http.post('/api/v1/payments/initialize', { plan: this.plan })
       .subscribe({
         next: (response: any) => {
           this.loading = false;
-          if (response.data?.paymentUrl) {
-            window.location.href = response.data.paymentUrl;
+          // Paystack returns authorization_url in data
+          const url = response.data?.authorization_url || response.data?.paymentUrl;
+          if (url) {
+            window.location.href = url;
           }
         },
         error: (err) => {

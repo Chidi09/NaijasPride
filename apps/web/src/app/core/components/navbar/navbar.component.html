@@ -44,13 +44,23 @@
       </div>
 
       <div class="flex items-center gap-6">
-        <div class="relative group hidden md:flex items-center">
-          <input
-            type="text"
-            placeholder="Titles, people, genres"
-            class="bg-white/80 border border-[#d8bfb0] rounded-none pl-3 pr-10 py-2 text-sm w-0 group-hover:w-64 focus:w-64 transition-all duration-300 text-[#1f1618] placeholder-[#8b766d] focus:outline-none focus:border-[#6f1a2f] h-10 dark:bg-black/50 dark:border-white/30 dark:text-white dark:placeholder-gray-400 dark:focus:border-white"
-          >
-          <span class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-lg leading-none">🔍</span>
+        <!-- Search Bar -->
+        <div class="relative hidden md:block">
+          <form (submit)="onSearchSubmit(); $event.preventDefault()" class="relative flex items-center">
+            <input
+              #searchInput
+              type="text"
+              [formControl]="searchForm.controls.query"
+              (input)="onSearchInput($event)"
+              placeholder="Search movies, books... (Ctrl+K)"
+              class="bg-white/80 border border-[#d8bfb0] rounded-full pl-4 pr-12 py-2 text-sm w-48 focus:w-72 transition-all duration-300 text-[#1f1618] placeholder-[#8b766d] focus:outline-none focus:border-[#6f1a2f] focus:ring-2 focus:ring-[#6f1a2f]/20 h-10 dark:bg-black/50 dark:border-white/30 dark:text-white dark:placeholder-gray-400 dark:focus:border-white"
+            >
+            <button type="submit" class="absolute right-3 top-1/2 -translate-y-1/2 text-[#8b766d] hover:text-[#6f1a2f] dark:text-gray-400 dark:hover:text-white transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </button>
+          </form>
         </div>
 
         <app-theme-toggle class="hidden md:block" />

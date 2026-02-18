@@ -1,12 +1,15 @@
-import { Component, effect, inject, input, computed } from '@angular/core';
+import { Component, effect, inject, input, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Location } from '@angular/common';
 import { Meta, Title } from '@angular/platform-browser';
+import { HttpClient } from '@angular/common/http';
 import { MoviesQueryService } from '../../services/movies-query.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { CastMember, Quality, Movie } from '@naijaspride/types';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { of, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-movie-detail',
@@ -93,17 +96,17 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                 }
               </div>
 
-              <!-- Action Buttons -->
-              <div class="flex flex-wrap gap-3 pt-4">
-                @if (movie.youtubeId) {
-                  <a 
-                    [routerLink]="['/watch', movie.id]" 
+               <!-- Action Buttons -->
+               <div class="flex flex-wrap gap-3 pt-4">
+                @if (canWatch(movie)) {
+                  <a
+                    [routerLink]="['/watch', movie.slug]"
                     class="inline-flex items-center gap-2 bg-white text-cinema-900 px-6 py-3 rounded-full font-bold hover:bg-gray-100 transition-colors"
                   >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                     </svg>
-                    Watch Stream
+                    Watch Now
                   </a>
                 }
                 @if (movie.trailerUrl) {
@@ -131,6 +134,28 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                       </svg>
                     }
                     {{ isInWatchlist(movie.id) ? 'In Watchlist' : 'Add to Watchlist' }}
+                  </button>
+
+                  <!-- Notification Bell -->
+                  <button
+                    (click)="toggleNotification(movie.id)"
+                    [disabled]="updatingNotification()"
+                    class="inline-flex items-center gap-2 border border-white/30 text-white px-4 py-3 rounded-full font-bold hover:bg-white/10 transition-colors disabled:opacity-50"
+                    [title]="isSubscribedToNotifications() ? 'Unsubscribe from notifications' : 'Notify me when available in HD'"
+                  >
+                    @if (updatingNotification()) {
+                      <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    } @else {
+                      @if (isSubscribedToNotifications()) {
+                        <svg class="w-5 h-5 text-cinema-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                        </svg>
+                      } @else {
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                      }
+                    }
                   </button>
                 }
               </div>
@@ -192,9 +217,9 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
                   </div>
                   <h3 class="text-lg font-serif font-bold text-[#24181b] dark:text-white mb-2">Stream Only</h3>
                   <p class="text-[#725f58] dark:text-gray-400 text-sm mb-4">This movie is available for streaming only.</p>
-                  @if (movie.youtubeId) {
+                  @if (canWatch(movie)) {
                     <a 
-                      [routerLink]="['/watch', movie.id]" 
+                      [routerLink]="['/watch', movie.slug]" 
                       class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-6 py-3 rounded-full transition-colors w-full"
                     >
                       ▶ Watch Now
@@ -244,6 +269,44 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
           </div>
 
         </div>
+
+        <!-- Related Movies Section -->
+        @if (similarMoviesSignal() && similarMoviesSignal().length > 0) {
+          <div class="mt-12 border-t border-[#d9c4b7] dark:border-white/5 pt-8">
+            <h2 class="text-2xl font-serif font-bold text-[#24181b] dark:text-white mb-6">More Like This</h2>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              @for (movie of similarMoviesSignal(); track movie.id) {
+                <a [routerLink]="['/movies', movie.slug]" class="group block">
+                  <div class="relative aspect-[2/3] rounded-lg overflow-hidden bg-[#e5d2c6] dark:bg-cinema-800">
+                    @if (movie.posterUrl || movie.thumbnailUrl) {
+                      <img 
+                        [src]="movie.posterUrl || movie.thumbnailUrl" 
+                        [alt]="movie.title"
+                        class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    } @else {
+                      <div class="w-full h-full flex items-center justify-center text-[#9f7d73] dark:text-gray-600">
+                        <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 100 4v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 100-4V6z"/>
+                        </svg>
+                      </div>
+                    }
+                    
+                    @if (movie.isStreamOnly) {
+                      <span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">STREAM</span>
+                    }
+                  </div>
+                  
+                  <div class="mt-2">
+                    <h3 class="text-sm font-medium text-[#24181b] dark:text-white line-clamp-1 group-hover:text-cinema-500 transition-colors">{{ movie.title }}</h3>
+                    <p class="text-xs text-[#9f7d73]">{{ movie.year }} • {{ movie.rating || '0' }}% Match</p>
+                  </div>
+                </a>
+              }
+            </div>
+          </div>
+        }
       }
     }
   `
@@ -256,14 +319,27 @@ export class MovieDetailComponent {
   private meta = inject(Meta);
   private title = inject(Title);
   private location = inject(Location);
+  private http = inject(HttpClient);
   auth = inject(AuthService);
   
   query = this.moviesService.getMovieDetailQuery(this.slug);
   watchlistMutation = this.profileService.toggleWatchlistMutation();
   profileQuery = this.profileService.getProfileQuery();
 
+  // Similar/Related movies - fetch when slug changes
+  similarMoviesSignal = toSignal(
+    this.http.get<{ data: Movie[] }>(`/api/v1/movies/${this.slug()}/similar`).pipe(
+      switchMap(response => of(response.data))
+    ),
+    { initialValue: [] as Movie[] }
+  );
+
+  // Notification subscription state
+  notificationSubscribed = signal<boolean>(false);
+  updatingNotification = signal<boolean>(false);
+
   constructor() {
-    // Automatically update SEO tags when data arrives
+    // Automatically update SEO tags and check notification status when data arrives
     effect(() => {
       const movie = this.query.data()?.data;
       if (movie) {
@@ -282,8 +358,56 @@ export class MovieDetailComponent {
         this.meta.updateTag({ name: 'twitter:title', content: movie.title });
         this.meta.updateTag({ name: 'twitter:description', content: movie.description || '' });
         this.meta.updateTag({ name: 'twitter:image', content: movie.thumbnailUrl || '' });
+
+        // 4. Check notification subscription status
+        if (this.auth.currentUser()) {
+          this.checkNotificationStatus(movie.id);
+        }
       }
     });
+  }
+
+  private checkNotificationStatus(movieId: string) {
+    this.http.get<{ data: { subscribed: boolean } }>(`/api/v1/movies/notifications/check/${movieId}`)
+      .subscribe({
+        next: (res) => this.notificationSubscribed.set(res.data.subscribed),
+        error: () => this.notificationSubscribed.set(false)
+      });
+  }
+
+  toggleNotification(movieId: string) {
+    if (this.updatingNotification()) return;
+
+    this.updatingNotification.set(true);
+    const isSubscribed = this.notificationSubscribed();
+
+    if (isSubscribed) {
+      // Unsubscribe
+      this.http.delete(`/api/v1/movies/notifications/${movieId}`).subscribe({
+        next: () => {
+          this.notificationSubscribed.set(false);
+          this.updatingNotification.set(false);
+        },
+        error: () => {
+          this.updatingNotification.set(false);
+        }
+      });
+    } else {
+      // Subscribe
+      this.http.post('/api/v1/movies/notifications', { movieId }).subscribe({
+        next: () => {
+          this.notificationSubscribed.set(true);
+          this.updatingNotification.set(false);
+        },
+        error: () => {
+          this.updatingNotification.set(false);
+        }
+      });
+    }
+  }
+
+  isSubscribedToNotifications(): boolean {
+    return this.notificationSubscribed();
   }
 
   goBack() {
@@ -330,5 +454,29 @@ export class MovieDetailComponent {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('');
+  }
+
+  private isStreamableVideoUrl(url: string): boolean {
+    const raw = (url || '').trim();
+    if (!raw) return false;
+
+    const withoutHash = raw.split('#')[0] || raw;
+    try {
+      const parsed = new URL(withoutHash, 'http://localhost');
+      const key = parsed.searchParams.get('key');
+      const target = (key || parsed.pathname || '').toLowerCase();
+      return target.endsWith('.mp4') || target.endsWith('.m3u8');
+    } catch {
+      const clean = (withoutHash.split('?')[0] || '').toLowerCase();
+      return clean.endsWith('.mp4') || clean.endsWith('.m3u8');
+    }
+  }
+
+  canWatch(movie: Movie): boolean {
+    if (movie.youtubeId) return true;
+    const urls = movie.fileUrls || {};
+    return Object.values(urls).some(
+      (value) => typeof value === 'string' && value.trim().length > 0 && this.isStreamableVideoUrl(value)
+    );
   }
 }

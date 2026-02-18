@@ -30,3 +30,31 @@ export enum ContentStatus {
   Processing = 'processing',
   Deleted = 'deleted',
 }
+
+export enum MusicGenre {
+  Afrobeat = 'Afrobeat',
+  Afropop = 'Afropop',
+  HipHop = 'Hip-Hop',
+  RAndB = 'R&B',
+  Gospel = 'Gospel',
+  Highlife = 'Highlife',
+  Fuji = 'Fuji',
+  Reggae = 'Reggae',
+  Dancehall = 'Dancehall',
+  Jazz = 'Jazz',
+  Soul = 'Soul',
+  Pop = 'Pop',
+  Rock = 'Rock',
+  Amapiano = 'Amapiano',
+  Traditional = 'Traditional',
+  Alternative = 'Alternative',
+}
+
+export enum MusicRegion {
+  Nigeria = 'Nigeria',
+  Ghana = 'Ghana',
+  SouthAfrica = 'SouthAfrica',
+  Kenya = 'Kenya',
+  Tanzania = 'Tanzania',
+  International = 'International',
+}

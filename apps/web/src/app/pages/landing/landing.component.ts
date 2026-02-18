@@ -7,6 +7,18 @@ import { MovieSummary } from '@naijaspride/types';
 
 type AnimPhase = 'glitch' | 'dissolve' | 'hero';
 
+interface ComingSoonMovie {
+  id: string;
+  title: string;
+  slug: string;
+  year: number;
+  thumbnailUrl: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  genre: string[];
+  _count?: { notifications: number };
+}
+
 @Component({
   selector: 'app-landing',
   standalone: true,
@@ -33,6 +45,14 @@ export class LandingComponent implements OnInit, OnDestroy {
   trendingMovies = signal<MovieSummary[]>([]);
   isLoadingTrending = signal(true);
 
+  // Most watched movies
+  mostWatched = signal<MovieSummary[]>([]);
+  isLoadingMostWatched = signal(true);
+
+  // Coming soon / anticipated
+  comingSoon = signal<ComingSoonMovie[]>([]);
+  isLoadingComingSoon = signal(true);
+
   private router = inject(Router);
   private http = inject(HttpClient);
 
@@ -54,6 +74,9 @@ export class LandingComponent implements OnInit, OnDestroy {
 
     // Load trending movies
     this.loadTrendingMovies();
+
+    // Load featured (most watched + coming soon)
+    this.loadFeatured();
   }
 
   ngOnDestroy() {
@@ -86,6 +109,24 @@ export class LandingComponent implements OnInit, OnDestroy {
         console.error('Error loading YouTube movies:', error);
         this.youtubeMovies.set([]);
         this.isLoadingYoutube.set(false);
+      },
+    });
+  }
+
+  private loadFeatured() {
+    this.http.get<{
+      success: boolean;
+      data: { mostWatched: MovieSummary[]; comingSoon: ComingSoonMovie[] };
+    }>('/api/v1/movies/featured').subscribe({
+      next: (res) => {
+        this.mostWatched.set(res.data?.mostWatched ?? []);
+        this.comingSoon.set(res.data?.comingSoon ?? []);
+        this.isLoadingMostWatched.set(false);
+        this.isLoadingComingSoon.set(false);
+      },
+      error: () => {
+        this.isLoadingMostWatched.set(false);
+        this.isLoadingComingSoon.set(false);
       },
     });
   }

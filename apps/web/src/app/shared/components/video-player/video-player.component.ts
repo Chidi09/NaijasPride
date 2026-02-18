@@ -1,4 +1,17 @@
-import { AfterViewInit, Component, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild, ElementRef, inject, Output, EventEmitter } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  Input,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  SimpleChanges,
+  ViewChild,
+  ElementRef,
+  inject,
+  Output,
+  EventEmitter,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subject } from 'rxjs';
 import { debounceTime, takeUntil } from 'rxjs/operators';
@@ -7,6 +20,13 @@ import { AnonymousWatchService } from '../../../core/services/anonymous-watch.se
 import { AuthStateService } from '../../../core/auth/auth-state.service';
 import { BrandLogoComponent } from '../brand-logo/brand-logo.component';
 import { MovieSummary } from '@naijaspride/types';
+import { HttpClient } from '@angular/common/http';
+
+interface SubtitleInfo {
+  language: string;
+  url: string;
+  name: string;
+}
 
 interface VideoPlayerConfig {
   movieId?: string;
@@ -15,12 +35,23 @@ interface VideoPlayerConfig {
   saveProgress?: boolean;
 }
 
+interface QualityLevel {
+  height: number;
+  width: number;
+  bitrate: number;
+  level: number;
+  label: string;
+}
+
 @Component({
   selector: 'app-video-player',
   standalone: true,
   imports: [CommonModule, BrandLogoComponent],
   template: `
-    <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group">
+    <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group"
+         tabindex="0"
+         (keydown)="onKeydown($event)"
+         #playerContainer>
       
       @if (youtubeId) {
         <div class="relative w-full h-full">
@@ -30,96 +61,207 @@ interface VideoPlayerConfig {
 
       @if (videoUrl && !youtubeId) {
         <div class="relative w-full h-full">
-          <video 
-            #videoPlayer
-            [src]="videoUrl" 
-            class="w-full h-full object-contain"
-            controls
-            controlsList="nodownload"
-            aria-label="Video player"
-            (timeupdate)="onTimeUpdate()"
-            (loadedmetadata)="onMetadataLoaded()"
-            (play)="onPlay()"
-            (pause)="onPause()">
-            
-            <!-- Subtitle Track -->
-            @if (subtitleTrackUrl) {
-              <track 
-                kind="subtitles" 
-                [src]="subtitleTrackUrl" 
-                srclang="en" 
-                label="Subtitles"
-                [default]="showSubtitles">
+           <video 
+              #videoPlayer
+              [attr.src]="nativeVideoSrc" 
+              class="w-full h-full object-contain"
+              controls
+              controlsList="nodownload"
+              aria-label="Video player"
+              (timeupdate)="onTimeUpdate()"
+              (loadedmetadata)="onMetadataLoaded()"
+              (play)="onPlay()"
+              (pause)="onPause()"
+              (waiting)="onBufferingStart()"
+              (playing)="onBufferingEnd()"
+              (canplay)="onBufferingEnd()">
+             
+             <!-- Subtitle Track -->
+             @if (subtitleTrackUrl) {
+               <track 
+                 kind="subtitles" 
+                 [src]="subtitleTrackUrl" 
+                 srclang="en" 
+                 label="Subtitles"
+                 [default]="showSubtitles">
+             }
+           </video>
+           
+           <!-- Quality Selector Overlay (HLS only) -->
+           @if (showQualitySelector && qualityLevels.length > 1) {
+             <div class="absolute top-4 left-4 z-20">
+               <div class="relative group/quality">
+                 <button 
+                   (click)="toggleQualityMenu()"
+                   aria-label="Video quality"
+                   class="bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded backdrop-blur-sm transition-colors text-sm font-medium flex items-center gap-2">
+                   <span>{{ selectedQualityLabel }}</span>
+                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                   </svg>
+                 </button>
+                 
+                 @if (qualityMenuOpen) {
+                   <div class="absolute top-full left-0 mt-1 bg-black/90 rounded-lg overflow-hidden min-w-[140px] shadow-xl">
+                     @for (level of qualityLevels; track level.level) {
+                       <button
+                         (click)="setQualityLevel(level.level)"
+                         class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+                         [class.text-white]="currentLevel !== level.level"
+                         [class.text-red-400]="currentLevel === level.level"
+                         [class.font-medium]="currentLevel === level.level">
+                         {{ level.label }}
+                         @if (currentLevel === level.level) {
+                           <span class="ml-2">✓</span>
+                         }
+                       </button>
+                     }
+                     <div class="border-t border-white/10"></div>
+                     <button
+                       (click)="setAutoQuality()"
+                       class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+                       [class.text-white]="!autoQualityEnabled"
+                       [class.text-red-400]="autoQualityEnabled"
+                       [class.font-medium]="autoQualityEnabled">
+                       Auto
+                       @if (autoQualityEnabled) {
+                         <span class="ml-2">✓</span>
+                       }
+                     </button>
+                   </div>
+                 }
+               </div>
+             </div>
+           }
+           
+           <!-- Skip Buttons Overlay -->
+           @if (config.showSkipButtons && showControls) {
+             <div class="absolute inset-0 flex items-center justify-between px-8 pointer-events-none">
+               <!-- Rewind Button -->
+               <button 
+                 (click)="skip(-10)"
+                 aria-label="Rewind 10 seconds"
+                 class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
+                 <div class="flex flex-col items-center">
+                   <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                           d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"/>
+                   </svg>
+                   <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">-10s</span>
+                 </div>
+               </button>
+
+               <!-- Forward Button -->
+               <button 
+                 (click)="skip(30)"
+                 aria-label="Skip forward 30 seconds"
+                 class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
+                 <div class="flex flex-col items-center">
+                   <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                           d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z"/>
+                   </svg>
+                   <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">+30s</span>
+                 </div>
+               </button>
+             </div>
+           }
+
+            <!-- Buffering Spinner -->
+            @if (isBuffering) {
+              <div class="absolute inset-0 flex items-center justify-center bg-black/30 z-20 pointer-events-none">
+                <div class="animate-spin rounded-full h-16 w-16 border-4 border-white/30 border-t-white"></div>
+              </div>
             }
-          </video>
-          
-          <!-- Skip Buttons Overlay -->
-          @if (config.showSkipButtons && showControls) {
-            <div class="absolute inset-0 flex items-center justify-between px-8 pointer-events-none">
-              <!-- Rewind Button -->
-              <button 
-                (click)="skip(-10)"
-                aria-label="Rewind 10 seconds"
-                class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
-                <div class="flex flex-col items-center">
-                  <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"/>
-                  </svg>
-                  <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">-10s</span>
-                </div>
-              </button>
 
-              <!-- Forward Button -->
-              <button 
-                (click)="skip(30)"
-                aria-label="Skip forward 30 seconds"
-                class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
-                <div class="flex flex-col items-center">
-                  <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z"/>
-                  </svg>
-                  <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">+30s</span>
-                </div>
-              </button>
-            </div>
-          }
-
-          <!-- CC Button & Subtitle Upload -->
-          @if (showControls) {
-            <div class="absolute bottom-20 right-4 z-10">
-              <div class="relative group/cc">
+            <!-- Fullscreen Button -->
+            @if (showControls) {
+              <div class="absolute bottom-20 left-4 z-10">
                 <button 
-                  (click)="toggleSubtitles()"
-                  aria-label="Toggle subtitles"
-                  class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors"
-                  [class.text-red-500]="showSubtitles && subtitleTrackUrl">
-                  <span class="font-bold border-2 border-current rounded px-1 text-xs">CC</span>
-                </button>
-                
-                <div class="absolute bottom-12 right-0 bg-black/90 p-2 rounded hidden group-hover/cc:block min-w-[180px]">
-                  <label class="cursor-pointer text-xs text-gray-300 hover:text-white block p-2">
-                    Upload Subtitle (.vtt, .srt)
-                    <input
-                      type="file"
-                      accept=".vtt,.srt"
-                      (change)="onSubtitleSelected($event)"
-                      class="hidden"
-                      aria-label="Upload subtitle file"
-                    >
-                  </label>
-                  @if (subtitleTrackUrl) {
-                    <button 
-                      (click)="clearSubtitles()"
-                      class="text-xs text-red-400 hover:text-red-300 block p-2 w-full text-left">
-                      Clear Subtitles
-                    </button>
+                  (click)="toggleFullscreen()"
+                  aria-label="Toggle fullscreen"
+                  class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors">
+                  @if (isFullscreen) {
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M6 18L18 6M6 6l12 12M4 10V4h6M20 14v6h-6M20 10V4h-6M4 14v6h6"></path>
+                    </svg>
+                  } @else {
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+                    </svg>
                   }
+                </button>
+              </div>
+            }
+
+            <!-- CC Button & Subtitle Upload -->
+            @if (showControls) {
+              <div class="absolute bottom-20 right-4 z-10">
+                <div class="relative group/cc">
+                  <button 
+                    (click)="toggleSubtitles()"
+                    aria-label="Toggle subtitles"
+                    class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors"
+                    [class.text-red-500]="showSubtitles && subtitleTrackUrl">
+                    <span class="font-bold border-2 border-current rounded px-1 text-xs">CC</span>
+                  </button>
+                  
+                  <div class="absolute bottom-12 right-0 bg-black/90 p-2 rounded hidden group-hover/cc:block min-w-[220px]">
+                    <!-- Search Subtitles Button -->
+                    <button
+                      (click)="searchOpenSubtitles()"
+                      [disabled]="searchingSubtitles"
+                      class="cursor-pointer text-xs text-white hover:bg-white/10 block p-2 w-full text-left">
+                      @if (searchingSubtitles) {
+                        <span class="flex items-center gap-2">
+                          <span class="animate-spin h-3 w-3 border-2 border-white/30 border-t-white rounded-full"></span>
+                          Searching...
+                        </span>
+                      } @else {
+                        Search OpenSubtitles
+                      }
+                    </button>
+                    
+                    <div class="border-t border-white/10 my-1"></div>
+                    
+                    <!-- Available Subtitles -->
+                    @if (availableSubtitles.length > 0) {
+                      <div class="mb-2">
+                        <p class="text-xs text-gray-400 px-2 py-1">Available Subtitles:</p>
+                        @for (sub of availableSubtitles; track sub.url) {
+                          <button
+                            (click)="loadSubtitle(sub)"
+                            class="text-xs text-gray-300 hover:text-white hover:bg-white/10 block p-2 w-full text-left">
+                            {{ sub.language }} - {{ sub.name }}
+                          </button>
+                        }
+                      </div>
+                      <div class="border-t border-white/10 my-1"></div>
+                    }
+                    
+                    <label class="cursor-pointer text-xs text-gray-300 hover:text-white block p-2">
+                      Upload Subtitle (.vtt, .srt)
+                      <input
+                        type="file"
+                        accept=".vtt,.srt"
+                        (change)="onSubtitleSelected($event)"
+                        class="hidden"
+                        aria-label="Upload subtitle file"
+                      >
+                    </label>
+                    @if (subtitleTrackUrl) {
+                      <button 
+                        (click)="clearSubtitles()"
+                        class="text-xs text-red-400 hover:text-red-300 block p-2 w-full text-left">
+                        Clear Subtitles
+                      </button>
+                    }
+                  </div>
                 </div>
               </div>
-            </div>
-          }
+            }
 
         </div>
       }
@@ -175,10 +317,12 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
   @ViewChild('videoPlayer') videoRef!: ElementRef<HTMLVideoElement>;
   @ViewChild('youtubeContainer') youtubeContainer?: ElementRef<HTMLDivElement>;
+  @ViewChild('playerContainer') playerContainer!: ElementRef<HTMLDivElement>;
 
   private watchApi = inject(WatchApiService);
   private anonymousWatch = inject(AnonymousWatchService);
   private authState = inject(AuthStateService);
+  private http = inject(HttpClient);
   private destroy$ = new Subject<void>();
   private progressUpdate = new Subject<number>();
 
@@ -186,15 +330,29 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   private youtubePollTimer?: ReturnType<typeof setInterval>;
   private youtubeInitInFlight = false;
 
+  private hls: any | null = null;
+  private hlsInitSeq = 0;
+
   showControls = true;
   showResumeDialog = false;
   savedProgress = 0;
   duration = 0;
   isPlaying = false;
+  isBuffering = false;
+  isFullscreen = false;
   
   // Subtitle state
   subtitleTrackUrl: string | null = null;
   showSubtitles = true;
+  availableSubtitles: SubtitleInfo[] = [];
+  searchingSubtitles = false;
+
+  // Quality selector state
+  showQualitySelector = false;
+  qualityLevels: QualityLevel[] = [];
+  currentLevel = -1;
+  autoQualityEnabled = true;
+  qualityMenuOpen = false;
 
   private get isAuthenticated(): boolean {
     return this.authState.isAuthenticated();
@@ -207,12 +365,155 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     ).subscribe(progress => {
       this.saveProgress(progress);
     });
+
+    // Listen for fullscreen changes
+    document.addEventListener('fullscreenchange', this.onFullscreenChange);
+  }
+
+  private onFullscreenChange = () => {
+    this.isFullscreen = !!document.fullscreenElement;
+  };
+
+  onKeydown(event: KeyboardEvent) {
+    if (this.showResumeDialog) {
+      return; // Don't process keys while resume dialog is shown
+    }
+
+    switch (event.key) {
+      case ' ':
+      case 'Spacebar':
+        event.preventDefault();
+        this.togglePlayPause();
+        break;
+      case 'ArrowLeft':
+        event.preventDefault();
+        this.skip(-10);
+        break;
+      case 'ArrowRight':
+        event.preventDefault();
+        this.skip(30);
+        break;
+      case 'f':
+      case 'F':
+        event.preventDefault();
+        this.toggleFullscreen();
+        break;
+      case 'm':
+      case 'M':
+        event.preventDefault();
+        this.toggleMute();
+        break;
+    }
+  }
+
+  togglePlayPause() {
+    if (this.youtubeId && this.youtubePlayer) {
+      try {
+        const state = this.youtubePlayer.getPlayerState?.();
+        if (state === 1) {
+          this.youtubePlayer.pauseVideo?.();
+        } else {
+          this.youtubePlayer.playVideo?.();
+        }
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    const video = this.videoRef?.nativeElement;
+    if (!video) return;
+
+    if (video.paused) {
+      video.play();
+    } else {
+      video.pause();
+    }
+  }
+
+  toggleMute() {
+    const video = this.videoRef?.nativeElement;
+    if (!video) return;
+    video.muted = !video.muted;
+  }
+
+  toggleFullscreen() {
+    const container = this.playerContainer?.nativeElement;
+    if (!container) return;
+
+    if (!document.fullscreenElement) {
+      container.requestFullscreen?.().catch(() => {
+        // Fallback for browsers that don't support fullscreen
+      });
+    } else {
+      document.exitFullscreen?.();
+    }
+  }
+
+  onBufferingStart() {
+    this.isBuffering = true;
+  }
+
+  onBufferingEnd() {
+    this.isBuffering = false;
+  }
+
+  searchOpenSubtitles() {
+    if (!this.movieId || this.searchingSubtitles) return;
+    
+    this.searchingSubtitles = true;
+    this.http.get<{ success: boolean; data?: SubtitleInfo[] }>(`/api/v1/movies/${this.movieId}/subtitles`)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.searchingSubtitles = false;
+          if (response.success && response.data) {
+            this.availableSubtitles = response.data;
+            if (this.availableSubtitles.length === 0) {
+              // Show a toast or message - for now just log
+              console.log('No subtitles found for this movie');
+            }
+          }
+        },
+        error: (err) => {
+          this.searchingSubtitles = false;
+          console.error('Failed to search subtitles:', err);
+        }
+      });
+  }
+
+  loadSubtitle(subtitle: SubtitleInfo) {
+    // Revoke old URL if exists
+    if (this.subtitleTrackUrl) {
+      URL.revokeObjectURL(this.subtitleTrackUrl);
+    }
+    
+    this.subtitleTrackUrl = subtitle.url;
+    this.showSubtitles = true;
+    
+    // Force show subtitles on the video
+    setTimeout(() => {
+      if (this.videoRef?.nativeElement) {
+        const video = this.videoRef.nativeElement;
+        const tracks = video.textTracks;
+        if (tracks.length > 0) {
+          tracks[0].mode = 'showing';
+        }
+      }
+    }, 100);
   }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['youtubeId']) {
       // YouTube needs JS API for progress tracking and resume.
       this.setupYouTubePlayer();
+      if (this.youtubeId) {
+        this.destroyHls();
+      }
+    }
+
+    if (changes['videoUrl']) {
+      void this.setupHlsIfNeeded();
     }
 
     if (changes['movieId'] && this.movieId && this.config.autoResume) {
@@ -222,9 +523,11 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
   ngAfterViewInit(): void {
     this.setupYouTubePlayer();
+    void this.setupHlsIfNeeded();
   }
 
   ngOnDestroy() {
+    this.destroyHls();
     this.stopYouTubePolling();
     if (this.videoRef?.nativeElement && this.config.saveProgress && this.movieId) {
       const currentTime = this.videoRef.nativeElement.currentTime;
@@ -254,10 +557,220 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     this.destroy$.next();
     this.destroy$.complete();
     
+    // Clean up event listeners
+    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+    
     // Clean up subtitle object URL
     if (this.subtitleTrackUrl) {
       URL.revokeObjectURL(this.subtitleTrackUrl);
     }
+
+    // Clean up quality menu click listener
+    this.closeQualityMenu();
+  }
+
+  get nativeVideoSrc(): string | null {
+    if (this.youtubeId) return null;
+    const url = (this.videoUrl || '').trim();
+    if (!url) return null;
+    if (!this.isHlsUrl(url)) return url;
+    return this.canPlayHlsNatively() ? url : null;
+  }
+
+  get selectedQualityLabel(): string {
+    if (this.autoQualityEnabled) return 'Auto';
+    const level = this.qualityLevels.find(l => l.level === this.currentLevel);
+    return level?.label || 'Auto';
+  }
+
+  private isHlsUrl(url: string): boolean {
+    const raw = (url || '').trim();
+    if (!raw) return false;
+
+    const withoutHash = raw.split('#')[0] || raw;
+    try {
+      const parsed = new URL(withoutHash, 'http://localhost');
+      const key = parsed.searchParams.get('key');
+      const target = (key || parsed.pathname || '').toLowerCase();
+      return target.endsWith('.m3u8');
+    } catch {
+      const clean = (withoutHash.split('?')[0] || '').toLowerCase();
+      return clean.endsWith('.m3u8');
+    }
+  }
+
+  private canPlayHlsNatively(): boolean {
+    try {
+      const video = document.createElement('video');
+      const a = video.canPlayType('application/vnd.apple.mpegurl');
+      const b = video.canPlayType('application/x-mpegURL');
+      return !!(a || b);
+    } catch {
+      return false;
+    }
+  }
+
+  private async setupHlsIfNeeded(): Promise<void> {
+    if (this.youtubeId) return;
+    const url = (this.videoUrl || '').trim();
+    if (!url) {
+      this.destroyHls();
+      return;
+    }
+
+    if (!this.isHlsUrl(url)) {
+      this.destroyHls();
+      return;
+    }
+
+    // Show quality selector for HLS
+    this.showQualitySelector = true;
+
+    if (this.canPlayHlsNatively()) {
+      // Safari can play HLS directly via src.
+      this.destroyHls();
+      return;
+    }
+
+    const video = this.videoRef?.nativeElement;
+    if (!video) {
+      return;
+    }
+
+    this.destroyHls();
+    const seq = ++this.hlsInitSeq;
+
+    try {
+      const mod = await import('hls.js');
+      if (seq !== this.hlsInitSeq) return;
+      const Hls = (mod as any).default;
+      if (!Hls?.isSupported?.()) {
+        console.warn('[VideoPlayer] HLS.js not supported in this browser');
+        return;
+      }
+
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 60,
+        // Start with auto quality
+        startLevel: -1,
+      });
+      this.hls = hls;
+      this.autoQualityEnabled = true;
+
+      // Listen for quality levels becoming available
+      hls.on(Hls.Events.MANIFEST_PARSED, (_event: any, data: any) => {
+        if (data?.levels) {
+          this.qualityLevels = data.levels.map((level: any, index: number) => ({
+            level: index,
+            height: level.height,
+            width: level.width,
+            bitrate: level.bitrate,
+            label: this.getQualityLabel(level.height, level.bitrate),
+          }));
+          console.log('[VideoPlayer] Quality levels available:', this.qualityLevels.length);
+        }
+      });
+
+      // Listen for level switches
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_event: any, data: any) => {
+        this.currentLevel = data.level;
+        console.log('[VideoPlayer] Quality changed to level:', data.level);
+      });
+
+      hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
+        if (!data) return;
+        if (data.fatal) {
+          console.error('[VideoPlayer] HLS fatal error:', data.type, data.details);
+          try {
+            hls.destroy();
+          } catch {
+            // ignore
+          }
+          if (this.hls === hls) {
+            this.hls = null;
+          }
+        }
+      });
+
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        try {
+          hls.loadSource(url);
+        } catch {
+          // ignore
+        }
+      });
+    } catch (error) {
+      console.error('[VideoPlayer] Failed to load HLS.js', error);
+    }
+  }
+
+  private getQualityLabel(height: number, bitrate: number): string {
+    if (height >= 2160) return '4K';
+    if (height >= 1440) return '1440p';
+    if (height >= 1080) return '1080p';
+    if (height >= 720) return '720p';
+    if (height >= 480) return '480p';
+    if (height >= 360) return '360p';
+    return `${height}p`;
+  }
+
+  toggleQualityMenu() {
+    this.qualityMenuOpen = !this.qualityMenuOpen;
+    if (this.qualityMenuOpen) {
+      // Close menu when clicking outside
+      setTimeout(() => {
+        document.addEventListener('click', this.handleOutsideClick);
+      }, 0);
+    }
+  }
+
+  closeQualityMenu() {
+    this.qualityMenuOpen = false;
+    document.removeEventListener('click', this.handleOutsideClick);
+  }
+
+  private handleOutsideClick = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.group\\/quality')) {
+      this.closeQualityMenu();
+    }
+  };
+
+  setQualityLevel(level: number) {
+    if (this.hls) {
+      this.hls.currentLevel = level;
+      this.autoQualityEnabled = false;
+      console.log('[VideoPlayer] Manual quality set to level:', level);
+    }
+    this.closeQualityMenu();
+  }
+
+  setAutoQuality() {
+    if (this.hls) {
+      this.hls.currentLevel = -1; // -1 = auto
+      this.autoQualityEnabled = true;
+      console.log('[VideoPlayer] Auto quality enabled');
+    }
+    this.closeQualityMenu();
+  }
+
+  private destroyHls(): void {
+    this.hlsInitSeq++;
+    if (!this.hls) return;
+    try {
+      this.hls.destroy();
+    } catch {
+      // ignore
+    }
+    this.hls = null;
+    this.qualityLevels = [];
+    this.currentLevel = -1;
+    this.autoQualityEnabled = true;
+    this.showQualitySelector = false;
+    this.closeQualityMenu();
   }
 
   // Subtitle Methods

@@ -1,18 +1,30 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, HostListener, inject, signal, viewChild, ElementRef, OnInit, OnDestroy } from '@angular/core';
+import { RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { BrandLogoComponent } from '../../../shared/components/brand-logo/brand-logo.component';
 import { ThemeToggleComponent } from '../../../shared/components/theme-toggle/theme-toggle.component';
 import { WatchApiService } from '../../../features/watch/services/watch-api.service';
 
-@Component({
-  selector: 'app-navbar',
-  standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, BrandLogoComponent, ThemeToggleComponent],
-  templateUrl: './navbar.component.html'
-})
-export class NavbarComponent {
+  @Component({
+    selector: 'app-navbar',
+    standalone: true,
+    imports: [CommonModule, RouterLink, RouterLinkActive, ReactiveFormsModule, BrandLogoComponent, ThemeToggleComponent],
+    templateUrl: './navbar.component.html'
+  })
+  export class NavbarComponent implements OnInit, OnDestroy {
+    private destroy$ = new Subject<void>();
+    private router = inject(Router);
+    private fb = inject(FormBuilder);
+    searchInput = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
+    
+    searchForm = this.fb.group({
+      query: ['']
+    });
+    
+    showSearchOverlay = signal(false);
   scrolled = false;
   mobileMenuOpen = signal(false);
   notificationsOpen = signal(false);
@@ -36,6 +48,61 @@ export class NavbarComponent {
     }
   }
 
+  ngOnInit() {
+    // Update search input based on URL query params
+    this.router.events.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe((event) => {
+      if (event instanceof NavigationEnd) {
+        const url = new URL(event.url, window.location.origin);
+        const searchQuery = url.searchParams.get('q');
+        if (searchQuery) {
+          this.searchForm.patchValue({ query: searchQuery });
+        }
+      }
+    });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboardShortcut(event: KeyboardEvent) {
+    // Cmd/Ctrl + K to focus search
+    if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+      event.preventDefault();
+      this.focusSearch();
+    }
+    // Escape to close search overlay
+    if (event.key === 'Escape') {
+      this.showSearchOverlay.set(false);
+    }
+  }
+
+  focusSearch() {
+    this.showSearchOverlay.set(true);
+    setTimeout(() => {
+      this.searchInput()?.nativeElement?.focus();
+    }, 0);
+  }
+
+  onSearchSubmit() {
+    const query = this.searchForm.value.query?.trim();
+    if (query) {
+      this.router.navigate(['/browse'], { queryParams: { q: query } });
+      this.showSearchOverlay.set(false);
+    }
+  }
+
+  onSearchInput(event: Event) {
+    const query = (event.target as HTMLInputElement).value.trim();
+    if (query) {
+      this.router.navigate(['/browse'], { queryParams: { q: query } });
+    }
+  }
+
   private loadNotifications() {
     if (!this.auth.currentUser()) {
       this.notifications.set([
@@ -52,7 +119,7 @@ export class NavbarComponent {
           .slice(0, 3)
           .map((entry) => ({
             text: `Continue watching: ${entry.movie.title}`,
-            routerLink: ['/watch', entry.movie.id],
+            routerLink: ['/watch', entry.movie.slug || entry.movie.id],
           }));
 
         const fallback = items.length

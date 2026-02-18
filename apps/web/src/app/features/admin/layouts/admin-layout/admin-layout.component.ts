@@ -51,15 +51,31 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 10l9-6 9 6-9 6-9-6zm0 4l9 6 9-6"/></svg>
             Discovery
           </a>
-          <a
-            routerLink="/admin/books"
-            routerLinkActive="bg-cinema-500 text-white"
-            class="flex items-center gap-3 px-4 py-3 text-[#b59c95] hover:bg-[#22161b] hover:text-white rounded-lg transition-colors"
-          >
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 5a2 2 0 012-2h11a3 3 0 013 3v13H6a2 2 0 00-2 2V5z"/></svg>
-            Books & Comics
-          </a>
-        </nav>
+<a
+routerLink="/admin/books"
+routerLinkActive="bg-cinema-500 text-white"
+class="flex items-center gap-3 px-4 py-3 text-[#b59c95] hover:bg-[#22161b] hover:text-white rounded-lg transition-colors"
+>
+<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 5a2 2 0 012-2h11a3 3 0 013 3v13H6a2 2 0 00-2 2V5z"/></svg>
+Books & Comics
+</a>
+<a
+routerLink="/admin/users"
+routerLinkActive="bg-cinema-500 text-white"
+class="flex items-center gap-3 px-4 py-3 text-[#b59c95] hover:bg-[#22161b] hover:text-white rounded-lg transition-colors"
+>
+<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/></svg>
+Users
+</a>
+<a
+routerLink="/admin/queues"
+routerLinkActive="bg-cinema-500 text-white"
+class="flex items-center gap-3 px-4 py-3 text-[#b59c95] hover:bg-[#22161b] hover:text-white rounded-lg transition-colors"
+>
+<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+Job Queues
+</a>
+</nav>
 
         <div class="p-4 border-t border-[#2d1a21]">
           <a routerLink="/" class="flex items-center gap-2 text-sm text-[#8f7a74] hover:text-white transition-colors">

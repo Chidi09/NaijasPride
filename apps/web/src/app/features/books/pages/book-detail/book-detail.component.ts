@@ -39,20 +39,45 @@ import { MatChipsModule } from '@angular/material/chips';
               }
               
               @if (book.downloadUrl) {
-                <a 
-                  [href]="book.downloadUrl"
-                  target="_blank"
-                  mat-flat-button
-                  color="primary"
-                  class="mt-6 w-full"
-                >
-                  Download {{ book.format || 'PDF' }}
-                  @if (book.fileSize) {
-                    <span class="text-sm font-normal block mt-1">
-                      {{ formatFileSize(book.fileSize) }}
-                    </span>
+                <div class="mt-6 grid gap-2">
+                  @if (isReadableInApp(book)) {
+                    <a
+                      [routerLink]="['/books/read', book.slug]"
+                      mat-flat-button
+                      color="primary"
+                      class="w-full"
+                    >
+                      Read Now
+                    </a>
                   }
-                </a>
+
+                  <a
+                    [href]="book.downloadUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    mat-stroked-button
+                    color="primary"
+                    class="w-full"
+                  >
+                    Download {{ book.format || 'PDF' }}
+                    @if (book.fileSize) {
+                      <span class="text-sm font-normal block mt-1">
+                        {{ formatFileSize(book.fileSize) }}
+                      </span>
+                    }
+                  </a>
+
+                  @if (isEpubBooksSource(book) && sourceUrl(book)) {
+                    <a
+                      [href]="sourceUrl(book)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-center text-xs text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white"
+                    >
+                      View on epubBooks
+                    </a>
+                  }
+                </div>
               }
             </div>
           </div>
@@ -139,6 +164,26 @@ export class BookDetailComponent implements OnInit {
           this.isLoading.set(false);
         }
       });
+  }
+
+  isEpubBook(book: Book): boolean {
+    return (book.format || '').trim().toLowerCase() === 'epub';
+  }
+
+  isReadableInApp(book: Book): boolean {
+    const format = (book.format || '').trim().toLowerCase();
+    return format === 'epub' || format === 'pdf';
+  }
+
+  isEpubBooksSource(book: Book): boolean {
+    return (book.publisher || '').trim().toLowerCase() === 'epubbooks' || book.slug.toLowerCase().startsWith('epubbooks-');
+  }
+
+  sourceUrl(book: Book): string | null {
+    const slug = book.slug.toLowerCase();
+    if (!slug.startsWith('epubbooks-')) return null;
+    const externalSlug = book.slug.slice('epubbooks-'.length);
+    return `https://www.epubbooks.com/book/${externalSlug}`;
   }
   
   formatFileSize(bytes: number): string {
