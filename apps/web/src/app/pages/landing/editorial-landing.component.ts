@@ -5,6 +5,13 @@ import { RouterLink } from '@angular/router';
 import { MovieSummary, BookSummary, MusicVideoSummary } from '@naijaspride/types';
 
 type LandingPhase = 'glitch' | 'dissolve' | 'hero' | 'archive';
+type InstallPlatform = 'ios' | 'android' | 'desktop' | 'other';
+type InstallGuideTarget = 'mobile' | 'desktop' | 'tv';
+
+interface InstallGuide {
+  title: string;
+  steps: string[];
+}
 
 interface ArchiveSection {
   id: string;
@@ -210,33 +217,78 @@ interface ArchiveSection {
                 <p class="font-sans text-sm text-[var(--text-secondary)] max-w-xl mx-auto">
                   Your library travels with you. Seamless synchronization across all your devices.
                 </p>
+                <p class="font-sans text-xs text-[var(--text-secondary)] max-w-2xl mx-auto mt-4">
+                  Install NaijasPride as an app for a faster launch and a full-screen experience.
+                </p>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10 max-w-5xl mx-auto">
                 <!-- Mobile -->
-                <div class="flex flex-col items-center gap-4">
+                <div class="flex flex-col items-center gap-4 border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl p-4">
                   <div class="w-full h-[320px] border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
                     <img src="assets/images/mobile-phone.png" alt="Mobile app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
                   <span class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)]">MOBILE</span>
+                  <p class="text-xs text-[var(--text-secondary)] text-center leading-relaxed">
+                    iOS: Share → Add to Home Screen. Android: Menu → Install App.
+                  </p>
+                  <button
+                    (click)="installPwa('mobile')"
+                    class="w-full py-2 border border-[var(--border-color)] text-[10px] tracking-[0.18em] uppercase hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-colors">
+                    Install / See Steps
+                  </button>
                 </div>
 
                 <!-- Desktop -->
-                <div class="flex flex-col items-center gap-4">
+                <div class="flex flex-col items-center gap-4 border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl p-4">
                   <div class="w-full h-[320px] border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
                     <img src="assets/images/laptop-device.png" alt="Desktop app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
                   <span class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)]">DESKTOP</span>
+                  <p class="text-xs text-[var(--text-secondary)] text-center leading-relaxed">
+                    Chrome/Edge: click the install icon in the address bar or use the browser menu.
+                  </p>
+                  <button
+                    (click)="installPwa('desktop')"
+                    class="w-full py-2 border border-[var(--border-color)] text-[10px] tracking-[0.18em] uppercase hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-colors">
+                    Install / See Steps
+                  </button>
                 </div>
 
                 <!-- TV -->
-                <div class="flex flex-col items-center gap-4">
+                <div class="flex flex-col items-center gap-4 border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl p-4">
                   <div class="w-full h-[320px] border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
                     <img src="assets/images/tv-device.png" alt="TV app" class="w-full h-full object-contain p-6" loading="lazy" />
                   </div>
                   <span class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)]">TV</span>
+                  <p class="text-xs text-[var(--text-secondary)] text-center leading-relaxed">
+                    Open naijaspride.com in your TV browser, or cast from mobile/desktop.
+                  </p>
+                  <button
+                    (click)="openInstallGuide('tv')"
+                    class="w-full py-2 border border-[var(--border-color)] text-[10px] tracking-[0.18em] uppercase hover:border-[#8a1c1c] hover:text-[#8a1c1c] transition-colors">
+                    TV Setup Steps
+                  </button>
                 </div>
               </div>
+
+              @if (installGuide(); as guide) {
+                <div class="max-w-3xl mx-auto mt-10 border border-[var(--border-color)] bg-[var(--bg-secondary)] p-5 md:p-6">
+                  <div class="flex items-start justify-between gap-4 mb-4">
+                    <h3 class="font-serif text-2xl text-[var(--text-primary)]">{{ guide.title }}</h3>
+                    <button
+                      (click)="installGuide.set(null)"
+                      class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] uppercase">
+                      Close
+                    </button>
+                  </div>
+                  <ol class="space-y-2 text-sm text-[var(--text-secondary)] list-decimal pl-5">
+                    @for (step of guide.steps; track $index) {
+                      <li>{{ step }}</li>
+                    }
+                  </ol>
+                </div>
+              }
             </div>
           </section>
 
@@ -308,19 +360,6 @@ interface ArchiveSection {
             </div>
           </section>
 
-          @if (pwaInstallable()) {
-            <div class="fixed right-4 bottom-4 z-30">
-              <button (click)="installPwa()"
-                class="flex items-center gap-2 px-4 py-2 border border-[#8a1c1c] bg-white/85 dark:bg-black/70 text-[10px] tracking-widest hover:bg-[#8a1c1c] hover:text-black transition-all">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                INSTALL APP
-              </button>
-            </div>
-          }
         </div>
       }
     </div>
@@ -403,6 +442,8 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
   // PWA Install
   private deferredPrompt: any = null;
   pwaInstallable = signal(false);
+  platform = signal<InstallPlatform>('other');
+  installGuide = signal<InstallGuide | null>(null);
 
   // Computed
   brandChars = this.brandName.split('');
@@ -482,6 +523,8 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
 
     // Setup PWA install listener
     if (typeof window !== 'undefined') {
+      this.platform.set(this.detectPlatform());
+
       window.addEventListener('beforeinstallprompt', (e) => {
         // Prevent the mini-infobar from appearing on mobile
         e.preventDefault();
@@ -596,10 +639,9 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
     this.scrollProgress.set(progress);
   }
 
-  async installPwa() {
+  async installPwa(target: InstallGuideTarget = 'mobile') {
     if (!this.deferredPrompt) {
-      // If no deferred prompt, show manual instructions
-      this.showInstallInstructions();
+      this.openInstallGuide(target);
       return;
     }
 
@@ -611,8 +653,13 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
 
     if (outcome === 'accepted') {
       console.log('User accepted the install prompt');
+      this.installGuide.set({
+        title: 'Installed Successfully',
+        steps: ['NaijasPride has been added to your device. Open it from your app list or home screen.'],
+      });
     } else {
       console.log('User dismissed the install prompt');
+      this.openInstallGuide(target);
     }
 
     // Clear the deferred prompt
@@ -620,25 +667,74 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
     this.pwaInstallable.set(false);
   }
 
-  private showInstallInstructions() {
-    // Detect platform and show appropriate instructions
+  private detectPlatform(): InstallPlatform {
     const ua = navigator.userAgent;
     const isIOS = /iPad|iPhone|iPod/.test(ua);
     const isAndroid = /Android/.test(ua);
-    const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua);
-    const isChrome = /Chrome/.test(ua) && !/Edg/.test(ua);
+    const isDesktop = !isIOS && !isAndroid;
 
-    let message = '';
-    if (isIOS && isSafari) {
-      message = 'To install on iOS:\n1. Tap the Share button\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add"';
-    } else if (isAndroid && isChrome) {
-      message = 'To install on Android:\n1. Tap the menu (3 dots)\n2. Tap "Add to Home Screen" or "Install App"\n3. Follow the prompts';
-    } else if (isChrome) {
-      message = 'To install on desktop:\n1. Click the install icon in the address bar\n2. Or click menu (3 dots) > "Install NaijasPride"';
-    } else {
-      message = 'To install:\nCheck your browser menu for "Add to Home Screen" or "Install App" option';
+    if (isIOS) return 'ios';
+    if (isAndroid) return 'android';
+    if (isDesktop) return 'desktop';
+    return 'other';
+  }
+
+  openInstallGuide(target: InstallGuideTarget) {
+    if (target === 'tv') {
+      this.installGuide.set({
+        title: 'Watch on TV',
+        steps: [
+          'Open your TV browser and go to naijaspride.com.',
+          'Or cast from Chrome on desktop/mobile to your smart TV.',
+          'Sign in with the same account to keep your library and progress synced.',
+        ],
+      });
+      return;
     }
 
-    alert(message);
+    if (target === 'desktop') {
+      this.installGuide.set({
+        title: 'Install on Desktop',
+        steps: [
+          'Open NaijasPride in Chrome or Edge.',
+          'Click the install icon in the address bar.',
+          'If no icon appears, open the browser menu and choose "Install App".',
+        ],
+      });
+      return;
+    }
+
+    if (this.platform() === 'ios') {
+      this.installGuide.set({
+        title: 'Install on iPhone / iPad',
+        steps: [
+          'Open NaijasPride in Safari.',
+          'Tap the Share button.',
+          'Choose "Add to Home Screen", then tap "Add".',
+        ],
+      });
+      return;
+    }
+
+    if (this.platform() === 'android') {
+      this.installGuide.set({
+        title: 'Install on Android',
+        steps: [
+          'Open NaijasPride in Chrome.',
+          'Tap the 3-dot menu.',
+          'Choose "Install App" or "Add to Home Screen".',
+        ],
+      });
+      return;
+    }
+
+    this.installGuide.set({
+      title: 'Install NaijasPride',
+      steps: [
+        'Open NaijasPride in a supported browser (Chrome, Edge, or Safari).',
+        'Look for "Install App" or "Add to Home Screen" in your browser menu.',
+        'Pin the app for faster access and full-screen playback.',
+      ],
+    });
   }
 }

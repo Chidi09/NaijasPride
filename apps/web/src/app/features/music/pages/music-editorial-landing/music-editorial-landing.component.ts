@@ -17,15 +17,41 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
   standalone: true,
   imports: [CommonModule, RouterLink],
   styles: [`
-    :host { display: block; min-height: 100vh; background: #050505; color: #e6e0d4; font-family: 'Space Grotesk', system-ui, sans-serif; }
+    :host {
+      display: block;
+      min-height: 100vh;
+      --music-bg: #f6f1eb;
+      --music-surface: #ffffff;
+      --music-surface-strong: #ece3db;
+      --music-text: #1f1715;
+      --music-text-muted: #6b594f;
+      --music-border: #d8c9bf;
+      --music-border-strong: #baa89c;
+      --music-contrast: #111111;
+      background: var(--music-bg);
+      color: var(--music-text);
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+    }
+
+    :host-context(.dark) {
+      --music-bg: #050505;
+      --music-surface: #1f1f1f;
+      --music-surface-strong: #121212;
+      --music-text: #e6e0d4;
+      --music-text-muted: #bcae9e;
+      --music-border: #2a2a2a;
+      --music-border-strong: #3a3a3a;
+      --music-contrast: #f5efe5;
+    }
+
     .display-text { font-family: 'Cinzel', 'Playfair Display', Georgia, serif; font-weight: 400; letter-spacing: 0.05em; }
     .serif-text { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; }
     .sans-text { font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 300; }
     .grain-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; opacity: 0.05; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); }
     .video-mask { clip-path: polygon(0 0, 100% 0, 100% 85%, 95% 100%, 0 100%); }
-    .text-outline { -webkit-text-stroke: 1px #e6e0d4; color: transparent; }
+    .text-outline { -webkit-text-stroke: 1px var(--music-text); color: transparent; }
     ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #050505; }
+    ::-webkit-scrollbar-track { background: var(--music-bg); }
     ::-webkit-scrollbar-thumb { background: #8a1c1c; }
     .spin-slow { animation: spin 10s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -37,8 +63,8 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
     .playlist-row:hover { background-color: rgba(31, 31, 31, 0.3); padding-left: 16px; }
   `],
   template: `
-    <section class="min-h-screen pt-32 pb-12 px-6 flex flex-col justify-between border-b border-[#1f1f1f] relative">
-      <div class="absolute top-20 right-0 w-1/2 h-1/2 bg-gradient-to-b from-[#1f1f1f] to-transparent opacity-20 -z-10 blur-3xl"></div>
+    <section class="min-h-screen pt-32 pb-12 px-6 flex flex-col justify-between border-b border-[var(--music-border)] relative">
+      <div class="absolute top-20 right-0 w-1/2 h-1/2 bg-gradient-to-b from-[var(--music-surface)] to-transparent opacity-20 -z-10 blur-3xl"></div>
       <div class="max-w-8xl mx-auto w-full">
         <div class="reveal visible flex flex-col mb-12">
           <div class="flex items-baseline gap-6 overflow-hidden flex-wrap">
@@ -52,19 +78,19 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
           <div class="lg:col-span-9">
             @if (heroVideo(); as video) {
-              <div class="relative w-full aspect-video bg-[#1f1f1f] overflow-hidden video-mask border border-[#1f1f1f] group">
+              <div class="relative w-full aspect-video bg-[var(--music-surface)] overflow-hidden video-mask border border-[var(--music-border)] group">
                 @if (!isPlaying()) {
                   <div class="absolute inset-0 bg-black/40 z-10"></div>
                   <img [src]="'https://img.youtube.com/vi/' + video.youtubeId + '/maxresdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-105 group-hover:scale-100">
-                  <button (click)="playHero(video)" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border border-[#e6e0d4] rounded-full flex items-center justify-center z-20 backdrop-blur-sm hover:bg-[#8a1c1c] hover:border-[#8a1c1c] transition-all duration-300 group-hover:scale-110">
-                    <span [innerHTML]="playIcon" class="ml-2 text-[#e6e0d4]"></span>
+                  <button (click)="playHero(video)" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border border-[var(--music-border-strong)] rounded-full flex items-center justify-center z-20 backdrop-blur-sm hover:bg-[#8a1c1c] hover:border-[#8a1c1c] hover:text-white transition-all duration-300 group-hover:scale-110">
+                    <span [innerHTML]="playIcon" class="ml-2 text-[var(--music-text)]"></span>
                   </button>
                 } @else {
                   <iframe [src]="heroEmbedUrl()" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full absolute inset-0"></iframe>
                 }
               </div>
             } @else {
-              <div class="w-full aspect-video bg-[#1f1f1f] flex items-center justify-center video-mask">
+              <div class="w-full aspect-video bg-[var(--music-surface)] flex items-center justify-center video-mask">
                 <span class="text-6xl">🎵</span>
               </div>
             }
@@ -73,33 +99,33 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
             @if (heroVideo(); as video) {
               <div>
                 <span class="block text-[#8a1c1c] text-xs tracking-widest mb-2 font-bold sans-text">NOW PREMIERING</span>
-                <h2 class="serif-text text-3xl leading-none mb-2">{{ video.artist }}</h2>
-                <h3 class="sans-text text-lg opacity-60 uppercase mb-6">{{ video.title }}</h3>
-                <p class="sans-text text-sm opacity-50 leading-relaxed text-justify border-l border-[#8a1c1c] pl-4">
+                <h2 class="serif-text text-3xl leading-none mb-2 text-[var(--music-text)]">{{ video.artist }}</h2>
+                <h3 class="sans-text text-lg text-[var(--music-text-muted)] uppercase mb-6">{{ video.title }}</h3>
+                <p class="sans-text text-sm text-[var(--music-text-muted)] leading-relaxed text-justify border-l border-[#8a1c1c] pl-4">
                   Watch top tracks, artist releases, and trending videos from one place.
                 </p>
               </div>
             }
             <div class="mt-8 flex items-center gap-4 opacity-50">
               <span [innerHTML]="volumeIcon"></span>
-              <div class="h-[2px] w-full bg-[#1f1f1f]"><div class="h-full bg-[#e6e0d4] w-[60%] animate-pulse"></div></div>
+              <div class="h-[2px] w-full bg-[var(--music-border)]"><div class="h-full bg-[var(--music-text)] w-[60%] animate-pulse"></div></div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <div class="bg-[#111111] py-4 border-y border-[#1f1f1f]">
-      <div class="max-w-7xl mx-auto px-6 flex flex-wrap items-center justify-center gap-3 text-[10px] tracking-[0.2em] sans-text text-[#e6e0d4]/80">
-        <span class="px-3 py-1 border border-[#2a2a2a]">NEW RELEASES</span>
-        <span class="px-3 py-1 border border-[#2a2a2a]">TRENDING ARTISTS</span>
-        <span class="px-3 py-1 border border-[#2a2a2a]">MUSIC VIDEOS</span>
+    <div class="bg-[var(--music-surface-strong)] py-4 border-y border-[var(--music-border)]">
+      <div class="max-w-7xl mx-auto px-6 flex flex-wrap items-center justify-center gap-3 text-[10px] tracking-[0.2em] sans-text text-[var(--music-text-muted)]">
+        <span class="px-3 py-1 border border-[var(--music-border)]">NEW RELEASES</span>
+        <span class="px-3 py-1 border border-[var(--music-border)]">TRENDING ARTISTS</span>
+        <span class="px-3 py-1 border border-[var(--music-border)]">MUSIC VIDEOS</span>
       </div>
     </div>
 
     <section class="py-24 px-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-end mb-16">
-        <h2 class="serif-text text-4xl md:text-5xl text-[#e6e0d4]">CURATED <span class="italic text-[#8a1c1c]">VIBES</span></h2>
+        <h2 class="serif-text text-4xl md:text-5xl text-[var(--music-text)]">CURATED <span class="italic text-[#8a1c1c]">VIBES</span></h2>
         <div class="hidden md:flex gap-2 items-center">
           <div class="w-2 h-2 bg-[#8a1c1c] rounded-full animate-pulse"></div>
           <span class="text-[10px] tracking-widest sans-text">TRENDING NOW</span>
@@ -108,25 +134,25 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
 
       @if (isLoading()) {
         <div class="space-y-4">
-          @for (i of [1,2,3,4]; track i) { <div class="h-24 bg-[#1f1f1f] animate-pulse"></div> }
+          @for (i of [1,2,3,4]; track i) { <div class="h-24 bg-[var(--music-surface)] animate-pulse"></div> }
         </div>
       } @else {
         <div class="flex flex-col">
           @for (track of trending().slice(0, 6); track track.id; let idx = $index) {
-            <div (click)="playTrack(track)" class="playlist-row group flex flex-col md:flex-row items-start md:items-center justify-between py-8 border-b border-[#1f1f1f] px-4 cursor-pointer reveal" [style.transition-delay]="idx * 100 + 'ms'">
+            <div (click)="playTrack(track)" class="playlist-row group flex flex-col md:flex-row items-start md:items-center justify-between py-8 border-b border-[var(--music-border)] px-4 cursor-pointer reveal" [style.transition-delay]="idx * 100 + 'ms'">
               <div class="flex items-center gap-6 md:gap-12 w-full md:w-1/2">
                 <span class="serif-text text-2xl text-[#8a1c1c] w-8">0{{ idx + 1 }}</span>
                 <div class="relative w-32 h-20 overflow-hidden hidden md:block opacity-40 group-hover:opacity-100 transition-opacity">
                   <img [src]="track.thumbnailUrl || 'https://img.youtube.com/vi/' + track.youtubeId + '/mqdefault.jpg'" [alt]="track.title" class="object-cover w-full h-full grayscale group-hover:grayscale-0 transition-all">
                 </div>
                 <div>
-                  <h4 class="serif-text text-2xl transition-all duration-300">{{ track.artist }}</h4>
-                  <p class="sans-text text-xs tracking-widest opacity-60 uppercase mt-1">{{ track.title }}</p>
+                  <h4 class="serif-text text-2xl transition-all duration-300 text-[var(--music-text)]">{{ track.artist }}</h4>
+                  <p class="sans-text text-xs tracking-widest text-[var(--music-text-muted)] uppercase mt-1">{{ track.title }}</p>
                 </div>
               </div>
               <div class="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-between">
-                <span class="sans-text text-sm opacity-40">{{ formatDuration(track.durationSeconds) }}</span>
-                <button class="w-12 h-12 border border-[#1f1f1f] rounded-full flex items-center justify-center group-hover:border-[#e6e0d4] group-hover:bg-[#e6e0d4] group-hover:text-[#050505] transition-all">
+                <span class="sans-text text-sm text-[var(--music-text-muted)]">{{ formatDuration(track.durationSeconds) }}</span>
+                <button class="w-12 h-12 border border-[var(--music-border)] rounded-full flex items-center justify-center group-hover:border-[var(--music-contrast)] group-hover:bg-[var(--music-contrast)] group-hover:text-[var(--music-bg)] transition-all">
                   <span [innerHTML]="playIcon" class="w-4 h-4"></span>
                 </button>
               </div>
@@ -135,27 +161,27 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         </div>
       }
       <div class="mt-12 text-center">
-        <a routerLink="/music/browse" class="inline-block px-8 py-4 border border-[#1f1f1f] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] transition-all uppercase sans-text">Load More Archives</a>
+        <a routerLink="/music/browse" class="inline-block px-8 py-4 border border-[var(--music-border)] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] hover:text-white transition-all uppercase sans-text">Load More Archives</a>
       </div>
     </section>
 
-    <section class="py-24 bg-[#1f1f1f] relative overflow-hidden">
+    <section class="py-24 bg-[var(--music-surface)] relative overflow-hidden border-y border-[var(--music-border)]">
       <div class="absolute top-0 left-0 w-full h-full overflow-hidden flex items-center justify-center opacity-5 pointer-events-none">
-        <h2 class="display-text text-[18vw] text-[#faf9f6] whitespace-nowrap">AFROBEATS</h2>
+        <h2 class="display-text text-[18vw] text-[var(--music-contrast)] whitespace-nowrap">AFROBEATS</h2>
       </div>
       <div class="max-w-7xl mx-auto px-6 relative z-10 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
         <div class="order-2 md:order-1">
           <span class="text-[#8a1c1c] text-xs tracking-[0.2em] font-bold block mb-4 sans-text">ARTIST OF THE WEEK</span>
           @if (spotlightArtist(); as artist) {
-            <h2 class="serif-text text-4xl md:text-5xl mb-6">{{ artist.artistName }}</h2>
-            <p class="sans-text text-sm opacity-70 leading-relaxed mb-8 text-justify">
+            <h2 class="serif-text text-4xl md:text-5xl mb-6 text-[var(--music-text)]">{{ artist.artistName }}</h2>
+            <p class="sans-text text-sm text-[var(--music-text-muted)] leading-relaxed mb-8 text-justify">
               {{ artist.artistName }} has {{ artist.totalVideos }} videos in the catalog and {{ formatNumber(artist.totalPlays) }} total plays so far.
             </p>
             <div class="flex gap-4">
-              <a [routerLink]="['/music/artist', artist.artistSlug]" class="flex items-center gap-2 px-6 py-3 bg-[#e6e0d4] text-[#050505] text-xs tracking-widest hover:bg-[#faf9f6] transition-colors sans-text">
+              <a [routerLink]="['/music/artist', artist.artistSlug]" class="flex items-center gap-2 px-6 py-3 bg-[var(--music-contrast)] text-[var(--music-bg)] text-xs tracking-widest hover:opacity-90 transition-colors sans-text">
                 <span [innerHTML]="playIcon" class="w-4 h-4"></span> VIEW DISCOGRAPHY
               </a>
-              <button class="px-6 py-3 border border-[#e6e0d4] text-xs tracking-widest hover:bg-[#050505] transition-colors sans-text">FOLLOW</button>
+              <button class="px-6 py-3 border border-[var(--music-border-strong)] text-xs tracking-widest hover:bg-[var(--music-surface-strong)] transition-colors sans-text">FOLLOW</button>
             </div>
           }
         </div>
@@ -175,20 +201,20 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
     </section>
 
     <section class="py-24 px-6 max-w-7xl mx-auto">
-      <div class="flex justify-between items-end mb-12 border-b border-[#1f1f1f] pb-6">
-        <h2 class="serif-text text-4xl md:text-5xl text-[#e6e0d4]">FRESH <span class="text-[#590d0d] italic">DROPS</span></h2>
+      <div class="flex justify-between items-end mb-12 border-b border-[var(--music-border)] pb-6">
+        <h2 class="serif-text text-4xl md:text-5xl text-[var(--music-text)]">FRESH <span class="text-[#590d0d] italic">DROPS</span></h2>
         <a routerLink="/music/browse" class="text-xs tracking-widest hover:text-[#8a1c1c] transition-colors sans-text flex items-center gap-2">VIEW ALL <span [innerHTML]="arrowIcon"></span></a>
       </div>
       @if (newReleases().length > 0) {
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
           @for (video of newReleases().slice(0, 6); track video.id; let idx = $index) {
             <a [routerLink]="['/music', video.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
-              <div class="relative aspect-square overflow-hidden mb-3 bg-[#1f1f1f]">
+              <div class="relative aspect-square overflow-hidden mb-3 bg-[var(--music-surface)] border border-[var(--music-border)]">
                 <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/mqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
                 <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity mix-blend-multiply"></div>
               </div>
-              <h3 class="serif-text text-lg text-[#e6e0d4] truncate">{{ video.title }}</h3>
-              <p class="sans-text text-xs text-[#e6e0d4] opacity-50 uppercase tracking-wide">{{ video.artist }}</p>
+              <h3 class="serif-text text-lg text-[var(--music-text)] truncate">{{ video.title }}</h3>
+              <p class="sans-text text-xs text-[var(--music-text-muted)] uppercase tracking-wide">{{ video.artist }}</p>
             </a>
           }
         </div>

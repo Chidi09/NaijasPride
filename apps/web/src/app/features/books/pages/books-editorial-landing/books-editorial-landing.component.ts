@@ -47,8 +47,28 @@ type FeaturedContent = {
     :host {
       display: block;
       min-height: 100vh;
-      background: #050505;
-      color: #e6e0d4;
+      --books-bg: #f6f1eb;
+      --books-surface: #ffffff;
+      --books-surface-strong: #efe7df;
+      --books-text: #1f1715;
+      --books-text-muted: #6a5850;
+      --books-border: #d8c9bf;
+      --books-border-strong: #c6b2a6;
+      --books-contrast: #111111;
+
+      background: var(--books-bg);
+      color: var(--books-text);
+    }
+
+    :host-context(.dark) {
+      --books-bg: #050505;
+      --books-surface: #1f1f1f;
+      --books-surface-strong: #151515;
+      --books-text: #e6e0d4;
+      --books-text-muted: #bcae9e;
+      --books-border: #2a2a2a;
+      --books-border-strong: #3b3b3b;
+      --books-contrast: #f7f1e8;
     }
 
     /* Typography */
@@ -81,13 +101,13 @@ type FeaturedContent = {
 
     /* Text outline */
     .text-outline {
-      -webkit-text-stroke: 1px #e6e0d4;
+      -webkit-text-stroke: 1px var(--books-text);
       color: transparent;
     }
 
     /* Custom scrollbar */
     ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #050505; }
+    ::-webkit-scrollbar-track { background: var(--books-bg); }
     ::-webkit-scrollbar-thumb { background: #590d0d; }
 
     /* Hover animations */
@@ -127,14 +147,14 @@ type FeaturedContent = {
   `],
   template: `
     <!-- Hero Section -->
-    <section class="relative min-h-screen flex flex-col justify-center px-6 pt-24 pb-12 overflow-hidden border-b border-[#1f1f1f]">
+    <section class="relative min-h-screen flex flex-col justify-center px-6 pt-24 pb-12 overflow-hidden border-b border-[var(--books-border)]">
       <!-- Background Elements -->
-      <div class="absolute top-0 right-0 w-1/3 h-full bg-[#1f1f1f] opacity-20 -z-10"></div>
+      <div class="absolute top-0 right-0 w-1/3 h-full bg-[var(--books-surface-strong)] opacity-35 dark:opacity-20 -z-10"></div>
       <div class="absolute top-1/4 left-10 w-64 h-64 border border-[#590d0d] rounded-full opacity-30 -z-10 blur-3xl"></div>
       
       <div class="max-w-7xl mx-auto w-full z-10">
         <div class="reveal visible">
-          <h1 class="serif-text text-[11vw] md:text-[9vw] leading-[0.8] text-[#e6e0d4] mix-blend-overlay">
+          <h1 class="serif-text text-[11vw] md:text-[9vw] leading-[0.8] text-[var(--books-text)] mix-blend-overlay">
             VISUAL
           </h1>
           <div class="flex flex-col md:flex-row items-start md:items-end justify-between">
@@ -142,10 +162,10 @@ type FeaturedContent = {
               LIT.
             </h1>
             <div class="mb-4 md:mb-8 md:mr-12 max-w-sm">
-              <p class="sans-text text-sm md:text-base text-[#e6e0d4] opacity-80 leading-relaxed text-justify">
+              <p class="sans-text text-sm md:text-base text-[var(--books-text-muted)] leading-relaxed text-justify">
                 Explore books, comics, and manga in one place. Track your reading progress and continue chapters from any device.
               </p>
-              <a routerLink="/books/all" class="mt-6 px-6 py-3 border border-[#e6e0d4] text-[#e6e0d4] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] transition-all duration-300 inline-block sans-text">
+              <a routerLink="/books/all" class="mt-6 px-6 py-3 border border-[var(--books-border-strong)] text-[var(--books-text)] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] hover:text-white transition-all duration-300 inline-block sans-text">
                 ENTER ARCHIVE
               </a>
             </div>
@@ -158,17 +178,17 @@ type FeaturedContent = {
     </section>
 
     <!-- Featured Weekly Drops -->
-    <section class="py-24 px-6 bg-[#050505]">
+    <section class="py-24 px-6 bg-[var(--books-bg)]">
       <div class="max-w-7xl mx-auto">
-        <div class="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#1f1f1f] pb-6 reveal">
-          <h2 class="serif-text text-4xl md:text-5xl text-[#e6e0d4]">
+        <div class="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[var(--books-border)] pb-6 reveal">
+          <h2 class="serif-text text-4xl md:text-5xl text-[var(--books-text)]">
             WEEKLY <span class="text-[#590d0d] italic">DROPS</span>
           </h2>
           <div class="flex gap-2 mt-4 md:mt-0">
-            <button routerLink="/books/all" class="w-10 h-10 border border-[#1f1f1f] flex items-center justify-center hover:bg-[#e6e0d4] hover:text-[#050505] transition-colors">
+            <button routerLink="/books/all" class="w-10 h-10 border border-[var(--books-border)] flex items-center justify-center hover:bg-[var(--books-text)] hover:text-[var(--books-bg)] transition-colors">
               <span [innerHTML]="gridIcon"></span>
             </button>
-            <button routerLink="/books/all" class="w-10 h-10 border border-[#1f1f1f] flex items-center justify-center hover:bg-[#e6e0d4] hover:text-[#050505] transition-colors">
+            <button routerLink="/books/all" class="w-10 h-10 border border-[var(--books-border)] flex items-center justify-center hover:bg-[var(--books-text)] hover:text-[var(--books-bg)] transition-colors">
               <span [innerHTML]="arrowIcon"></span>
             </button>
           </div>
@@ -178,9 +198,9 @@ type FeaturedContent = {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
             @for (i of [1,2,3]; track i) {
               <div class="animate-pulse">
-                <div class="aspect-[3/4] bg-[#1f1f1f] clip-image-diag mb-4"></div>
-                <div class="h-6 bg-[#1f1f1f] w-3/4 mb-2"></div>
-                <div class="h-4 bg-[#1f1f1f] w-1/2"></div>
+                <div class="aspect-[3/4] bg-[var(--books-surface)] clip-image-diag mb-4"></div>
+                <div class="h-6 bg-[var(--books-surface)] w-3/4 mb-2"></div>
+                <div class="h-4 bg-[var(--books-surface)] w-1/2"></div>
               </div>
             }
           </div>
@@ -189,7 +209,7 @@ type FeaturedContent = {
             <!-- Featured Book -->
             @if (featured().book) {
               <a [routerLink]="['/books', featured()!.book!.slug]" class="group cursor-pointer reveal" [style.transition-delay]="'0ms'">
-                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[#1f1f1f] hover-lift">
+                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[var(--books-surface)] hover-lift">
                   <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity duration-500 z-10 mix-blend-multiply"></div>
                   
                   @if (featured()!.book!.coverUrl) {
@@ -205,19 +225,19 @@ type FeaturedContent = {
                     </div>
                   }
                   
-                  <div class="absolute top-4 right-4 bg-[#050505] px-2 py-1 z-20">
-                    <span class="text-[10px] tracking-widest text-[#e6e0d4] uppercase sans-text">BOOK</span>
+                  <div class="absolute top-4 right-4 bg-[var(--books-bg)] px-2 py-1 z-20">
+                    <span class="text-[10px] tracking-widest text-[var(--books-text)] uppercase sans-text">BOOK</span>
                   </div>
                 </div>
 
-                <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
+                <div class="flex justify-between items-start border-t border-[var(--books-border)] pt-3 group-hover:border-[#8a1c1c] transition-colors">
                   <div>
-                    <h3 class="serif-text text-xl text-[#e6e0d4] italic">{{ featured()!.book!.title }}</h3>
-                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">By {{ featured()!.book!.author || 'Unknown Author' }}</p>
+                    <h3 class="serif-text text-xl text-[var(--books-text)] italic">{{ featured()!.book!.title }}</h3>
+                    <p class="sans-text text-xs text-[var(--books-text-muted)] mt-1 uppercase tracking-wide">By {{ featured()!.book!.author || 'Unknown Author' }}</p>
                   </div>
                   <div class="text-right">
                     <span class="block text-[#8a1c1c] sans-text text-xs font-bold">{{ featured()!.book!.year || '2024' }}</span>
-                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[#e6e0d4] opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[var(--books-text)] opacity-0 group-hover:opacity-100 transition-opacity"></span>
                   </div>
                 </div>
               </a>
@@ -226,7 +246,7 @@ type FeaturedContent = {
             <!-- Featured Comic -->
             @if (featured().comic) {
               <a [routerLink]="['/books/comics', toRouteParam(featured()!.comic!.id)]" class="group cursor-pointer reveal" [style.transition-delay]="'100ms'">
-                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[#1f1f1f] hover-lift">
+                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[var(--books-surface)] hover-lift">
                   <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity duration-500 z-10 mix-blend-multiply"></div>
                   
                   @if (featured()!.comic!.coverUrl) {
@@ -242,21 +262,21 @@ type FeaturedContent = {
                     </div>
                   }
                   
-                  <div class="absolute top-4 right-4 bg-[#050505] px-2 py-1 z-20">
-                    <span class="text-[10px] tracking-widest text-[#e6e0d4] uppercase sans-text">COMIC</span>
+                  <div class="absolute top-4 right-4 bg-[var(--books-bg)] px-2 py-1 z-20">
+                    <span class="text-[10px] tracking-widest text-[var(--books-text)] uppercase sans-text">COMIC</span>
                   </div>
                 </div>
 
-                <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
+                <div class="flex justify-between items-start border-t border-[var(--books-border)] pt-3 group-hover:border-[#8a1c1c] transition-colors">
                   <div>
-                    <h3 class="serif-text text-xl text-[#e6e0d4] italic">{{ featured()!.comic!.title }}</h3>
-                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">Updated Recently</p>
+                    <h3 class="serif-text text-xl text-[var(--books-text)] italic">{{ featured()!.comic!.title }}</h3>
+                    <p class="sans-text text-xs text-[var(--books-text-muted)] mt-1 uppercase tracking-wide">Updated Recently</p>
                   </div>
                   <div class="text-right">
                     @if (featured()!.comic!.latestChapter) {
                       <span class="block text-[#8a1c1c] sans-text text-xs font-bold">Ch. {{ featured()!.comic!.latestChapter }}</span>
                     }
-                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[#e6e0d4] opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[var(--books-text)] opacity-0 group-hover:opacity-100 transition-opacity"></span>
                   </div>
                 </div>
               </a>
@@ -265,7 +285,7 @@ type FeaturedContent = {
             <!-- Featured Manga (Rotating) -->
             @if (featured().manga) {
               <a [routerLink]="['/books/manga', toRouteParam(featured()!.manga!.id)]" class="group cursor-pointer reveal" [style.transition-delay]="'200ms'">
-                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[#1f1f1f] hover-lift">
+                <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[var(--books-surface)] hover-lift">
                   <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity duration-500 z-10 mix-blend-multiply"></div>
                   
                   @if (featured()!.manga!.coverUrl) {
@@ -284,21 +304,21 @@ type FeaturedContent = {
                     </div>
                   }
                   
-                  <div class="absolute top-4 right-4 bg-[#050505] px-2 py-1 z-20">
-                    <span class="text-[10px] tracking-widest text-[#e6e0d4] uppercase sans-text">MANGA</span>
+                  <div class="absolute top-4 right-4 bg-[var(--books-bg)] px-2 py-1 z-20">
+                    <span class="text-[10px] tracking-widest text-[var(--books-text)] uppercase sans-text">MANGA</span>
                   </div>
                 </div>
 
-                <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
+                <div class="flex justify-between items-start border-t border-[var(--books-border)] pt-3 group-hover:border-[#8a1c1c] transition-colors">
                   <div>
-                    <h3 class="serif-text text-xl text-[#e6e0d4] italic transition-opacity duration-300" [class.opacity-0]="isMangaChanging()" [class.opacity-100]="!isMangaChanging()">{{ featured()!.manga!.title }}</h3>
-                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">Trending Now</p>
+                    <h3 class="serif-text text-xl text-[var(--books-text)] italic transition-opacity duration-300" [class.opacity-0]="isMangaChanging()" [class.opacity-100]="!isMangaChanging()">{{ featured()!.manga!.title }}</h3>
+                    <p class="sans-text text-xs text-[var(--books-text-muted)] mt-1 uppercase tracking-wide">Trending Now</p>
                   </div>
                   <div class="text-right">
                     @if (featured()!.manga!.latestChapter) {
                       <span class="block text-[#8a1c1c] sans-text text-xs font-bold transition-opacity duration-300" [class.opacity-0]="isMangaChanging()" [class.opacity-100]="!isMangaChanging()">Ch. {{ featured()!.manga!.latestChapter }}</span>
                     }
-                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[#e6e0d4] opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                    <span [innerHTML]="arrowUpIcon" class="ml-auto mt-2 text-[var(--books-text)] opacity-0 group-hover:opacity-100 transition-opacity"></span>
                   </div>
                 </div>
               </a>
@@ -313,12 +333,12 @@ type FeaturedContent = {
       
       <!-- Books Section -->
       <div class="mb-20 reveal">
-        <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
+        <div class="flex items-center justify-between mb-10 border-b border-[var(--books-border)] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-5xl md:text-6xl text-[#1f1f1f]">01</span>
-            <h2 class="serif-text text-3xl md:text-4xl text-[#e6e0d4] group-hover:italic group-hover:text-[#8a1c1c] transition-all">BOOKS</h2>
+            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">01</span>
+            <h2 class="serif-text text-3xl md:text-4xl text-[var(--books-text)] group-hover:italic group-hover:text-[#8a1c1c] transition-all">BOOKS</h2>
           </div>
-          <a routerLink="/books/all" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
+          <a routerLink="/books/all" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[var(--books-text)] transition-colors sans-text flex items-center gap-2">
             VIEW ALL <span [innerHTML]="arrowIcon"></span>
           </a>
         </div>
@@ -326,25 +346,25 @@ type FeaturedContent = {
         @if (isBooksLoading()) {
           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             @for (i of [1,2,3,4,5,6]; track i) {
-              <div class="animate-pulse">
-                <div class="aspect-[2/3] bg-[#1f1f1f] clip-image-diag mb-3"></div>
-                <div class="h-4 bg-[#1f1f1f] w-3/4"></div>
-              </div>
+                <div class="animate-pulse">
+                <div class="aspect-[2/3] bg-[var(--books-surface)] clip-image-diag mb-3"></div>
+                <div class="h-4 bg-[var(--books-surface)] w-3/4"></div>
+                </div>
             }
           </div>
         } @else if (books().length > 0) {
           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             @for (book of books().slice(0, 6); track book.id; let idx = $index) {
               <a [routerLink]="['/books', book.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
-                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[#1f1f1f]">
+                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (book.coverUrl) {
                     <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">📚</div>
                   }
                 </div>
-                <h3 class="serif-text text-lg text-[#e6e0d4] truncate">{{ book.title }}</h3>
-                <p class="sans-text text-xs text-[#e6e0d4] opacity-50 uppercase tracking-wide">{{ book.author }}</p>
+                <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ book.title }}</h3>
+                <p class="sans-text text-xs text-[var(--books-text-muted)] uppercase tracking-wide">{{ book.author }}</p>
               </a>
             }
           </div>
@@ -353,12 +373,12 @@ type FeaturedContent = {
 
       <!-- Comics Section -->
       <div class="mb-20 reveal">
-        <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
+        <div class="flex items-center justify-between mb-10 border-b border-[var(--books-border)] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-5xl md:text-6xl text-[#1f1f1f]">02</span>
-            <h2 class="serif-text text-3xl md:text-4xl text-[#e6e0d4]">COMICS</h2>
+            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">02</span>
+            <h2 class="serif-text text-3xl md:text-4xl text-[var(--books-text)]">COMICS</h2>
           </div>
-          <a routerLink="/books/comics" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
+          <a routerLink="/books/comics" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[var(--books-text)] transition-colors sans-text flex items-center gap-2">
             VIEW ALL <span [innerHTML]="arrowIcon"></span>
           </a>
         </div>
@@ -366,27 +386,27 @@ type FeaturedContent = {
         @if (isComicsLoading()) {
           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             @for (i of [1,2,3,4,5,6]; track i) {
-              <div class="animate-pulse">
-                <div class="aspect-[2/3] bg-[#1f1f1f] clip-image-diag mb-3"></div>
-                <div class="h-4 bg-[#1f1f1f] w-3/4"></div>
-              </div>
+                <div class="animate-pulse">
+                <div class="aspect-[2/3] bg-[var(--books-surface)] clip-image-diag mb-3"></div>
+                <div class="h-4 bg-[var(--books-surface)] w-3/4"></div>
+                </div>
             }
           </div>
         } @else if (comics().length > 0) {
           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             @for (comic of comics().slice(0, 6); track comic.id; let idx = $index) {
               <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
-                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[#1f1f1f]">
+                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (comic.coverUrl) {
                     <img [src]="comic.coverUrl" [alt]="comic.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">📖</div>
                   }
                   @if (comic.latestChapter) {
-                    <div class="absolute bottom-2 left-2 bg-[#050505] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ comic.latestChapter }}</div>
+                    <div class="absolute bottom-2 left-2 bg-[var(--books-bg)] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ comic.latestChapter }}</div>
                   }
                 </div>
-                <h3 class="serif-text text-lg text-[#e6e0d4] truncate">{{ comic.title }}</h3>
+                <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ comic.title }}</h3>
               </a>
             }
           </div>
@@ -395,12 +415,12 @@ type FeaturedContent = {
 
       <!-- Manga Section -->
       <div class="reveal">
-        <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
+        <div class="flex items-center justify-between mb-10 border-b border-[var(--books-border)] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-5xl md:text-6xl text-[#1f1f1f]">03</span>
-            <h2 class="serif-text text-3xl md:text-4xl text-[#e6e0d4]">MANGA</h2>
+            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">03</span>
+            <h2 class="serif-text text-3xl md:text-4xl text-[var(--books-text)]">MANGA</h2>
           </div>
-          <a routerLink="/books/manga" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
+          <a routerLink="/books/manga" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[var(--books-text)] transition-colors sans-text flex items-center gap-2">
             OPEN LIBRARY <span [innerHTML]="arrowIcon"></span>
           </a>
         </div>
@@ -408,27 +428,27 @@ type FeaturedContent = {
         @if (isMangaLoading()) {
           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             @for (i of [1,2,3,4,5,6]; track i) {
-              <div class="animate-pulse">
-                <div class="aspect-[2/3] bg-[#1f1f1f] clip-image-diag mb-3"></div>
-                <div class="h-4 bg-[#1f1f1f] w-3/4"></div>
-              </div>
+                <div class="animate-pulse">
+                <div class="aspect-[2/3] bg-[var(--books-surface)] clip-image-diag mb-3"></div>
+                <div class="h-4 bg-[var(--books-surface)] w-3/4"></div>
+                </div>
             }
           </div>
         } @else if (manga().length > 0) {
           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             @for (m of manga().slice(0, 6); track m.id; let idx = $index) {
               <a [routerLink]="['/books/manga', toRouteParam(m.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
-                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[#1f1f1f]">
+                <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (m.coverUrl) {
                     <img [src]="m.coverUrl" [alt]="m.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">🎌</div>
                   }
                   @if (m.latestChapter) {
-                    <div class="absolute bottom-2 left-2 bg-[#050505] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ m.latestChapter }}</div>
+                    <div class="absolute bottom-2 left-2 bg-[var(--books-bg)] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ m.latestChapter }}</div>
                   }
                 </div>
-                <h3 class="serif-text text-lg text-[#e6e0d4] truncate">{{ m.title }}</h3>
+                <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ m.title }}</h3>
               </a>
             }
           </div>
@@ -578,7 +598,9 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
 
   loadManga() {
     this.isMangaLoading.set(true);
-    const sourceId = localStorage.getItem('np_manga_source')?.trim().toLowerCase() || 'weebcentral';
+    const sourceId = typeof window !== 'undefined'
+      ? localStorage.getItem('np_manga_source')?.trim().toLowerCase() || 'weebcentral'
+      : 'weebcentral';
     
     this.http.get<{ 
       status: string; 

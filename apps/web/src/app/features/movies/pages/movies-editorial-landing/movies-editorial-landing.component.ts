@@ -23,18 +23,44 @@ interface FeaturedResponse {
   standalone: true,
   imports: [CommonModule, RouterLink],
   styles: [`
-    :host { display: block; min-height: 100vh; background: #050505; color: #e6e0d4; font-family: 'Space Grotesk', system-ui, sans-serif; }
+    :host {
+      display: block;
+      min-height: 100vh;
+      --movies-bg: #f6f1eb;
+      --movies-surface: #ffffff;
+      --movies-surface-strong: #ece3db;
+      --movies-text: #1f1715;
+      --movies-text-muted: #6c5a50;
+      --movies-border: #d8c9bf;
+      --movies-border-strong: #bca99c;
+      --movies-contrast: #121212;
+      background: var(--movies-bg);
+      color: var(--movies-text);
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+    }
+
+    :host-context(.dark) {
+      --movies-bg: #050505;
+      --movies-surface: #1f1f1f;
+      --movies-surface-strong: #121212;
+      --movies-text: #e6e0d4;
+      --movies-text-muted: #bcae9e;
+      --movies-border: #2a2a2a;
+      --movies-border-strong: #3a3a3a;
+      --movies-contrast: #f4ede4;
+    }
+
     .display-text { font-family: 'Cinzel', 'Playfair Display', Georgia, serif; font-weight: 400; letter-spacing: 0.05em; }
     .serif-text { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; }
     .sans-text { font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 300; }
     
     .grain-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; opacity: 0.04; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); }
-    .glass-panel { background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(230, 224, 212, 0.1); }
-    .hero-gradient { background: linear-gradient(to top, #050505 10%, transparent 100%); }
-    .side-gradient { background: linear-gradient(to right, #050505 0%, transparent 100%); }
+    .glass-panel { background: color-mix(in srgb, var(--movies-surface) 75%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--movies-border) 70%, transparent); }
+    .hero-gradient { background: linear-gradient(to top, var(--movies-bg) 10%, transparent 100%); }
+    .side-gradient { background: linear-gradient(to right, var(--movies-bg) 0%, transparent 100%); }
     
     ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #050505; }
+    ::-webkit-scrollbar-track { background: var(--movies-bg); }
     ::-webkit-scrollbar-thumb { background: #8a1c1c; }
     
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -56,7 +82,7 @@ interface FeaturedResponse {
         @if (heroMovie()?.backdropUrl || heroMovie()?.posterUrl; as img) {
           <img [src]="img" alt="Hero Background" class="w-full h-full object-cover opacity-60">
         } @else {
-          <div class="w-full h-full bg-gradient-to-br from-[#1f1f1f] to-[#050505]"></div>
+          <div class="w-full h-full bg-gradient-to-br from-[var(--movies-surface)] to-[var(--movies-bg)]"></div>
         }
         <div class="absolute inset-0 hero-gradient"></div>
         <div class="absolute inset-0 side-gradient w-1/2"></div>
@@ -64,35 +90,35 @@ interface FeaturedResponse {
 
       <div class="relative z-10 h-full flex flex-col justify-end pb-24 px-8 md:px-16 max-w-5xl">
         <div class="reveal visible">
-          <div class="flex items-center gap-4 mb-4 text-xs font-bold sans-text tracking-widest text-[#e6e0d4] opacity-80">
+          <div class="flex items-center gap-4 mb-4 text-xs font-bold sans-text tracking-widest text-[var(--movies-text)] opacity-85">
             @if (heroMovie()?.isStreamOnly) {
               <span class="bg-[#4a0404] px-2 py-1 text-white rounded-sm">STREAM</span>
             }
             <span>{{ heroMovie()?.year }}</span>
-            <span class="border border-[#e6e0d4] px-2 py-[2px] rounded-sm text-[10px]">{{ heroMovie()?.quality?.[0] || 'HD' }}</span>
+            <span class="border border-[var(--movies-border-strong)] px-2 py-[2px] rounded-sm text-[10px]">{{ heroMovie()?.quality?.[0] || 'HD' }}</span>
             @if (heroMovie()?.durationMinutes) {
               <span>{{ formatDuration(heroMovie()!.durationMinutes!) }}</span>
             }
           </div>
 
-          <h1 class="display-text text-5xl md:text-7xl lg:text-8xl text-[#faf9f6] mb-6 leading-[0.9]">
+          <h1 class="display-text text-5xl md:text-7xl lg:text-8xl text-[var(--movies-contrast)] mb-6 leading-[0.9]">
             {{ heroMovie()?.title || 'Featured Movie' }}
           </h1>
 
-          <p class="sans-text text-lg md:text-xl text-[#e6e0d4] opacity-90 max-w-2xl mb-8 leading-relaxed">
+          <p class="sans-text text-lg md:text-xl text-[var(--movies-text)] opacity-90 max-w-2xl mb-8 leading-relaxed">
             {{ heroMovie()?.description || 'Experience the best of Nollywood and African cinema.' }}
           </p>
 
           <div class="flex flex-wrap items-center gap-4">
             @if (heroMovie()?.isStreamOnly && heroMovie()?.slug) {
-              <a [routerLink]="['/watch', heroMovie()!.slug]" class="flex items-center gap-3 px-8 py-4 bg-[#e6e0d4] text-[#050505] rounded-sm hover:bg-[#faf9f6] transition-all font-bold tracking-wider">
+              <a [routerLink]="['/watch', heroMovie()!.slug]" class="flex items-center gap-3 px-8 py-4 bg-[var(--movies-contrast)] text-[var(--movies-bg)] rounded-sm hover:opacity-90 transition-all font-bold tracking-wider">
                 <span [innerHTML]="playIcon"></span>
                 <span>PLAY NOW</span>
               </a>
             }
             
             @if (heroMovie()?.slug) {
-              <a [routerLink]="['/movies', heroMovie()!.slug]" class="flex items-center gap-3 px-8 py-4 glass-panel text-[#e6e0d4] rounded-sm hover:bg-[#2a2a2a] transition-all tracking-wider">
+              <a [routerLink]="['/movies', heroMovie()!.slug]" class="flex items-center gap-3 px-8 py-4 glass-panel text-[var(--movies-text)] rounded-sm hover:bg-[var(--movies-surface)] transition-all tracking-wider">
                 <span [innerHTML]="infoIcon"></span>
                 <span>MORE INFO</span>
               </a>
@@ -109,7 +135,7 @@ interface FeaturedResponse {
       @if (trending().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[#e6e0d4]">Trending Now</h2>
+            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Trending Now</h2>
             <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
           </div>
           
@@ -125,7 +151,7 @@ interface FeaturedResponse {
       @if (mostWatched().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[#e6e0d4]">Most Watched</h2>
+            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Most Watched</h2>
             <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
           </div>
           
@@ -141,7 +167,7 @@ interface FeaturedResponse {
       @if (comingSoon().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[#e6e0d4]">Coming Soon</h2>
+            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Coming Soon</h2>
             <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
           </div>
           
@@ -157,7 +183,7 @@ interface FeaturedResponse {
       @if (streamOnly().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[#e6e0d4]">Available to Stream</h2>
+            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Stream</h2>
             <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
           </div>
           
@@ -252,7 +278,7 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   `],
   template: `
     <a [routerLink]="['/movies', movieValue.slug || movieValue.id]" class="movie-card relative flex-shrink-0 w-[200px] md:w-[280px] cursor-pointer mr-4">
-      <div class="aspect-[2/3] w-full overflow-hidden rounded-sm relative bg-[#1f1f1f]">
+      <div class="aspect-[2/3] w-full overflow-hidden rounded-sm relative bg-[var(--movies-surface)] border border-[var(--movies-border)]">
         @if (movieValue.posterUrl || movieValue.thumbnailUrl; as img) {
           <img [src]="img" [alt]="movieValue.title" class="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity duration-500">
         } @else {
@@ -269,12 +295,12 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
         <!-- Hover Overlay -->
         <div class="poster-overlay absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col justify-center items-center gap-4">
           @if (movieValue.isStreamOnly) {
-            <button class="w-12 h-12 rounded-full bg-[#e6e0d4] flex items-center justify-center hover:scale-110 transition-transform">
+            <button class="w-12 h-12 rounded-full bg-[var(--movies-contrast)] flex items-center justify-center hover:scale-110 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </button>
           }
           <div class="flex gap-4">
-            <button class="p-2 border border-[#e6e0d4] rounded-full hover:bg-[#2a2a2a] transition-colors">
+            <button class="p-2 border border-[var(--movies-border-strong)] rounded-full hover:bg-[var(--movies-surface)] transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
             </button>
           </div>
@@ -282,8 +308,8 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
       </div>
 
       <div class="mt-3">
-        <h3 class="serif-text text-lg leading-tight text-[#e6e0d4] truncate">{{ movieValue.title }}</h3>
-        <div class="flex items-center gap-3 mt-1 text-[10px] sans-text tracking-widest text-[#e6e0d4] opacity-60">
+        <h3 class="serif-text text-lg leading-tight text-[var(--movies-text)] truncate">{{ movieValue.title }}</h3>
+        <div class="flex items-center gap-3 mt-1 text-[10px] sans-text tracking-widest text-[var(--movies-text-muted)]">
           <span>{{ movieValue.year }}</span>
           <span>•</span>
           <span>{{ movieValue.genre?.[0] || 'Movie' }}</span>
