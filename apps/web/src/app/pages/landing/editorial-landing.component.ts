@@ -29,7 +29,7 @@ interface ArchiveSection {
       
       <!-- PHASE 1-3: Opening Animation (Glitch → Dissolve → Hero) -->
       @if (phase() !== 'archive') {
-        <section class="fixed inset-0 z-40 flex flex-col justify-center items-center bg-[var(--bg-primary)]"
+        <section class="fixed inset-0 z-40 flex flex-col justify-center items-center bg-black"
                  [class.opacity-0]="phase() === 'dissolve'"
                  [class.transition-opacity]="phase() === 'dissolve'"
                  [class.duration-700]="phase() === 'dissolve'">
@@ -38,7 +38,7 @@ interface ArchiveSection {
           @if (phase() === 'glitch') {
             <button 
               (click)="skipAnimation()"
-              class="absolute top-8 right-8 text-[10px] tracking-[0.3em] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors uppercase">
+              class="absolute top-8 right-8 text-[10px] tracking-[0.3em] text-white/50 hover:text-white transition-colors uppercase">
               Skip Intro
             </button>
           }
@@ -48,7 +48,7 @@ interface ArchiveSection {
             <h1 class="font-serif text-[12vw] md:text-[10vw] leading-[0.85] tracking-tight">
               @for (char of brandChars; track $index) {
                 <span [class.text-[#8a1c1c]]="$index < burgundyCount"
-                      [class.text-[var(--text-primary)]]="$index >= burgundyCount"
+                      [class.text-white]="$index >= burgundyCount"
                       [class.opacity-0]="$index >= revealedChars()"
                       [class.animate-pulse]="$index === revealedChars() - 1 && phase() === 'glitch'">
                   {{ char }}
@@ -65,7 +65,7 @@ interface ArchiveSection {
 
           <!-- Location Pills -->
           @if (revealedChars() >= brandName.length && phase() === 'glitch') {
-              <div class="absolute bottom-24 flex gap-8 text-[10px] tracking-widest text-[var(--text-muted)]">
+              <div class="absolute bottom-24 flex gap-8 text-[10px] tracking-widest text-white/60">
                 <div class="flex items-center gap-2">
                   <div class="w-1.5 h-1.5 bg-[#8a1c1c] rounded-full animate-pulse"></div>
                   <span>LAGOS</span>
@@ -80,8 +80,8 @@ interface ArchiveSection {
           <!-- Scroll Indicator -->
           @if (phase() === 'hero') {
             <div class="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 animate-fade-in">
-              <span class="text-[10px] tracking-[0.3em] text-[var(--text-muted)]">SCROLL TO EXPLORE</span>
-              <div class="w-[1px] h-16 bg-[var(--border-color)] overflow-hidden">
+              <span class="text-[10px] tracking-[0.3em] text-white/50">SCROLL TO EXPLORE</span>
+              <div class="w-[1px] h-16 bg-white/20 overflow-hidden">
                 <div class="w-full h-full bg-[#8a1c1c] animate-scroll-line"></div>
               </div>
             </div>
@@ -96,12 +96,12 @@ interface ArchiveSection {
           <!-- Hero Section -->
           <section class="h-screen relative flex flex-col justify-center items-center overflow-hidden">
             <!-- Deep black hero background for readability -->
-            <div class="absolute inset-0 z-0 bg-[var(--bg-primary)]"></div>
+            <div class="absolute inset-0 z-0 bg-black"></div>
             <div class="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,rgba(138,28,28,0.2),transparent_55%)]"></div>
 
             <div class="relative z-10 text-center px-4">
-              <h1 class="font-display text-[11vw] md:text-[5vw] leading-none text-[var(--text-primary)] tracking-[0.22em] md:tracking-[0.35em] pr-[0.22em] md:pr-[0.35em] uppercase whitespace-nowrap">
-                NAIJAsPRIDE
+              <h1 class="font-display text-[10vw] md:text-[4.8vw] leading-none tracking-[0.2em] md:tracking-[0.32em] pr-[0.2em] md:pr-[0.32em] uppercase whitespace-nowrap">
+                <span class="text-[#8a1c1c]">NAIJAs</span><span class="text-white">PRIDE</span>
               </h1>
               <p class="mt-8 text-[10px] md:text-xs tracking-[0.35em] text-[var(--text-secondary)] font-bold uppercase">
                 COMICS • MOVIES • MUSIC
@@ -249,7 +249,7 @@ interface ArchiveSection {
                   UNLOCK THE <br/> <span class="italic opacity-50 normal-case">Full Archive</span>
                 </h2>
                 <p class="font-sans text-sm text-[var(--text-secondary)] leading-relaxed mb-8">
-                  Join the community. Support independent creators and decentralized streaming.
+                  Get full access to movies, books, comics, and music videos with one account.
                 </p>
               </div>
 
@@ -262,7 +262,7 @@ interface ArchiveSection {
                     <p class="text-[10px] tracking-widest mt-2 opacity-40">AD-SUPPORTED ACCESS</p>
                   </div>
                   <ul class="space-y-4 mb-8">
-                    @for (item of ['Standard Definition', 'Limited Catalog', 'Community Read-Only']; track $index) {
+                    @for (item of ['Preview Catalog Access', 'Ad-Supported Streaming', 'Basic Library Features']; track $index) {
                       <li class="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="20 6 9 17 4 12"/>
@@ -289,7 +289,7 @@ interface ArchiveSection {
                     <p class="text-[10px] tracking-widest mt-2 opacity-60">FULL ACCESS</p>
                   </div>
                   <ul class="space-y-4 mb-8">
-                    @for (item of ['4K HDR Streaming', 'Offline Downloads', 'Exclusive Drops', 'Ad-Free Experience']; track $index) {
+                    @for (item of ['Full Catalog Access', 'Higher Quality Streaming', 'Creator Support Benefits', 'Ad-Free Experience']; track $index) {
                       <li class="flex items-center gap-3 text-xs text-[var(--text-primary)]">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-[#8a1c1c]">
                           <polyline points="20 6 9 17 4 12"/>
@@ -414,14 +414,14 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       type: 'READ',
       title: 'COMICS &',
       titleAccent: 'Manga',
-      description: 'Immerse yourself in sequential art. From the neon-lit streets of cyberpunk Lagos to the ancient whispers of traditional folklore.',
+      description: 'Read comics, manga, and books from one library. Pick up where you stopped and keep your progress synced across devices.',
       image: this.books()[0]?.coverUrl || 'https://images.unsplash.com/photo-1614726365723-49cfae967a57?q=80&w=1200&auto=format&fit=crop',
       align: 'left',
       link: '/books',
       features: [
-        { label: 'FORMATS', value: 'Webtoon, PDF, CBR' },
-        { label: 'GENRES', value: 'Sci-Fi, Fantasy' },
-        { label: 'UPDATES', value: 'Weekly Chapters' }
+        { label: 'FORMATS', value: 'Web Reader, EPUB, PDF' },
+        { label: 'DISCOVERY', value: 'Books, Comics, Manga' },
+        { label: 'UPDATES', value: 'New Titles Weekly' }
       ]
     },
     {
@@ -430,14 +430,14 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       type: 'WATCH',
       title: 'MOVIES &',
       titleAccent: 'TV',
-      description: 'A decentralized catalog of Nollywood Noir and Global Black Cinema. High-fidelity streaming powered by P2P protocols.',
+      description: 'Stream movies and series with watch progress, continue-watching, and subtitle support built into the player.',
       image: this.movies()[0]?.backdropUrl || this.movies()[0]?.posterUrl || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1200&auto=format&fit=crop',
       align: 'right',
       link: '/movies',
       features: [
-        { label: 'QUALITY', value: '4K HDR10+ / Remux' },
-        { label: 'AUDIO', value: 'Dolby Atmos / 5.1' },
-        { label: 'ACCESS', value: 'Magnet / Stream' }
+        { label: 'PLAYBACK', value: 'Adaptive Streaming' },
+        { label: 'SUBTITLES', value: 'Built-in Subtitle Support' },
+        { label: 'TRACKING', value: 'Continue Watching' }
       ]
     },
     {
@@ -446,14 +446,14 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       type: 'LISTEN',
       title: 'MUSIC &',
       titleAccent: 'Videos',
-      description: 'Curated visual albums and high-fidelity audio. Experience the heartbeat of the culture through curated playlists.',
+      description: 'Explore artist pages, trending tracks, and new music videos in a player that stays with you across the app.',
       image: this.music()[0]?.thumbnailUrl || 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=1200&auto=format&fit=crop',
       align: 'left',
       link: '/music',
       features: [
-        { label: 'GENRES', value: 'Afrobeats, Alté' },
-        { label: 'MEDIA', value: 'Music Video, FLAC' },
-        { label: 'CURATION', value: 'Hand-Picked' }
+        { label: 'DISCOVERY', value: 'Trending + New Releases' },
+        { label: 'MEDIA', value: 'Music Video Catalog' },
+        { label: 'ARTISTS', value: 'Dedicated Artist Pages' }
       ]
     }
   ]);

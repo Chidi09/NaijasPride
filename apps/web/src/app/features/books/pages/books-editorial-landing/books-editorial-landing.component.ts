@@ -106,15 +106,6 @@ type FeaturedContent = {
       transform: scale(1.08);
     }
 
-    /* Marquee */
-    @keyframes marquee {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
-    .animate-marquee {
-      animation: marquee 25s linear infinite;
-    }
-
     /* Scroll reveal */
     .reveal {
       opacity: 0;
@@ -143,16 +134,16 @@ type FeaturedContent = {
       
       <div class="max-w-7xl mx-auto w-full z-10">
         <div class="reveal visible">
-          <h1 class="serif-text text-[14vw] leading-[0.8] text-[#e6e0d4] mix-blend-overlay">
+          <h1 class="serif-text text-[11vw] md:text-[9vw] leading-[0.8] text-[#e6e0d4] mix-blend-overlay">
             VISUAL
           </h1>
           <div class="flex flex-col md:flex-row items-start md:items-end justify-between">
-            <h1 class="serif-text text-[14vw] leading-[0.8] text-[#8a1c1c] italic ml-0 md:ml-12">
+            <h1 class="serif-text text-[11vw] md:text-[9vw] leading-[0.8] text-[#8a1c1c] italic ml-0 md:ml-12">
               LIT.
             </h1>
             <div class="mb-4 md:mb-8 md:mr-12 max-w-sm">
               <p class="sans-text text-sm md:text-base text-[#e6e0d4] opacity-80 leading-relaxed text-justify">
-                A curated subsection of NAIJASPRIDE dedicated to the art of sequential storytelling. From Lagosian cyberpunk to traditional folklore reimagined in ink.
+                Explore books, comics, and manga in one place. Track your reading progress and continue chapters from any device.
               </p>
               <a routerLink="/books/all" class="mt-6 px-6 py-3 border border-[#e6e0d4] text-[#e6e0d4] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] transition-all duration-300 inline-block sans-text">
                 ENTER ARCHIVE
@@ -170,7 +161,7 @@ type FeaturedContent = {
     <section class="py-24 px-6 bg-[#050505]">
       <div class="max-w-7xl mx-auto">
         <div class="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#1f1f1f] pb-6 reveal">
-          <h2 class="serif-text text-5xl md:text-7xl text-[#e6e0d4]">
+          <h2 class="serif-text text-4xl md:text-5xl text-[#e6e0d4]">
             WEEKLY <span class="text-[#590d0d] italic">DROPS</span>
           </h2>
           <div class="flex gap-2 mt-4 md:mt-0">
@@ -221,7 +212,7 @@ type FeaturedContent = {
 
                 <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
                   <div>
-                    <h3 class="serif-text text-2xl text-[#e6e0d4] italic">{{ featured()!.book!.title }}</h3>
+                    <h3 class="serif-text text-xl text-[#e6e0d4] italic">{{ featured()!.book!.title }}</h3>
                     <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">By {{ featured()!.book!.author || 'Unknown Author' }}</p>
                   </div>
                   <div class="text-right">
@@ -258,8 +249,8 @@ type FeaturedContent = {
 
                 <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
                   <div>
-                    <h3 class="serif-text text-2xl text-[#e6e0d4] italic">{{ featured()!.comic!.title }}</h3>
-                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">ReadComicsOnline</p>
+                    <h3 class="serif-text text-xl text-[#e6e0d4] italic">{{ featured()!.comic!.title }}</h3>
+                    <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">Updated Recently</p>
                   </div>
                   <div class="text-right">
                     @if (featured()!.comic!.latestChapter) {
@@ -300,7 +291,7 @@ type FeaturedContent = {
 
                 <div class="flex justify-between items-start border-t border-[#1f1f1f] pt-3 group-hover:border-[#8a1c1c] transition-colors">
                   <div>
-                    <h3 class="serif-text text-2xl text-[#e6e0d4] italic transition-opacity duration-300" [class.opacity-0]="isMangaChanging()" [class.opacity-100]="!isMangaChanging()">{{ featured()!.manga!.title }}</h3>
+                    <h3 class="serif-text text-xl text-[#e6e0d4] italic transition-opacity duration-300" [class.opacity-0]="isMangaChanging()" [class.opacity-100]="!isMangaChanging()">{{ featured()!.manga!.title }}</h3>
                     <p class="sans-text text-xs text-[#e6e0d4] opacity-60 mt-1 uppercase tracking-wide">Trending Now</p>
                   </div>
                   <div class="text-right">
@@ -317,18 +308,6 @@ type FeaturedContent = {
       </div>
     </section>
 
-    <!-- Marquee -->
-    <div class="py-12 bg-[#590d0d] overflow-hidden border-y border-[#e6e0d4]">
-      <div class="flex whitespace-nowrap animate-marquee">
-        @for (i of [1,2,3,4]; track i) {
-          <span class="serif-text text-6xl md:text-8xl text-[#e6e0d4] mx-8">LATEST CHAPTERS</span>
-          <span class="sans-text text-4xl text-[#050505] mx-4">✦</span>
-          <span class="serif-text text-6xl md:text-8xl text-outline mx-8">READ NOW</span>
-          <span class="sans-text text-4xl text-[#050505] mx-4">✦</span>
-        }
-      </div>
-    </div>
-
     <!-- Content Sections -->
     <section class="py-24 px-6 max-w-7xl mx-auto">
       
@@ -336,8 +315,8 @@ type FeaturedContent = {
       <div class="mb-20 reveal">
         <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-6xl md:text-8xl text-[#1f1f1f]">01</span>
-            <h2 class="serif-text text-4xl md:text-6xl text-[#e6e0d4] group-hover:italic group-hover:text-[#8a1c1c] transition-all">BOOKS</h2>
+            <span class="serif-text text-5xl md:text-6xl text-[#1f1f1f]">01</span>
+            <h2 class="serif-text text-3xl md:text-4xl text-[#e6e0d4] group-hover:italic group-hover:text-[#8a1c1c] transition-all">BOOKS</h2>
           </div>
           <a routerLink="/books/all" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
             VIEW ALL <span [innerHTML]="arrowIcon"></span>
@@ -376,8 +355,8 @@ type FeaturedContent = {
       <div class="mb-20 reveal">
         <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-6xl md:text-8xl text-[#1f1f1f]">02</span>
-            <h2 class="serif-text text-4xl md:text-6xl text-[#e6e0d4]">COMICS</h2>
+            <span class="serif-text text-5xl md:text-6xl text-[#1f1f1f]">02</span>
+            <h2 class="serif-text text-3xl md:text-4xl text-[#e6e0d4]">COMICS</h2>
           </div>
           <a routerLink="/books/comics" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
             VIEW ALL <span [innerHTML]="arrowIcon"></span>
@@ -418,8 +397,8 @@ type FeaturedContent = {
       <div class="reveal">
         <div class="flex items-center justify-between mb-10 border-b border-[#1f1f1f] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-6xl md:text-8xl text-[#1f1f1f]">03</span>
-            <h2 class="serif-text text-4xl md:text-6xl text-[#e6e0d4]">MANGA</h2>
+            <span class="serif-text text-5xl md:text-6xl text-[#1f1f1f]">03</span>
+            <h2 class="serif-text text-3xl md:text-4xl text-[#e6e0d4]">MANGA</h2>
           </div>
           <a routerLink="/books/manga" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[#e6e0d4] transition-colors sans-text flex items-center gap-2">
             OPEN LIBRARY <span [innerHTML]="arrowIcon"></span>

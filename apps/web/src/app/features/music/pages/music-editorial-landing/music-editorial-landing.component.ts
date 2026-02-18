@@ -10,7 +10,6 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 // Icons
 const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
 const ArrowIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
-const DiscIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="2"/></svg>`;
 const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
 
 @Component({
@@ -34,8 +33,6 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
     .reveal.visible { opacity: 1; transform: translateY(0); }
     .image-zoom { transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease; }
     .group:hover .image-zoom { transform: scale(1.05); }
-    @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-    .animate-marquee { animation: marquee 25s linear infinite; }
     .playlist-row { transition: background-color 0.3s ease, padding-left 0.3s ease; }
     .playlist-row:hover { background-color: rgba(31, 31, 31, 0.3); padding-left: 16px; }
   `],
@@ -45,11 +42,11 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
       <div class="max-w-8xl mx-auto w-full">
         <div class="reveal visible flex flex-col mb-12">
           <div class="flex items-baseline gap-6 overflow-hidden flex-wrap">
-            <h1 class="display-text text-[10vw] md:text-[8vw] leading-[0.85] uppercase">Sonic</h1>
+            <h1 class="display-text text-[8vw] md:text-[6vw] leading-[0.9] uppercase">Sonic</h1>
             <div class="h-[2px] flex-grow bg-[#8a1c1c] self-center mx-4 min-w-[100px]"></div>
-            <span class="serif-text text-xl md:text-3xl italic text-[#8a1c1c]">(Vol. 01)</span>
+            <span class="serif-text text-lg md:text-2xl italic text-[#8a1c1c]">(Vol. 01)</span>
           </div>
-          <h1 class="display-text text-[10vw] md:text-[8vw] leading-[0.85] text-outline uppercase self-end">Visuals</h1>
+          <h1 class="display-text text-[8vw] md:text-[6vw] leading-[0.9] text-outline uppercase self-end">Visuals</h1>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
@@ -76,10 +73,10 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
             @if (heroVideo(); as video) {
               <div>
                 <span class="block text-[#8a1c1c] text-xs tracking-widest mb-2 font-bold sans-text">NOW PREMIERING</span>
-                <h2 class="serif-text text-4xl leading-none mb-2">{{ video.artist }}</h2>
-                <h3 class="sans-text text-xl opacity-60 uppercase mb-6">{{ video.title }}</h3>
+                <h2 class="serif-text text-3xl leading-none mb-2">{{ video.artist }}</h2>
+                <h3 class="sans-text text-lg opacity-60 uppercase mb-6">{{ video.title }}</h3>
                 <p class="sans-text text-sm opacity-50 leading-relaxed text-justify border-l border-[#8a1c1c] pl-4">
-                  {{ video.artist }} brings raw energy and authentic Nigerian sound to the global stage. Experience the visuals.
+                  Watch top tracks, artist releases, and trending videos from one place.
                 </p>
               </div>
             }
@@ -92,20 +89,17 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
       </div>
     </section>
 
-    <div class="bg-[#590d0d] py-4 border-y border-[#e6e0d4] overflow-hidden">
-      <div class="flex whitespace-nowrap gap-12 animate-marquee">
-        @for (i of [1,2,3,4,5,6]; track i) {
-          <span class="sans-text text-sm tracking-[0.2em] text-[#e6e0d4]">NEW RELEASES</span>
-          <span [innerHTML]="discIcon" class="text-[#050505]"></span>
-          <span class="serif-text text-2xl italic text-[#e6e0d4]">EXCLUSIVE PREMIERES</span>
-          <div class="w-2 h-2 bg-[#050505] rotate-45 self-center"></div>
-        }
+    <div class="bg-[#111111] py-4 border-y border-[#1f1f1f]">
+      <div class="max-w-7xl mx-auto px-6 flex flex-wrap items-center justify-center gap-3 text-[10px] tracking-[0.2em] sans-text text-[#e6e0d4]/80">
+        <span class="px-3 py-1 border border-[#2a2a2a]">NEW RELEASES</span>
+        <span class="px-3 py-1 border border-[#2a2a2a]">TRENDING ARTISTS</span>
+        <span class="px-3 py-1 border border-[#2a2a2a]">MUSIC VIDEOS</span>
       </div>
     </div>
 
     <section class="py-24 px-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-end mb-16">
-        <h2 class="serif-text text-6xl text-[#e6e0d4]">CURATED <span class="italic text-[#8a1c1c]">VIBES</span></h2>
+        <h2 class="serif-text text-4xl md:text-5xl text-[#e6e0d4]">CURATED <span class="italic text-[#8a1c1c]">VIBES</span></h2>
         <div class="hidden md:flex gap-2 items-center">
           <div class="w-2 h-2 bg-[#8a1c1c] rounded-full animate-pulse"></div>
           <span class="text-[10px] tracking-widest sans-text">TRENDING NOW</span>
@@ -126,7 +120,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
                   <img [src]="track.thumbnailUrl || 'https://img.youtube.com/vi/' + track.youtubeId + '/mqdefault.jpg'" [alt]="track.title" class="object-cover w-full h-full grayscale group-hover:grayscale-0 transition-all">
                 </div>
                 <div>
-                  <h4 class="serif-text text-3xl transition-all duration-300">{{ track.artist }}</h4>
+                  <h4 class="serif-text text-2xl transition-all duration-300">{{ track.artist }}</h4>
                   <p class="sans-text text-xs tracking-widest opacity-60 uppercase mt-1">{{ track.title }}</p>
                 </div>
               </div>
@@ -147,15 +141,15 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
 
     <section class="py-24 bg-[#1f1f1f] relative overflow-hidden">
       <div class="absolute top-0 left-0 w-full h-full overflow-hidden flex items-center justify-center opacity-5 pointer-events-none">
-        <h2 class="display-text text-[25vw] text-[#faf9f6] whitespace-nowrap">AFROBEATS</h2>
+        <h2 class="display-text text-[18vw] text-[#faf9f6] whitespace-nowrap">AFROBEATS</h2>
       </div>
       <div class="max-w-7xl mx-auto px-6 relative z-10 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
         <div class="order-2 md:order-1">
           <span class="text-[#8a1c1c] text-xs tracking-[0.2em] font-bold block mb-4 sans-text">ARTIST OF THE WEEK</span>
           @if (spotlightArtist(); as artist) {
-            <h2 class="serif-text text-6xl md:text-7xl mb-6">{{ artist.artistName }}</h2>
+            <h2 class="serif-text text-4xl md:text-5xl mb-6">{{ artist.artistName }}</h2>
             <p class="sans-text text-sm opacity-70 leading-relaxed mb-8 text-justify">
-              {{ artist.artistName }} brings the distinctive sound of {{ artist.region }} to the world stage. With {{ artist.totalVideos }} videos and {{ formatNumber(artist.totalPlays) }} plays, this artist defines the current wave of Afrobeat excellence.
+              {{ artist.artistName }} has {{ artist.totalVideos }} videos in the catalog and {{ formatNumber(artist.totalPlays) }} total plays so far.
             </p>
             <div class="flex gap-4">
               <a [routerLink]="['/music/artist', artist.artistSlug]" class="flex items-center gap-2 px-6 py-3 bg-[#e6e0d4] text-[#050505] text-xs tracking-widest hover:bg-[#faf9f6] transition-colors sans-text">
@@ -182,7 +176,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
 
     <section class="py-24 px-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-end mb-12 border-b border-[#1f1f1f] pb-6">
-        <h2 class="serif-text text-5xl md:text-6xl text-[#e6e0d4]">FRESH <span class="text-[#590d0d] italic">DROPS</span></h2>
+        <h2 class="serif-text text-4xl md:text-5xl text-[#e6e0d4]">FRESH <span class="text-[#590d0d] italic">DROPS</span></h2>
         <a routerLink="/music/browse" class="text-xs tracking-widest hover:text-[#8a1c1c] transition-colors sans-text flex items-center gap-2">VIEW ALL <span [innerHTML]="arrowIcon"></span></a>
       </div>
       @if (newReleases().length > 0) {
@@ -220,7 +214,6 @@ export class MusicEditorialLandingComponent implements OnInit, OnDestroy {
   
   playIcon = PlayIcon;
   arrowIcon = ArrowIcon;
-  discIcon = DiscIcon;
   volumeIcon = VolumeIcon;
 
   heroEmbedUrl = computed<SafeResourceUrl | null>(() => {
