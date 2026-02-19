@@ -1,7 +1,8 @@
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
-import WebTorrent from 'webtorrent';
+// webtorrent v2+ is ESM-only — loaded via dynamic import() at runtime
+let WebTorrent: any;
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -329,11 +330,17 @@ const uploadDirectoryToR2 = async (
 };
 
 // Download a torrent and process the video for streaming
-const downloadAndProcess = (magnetLink: string, movieId: string): Promise<{
+const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<{
   mp4Key: string | null;
   hlsKey: string | null;
   mp4Size: number;
 }> => {
+  // Lazy-load webtorrent (ESM-only module)
+  if (!WebTorrent) {
+    const mod = await import('webtorrent');
+    WebTorrent = mod.default ?? mod;
+  }
+
   return new Promise((resolve, reject) => {
     const client = new WebTorrent();
     let settled = false;
