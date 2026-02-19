@@ -22,6 +22,9 @@ RUN npm install -g turbo@^2
 COPY . .
 # Produces /app/out/json/ (package.jsons + lockfile) and /app/out/full/ (source)
 RUN turbo prune --scope=api --docker
+# tsconfig.base.json is at repo root, outside turbo prune output.
+# Copy it into out/full/ so the installer stage can access it.
+RUN cp tsconfig.base.json out/full/tsconfig.base.json
 
 # ---------------------------------------------------------------------------
 # Stage 2: Install — npm ci + compile TypeScript + generate Prisma client
@@ -37,9 +40,8 @@ COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
 RUN npm install --legacy-peer-deps
 
-# Copy full pruned source + root tsconfig.base.json (needed by shared packages)
+# Copy full pruned source (includes tsconfig.base.json added in builder stage)
 COPY --from=builder /app/out/full/ .
-COPY --from=builder /app/tsconfig.base.json ./tsconfig.base.json
 
 # Build shared packages first so their dist/ exists when the API compiles.
 # These extend ../../tsconfig.base.json so the COPY above is required.
