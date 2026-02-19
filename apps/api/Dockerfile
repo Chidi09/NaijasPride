@@ -40,7 +40,12 @@ RUN npm install --legacy-peer-deps
 # Copy full pruned source
 COPY --from=builder /app/out/full/ .
 
-# Build: generates Prisma client (prebuild) then compiles TS → dist/
+# Build shared packages first so their dist/ exists when the API compiles
+RUN npm run build --workspace @naijaspride/types || true
+RUN npm run build --workspace @naijaspride/validators || true
+RUN npm run build --workspace @naijaspride/utils || true
+
+# Build API: generates Prisma client (prebuild) then compiles TS → dist/
 RUN npm run build --workspace api
 
 # ---------------------------------------------------------------------------

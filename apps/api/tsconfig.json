@@ -8,13 +8,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
+    "rootDir": "src",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@naijaspride/types": ["../../packages/shared-types/src/index.ts"],
-      "@naijaspride/validators": ["../../packages/shared-validators/src/index.ts"],
-      "@naijaspride/utils": ["../../packages/shared-utils/src/index.ts"]
+      "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*", "../../packages/shared-types/src/**/*", "../../packages/shared-validators/src/**/*", "../../packages/shared-utils/src/**/*"]
+  "include": ["src/**/*"]
 }
