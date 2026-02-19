@@ -1,85 +1,87 @@
 # =============================================================================
-# NaijasPride API — Dockerfile
-# Multi-stage build for DigitalOcean App Platform
+# NaijasPride — Production Dockerfile
+# Single image for API server + workers (different CMD per service)
 # =============================================================================
-# Stages:
-#   builder   → prune the Turborepo monorepo to just API deps
-#   installer → npm install + TypeScript compile + Prisma client generate
-#   runner    → lean production image with ffmpeg + Playwright Chromium
+# Build: docker compose build
+# Run:   docker compose up -d
 # =============================================================================
-
-FROM node:20-alpine AS base
-# Playwright requires a glibc-based OS (Debian/Ubuntu). We use node:20-slim
-# for the runner stage only. Alpine is fine for builder + installer stages.
-FROM node:20-slim AS runner-base
 
 # ---------------------------------------------------------------------------
 # Stage 1: Prune — isolate the api package and its workspace dependencies
 # ---------------------------------------------------------------------------
-FROM base AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
+
 RUN npm install -g turbo@^2
+
 COPY . .
+
 # Produces /app/out/json/ (package.jsons + lockfile) and /app/out/full/ (source)
 RUN turbo prune --scope=api --docker
-# tsconfig.base.json is at repo root, outside turbo prune output.
-# Copy it into out/full/ so the installer stage can access it.
+
+# tsconfig.base.json lives at repo root — turbo prune doesn't include it
 RUN cp tsconfig.base.json out/full/tsconfig.base.json
 
 # ---------------------------------------------------------------------------
-# Stage 2: Install — npm install + compile TypeScript + generate Prisma client
+# Stage 2: Install + Build — all TypeScript compiled here
 # ---------------------------------------------------------------------------
-FROM base AS installer
+FROM node:20-alpine AS installer
 WORKDIR /app
 
-# Copy pruned package manifests + lockfile first so Docker layer-caches deps
+# Copy pruned package manifests + lockfile (layer cached)
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
 RUN npm install --legacy-peer-deps
 
-# Copy full pruned source (includes tsconfig.base.json added in builder stage)
+# Copy full pruned source (includes tsconfig.base.json)
 COPY --from=builder /app/out/full/ .
 
-# Build shared packages first so their dist/ exists when the API compiles.
-# These extend ../../tsconfig.base.json so the COPY above is required.
+# Build shared packages first (they produce dist/ that the API imports)
 RUN npm run build --workspace @naijaspride/types
 RUN npm run build --workspace @naijaspride/validators
 RUN npm run build --workspace @naijaspride/utils || true
 
-# Build API: generates Prisma client (prebuild) then compiles TS → dist/
+# Build API: runs prisma generate (prebuild) then tsc + tsc-alias
 RUN npm run build --workspace api
 
+# Copy non-TS assets (Handlebars templates, etc.) into dist/ so they're
+# available at runtime via __dirname-relative paths
+RUN cp -r apps/api/src/modules/wrapped/templates apps/api/dist/modules/wrapped/templates
+
 # ---------------------------------------------------------------------------
-# Stage 3: Runner — production image (Debian slim for Playwright compatibility)
+# Stage 3: Runner — production image
 # ---------------------------------------------------------------------------
-FROM runner-base AS runner
+# Using bookworm-slim (Debian) instead of Alpine because:
+# - Playwright Chromium requires glibc + system libs (not available on musl/Alpine)
+# - ffmpeg from Debian repos is more stable for HLS transcoding
+FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
-# ffmpeg is required by the torrent worker for HLS packaging + MKV transcoding.
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
- && rm -rf /var/lib/apt/lists/*
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg \
+      curl \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Non-root user for security
+# Non-root user
 RUN groupadd --system --gid 1001 nodejs \
- && useradd --system --uid 1001 --gid nodejs fastify
+ && useradd --system --uid 1001 --gid nodejs appuser
 
-# Copy the fully-built app from the installer stage
-COPY --from=installer --chown=fastify:nodejs /app .
+# Copy built app from installer
+COPY --from=installer --chown=appuser:nodejs /app .
 
-# Install Playwright's Chromium browser + its OS-level dependencies.
-# Must run as root (before USER fastify) so apt-get can install system libs.
-RUN node_modules/.bin/playwright install chromium --with-deps
+# Install Playwright Chromium + system deps (must run as root)
+RUN npx playwright install chromium --with-deps \
+ && rm -rf /tmp/* /root/.cache
 
-# Create the temp download directory used by the torrent worker.
-# Must be owned by the app user so it can write downloads at runtime.
+# Temp dir for torrent downloads
 RUN mkdir -p /tmp/naijaspride/torrent-downloads \
- && chown -R fastify:nodejs /tmp/naijaspride
+ && chown -R appuser:nodejs /tmp/naijaspride
 
-USER fastify
+USER appuser
 
-# DO App Platform injects $PORT; Fastify reads process.env.PORT in app.ts
 EXPOSE 3000
 
-# Default command — the API server.
-# Worker services in app.yaml override this with their own run_command.
+# Default: run the API server. Workers override this via docker-compose command.
 CMD ["node", "apps/api/dist/app.js"]
