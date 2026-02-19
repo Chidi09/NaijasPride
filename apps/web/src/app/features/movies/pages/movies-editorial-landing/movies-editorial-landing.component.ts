@@ -79,7 +79,7 @@ interface FeaturedResponse {
     <!-- Hero Section -->
     <section class="relative h-[85vh] w-full overflow-hidden">
       <div class="absolute inset-0 z-0">
-        @if (heroMovie()?.backdropUrl || heroMovie()?.posterUrl; as img) {
+        @if (heroMovie()?.backdropUrl || heroMovie()?.posterUrl || heroMovie()?.thumbnailUrl; as img) {
           <img [src]="img" alt="Hero Background" class="w-full h-full object-cover opacity-60" referrerpolicy="no-referrer">
         } @else {
           <div class="w-full h-full bg-gradient-to-br from-[var(--movies-surface)] to-[var(--movies-bg)]"></div>

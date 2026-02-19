@@ -81,7 +81,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
               <div class="relative w-full aspect-video bg-[var(--music-surface)] overflow-hidden video-mask border border-[var(--music-border)] group">
                 @if (!isPlaying()) {
                   <div class="absolute inset-0 bg-black/40 z-10"></div>
-                  <img [src]="'https://img.youtube.com/vi/' + video.youtubeId + '/maxresdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-105 group-hover:scale-100">
+                  <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/hqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-105 group-hover:scale-100" referrerpolicy="no-referrer">
                   <button (click)="playHero(video)" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border border-[var(--music-border-strong)] rounded-full flex items-center justify-center z-20 backdrop-blur-sm hover:bg-[#8a1c1c] hover:border-[#8a1c1c] hover:text-white transition-all duration-300 group-hover:scale-110">
                     <span [innerHTML]="playIcon" class="ml-2 text-[var(--music-text)]"></span>
                   </button>
@@ -188,7 +188,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         <div class="order-1 md:order-2 relative">
           @if (spotlightArtist()?.topVideos[0]; as topVideo) {
             <div class="aspect-[3/4] bg-black video-mask relative group cursor-pointer" (click)="playTrack(topVideo)">
-              <img [src]="topVideo.thumbnailUrl || 'https://img.youtube.com/vi/' + topVideo.youtubeId + '/maxresdefault.jpg'" [alt]="topVideo.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700">
+              <img [src]="topVideo.thumbnailUrl || 'https://img.youtube.com/vi/' + topVideo.youtubeId + '/hqdefault.jpg'" [alt]="topVideo.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" referrerpolicy="no-referrer">
               <div class="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors"></div>
               <div class="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-4 border-l-2 border-[#8a1c1c]">
                 <p class="serif-text italic text-lg">"{{ topVideo.title }}"</p>
@@ -210,7 +210,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
           @for (video of newReleases().slice(0, 6); track video.id; let idx = $index) {
             <a [routerLink]="['/music', video.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
               <div class="relative aspect-square overflow-hidden mb-3 bg-[var(--music-surface)] border border-[var(--music-border)]">
-                <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/mqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
+                <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/mqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
                 <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity mix-blend-multiply"></div>
               </div>
               <h3 class="serif-text text-lg text-[var(--music-text)] truncate">{{ video.title }}</h3>
