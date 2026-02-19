@@ -61,9 +61,9 @@ health_check() {
 update_nginx() {
   local port="$1"
   if [ -f /etc/nginx/sites-enabled/naijaspride ]; then
-    sed -i "s|proxy_pass http://localhost:[0-9]*|proxy_pass http://localhost:$port|g" \
+    sudo sed -i "s|proxy_pass http://localhost:[0-9]*|proxy_pass http://localhost:$port|g" \
       /etc/nginx/sites-enabled/naijaspride
-    nginx -t -q && nginx -s reload
+    sudo nginx -t -q && sudo nginx -s reload
     echo "    Nginx reloaded → port $port"
   else
     echo "    Nginx not configured yet — API available at http://$(hostname -I | awk '{print $1}'):$port"
@@ -187,6 +187,12 @@ fi
 if [ ! -f .env ]; then
   echo "ERROR: .env not found. Run: cp .env.example .env && nano .env"
   exit 1
+fi
+
+# Ensure sudo access (needed for nginx reload)
+if [ "$(id -u)" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+  echo "WARNING: Deploy may need sudo for nginx operations."
+  echo "         If the switch fails, re-run with: sudo ./deploy.sh"
 fi
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
