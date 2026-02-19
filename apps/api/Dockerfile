@@ -32,17 +32,16 @@ WORKDIR /app
 # Copy pruned package manifests + lockfile first so Docker layer-caches deps
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
-# Use --legacy-peer-deps because the lockfile may be out of sync until
-# a clean local npm install can be committed. Switch back to "npm ci"
-# once package-lock.json is fully up to date.
 RUN npm install --legacy-peer-deps
 
-# Copy full pruned source
+# Copy full pruned source + root tsconfig.base.json (needed by shared packages)
 COPY --from=builder /app/out/full/ .
+COPY --from=builder /app/tsconfig.base.json ./tsconfig.base.json
 
-# Build shared packages first so their dist/ exists when the API compiles
-RUN npm run build --workspace @naijaspride/types || true
-RUN npm run build --workspace @naijaspride/validators || true
+# Build shared packages first so their dist/ exists when the API compiles.
+# These extend ../../tsconfig.base.json so the COPY above is required.
+RUN npm run build --workspace @naijaspride/types
+RUN npm run build --workspace @naijaspride/validators
 RUN npm run build --workspace @naijaspride/utils || true
 
 # Build API: generates Prisma client (prebuild) then compiles TS → dist/
