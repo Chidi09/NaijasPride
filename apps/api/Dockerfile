@@ -9,6 +9,9 @@
 # =============================================================================
 
 FROM node:20-alpine AS base
+# Playwright requires a glibc-based OS (Debian/Ubuntu). We use node:20-slim
+# for the runner stage only. Alpine is fine for builder + installer stages.
+FROM node:20-slim AS runner-base
 
 # ---------------------------------------------------------------------------
 # Stage 1: Prune — isolate the api package and its workspace dependencies
@@ -29,7 +32,10 @@ WORKDIR /app
 # Copy pruned package manifests + lockfile first so Docker layer-caches deps
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
-RUN npm ci
+# Use --legacy-peer-deps because the lockfile may be out of sync until
+# a clean local npm install can be committed. Switch back to "npm ci"
+# once package-lock.json is fully up to date.
+RUN npm install --legacy-peer-deps
 
 # Copy full pruned source
 COPY --from=builder /app/out/full/ .
@@ -38,21 +44,25 @@ COPY --from=builder /app/out/full/ .
 RUN npm run build --workspace api
 
 # ---------------------------------------------------------------------------
-# Stage 3: Runner — minimal production image
+# Stage 3: Runner — production image (Debian slim for Playwright compatibility)
 # ---------------------------------------------------------------------------
-FROM base AS runner
+FROM runner-base AS runner
 WORKDIR /app
 
 # ffmpeg is required by the torrent worker for HLS packaging + MKV transcoding.
-# If you're not using the torrent worker, you can remove this line to save ~40 MB.
-RUN apk add --no-cache ffmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
 
 # Non-root user for security
-RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 --ingroup nodejs fastify
+RUN groupadd --system --gid 1001 nodejs \
+ && useradd --system --uid 1001 --gid nodejs fastify
 
 # Copy the fully-built app from the installer stage
 COPY --from=installer --chown=fastify:nodejs /app .
+
+# Install Playwright's Chromium browser + its OS-level dependencies.
+# Must run as root (before USER fastify) so apt-get can install system libs.
+RUN node_modules/.bin/playwright install chromium --with-deps
 
 # Create the temp download directory used by the torrent worker.
 # Must be owned by the app user so it can write downloads at runtime.
