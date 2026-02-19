@@ -2,11 +2,32 @@ import { FastifyPluginAsync } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { MusicGenre, MusicRegion } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 import { MusicService } from './music.service';
 
 export const musicRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
   const service = new MusicService(fastify.prisma);
+
+  const resolveOptionalUserId = (authHeader?: string): string | undefined => {
+    if (!authHeader?.startsWith('Bearer ')) return undefined;
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return undefined;
+
+    try {
+      const token = authHeader.slice('Bearer '.length);
+      const decoded = jwt.verify(token, secret) as {
+        id?: string;
+        type?: 'access' | 'refresh';
+      };
+
+      if (decoded.type && decoded.type !== 'access') return undefined;
+      return typeof decoded.id === 'string' ? decoded.id : undefined;
+    } catch {
+      return undefined;
+    }
+  };
 
   // ── GET /api/v1/music/featured ──────────────────────────────────────────
   app.get('/featured', async (_req, reply) => {
@@ -53,12 +74,7 @@ export const musicRoutes: FastifyPluginAsync = async (fastify) => {
       params: z.object({ id: z.string().uuid() }),
     },
   }, async (req, reply) => {
-    // Optional auth
-    let userId: string | undefined;
-    try {
-      await fastify.authenticate(req, reply);
-      userId = req.user?.id;
-    } catch { /* unauthenticated — can still read public playlists */ }
+    const userId = resolveOptionalUserId(req.headers.authorization);
 
     const playlist = await service.getPlaylist(req.params.id, userId);
     if (!playlist) {
@@ -89,12 +105,7 @@ export const musicRoutes: FastifyPluginAsync = async (fastify) => {
       params: z.object({ slug: z.string() }),
     },
   }, async (req, reply) => {
-    // Optional auth for isLiked
-    let userId: string | undefined;
-    try {
-      await fastify.authenticate(req, reply);
-      userId = req.user?.id;
-    } catch { /* unauthenticated ok */ }
+    const userId = resolveOptionalUserId(req.headers.authorization);
 
     const video = await service.findBySlug(req.params.slug, userId);
     if (!video) {
@@ -136,11 +147,7 @@ export const musicRoutes: FastifyPluginAsync = async (fastify) => {
       params: z.object({ id: z.string().uuid() }),
     },
   }, async (req, reply) => {
-    let userId: string | undefined;
-    try {
-      await fastify.authenticate(req, reply);
-      userId = req.user?.id;
-    } catch { /* ok */ }
+    const userId = resolveOptionalUserId(req.headers.authorization);
 
     await service.incrementPlay(req.params.id, userId);
     return reply.send({ success: true });

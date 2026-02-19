@@ -140,18 +140,34 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         <div class="flex flex-col">
           @for (track of trending().slice(0, 6); track track.id; let idx = $index) {
             <div (click)="playTrack(track)" class="playlist-row group flex flex-col md:flex-row items-start md:items-center justify-between py-8 border-b border-[var(--music-border)] px-4 cursor-pointer reveal" [style.transition-delay]="idx * 100 + 'ms'">
-              <div class="flex items-center gap-6 md:gap-12 w-full md:w-1/2">
+              <div class="flex items-center gap-4 md:gap-8 w-full md:w-2/3 min-w-0">
                 <span class="serif-text text-2xl text-[#8a1c1c] w-8">0{{ idx + 1 }}</span>
-                <div class="relative w-32 h-20 overflow-hidden hidden md:block opacity-40 group-hover:opacity-100 transition-opacity">
-                  <img [src]="track.thumbnailUrl || 'https://img.youtube.com/vi/' + track.youtubeId + '/mqdefault.jpg'" [alt]="track.title" class="object-cover w-full h-full grayscale group-hover:grayscale-0 transition-all">
+                <div class="relative w-24 h-16 md:w-36 md:h-24 overflow-hidden border border-[var(--music-border)] bg-[var(--music-surface)] opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <img
+                    [src]="videoThumbnail(track, 'mq')"
+                    [alt]="track.title"
+                    class="object-cover w-full h-full grayscale group-hover:grayscale-0 transition-all"
+                    referrerpolicy="no-referrer"
+                    loading="lazy"
+                    (error)="onThumbnailError($event, track)"
+                  >
                 </div>
-                <div>
-                  <h4 class="serif-text text-2xl transition-all duration-300 text-[var(--music-text)]">{{ track.artist }}</h4>
-                  <p class="sans-text text-xs tracking-widest text-[var(--music-text-muted)] uppercase mt-1">{{ track.title }}</p>
+                <div class="min-w-0">
+                  <h4 class="serif-text text-2xl transition-all duration-300 text-[var(--music-text)] truncate">{{ track.artist }}</h4>
+                  <p class="sans-text text-xs tracking-widest text-[var(--music-text-muted)] uppercase mt-1 truncate">{{ track.title }}</p>
+                  <div class="flex flex-wrap items-center gap-2 mt-2 text-[11px] text-[var(--music-text-muted)] sans-text">
+                    <span>{{ track.year }}</span>
+                    <span>•</span>
+                    <span>{{ formatNumber(track.viewCount) }} views</span>
+                    <span>•</span>
+                    <span>{{ formatDuration(track.durationSeconds) }}</span>
+                    @if (track.genre.length > 0) {
+                      <span class="px-2 py-[2px] border border-[var(--music-border)] uppercase tracking-[0.08em] text-[10px]">{{ track.genre[0] }}</span>
+                    }
+                  </div>
                 </div>
               </div>
-              <div class="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-between">
-                <span class="sans-text text-sm text-[var(--music-text-muted)]">{{ formatDuration(track.durationSeconds) }}</span>
+              <div class="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end">
                 <button class="w-12 h-12 border border-[var(--music-border)] rounded-full flex items-center justify-center group-hover:border-[var(--music-contrast)] group-hover:bg-[var(--music-contrast)] group-hover:text-[var(--music-bg)] transition-all">
                   <span [innerHTML]="playIcon" class="w-4 h-4"></span>
                 </button>
@@ -206,15 +222,31 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         <a routerLink="/music/browse" class="text-xs tracking-widest hover:text-[#8a1c1c] transition-colors sans-text flex items-center gap-2">VIEW ALL <span [innerHTML]="arrowIcon"></span></a>
       </div>
       @if (newReleases().length > 0) {
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           @for (video of newReleases().slice(0, 6); track video.id; let idx = $index) {
-            <a [routerLink]="['/music', video.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
-              <div class="relative aspect-square overflow-hidden mb-3 bg-[var(--music-surface)] border border-[var(--music-border)]">
-                <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/mqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
+            <a [routerLink]="['/music', video.slug]" class="group reveal border border-[var(--music-border)] bg-[var(--music-surface)] p-3" [style.transition-delay]="idx * 50 + 'ms'">
+              <div class="relative aspect-video overflow-hidden mb-3 border border-[var(--music-border)] bg-[var(--music-surface-strong)]">
+                <img
+                  [src]="videoThumbnail(video, 'hq')"
+                  [alt]="video.title"
+                  class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                  (error)="onThumbnailError($event, video)"
+                >
                 <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity mix-blend-multiply"></div>
+                <div class="absolute top-2 right-2 px-2 py-1 bg-black/60 text-white text-[10px] tracking-[0.08em] uppercase">{{ formatDuration(video.durationSeconds) }}</div>
               </div>
-              <h3 class="serif-text text-lg text-[var(--music-text)] truncate">{{ video.title }}</h3>
-              <p class="sans-text text-xs text-[var(--music-text-muted)] uppercase tracking-wide">{{ video.artist }}</p>
+              <h3 class="serif-text text-lg text-[var(--music-text)] line-clamp-2">{{ video.title }}</h3>
+              <p class="sans-text text-xs text-[var(--music-text-muted)] uppercase tracking-wide mt-1">{{ video.artist }}</p>
+              <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--music-text-muted)] sans-text">
+                <span>{{ video.year }}</span>
+                <span>•</span>
+                <span>{{ formatNumber(video.viewCount) }} views</span>
+                @if (video.genre.length > 0) {
+                  <span class="px-2 py-[2px] border border-[var(--music-border)] uppercase tracking-[0.08em] text-[10px]">{{ video.genre[0] }}</span>
+                }
+              </div>
             </a>
           }
         </div>
@@ -315,5 +347,37 @@ export class MusicEditorialLandingComponent implements OnInit, OnDestroy {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
     if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
     return String(n);
+  }
+
+  videoThumbnail(
+    video: Pick<MusicVideoSummary, 'youtubeId' | 'thumbnailUrl' | 'hdThumbnailUrl'>,
+    preferred: 'hq' | 'mq' = 'hq'
+  ): string {
+    const fallback = preferred === 'hq' ? 'hqdefault' : 'mqdefault';
+    return video.hdThumbnailUrl || video.thumbnailUrl || `https://i.ytimg.com/vi/${video.youtubeId}/${fallback}.jpg`;
+  }
+
+  onThumbnailError(
+    event: Event,
+    video: Pick<MusicVideoSummary, 'youtubeId'>
+  ): void {
+    const img = event.target as HTMLImageElement | null;
+    if (!img || !video?.youtubeId) return;
+
+    const fallbackCandidates = [
+      `https://i.ytimg.com/vi/${video.youtubeId}/mqdefault.jpg`,
+      `https://i.ytimg.com/vi/${video.youtubeId}/default.jpg`,
+    ];
+
+    const currentIndex = Number.parseInt(img.dataset.fallbackIndex || '0', 10);
+    const nextIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
+
+    if (nextIndex >= fallbackCandidates.length) {
+      img.onerror = null;
+      return;
+    }
+
+    img.dataset.fallbackIndex = String(nextIndex + 1);
+    img.src = fallbackCandidates[nextIndex];
   }
 }

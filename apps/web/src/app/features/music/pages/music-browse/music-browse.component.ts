@@ -1,8 +1,8 @@
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, ActivatedRoute, Router } from '@angular/router';
+import { RouterLink, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { MusicApiService } from '../../services/music-api.service';
 import { MusicCardComponent } from '../../components/music-card/music-card.component';
@@ -15,11 +15,41 @@ const REGIONS = Object.values(MusicRegion);
   selector: 'app-music-browse',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, MusicCardComponent],
+  styles: [`
+    :host {
+      display: block;
+      min-height: 100vh;
+      --music-bg: #f6f1eb;
+      --music-surface: #ffffff;
+      --music-surface-strong: #ece3db;
+      --music-text: #1f1715;
+      --music-text-muted: #6b594f;
+      --music-border: #d8c9bf;
+      --music-border-strong: #baa89c;
+      --music-contrast: #111111;
+      background: var(--music-bg);
+      color: var(--music-text);
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+    }
+
+    :host-context(.dark) {
+      --music-bg: #050505;
+      --music-surface: #1f1f1f;
+      --music-surface-strong: #121212;
+      --music-text: #e6e0d4;
+      --music-text-muted: #bcae9e;
+      --music-border: #2a2a2a;
+      --music-border-strong: #3a3a3a;
+      --music-contrast: #f5efe5;
+    }
+
+    .serif-text { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; }
+  `],
   template: `
-    <div class="min-h-screen bg-gray-950 text-white pb-28">
+    <div class="min-h-screen bg-[var(--music-bg)] text-[var(--music-text)] pb-28">
       <!-- Header -->
       <div class="max-w-7xl mx-auto px-4 pt-10 pb-6">
-        <h1 class="text-3xl font-bold mb-6">Browse Music Videos</h1>
+        <h1 class="serif-text text-4xl md:text-5xl mb-6">Browse Music Videos</h1>
 
         <!-- Search bar -->
         <div class="relative max-w-xl">
@@ -31,7 +61,7 @@ const REGIONS = Object.values(MusicRegion);
             [(ngModel)]="searchQuery"
             (ngModelChange)="onSearch($event)"
             placeholder="Search by title or artist..."
-            class="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-800 text-white placeholder-gray-500 border border-gray-700
+            class="w-full pl-12 pr-4 py-3 rounded-xl bg-[var(--music-surface)] text-[var(--music-text)] placeholder-[var(--music-text-muted)] border border-[var(--music-border)]
                    focus:outline-none focus:border-[#800020] transition-colors"
           >
         </div>
@@ -42,43 +72,39 @@ const REGIONS = Object.values(MusicRegion);
           <div class="flex flex-wrap gap-2">
             <button
               (click)="setGenre(null)"
-              class="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-              [class.bg-[#800020]]="!selectedGenre()"
-              [class.text-white]="!selectedGenre()"
-              [class.bg-gray-800]="selectedGenre()"
-              [class.text-gray-400]="selectedGenre()"
+              class="px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
+              [style.backgroundColor]="!selectedGenre() ? '#800020' : 'var(--music-surface)'"
+              [style.color]="!selectedGenre() ? '#ffffff' : 'var(--music-text-muted)'"
+              [style.borderColor]="!selectedGenre() ? '#800020' : 'var(--music-border)'"
             >All Genres</button>
             @for (genre of genres; track genre) {
               <button
                 (click)="setGenre(genre)"
-                class="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-                [class.bg-[#800020]]="selectedGenre() === genre"
-                [class.text-white]="selectedGenre() === genre"
-                [class.bg-gray-800]="selectedGenre() !== genre"
-                [class.text-gray-400]="selectedGenre() !== genre"
+                class="px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
+                [style.backgroundColor]="selectedGenre() === genre ? '#800020' : 'var(--music-surface)'"
+                [style.color]="selectedGenre() === genre ? '#ffffff' : 'var(--music-text-muted)'"
+                [style.borderColor]="selectedGenre() === genre ? '#800020' : 'var(--music-border)'"
               >{{ genre }}</button>
             }
           </div>
         </div>
 
         <!-- Region tabs -->
-        <div class="flex gap-2 mt-3 border-b border-gray-800 pb-1">
+        <div class="flex gap-2 mt-3 border-b border-[var(--music-border)] pb-1">
           <button
             (click)="setRegion(null)"
             class="px-4 py-2 text-sm font-medium transition-all border-b-2"
             [class.border-[#800020]]="!selectedRegion()"
-            [class.text-white]="!selectedRegion()"
+            [style.color]="!selectedRegion() ? 'var(--music-text)' : 'var(--music-text-muted)'"
             [class.border-transparent]="selectedRegion()"
-            [class.text-gray-500]="selectedRegion()"
           >All Regions</button>
           @for (region of regions; track region) {
             <button
               (click)="setRegion(region)"
               class="px-4 py-2 text-sm font-medium transition-all border-b-2"
               [class.border-[#800020]]="selectedRegion() === region"
-              [class.text-white]="selectedRegion() === region"
+              [style.color]="selectedRegion() === region ? 'var(--music-text)' : 'var(--music-text-muted)'"
               [class.border-transparent]="selectedRegion() !== region"
-              [class.text-gray-500]="selectedRegion() !== region"
             >{{ region }}</button>
           }
         </div>
@@ -89,29 +115,29 @@ const REGIONS = Object.values(MusicRegion);
         @if (loading()) {
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             @for (i of [1,2,3,4,5,6,7,8,9,10,11,12]; track i) {
-              <div class="aspect-square bg-gray-800 animate-pulse rounded-lg"></div>
+              <div class="aspect-square bg-[var(--music-surface)] animate-pulse rounded-lg"></div>
             }
           </div>
         }
 
         @if (!loading() && videos().length === 0) {
           <div class="py-24 text-center">
-            <svg class="w-16 h-16 text-gray-700 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-            </svg>
-            <p class="text-gray-500 text-lg">No music videos found</p>
-            <p class="text-gray-600 text-sm mt-1">Try a different search or filter</p>
-          </div>
-        }
-
-        @if (!loading() && videos().length > 0) {
-          <div>
-            <p class="text-gray-500 text-sm mb-4">{{ total() }} videos found</p>
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              @for (video of videos(); track video.id) {
-                <app-music-card [video]="video" />
-              }
+              <svg class="w-16 h-16 text-[var(--music-text-muted)] opacity-60 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+              </svg>
+              <p class="text-[var(--music-text-muted)] text-lg">No music videos found</p>
+              <p class="text-[var(--music-text-muted)] text-sm mt-1">Try a different search or filter</p>
             </div>
+          }
+
+          @if (!loading() && videos().length > 0) {
+            <div>
+              <p class="text-[var(--music-text-muted)] text-sm mb-4">{{ total() }} videos found</p>
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                @for (video of videos(); track video.id) {
+                  <app-music-card [video]="video" />
+                }
+              </div>
 
             <!-- Pagination -->
             @if (totalPages() > 1) {
@@ -119,14 +145,14 @@ const REGIONS = Object.values(MusicRegion);
                 @if (currentPage() > 1) {
                   <button
                     (click)="goToPage(currentPage() - 1)"
-                    class="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+                    class="px-4 py-2 rounded-lg bg-[var(--music-surface)] border border-[var(--music-border)] text-[var(--music-text)] hover:border-[#800020] transition-colors"
                   >Previous</button>
                 }
-                <span class="px-4 py-2 text-gray-400 text-sm">Page {{ currentPage() }} of {{ totalPages() }}</span>
+                <span class="px-4 py-2 text-[var(--music-text-muted)] text-sm">Page {{ currentPage() }} of {{ totalPages() }}</span>
                 @if (currentPage() < totalPages()) {
                   <button
                     (click)="goToPage(currentPage() + 1)"
-                    class="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+                    class="px-4 py-2 rounded-lg bg-[var(--music-surface)] border border-[var(--music-border)] text-[var(--music-text)] hover:border-[#800020] transition-colors"
                   >Next</button>
                 }
               </div>
@@ -140,7 +166,6 @@ const REGIONS = Object.values(MusicRegion);
 export class MusicBrowseComponent implements OnInit, OnDestroy {
   private musicApi = inject(MusicApiService);
   private route = inject(ActivatedRoute);
-  private router = inject(Router);
   private destroy$ = new Subject<void>();
   private search$ = new Subject<string>();
 

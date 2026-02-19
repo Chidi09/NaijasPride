@@ -29,21 +29,24 @@ import { MusicPlayerService } from '../../services/music-player.service';
   `],
   template: `
     <div
-      class="group relative bg-gray-900 rounded-lg overflow-hidden cursor-pointer
-             transition-transform duration-300 ease-out hover:scale-[1.03] hover:shadow-2xl hover:shadow-black/40"
+      [routerLink]="['/music', video.slug]"
+      class="group relative bg-[var(--music-surface)] border border-[var(--music-border)] rounded-lg overflow-hidden cursor-pointer
+             transition-transform duration-300 ease-out hover:scale-[1.03] hover:shadow-2xl hover:shadow-black/20"
     >
       <!-- 1:1 square thumbnail -->
       <div class="aspect-square relative overflow-hidden">
         @if (video.thumbnailUrl) {
           <img
-            [src]="video.hdThumbnailUrl || video.thumbnailUrl"
+            [src]="thumbnailUrl(video)"
             [alt]="video.title"
             class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
+            referrerpolicy="no-referrer"
+            (error)="onImageError($event, video)"
           >
         } @else {
-          <div class="w-full h-full flex items-center justify-center bg-gray-800">
-            <svg class="w-12 h-12 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+          <div class="w-full h-full flex items-center justify-center bg-[var(--music-surface-strong)]">
+            <svg class="w-12 h-12 text-[var(--music-text-muted)]" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
             </svg>
           </div>
@@ -78,21 +81,23 @@ import { MusicPlayerService } from '../../services/music-player.service';
       </div>
 
       <!-- Title + artist — always visible at bottom -->
-      <div
-        [routerLink]="['/music', video.slug]"
-        class="px-3 py-2.5 bg-gray-900"
-      >
-        <p class="text-white text-sm font-semibold leading-tight truncate">{{ video.title }}</p>
-        <p class="text-gray-400 text-xs mt-0.5 truncate">
+      <div class="px-3 py-2.5 bg-[var(--music-surface)]">
+        <p class="text-[var(--music-text)] text-sm font-semibold leading-tight truncate">{{ video.title }}</p>
+        <p class="text-[var(--music-text-muted)] text-xs mt-0.5 truncate">
           <a
             [routerLink]="['/music/artist', video.artistSlug]"
-            class="hover:text-gray-200 transition-colors"
+            class="hover:text-[#8a1c1c] transition-colors"
             (click)="$event.stopPropagation()"
           >{{ video.artist }}</a>
           @if (video.featuring.length > 0) {
-            <span class="text-gray-500"> ft. {{ video.featuring.join(', ') }}</span>
+            <span class="text-[var(--music-text-muted)]"> ft. {{ video.featuring.join(', ') }}</span>
           }
         </p>
+        <div class="mt-1 flex items-center gap-2 text-[10px] text-[var(--music-text-muted)] sans-text">
+          <span>{{ video.year }}</span>
+          <span>•</span>
+          <span>{{ formatCount(video.viewCount) }} views</span>
+        </div>
       </div>
     </div>
   `
@@ -106,5 +111,36 @@ export class MusicCardComponent {
     event.preventDefault();
     event.stopPropagation();
     this.player.play(this.video);
+  }
+
+  thumbnailUrl(video: MusicVideoSummary): string {
+    return video.hdThumbnailUrl || video.thumbnailUrl || `https://i.ytimg.com/vi/${video.youtubeId}/hqdefault.jpg`;
+  }
+
+  onImageError(event: Event, video: MusicVideoSummary): void {
+    const img = event.target as HTMLImageElement | null;
+    if (!img || !video.youtubeId) return;
+
+    const fallbackCandidates = [
+      `https://i.ytimg.com/vi/${video.youtubeId}/mqdefault.jpg`,
+      `https://i.ytimg.com/vi/${video.youtubeId}/default.jpg`,
+    ];
+
+    const currentIndex = Number.parseInt(img.dataset.fallbackIndex || '0', 10);
+    const nextIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
+
+    if (nextIndex >= fallbackCandidates.length) {
+      img.onerror = null;
+      return;
+    }
+
+    img.dataset.fallbackIndex = String(nextIndex + 1);
+    img.src = fallbackCandidates[nextIndex];
+  }
+
+  formatCount(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
   }
 }

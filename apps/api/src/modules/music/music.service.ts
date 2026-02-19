@@ -263,10 +263,18 @@ export class MusicService {
   // ── Single Video ──────────────────────────────────────────────────────────
 
   async findBySlug(slug: string, userId?: string): Promise<(MusicVideoRow & { isLiked: boolean }) | null> {
-    const video = await this.prisma.musicVideo.findUnique({
+    let video = await this.prisma.musicVideo.findUnique({
       where: { slug },
       select: MUSIC_VIDEO_SELECT,
     });
+
+    // Fallback for legacy links that may still pass UUID IDs.
+    if (!video && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
+      video = await this.prisma.musicVideo.findUnique({
+        where: { id: slug },
+        select: MUSIC_VIDEO_SELECT,
+      });
+    }
 
     if (!video) return null;
 

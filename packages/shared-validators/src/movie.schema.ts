@@ -1,6 +1,18 @@
 import { z } from 'zod';
 import { Genre, Quality } from '@naijaspride/types';
 
+const booleanQueryParam = z
+  .preprocess((value) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') return true;
+      if (normalized === 'false' || normalized === '0') return false;
+    }
+    return value;
+  }, z.boolean())
+  .optional();
+
 export const movieSearchSchema = z.object({
   q: z.string().max(200).optional(),
   genre: z.array(z.nativeEnum(Genre)).optional(),
@@ -8,8 +20,8 @@ export const movieSearchSchema = z.object({
   quality: z.nativeEnum(Quality).optional(),
   language: z.string().optional(),
   sortBy: z.enum(['latest', 'popular', 'rating', 'title', 'trending', 'newest']).default('latest'),
-  nollywoodOnly: z.boolean().default(false).optional(), // .optional() for query params parsing
-  isStreamOnly: z.coerce.boolean().optional(),
+  nollywoodOnly: booleanQueryParam.default(false),
+  isStreamOnly: booleanQueryParam,
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
