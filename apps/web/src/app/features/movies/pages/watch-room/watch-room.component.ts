@@ -122,7 +122,7 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
   `,
 })
 export class WatchRoomComponent {
-  slug = input.required<string>();
+  slug = input<string>('');
   private movieQuery = inject(MoviesQueryService);
   private offlineService = inject(OfflineStorageService);
   query = this.movieQuery.getMovieDetailQuery(this.slug);

@@ -132,67 +132,77 @@ interface FeaturedResponse {
     <!-- Content Rows -->
     <div class="relative z-20 -mt-24 md:-mt-32 pb-12">
       
-      <!-- Trending Now -->
-      @if (trending().length > 0) {
+      <!-- Download Library -->
+      @if (downloadOnly().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Trending Now</h2>
-            <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+          <div class="flex items-center justify-between mb-6 pr-8">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Download</h2>
+              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+            </div>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
+          </div>
+
+          <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
+            @for (movie of downloadOnly(); track movie.id) {
+              <app-movie-card [movie]="movie" />
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Trending Now -->
+      @if (trendingDownload().length > 0) {
+        <div class="py-8 pl-8 md:pl-16 relative group/row">
+          <div class="flex items-center justify-between mb-6 pr-8">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Trending Now</h2>
+              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+            </div>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of trending(); track movie.id) {
-              @if (movie.isStreamOnly) {
-                <div class="w-[220px] md:w-[320px] flex-shrink-0">
-                  <app-movie-card-youtube [movie]="movie" />
-                </div>
-              } @else {
-                <app-movie-card [movie]="movie" />
-              }
+            @for (movie of trendingDownload(); track movie.id) {
+              <app-movie-card [movie]="movie" />
             }
           </div>
         </div>
       }
 
       <!-- Most Watched -->
-      @if (mostWatched().length > 0) {
+      @if (mostWatchedDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Most Watched</h2>
-            <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+          <div class="flex items-center justify-between mb-6 pr-8">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Most Watched</h2>
+              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+            </div>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of mostWatched(); track movie.id) {
-              @if (movie.isStreamOnly) {
-                <div class="w-[220px] md:w-[320px] flex-shrink-0">
-                  <app-movie-card-youtube [movie]="movie" />
-                </div>
-              } @else {
-                <app-movie-card [movie]="movie" />
-              }
+            @for (movie of mostWatchedDownload(); track movie.id) {
+              <app-movie-card [movie]="movie" />
             }
           </div>
         </div>
       }
 
       <!-- Coming Soon -->
-      @if (comingSoon().length > 0) {
+      @if (comingSoonDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Coming Soon</h2>
-            <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+          <div class="flex items-center justify-between mb-6 pr-8">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Coming Soon</h2>
+              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+            </div>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of comingSoon(); track movie.id) {
-              @if (movie.isStreamOnly) {
-                <div class="w-[220px] md:w-[320px] flex-shrink-0">
-                  <app-movie-card-youtube [movie]="movie" />
-                </div>
-              } @else {
-                <app-movie-card [movie]="movie" [showNotify]="true" />
-              }
+            @for (movie of comingSoonDownload(); track movie.id) {
+              <app-movie-card [movie]="movie" [showNotify]="true" />
             }
           </div>
         </div>
@@ -201,9 +211,12 @@ interface FeaturedResponse {
       <!-- Stream Only Movies -->
       @if (streamOnly().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center gap-2 mb-6 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
-            <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Stream</h2>
-            <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+          <div class="flex items-center justify-between mb-6 pr-8">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Stream</h2>
+              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
+            </div>
+            <a [routerLink]="['/movies/stream']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
@@ -229,6 +242,11 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   mostWatched = signal<MovieSummary[]>([]);
   comingSoon = signal<Array<MovieSummary & { _count?: { notifications: number } }>>([]);
   streamOnly = signal<MovieSummary[]>([]);
+  downloadOnly = signal<MovieSummary[]>([]);
+
+  trendingDownload = computed(() => this.trending().filter((movie) => !movie.isStreamOnly));
+  mostWatchedDownload = computed(() => this.mostWatched().filter((movie) => !movie.isStreamOnly));
+  comingSoonDownload = computed(() => this.comingSoon().filter((movie) => !movie.isStreamOnly));
   
   // UI State
   isLoading = signal(true);
@@ -256,12 +274,13 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
         this.mostWatched.set(res.data.mostWatched);
         this.comingSoon.set(res.data.comingSoon);
         
-        // Set hero to first most watched
-        if (res.data.mostWatched.length > 0) {
-          this.heroMovie.set(res.data.mostWatched[0]);
+        // Prefer download movies for hero, then fallback to stream-only.
+        const preferredHero = res.data.mostWatched.find((movie) => !movie.isStreamOnly) || res.data.mostWatched[0] || null;
+        if (preferredHero) {
+          this.heroMovie.set(preferredHero);
         }
         
-        // Set trending as first 10 most watched
+        // Set trending as first 10 most watched entries
         this.trending.set(res.data.mostWatched.slice(0, 10));
         
         this.isLoading.set(false);
@@ -275,6 +294,19 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
     this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=true&limit=12').subscribe({
       next: (res) => {
         this.streamOnly.set(res.data);
+      }
+    });
+
+    // Load download-ready (non-stream) movies for dedicated row.
+    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=false&limit=12&sortBy=latest').subscribe({
+      next: (res) => {
+        this.downloadOnly.set(res.data);
+        if (!this.heroMovie() && res.data.length > 0) {
+          this.heroMovie.set(res.data[0]);
+        }
+      },
+      error: () => {
+        this.downloadOnly.set([]);
       }
     });
   }

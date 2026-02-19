@@ -11,6 +11,7 @@ import {
   MangaTag,
 } from '../types';
 import { summarizeSourceError } from '../utils/error-summary';
+import { extractChapterImageUrls } from '../parsers/html-parsers';
 
 const BASE_URL = 'https://weebcentral.com';
 
@@ -387,16 +388,34 @@ export class WeebCentralSource extends BaseHtmlSource {
       });
       const $ = cheerio.load(html);
       const pages: string[] = [];
+      const seen = new Set<string>();
+
+      const pushPage = (url?: string | null) => {
+        const absolute = this.toAbsoluteUrl(url || null);
+        if (!absolute) return;
+        if (!/\.(jpg|jpeg|png|webp|avif)(\?|$)/i.test(absolute)) return;
+        if (absolute.includes('/static/images/broken_image.jpg')) return;
+        if (seen.has(absolute)) return;
+        seen.add(absolute);
+        pages.push(absolute);
+      };
 
       // Select only images inside the scrollable reader section.
       // Kotatsu uses: section[x-data~=scroll] > img
-      $('section img').each((_idx, el) => {
-        const src = $(el).attr('src') || $(el).attr('data-src');
-        const absolute = this.toAbsoluteUrl(src || null);
-        if (absolute && /\.(jpg|jpeg|png|webp|avif)(\?|$)/i.test(absolute)) {
-          pages.push(absolute);
-        }
+      $('section[x-data*="scroll"] > img, section[x-data] > img, section img').each((_idx, el) => {
+        // Prefer lazy attribute first. Some pages use a placeholder src with
+        // the real URL in data-src.
+        const src = $(el).attr('data-src') || $(el).attr('src');
+        pushPage(src);
       });
+
+      // Fallback for edge pages where image URLs are only embedded in scripts.
+      if (pages.length === 0) {
+        const inlineUrls = extractChapterImageUrls(html, (url) => this.toAbsoluteUrl(url || null));
+        for (const url of inlineUrls) {
+          pushPage(url);
+        }
+      }
 
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);

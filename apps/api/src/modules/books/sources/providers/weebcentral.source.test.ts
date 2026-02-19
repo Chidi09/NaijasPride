@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { WeebCentralSource } from './weebcentral.source';
 
 type WeebCentralTestHarness = {
@@ -13,6 +15,9 @@ type WeebCentralTestHarness = {
 
 const SERIES_ID = '01JJ2D2B46DZ8QYPVGNVC63V3E';
 const CHAPTER_ID = '01KH3X48WCP664NG6DNS7TQTB8';
+
+const fixture = (name: string) =>
+  readFileSync(resolve(process.cwd(), 'src/modules/books/sources/parsers/__fixtures__', name), 'utf8');
 
 test('WeebCentralSource extracts and coerces series IDs to ULID format', () => {
   const source = new WeebCentralSource() as unknown as WeebCentralTestHarness;
@@ -39,4 +44,18 @@ test('WeebCentralSource rejects non-ULID series/chapter inputs', () => {
 
   assert.equal(source.coerceSeriesId('/series/not-a-ulid/some-title'), null);
   assert.equal(source.coerceChapterId('/chapters/123'), null);
+});
+
+test('WeebCentralSource page parser prefers data-src and drops broken placeholders', async () => {
+  const source = new WeebCentralSource() as any;
+  source.fetchHtml = async () => fixture('weebcentral-chapter-broken-src.html');
+  source.getFromCache = async () => null;
+  source.setCache = async () => undefined;
+
+  const result = await source.getChapterPages(CHAPTER_ID);
+
+  assert.deepEqual(result.pages, [
+    'https://cdn.weebcentral.com/chapters/alpha/001.webp',
+    'https://cdn.weebcentral.com/chapters/alpha/002.webp',
+  ]);
 });

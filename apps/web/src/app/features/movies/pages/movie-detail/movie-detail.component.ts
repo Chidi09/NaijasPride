@@ -9,8 +9,8 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
 import { AuthService } from '../../../../core/auth/auth.service';
 import { OfflineStorageService } from '../../../../core/services/offline-storage.service';
 import { CastMember, Quality, Movie } from '@naijaspride/types';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { of, switchMap } from 'rxjs';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { catchError, map, of, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-movie-detail',
@@ -376,7 +376,7 @@ import { of, switchMap } from 'rxjs';
   `
 })
 export class MovieDetailComponent {
-  slug = input.required<string>();
+  slug = input<string>('');
   
   private moviesService = inject(MoviesQueryService);
   private profileService = inject(ProfileQueryService);
@@ -393,8 +393,15 @@ export class MovieDetailComponent {
 
   // Similar/Related movies - fetch when slug changes
   similarMoviesSignal = toSignal(
-    this.http.get<{ data: Movie[] }>(`/api/v1/movies/${this.slug()}/similar`).pipe(
-      switchMap(response => of(response.data))
+    toObservable(this.slug).pipe(
+      switchMap((slug) =>
+        !slug
+          ? of([] as Movie[])
+          : this.http.get<{ data: Movie[] }>(`/api/v1/movies/${slug}/similar`).pipe(
+              map((response) => response.data || []),
+              catchError(() => of([] as Movie[]))
+            )
+      )
     ),
     { initialValue: [] as Movie[] }
   );
