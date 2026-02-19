@@ -358,7 +358,7 @@ type FeaturedContent = {
               <a [routerLink]="['/books', book.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
                 <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (book.coverUrl) {
-                    <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
+                    <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">📚</div>
                   }
@@ -398,7 +398,7 @@ type FeaturedContent = {
               <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
                 <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (comic.coverUrl) {
-                    <img [src]="comic.coverUrl" [alt]="comic.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
+                    <img [src]="comic.coverUrl" [alt]="comic.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">📖</div>
                   }
@@ -440,7 +440,7 @@ type FeaturedContent = {
               <a [routerLink]="['/books/manga', toRouteParam(m.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
                 <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (m.coverUrl) {
-                    <img [src]="m.coverUrl" [alt]="m.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy">
+                    <img [src]="m.coverUrl" [alt]="m.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">🎌</div>
                   }
