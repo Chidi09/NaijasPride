@@ -29,6 +29,9 @@ RUN turbo prune --scope=api --docker
 FROM base AS installer
 WORKDIR /app
 
+# Bust Kaniko cache — increment when Dockerfile structure changes significantly
+ARG CACHEBUST=2
+
 # Copy pruned package manifests + lockfile first so Docker layer-caches deps
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
