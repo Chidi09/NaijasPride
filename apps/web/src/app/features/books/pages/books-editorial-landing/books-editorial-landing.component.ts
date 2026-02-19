@@ -218,6 +218,7 @@ type FeaturedContent = {
                       [alt]="featured()!.book!.title"
                       class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
                       loading="lazy"
+                      referrerpolicy="no-referrer"
                     >
                   } @else {
                     <div class="w-full h-full flex items-center justify-center">
@@ -255,6 +256,7 @@ type FeaturedContent = {
                       [alt]="featured()!.comic!.title"
                       class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
                       loading="lazy"
+                      referrerpolicy="no-referrer"
                     >
                   } @else {
                     <div class="w-full h-full flex items-center justify-center">
@@ -294,6 +296,7 @@ type FeaturedContent = {
                       [alt]="featured()!.manga!.title"
                       class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
                       loading="lazy"
+                      referrerpolicy="no-referrer"
                       [class.opacity-0]="isMangaChanging()"
                       [class.opacity-100]="!isMangaChanging()"
                       style="transition: opacity 0.3s ease, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease"

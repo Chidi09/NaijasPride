@@ -80,7 +80,7 @@ interface FeaturedResponse {
     <section class="relative h-[85vh] w-full overflow-hidden">
       <div class="absolute inset-0 z-0">
         @if (heroMovie()?.backdropUrl || heroMovie()?.posterUrl; as img) {
-          <img [src]="img" alt="Hero Background" class="w-full h-full object-cover opacity-60">
+          <img [src]="img" alt="Hero Background" class="w-full h-full object-cover opacity-60" referrerpolicy="no-referrer">
         } @else {
           <div class="w-full h-full bg-gradient-to-br from-[var(--movies-surface)] to-[var(--movies-bg)]"></div>
         }
@@ -280,7 +280,7 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
     <a [routerLink]="['/movies', movieValue.slug || movieValue.id]" class="movie-card relative flex-shrink-0 w-[200px] md:w-[280px] cursor-pointer mr-4">
       <div class="aspect-[2/3] w-full overflow-hidden rounded-sm relative bg-[var(--movies-surface)] border border-[var(--movies-border)]">
         @if (movieValue.posterUrl || movieValue.thumbnailUrl; as img) {
-          <img [src]="img" [alt]="movieValue.title" class="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity duration-500">
+          <img [src]="img" [alt]="movieValue.title" class="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity duration-500" referrerpolicy="no-referrer">
         } @else {
           <div class="w-full h-full flex items-center justify-center text-4xl">🎬</div>
         }
