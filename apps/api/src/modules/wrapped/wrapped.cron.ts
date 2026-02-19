@@ -31,30 +31,51 @@ export class WrappedCronService {
     if (this.annualTimer) clearTimeout(this.annualTimer);
   }
 
+  // Max safe setTimeout delay (32-bit signed int limit ≈ 24.8 days)
+  private readonly MAX_TIMEOUT_MS = 2147483647;
+
   private scheduleMonthlyJob(): void {
     const nextRun = this.getNextMonthlyRun();
     const delay = nextRun.getTime() - Date.now();
 
-    this.app.log.info(`[WrappedCron] Monthly job scheduled for ${nextRun.toISOString()}`);
+    // Cap delay at max safe timeout to avoid overflow
+    const safeDelay = Math.min(delay, this.MAX_TIMEOUT_MS);
+    const isCapped = safeDelay < delay;
+
+    this.app.log.info(`[WrappedCron] Monthly job scheduled for ${nextRun.toISOString()}${isCapped ? ' (rechecking in chunks until then)' : ''}`);
 
     this.monthlyTimer = setTimeout(() => {
-      this.runMonthlyJob();
-      // Reschedule for next month
-      this.scheduleMonthlyJob();
-    }, delay);
+      if (isCapped) {
+        // Still not time yet, reschedule
+        this.scheduleMonthlyJob();
+      } else {
+        this.runMonthlyJob();
+        // Reschedule for next month
+        this.scheduleMonthlyJob();
+      }
+    }, safeDelay);
   }
 
   private scheduleAnnualJob(): void {
     const nextRun = this.getNextAnnualRun();
     const delay = nextRun.getTime() - Date.now();
 
-    this.app.log.info(`[WrappedCron] Annual job scheduled for ${nextRun.toISOString()}`);
+    // Cap delay at max safe timeout to avoid overflow
+    const safeDelay = Math.min(delay, this.MAX_TIMEOUT_MS);
+    const isCapped = safeDelay < delay;
+
+    this.app.log.info(`[WrappedCron] Annual job scheduled for ${nextRun.toISOString()}${isCapped ? ' (rechecking in chunks until then)' : ''}`);
 
     this.annualTimer = setTimeout(() => {
-      this.runAnnualJob();
-      // Reschedule for next year
-      this.scheduleAnnualJob();
-    }, delay);
+      if (isCapped) {
+        // Still not time yet, reschedule
+        this.scheduleAnnualJob();
+      } else {
+        this.runAnnualJob();
+        // Reschedule for next year
+        this.scheduleAnnualJob();
+      }
+    }, safeDelay);
   }
 
   private getNextMonthlyRun(): Date {
