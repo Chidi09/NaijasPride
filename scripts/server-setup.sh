@@ -5,16 +5,17 @@
 # =============================================================================
 # Usage:
 #   ssh root@95.217.156.28
-#   curl -fsSL https://raw.githubusercontent.com/Chidi09/NaijasPride/main/scripts/server-setup.sh | bash
+#   git clone git@github.com:Chidi09/NaijasPride.git /opt/naijaspride
+#   bash /opt/naijaspride/scripts/server-setup.sh
 #
-# Or after cloning:
+# Or after cloning in current directory:
 #   bash scripts/server-setup.sh
 # =============================================================================
 set -euo pipefail
 
 APP_USER="chidi"
 APP_DIR="/opt/naijaspride"
-REPO="https://github.com/Chidi09/NaijasPride.git"
+REPO="git@github.com:Chidi09/NaijasPride.git"
 
 echo ""
 echo "============================================"
@@ -40,6 +41,10 @@ else
   usermod -aG sudo "$APP_USER"
   echo "    User $APP_USER created"
 fi
+
+# Allow passwordless sudo for deployment/admin commands.
+echo "$APP_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$APP_USER"
+chmod 440 "/etc/sudoers.d/$APP_USER"
 
 # Copy root's authorized_keys to chidi so same SSH key works
 echo ""
@@ -75,7 +80,8 @@ ufw default allow outgoing
 ufw allow ssh
 ufw allow 80/tcp    # HTTP (Nginx/Caddy reverse proxy)
 ufw allow 443/tcp   # HTTPS
-ufw allow 3000/tcp  # API direct (remove once Nginx is set up)
+ufw allow 3001/tcp  # blue stack direct access (remove once Nginx is set up)
+ufw allow 3002/tcp  # green stack direct access (remove once Nginx is set up)
 ufw --force enable
 echo "    Firewall enabled"
 
@@ -85,7 +91,14 @@ echo "==> Hardening SSH"
 sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
 sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-systemctl reload sshd
+if systemctl list-unit-files | grep -q '^ssh.service'; then
+  systemctl reload ssh
+elif systemctl list-unit-files | grep -q '^sshd.service'; then
+  systemctl reload sshd
+else
+  echo "    WARNING: Could not find ssh service unit to reload."
+  echo "    Changes will apply on next reboot."
+fi
 echo "    SSH hardened (root login disabled, password auth disabled)"
 echo "    IMPORTANT: Make sure your SSH key works as $APP_USER before closing this session!"
 
