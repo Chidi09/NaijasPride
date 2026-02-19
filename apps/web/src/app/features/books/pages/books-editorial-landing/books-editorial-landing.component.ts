@@ -614,8 +614,8 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   loadManga() {
     this.isMangaLoading.set(true);
     const sourceId = typeof window !== 'undefined'
-      ? localStorage.getItem('np_manga_source')?.trim().toLowerCase() || 'mangadex'
-      : 'mangadex';
+      ? localStorage.getItem('np_manga_source')?.trim().toLowerCase() || 'weebcentral'
+      : 'weebcentral';
     
     this.http.get<{ 
       status: string; 
