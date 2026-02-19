@@ -15,8 +15,19 @@ if [ -z "$DOMAIN" ]; then
   exit 1
 fi
 
-# Default: blue stack starts on port 3001
-INITIAL_PORT=3001
+# Read the active port from deploy state, or default to 3001
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+STATE_FILE="$APP_DIR/.deploy-state"
+if [ -f "$STATE_FILE" ]; then
+  ACTIVE=$(cat "$STATE_FILE")
+  if [ "$ACTIVE" = "green" ]; then
+    INITIAL_PORT=3002
+  else
+    INITIAL_PORT=3001
+  fi
+else
+  INITIAL_PORT=3001
+fi
 
 echo "==> Installing Nginx + Certbot"
 apt-get update -q
