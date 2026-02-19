@@ -428,7 +428,9 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.http.get<{ status: string; data: MangaPagesPayload }>(endpoint).subscribe({
       next: (response) => {
-        this.pages.set(response.data.pages || []);
+        const rawPages = response.data.pages || [];
+        const filteredPages = rawPages.filter((url) => !url.includes('/static/images/broken_image.jpg'));
+        this.pages.set(filteredPages.length > 0 ? filteredPages : rawPages);
         this.externalUrl.set(response.data.externalUrl || null);
         this.pageIndex.set(0);
 

@@ -464,6 +464,7 @@ type FeaturedContent = {
 export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private destroy$ = new Subject<void>();
+  private intersectionObserver: IntersectionObserver | null = null;
   
   // Content signals
   books = signal<Book[]>([]);
@@ -503,6 +504,7 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+    this.intersectionObserver?.disconnect();
   }
 
   private setupScrollListener() {
@@ -516,19 +518,25 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   }
 
   private setupIntersectionObserver() {
-    if (typeof window !== 'undefined' && 'IntersectionObserver' in window) {
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-          }
-        });
-      }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
 
-      setTimeout(() => {
-        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-      }, 100);
-    }
+    this.intersectionObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          this.intersectionObserver?.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    this.observeReveals();
+  }
+
+  private observeReveals() {
+    if (typeof document === 'undefined' || !this.intersectionObserver) return;
+    setTimeout(() => {
+      document.querySelectorAll('.reveal:not(.visible)').forEach((el) => this.intersectionObserver?.observe(el));
+    }, 0);
   }
 
   loadBooks() {
@@ -553,9 +561,11 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
             }));
           }
           this.isBooksLoading.set(false);
+          this.observeReveals();
         },
         error: () => {
           this.isBooksLoading.set(false);
+          this.observeReveals();
         }
       });
   }
@@ -592,9 +602,11 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
             }));
           }
           this.isComicsLoading.set(false);
+          this.observeReveals();
         },
         error: () => {
           this.isComicsLoading.set(false);
+          this.observeReveals();
         }
       });
   }
@@ -635,9 +647,11 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
           }
           
           this.isMangaLoading.set(false);
+          this.observeReveals();
         },
         error: () => {
           this.isMangaLoading.set(false);
+          this.observeReveals();
         }
       });
   }

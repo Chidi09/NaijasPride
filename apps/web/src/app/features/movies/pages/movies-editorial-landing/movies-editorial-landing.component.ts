@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, Input } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, Input, forwardRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -21,7 +21,7 @@ interface FeaturedResponse {
 @Component({
   selector: 'app-movies-editorial-landing',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, forwardRef(() => MovieCardComponent)],
   styles: [`
     :host {
       display: block;
