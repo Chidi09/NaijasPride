@@ -284,6 +284,26 @@ const start = async () => {
       app.log.error({ error }, "Initial YouTube music channel monitor run failed");
     });
 
+    // Optional bootstrap: auto-import from top Nigerian artists/labels when
+    // the catalog is still empty or too small. This removes manual admin setup
+    // for first-time deployments.
+    const musicAutoBootstrapEnabled = (process.env.MUSIC_AUTO_BOOTSTRAP_ENABLED || 'true').toLowerCase() !== 'false';
+    if (musicAutoBootstrapEnabled) {
+      setTimeout(() => {
+        musicChannelService.bootstrapTopNigerianCatalog()
+          .then((summary) => {
+            if (summary.skipped) {
+              app.log.info({ summary }, '[MusicBootstrap] Skipped');
+            } else {
+              app.log.info({ summary }, '[MusicBootstrap] Started top-artist imports');
+            }
+          })
+          .catch((error) => {
+            app.log.error({ error }, '[MusicBootstrap] Failed');
+          });
+      }, 20_000);
+    }
+
     // New-chapter checker: poll manga sources for new chapters every hour
     const newChapterIntervalMs = parseInt(process.env.NEW_CHAPTER_CHECK_INTERVAL_MS || '3600000', 10);
     const mangaService = new MangaService(app.prisma);

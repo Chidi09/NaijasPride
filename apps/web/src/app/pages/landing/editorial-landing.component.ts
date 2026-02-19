@@ -142,6 +142,7 @@ interface ArchiveSection {
                     <img 
                       [src]="section.image"
                       [alt]="section.title"
+                      referrerpolicy="no-referrer"
                       class="w-full h-full object-cover opacity-60 grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700 ease-out"
                     />
                     
@@ -455,6 +456,7 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
   movies = signal<MovieSummary[]>([]);
   books = signal<BookSummary[]>([]);
   music = signal<MusicVideoSummary[]>([]);
+  booksFallbackCover = signal<string | null>(null);
 
   // PWA Install
   private deferredPrompt: any = null;
@@ -474,7 +476,7 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       title: 'COMICS &',
       titleAccent: 'Manga',
       description: 'Read comics, manga, and books from one library. Pick up where you stopped and keep your progress synced across devices.',
-      image: this.books()[0]?.coverUrl || 'https://images.unsplash.com/photo-1614726365723-49cfae967a57?q=80&w=1200&auto=format&fit=crop',
+      image: this.books().find((book) => !!book.coverUrl)?.coverUrl || this.booksFallbackCover() || 'assets/images/things-fall-apart.jpg',
       align: 'left',
       link: '/books',
       features: [
@@ -490,7 +492,10 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       title: 'MOVIES &',
       titleAccent: 'TV',
       description: 'Stream movies and series with watch progress, continue-watching, and subtitle support built into the player.',
-      image: this.movies()[0]?.backdropUrl || this.movies()[0]?.posterUrl || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1200&auto=format&fit=crop',
+      image: this.movies().find((movie) => !!(movie.backdropUrl || movie.posterUrl || movie.thumbnailUrl))?.backdropUrl
+        || this.movies().find((movie) => !!(movie.backdropUrl || movie.posterUrl || movie.thumbnailUrl))?.posterUrl
+        || this.movies().find((movie) => !!(movie.backdropUrl || movie.posterUrl || movie.thumbnailUrl))?.thumbnailUrl
+        || 'assets/images/og-image.png',
       align: 'right',
       link: '/movies',
       features: [
@@ -506,7 +511,9 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       title: 'MUSIC &',
       titleAccent: 'Videos',
       description: 'Explore artist pages, trending tracks, and new music videos in a player that stays with you across the app.',
-      image: this.music()[0]?.thumbnailUrl || 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=1200&auto=format&fit=crop',
+      image: this.music().find((video) => !!(video.hdThumbnailUrl || video.thumbnailUrl))?.hdThumbnailUrl
+        || this.music().find((video) => !!(video.hdThumbnailUrl || video.thumbnailUrl))?.thumbnailUrl
+        || 'assets/images/og-image.png',
       align: 'left',
       link: '/music',
       features: [
@@ -633,11 +640,36 @@ export class EditorialLandingComponent implements OnInit, OnDestroy, AfterViewIn
       error: () => this.books.set([])
     });
 
-    // Load music
-    this.http.get<{ success?: boolean; data?: MusicVideoSummary[] }>('/api/v1/music/featured').subscribe({
+    // Fallback cover for books section when uploaded book covers are missing.
+    this.http.get<{ status?: string; data?: { trending?: Array<{ coverUrl: string | null }> } }>('/api/v1/books/manga/source/readcomicsonline/discover?limit=1').subscribe({
       next: (res) => {
-        const music = Array.isArray(res.data) ? res.data : [];
-        this.music.set(music);
+        const cover = res.data?.trending?.[0]?.coverUrl || null;
+        this.booksFallbackCover.set(cover);
+      },
+      error: () => this.booksFallbackCover.set(null),
+    });
+
+    // Load music
+    this.http.get<{
+      success?: boolean;
+      data?: {
+        trending?: MusicVideoSummary[];
+        newReleases?: MusicVideoSummary[];
+        replayLoop?: MusicVideoSummary[];
+        genreTakeover?: { videos?: MusicVideoSummary[] } | null;
+      };
+    }>('/api/v1/music/featured').subscribe({
+      next: (res) => {
+        const sections = res.data || {};
+        const merged = [
+          ...(sections.trending || []),
+          ...(sections.newReleases || []),
+          ...(sections.replayLoop || []),
+          ...(sections.genreTakeover?.videos || []),
+        ];
+
+        const uniqueById = Array.from(new Map(merged.map((item) => [item.id, item])).values());
+        this.music.set(uniqueById);
       },
       error: () => this.music.set([])
     });

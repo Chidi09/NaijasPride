@@ -16,6 +16,26 @@ const getYoutube = () => {
 const MIN_MUSIC_SECONDS = 2 * 60;  // 2 minutes
 const MAX_MUSIC_SECONDS = 12 * 60; // 12 minutes
 
+const TOP_NIGERIAN_MUSIC_SOURCES: Array<{
+  url: string;
+  artistName: string;
+  region?: MusicRegion;
+}> = [
+  { url: 'https://www.youtube.com/@BurnaBoy', artistName: 'Burna Boy' },
+  { url: 'https://www.youtube.com/@Wizkid', artistName: 'Wizkid' },
+  { url: 'https://www.youtube.com/@davido', artistName: 'Davido' },
+  { url: 'https://www.youtube.com/@heisrema', artistName: 'Rema' },
+  { url: 'https://www.youtube.com/@temsbaby', artistName: 'Tems' },
+  { url: 'https://www.youtube.com/@asakemusic', artistName: 'Asake' },
+  { url: 'https://www.youtube.com/@AyraStarr', artistName: 'Ayra Starr' },
+  { url: 'https://www.youtube.com/@FireboyDML', artistName: 'Fireboy DML' },
+  { url: 'https://www.youtube.com/@KizzDaniel', artistName: 'Kizz Daniel' },
+  { url: 'https://www.youtube.com/@officialolamide', artistName: 'Olamide' },
+  { url: 'https://www.youtube.com/@MavinRecords', artistName: 'Mavin Records' },
+  { url: 'https://www.youtube.com/@YBNLOfficial', artistName: 'YBNL Nation' },
+  { url: 'https://www.youtube.com/@ChocolateCityMusic', artistName: 'Chocolate City Music' },
+];
+
 // ─── Title parser ──────────────────────────────────────────────────────────
 // Handles patterns like:
 //   "Burna Boy – Last Last (Official Video)"
@@ -82,6 +102,15 @@ export interface MusicImportProgress {
   skipped: number;
   failed: number;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  errors: string[];
+}
+
+export interface MusicBootstrapResult {
+  skipped: boolean;
+  reason?: string;
+  channelsCreated: number;
+  channelsExisting: number;
+  importsStarted: number;
   errors: string[];
 }
 
@@ -368,6 +397,110 @@ export class YouTubeMusicService {
       }
     } finally {
       this.isMonitorRunning = false;
+    }
+  }
+
+  async bootstrapTopNigerianCatalog(): Promise<MusicBootstrapResult> {
+    const result: MusicBootstrapResult = {
+      skipped: false,
+      channelsCreated: 0,
+      channelsExisting: 0,
+      importsStarted: 0,
+      errors: [],
+    };
+
+    if (!process.env.YOUTUBE_API_KEY) {
+      result.skipped = true;
+      result.reason = 'YOUTUBE_API_KEY is not configured';
+      return result;
+    }
+
+    const configuredMinVideos = Number.parseInt(process.env.MUSIC_BOOTSTRAP_MIN_VIDEOS || '80', 10);
+    const minVideos = Number.isFinite(configuredMinVideos) && configuredMinVideos > 0
+      ? configuredMinVideos
+      : 80;
+
+    const configuredPerChannelImport = Number.parseInt(process.env.MUSIC_BOOTSTRAP_PER_CHANNEL_IMPORT || '20', 10);
+    const perChannelImport = Number.isFinite(configuredPerChannelImport) && configuredPerChannelImport > 0
+      ? configuredPerChannelImport
+      : 20;
+
+    const existingVideos = await this.prisma.musicVideo.count();
+    if (existingVideos >= minVideos) {
+      result.skipped = true;
+      result.reason = `Music catalog already has ${existingVideos} videos`;
+      return result;
+    }
+
+    const lockKey = 'music:bootstrap:top-nigeria:lock';
+    if (this.redis) {
+      const lockSet = await this.redis.set(lockKey, String(Date.now()), 'EX', 10 * 60, 'NX');
+      if (!lockSet) {
+        result.skipped = true;
+        result.reason = 'Bootstrap already running on another instance';
+        return result;
+      }
+    }
+
+    try {
+      for (const source of TOP_NIGERIAN_MUSIC_SOURCES) {
+        let channelId: string | null = null;
+
+        try {
+          const created = await this.addChannel(source.url, source.artistName, source.region || MusicRegion.Nigeria);
+          channelId = created.channelId;
+          result.channelsCreated++;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (message.toLowerCase().includes('already exists')) {
+            result.channelsExisting++;
+            try {
+              const resolvedChannelId = await this.extractChannelId(source.url);
+              if (resolvedChannelId) channelId = resolvedChannelId;
+            } catch {
+              // ignore resolution failures — we'll log generic error below if still missing
+            }
+          } else {
+            result.errors.push(`${source.artistName}: ${message}`);
+          }
+        }
+
+        if (!channelId) continue;
+        if (this.activeImports.has(channelId)) continue;
+
+        const progressId = `music:bootstrap:${channelId}:${Date.now()}`;
+        this.importProgress.set(progressId, {
+          total: 0,
+          processed: 0,
+          imported: 0,
+          skipped: 0,
+          failed: 0,
+          status: 'pending',
+          errors: [],
+        });
+
+        this.runImport(channelId, 10, progressId, { maxImport: perChannelImport, maxScan: 120 }).catch((error) => {
+          const progress = this.importProgress.get(progressId);
+          if (progress) {
+            progress.status = 'failed';
+            progress.errors.push(error instanceof Error ? error.message : String(error));
+          }
+        });
+
+        result.importsStarted++;
+        await this.sleep(1000);
+      }
+
+      if (result.importsStarted === 0 && result.errors.length === 0) {
+        result.skipped = true;
+        result.reason = 'No channels were eligible for import';
+      }
+
+      return result;
+    } finally {
+      if (this.redis) {
+        await this.redis.del(lockKey);
+      }
     }
   }
 

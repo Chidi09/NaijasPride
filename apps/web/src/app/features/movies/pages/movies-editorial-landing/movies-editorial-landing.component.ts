@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { MovieSummary } from '@naijaspride/types';
+import { MovieCardYoutubeComponent } from '../../components/movie-card-youtube/movie-card-youtube.component';
 
 // Icons
 const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
@@ -21,7 +22,7 @@ interface FeaturedResponse {
 @Component({
   selector: 'app-movies-editorial-landing',
   standalone: true,
-  imports: [CommonModule, RouterLink, forwardRef(() => MovieCardComponent)],
+  imports: [CommonModule, RouterLink, MovieCardYoutubeComponent, forwardRef(() => MovieCardComponent)],
   styles: [`
     :host {
       display: block;
@@ -141,7 +142,13 @@ interface FeaturedResponse {
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of trending(); track movie.id) {
-              <app-movie-card [movie]="movie" />
+              @if (movie.isStreamOnly) {
+                <div class="w-[220px] md:w-[320px] flex-shrink-0">
+                  <app-movie-card-youtube [movie]="movie" />
+                </div>
+              } @else {
+                <app-movie-card [movie]="movie" />
+              }
             }
           </div>
         </div>
@@ -157,7 +164,13 @@ interface FeaturedResponse {
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of mostWatched(); track movie.id) {
-              <app-movie-card [movie]="movie" />
+              @if (movie.isStreamOnly) {
+                <div class="w-[220px] md:w-[320px] flex-shrink-0">
+                  <app-movie-card-youtube [movie]="movie" />
+                </div>
+              } @else {
+                <app-movie-card [movie]="movie" />
+              }
             }
           </div>
         </div>
@@ -173,7 +186,13 @@ interface FeaturedResponse {
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of comingSoon(); track movie.id) {
-              <app-movie-card [movie]="movie" [showNotify]="true" />
+              @if (movie.isStreamOnly) {
+                <div class="w-[220px] md:w-[320px] flex-shrink-0">
+                  <app-movie-card-youtube [movie]="movie" />
+                </div>
+              } @else {
+                <app-movie-card [movie]="movie" [showNotify]="true" />
+              }
             }
           </div>
         </div>
@@ -189,7 +208,9 @@ interface FeaturedResponse {
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of streamOnly(); track movie.id) {
-              <app-movie-card [movie]="movie" />
+              <div class="w-[220px] md:w-[320px] flex-shrink-0">
+                <app-movie-card-youtube [movie]="movie" />
+              </div>
             }
           </div>
         </div>
