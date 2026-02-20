@@ -35,17 +35,79 @@ type H5aiItemResponse = {
   size?: unknown;
 };
 
+type FlareSolverrHttpResponse = {
+  status?: string;
+  message?: string;
+  solution?: {
+    status?: number;
+    response?: string;
+  };
+};
+
 const DEFAULT_ELSCI_BASE_URL = 'https://server.elsci.one';
 const DEFAULT_ELSCI_ROOT_PATH = '/Officially%20Translated%20Light%20Novels/';
 const DEFAULT_TIMEOUT_MS = 60_000;
 const H5AI_CATALOG_WHAT = 2;
+const ELSCI_FLARESOLVERR_SESSION = 'np-elsci-light-novels';
+const CHALLENGE_STATUS_CODES = new Set([403, 429, 503, 520, 521, 522, 523]);
 
 const DEFAULT_HEADERS = {
   'user-agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   accept: 'application/json,text/plain,*/*',
+  'accept-language': 'en-US,en;q=0.9',
   'content-type': 'application/json;charset=utf-8',
 } as const;
+
+const buildElsciCatalogRequestBody = (rootPath: string) => ({
+  action: 'get',
+  items: {
+    href: rootPath,
+    what: H5AI_CATALOG_WHAT,
+  },
+});
+
+const buildElsciRequestHeaders = (baseUrl: string, cookieHeader?: string): Record<string, string> => {
+  const headers: Record<string, string> = {
+    ...DEFAULT_HEADERS,
+    origin: baseUrl,
+    referer: `${baseUrl}/`,
+    'x-requested-with': 'XMLHttpRequest',
+  };
+
+  if (cookieHeader) {
+    headers.cookie = cookieHeader;
+  }
+
+  return headers;
+};
+
+const extractCookieHeader = (setCookieHeader: string | string[] | undefined): string | null => {
+  if (!setCookieHeader) return null;
+
+  const values = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  const cookieParts = values
+    .map((entry) => entry.split(';')[0]?.trim())
+    .filter((entry): entry is string => !!entry);
+
+  return cookieParts.length > 0 ? cookieParts.join('; ') : null;
+};
+
+const getAxiosStatusCode = (error: unknown): number | null => {
+  if (!axios.isAxiosError(error)) return null;
+  const status = error.response?.status;
+  return typeof status === 'number' ? status : null;
+};
+
+const isAccessChallengeStatus = (status: number | null): boolean => {
+  if (typeof status !== 'number') return false;
+  return CHALLENGE_STATUS_CODES.has(status);
+};
+
+const toErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return String(error);
+};
 
 const cleanWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 
@@ -141,6 +203,102 @@ const parseCatalogItems = (items: unknown): ElsciCatalogItem[] => {
     parsed.push({ href, time: timeValue, size: sizeValue });
   }
   return parsed;
+};
+
+const requestElsciCatalogViaDirectPost = async (options: {
+  baseUrl: string;
+  rootPath: string;
+  timeoutMs: number;
+  cookieHeader?: string;
+}): Promise<ElsciCatalogItem[]> => {
+  const response = await axios.post(
+    `${options.baseUrl}/?`,
+    buildElsciCatalogRequestBody(options.rootPath),
+    {
+      timeout: options.timeoutMs,
+      headers: buildElsciRequestHeaders(options.baseUrl, options.cookieHeader),
+      responseType: 'json',
+      validateStatus: (status) => status >= 200 && status < 400,
+    },
+  );
+
+  return parseCatalogItems(response.data?.items);
+};
+
+const requestElsciCatalogViaCookieRetry = async (options: {
+  baseUrl: string;
+  rootPath: string;
+  timeoutMs: number;
+}): Promise<ElsciCatalogItem[]> => {
+  const preflight = await axios.get(`${options.baseUrl}/`, {
+    timeout: options.timeoutMs,
+    headers: {
+      'user-agent': DEFAULT_HEADERS['user-agent'],
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'accept-language': DEFAULT_HEADERS['accept-language'],
+      referer: `${options.baseUrl}/`,
+      origin: options.baseUrl,
+    },
+    validateStatus: (status) => status >= 200 && status < 500,
+  });
+
+  const cookieHeader = extractCookieHeader(preflight.headers['set-cookie']);
+  if (!cookieHeader) {
+    throw new Error('Elsci preflight did not provide a session cookie');
+  }
+
+  return requestElsciCatalogViaDirectPost({
+    baseUrl: options.baseUrl,
+    rootPath: options.rootPath,
+    timeoutMs: options.timeoutMs,
+    cookieHeader,
+  });
+};
+
+const requestElsciCatalogViaFlareSolverr = async (options: {
+  baseUrl: string;
+  rootPath: string;
+  timeoutMs: number;
+}): Promise<ElsciCatalogItem[]> => {
+  const flaresolverrUrl = (process.env.FLARESOLVERR_URL || '').trim().replace(/\/+$/, '');
+  if (!flaresolverrUrl) {
+    throw new Error('FlareSolverr is not configured (FLARESOLVERR_URL missing)');
+  }
+
+  const response = await axios.post<FlareSolverrHttpResponse>(
+    `${flaresolverrUrl}/v1`,
+    {
+      cmd: 'request.post',
+      session: ELSCI_FLARESOLVERR_SESSION,
+      maxTimeout: options.timeoutMs,
+      url: `${options.baseUrl}/?`,
+      postData: JSON.stringify(buildElsciCatalogRequestBody(options.rootPath)),
+      headers: buildElsciRequestHeaders(options.baseUrl),
+    },
+    {
+      timeout: Math.max(65_000, options.timeoutMs + 5_000),
+      validateStatus: () => true,
+    },
+  );
+
+  const data = response.data;
+  if (!data || data.status !== 'ok' || !data.solution) {
+    throw new Error(data?.message || 'FlareSolverr request failed');
+  }
+
+  const status = data.solution.status;
+  if (typeof status !== 'number' || status < 200 || status >= 400) {
+    throw new Error(`FlareSolverr returned non-success HTTP status ${status ?? 'unknown'}`);
+  }
+
+  let parsedBody: { items?: unknown };
+  try {
+    parsedBody = JSON.parse(data.solution.response || '{}') as { items?: unknown };
+  } catch {
+    throw new Error('FlareSolverr response was not valid JSON');
+  }
+
+  return parseCatalogItems(parsedBody.items);
 };
 
 export const pickPreferredElsciFile = (
@@ -254,30 +412,62 @@ export const fetchElsciCatalogItems = async (options: {
       : Number.parseInt(process.env.ELSCI_LIGHT_NOVELS_REQUEST_TIMEOUT_MS || `${DEFAULT_TIMEOUT_MS}`, 10) ||
         DEFAULT_TIMEOUT_MS;
 
-  const endpoint = `${baseUrl}/?`;
-  const response = await axios.post(
-    endpoint,
-    {
-      action: 'get',
-      items: {
-        href: rootPath,
-        what: H5AI_CATALOG_WHAT,
-      },
-    },
-    {
-      timeout: timeoutMs,
-      headers: DEFAULT_HEADERS,
-      responseType: 'json',
-      validateStatus: (status) => status >= 200 && status < 400,
-    },
-  );
+  try {
+    const items = await requestElsciCatalogViaDirectPost({
+      baseUrl,
+      rootPath,
+      timeoutMs,
+    });
 
-  const parsed = parseCatalogItems(response.data?.items);
-  return {
-    baseUrl,
-    rootPath,
-    items: parsed,
-  };
+    return {
+      baseUrl,
+      rootPath,
+      items,
+    };
+  } catch (error) {
+    const statusCode = getAxiosStatusCode(error);
+
+    if (!isAccessChallengeStatus(statusCode)) {
+      throw error;
+    }
+
+    const fallbackErrors: string[] = [];
+
+    try {
+      const items = await requestElsciCatalogViaCookieRetry({
+        baseUrl,
+        rootPath,
+        timeoutMs,
+      });
+
+      return {
+        baseUrl,
+        rootPath,
+        items,
+      };
+    } catch (cookieRetryError) {
+      fallbackErrors.push(`cookie-retry: ${toErrorMessage(cookieRetryError)}`);
+    }
+
+    try {
+      const items = await requestElsciCatalogViaFlareSolverr({
+        baseUrl,
+        rootPath,
+        timeoutMs,
+      });
+
+      return {
+        baseUrl,
+        rootPath,
+        items,
+      };
+    } catch (solverError) {
+      fallbackErrors.push(`flaresolverr: ${toErrorMessage(solverError)}`);
+    }
+
+    const detail = fallbackErrors.length > 0 ? ` ${fallbackErrors.join(' | ')}` : '';
+    throw new Error(`Elsci catalog request blocked with status ${statusCode}.${detail}`);
+  }
 };
 
 export const discoverElsciLightNovelFiles = async (
