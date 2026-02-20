@@ -101,6 +101,9 @@ services:
       REDIS_URL: redis://redis:6379
       FLARESOLVERR_URL: http://flaresolverr:8191
       REMOTE_INGEST_TMP_DIR: /tmp/naijaspride/remote-ingest
+      REMOTE_INGEST_STREAM_GATEWAY: "true"
+      REMOTE_INGEST_JOB_ATTEMPTS: "3"
+      REMOTE_INGEST_JOB_BACKOFF_MS: "30000"
       FFMPEG_PATH: /usr/bin/ffmpeg
     volumes:
       - torrent_tmp:/tmp/naijaspride

@@ -47,6 +47,15 @@ const PLAY_SELECTORS = [
   'video',
 ];
 
+const SOAP2DAY_PLAY_SELECTORS = [
+  '.btn-play',
+  '.play',
+  '.jw-icon-display',
+  '.jw-display-icon-container',
+  'iframe',
+  ...PLAY_SELECTORS,
+];
+
 export const normalizeAllowedHosts = (rawHosts: string[]): string[] =>
   [...new Set(rawHosts.map((host) => host.trim().toLowerCase()).filter(Boolean))];
 
@@ -128,10 +137,16 @@ export const pickBestStreamCandidate = (
 
 export class RemoteStreamResolverService {
   private readonly defaultAllowedHosts: string[];
+  private readonly soap2dayAllowedMirrors: string[];
 
   constructor() {
     this.defaultAllowedHosts = normalizeAllowedHosts(
       (process.env.REMOTE_INGEST_ALLOWED_HOSTS || '')
+        .split(',')
+        .map((entry) => entry.trim())
+    );
+    this.soap2dayAllowedMirrors = normalizeAllowedHosts(
+      (process.env.SOAP2DAY_ALLOWED_MIRRORS || '')
         .split(',')
         .map((entry) => entry.trim())
     );
@@ -149,8 +164,10 @@ export class RemoteStreamResolverService {
         : DEFAULT_CAPTURE_WINDOW_MS;
     const userAgent = options.userAgent || DEFAULT_USER_AGENT;
 
+    const providerHosts = provider === 'soap2day' ? this.soap2dayAllowedMirrors : [];
     const allowedHosts = normalizeAllowedHosts([
       ...this.defaultAllowedHosts,
+      ...providerHosts,
       ...(options.allowedHosts || []),
     ]);
 
@@ -199,7 +216,9 @@ export class RemoteStreamResolverService {
 
       await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
 
-      for (const selector of PLAY_SELECTORS) {
+      const playSelectors = provider === 'soap2day' ? SOAP2DAY_PLAY_SELECTORS : PLAY_SELECTORS;
+
+      for (const selector of playSelectors) {
         try {
           const element = page.locator(selector).first();
           if (await element.count()) {
@@ -215,6 +234,23 @@ export class RemoteStreamResolverService {
         await page.keyboard.press('Space');
       } catch {
         // Ignore if keyboard focus/playback trigger fails.
+      }
+
+      if (provider === 'soap2day') {
+        try {
+          const frames = page.frames();
+          for (const frame of frames) {
+            for (const selector of SOAP2DAY_PLAY_SELECTORS) {
+              const candidate = frame.locator(selector).first();
+              if (await candidate.count()) {
+                await candidate.click({ timeout: 1_000, force: true });
+                await page.waitForTimeout(250);
+              }
+            }
+          }
+        } catch {
+          // Ignore iframe interaction failures.
+        }
       }
 
       await page.waitForTimeout(captureWindowMs);

@@ -12,7 +12,13 @@ import {
   type EpubBooksRequestedFormat,
 } from './external/epubbooks/epubbooks';
 import { importEpubBooksCatalog } from './external/epubbooks/importer';
-import { QueueService, bookImportQueue } from '../../shared/services/queue.service';
+import {
+  discoverElsciLightNovelFiles,
+  fetchElsciLightNovelFileStream,
+  type ElsciRequestedFormat,
+} from './external/elsci/elsci-lightnovels';
+import { importElsciLightNovelsCatalog } from './external/elsci/importer';
+import { bookImportQueue } from '../../shared/services/queue.service';
 import { getPushService } from '../../shared/services/push-notification.service';
 
 const createBookSchema = z.object({
@@ -193,6 +199,28 @@ const epubBooksImportSchema = z.object({
   dryRun: z.coerce.boolean().optional().default(false),
 });
 
+const elsciDiscoverSchema = z.object({
+  maxFiles: z.coerce.number().int().min(1).max(2000).optional().default(30),
+  formatPreference: z.enum(['epub', 'pdf', 'any']).optional().default('epub'),
+  includePattern: z.string().trim().max(200).optional(),
+  excludePattern: z.string().trim().max(200).optional(),
+  rootPath: z.string().trim().min(1).max(500).optional(),
+});
+
+const elsciFileQuerySchema = z.object({
+  href: z.string().trim().min(2),
+  disposition: z.enum(['inline', 'attachment']).optional().default('attachment'),
+});
+
+const elsciImportSchema = z.object({
+  maxBooks: z.coerce.number().int().min(1).max(2000).optional().default(120),
+  formatPreference: z.enum(['epub', 'pdf', 'any']).optional().default('epub'),
+  includePattern: z.string().trim().max(200).optional(),
+  excludePattern: z.string().trim().max(200).optional(),
+  rootPath: z.string().trim().min(1).max(500).optional(),
+  dryRun: z.coerce.boolean().optional().default(true),
+});
+
 const mangaChaptersSchema = z.object({
   mangaId: z.string().trim().min(1),
 });
@@ -298,6 +326,31 @@ export const bookRoutes = async (
         return decodeURIComponent(match[1] || '');
       } catch {
         return match[1] || null;
+      }
+    }
+  };
+
+  const extractElsciHrefFromUrl = (downloadUrl: string): string | null => {
+    if (!downloadUrl) return null;
+    try {
+      const url = new URL(downloadUrl, 'http://localhost');
+      if (!url.pathname.includes('/books/external/elsci/file')) {
+        return null;
+      }
+      const href = (url.searchParams.get('href') || '').trim();
+      if (!href) return null;
+      return href.startsWith('/') ? href : `/${href.replace(/^\/+/, '')}`;
+    } catch {
+      const match = downloadUrl.match(/[?&]href=([^&]+)/i);
+      if (!match) return null;
+      try {
+        const decoded = decodeURIComponent(match[1] || '').trim();
+        if (!decoded) return null;
+        return decoded.startsWith('/') ? decoded : `/${decoded.replace(/^\/+/, '')}`;
+      } catch {
+        const raw = (match[1] || '').trim();
+        if (!raw) return null;
+        return raw.startsWith('/') ? raw : `/${raw.replace(/^\/+/, '')}`;
       }
     }
   };
@@ -1169,6 +1222,160 @@ export const bookRoutes = async (
     },
   });
 
+  // GET /api/books/external/elsci/discover - Preview light novel files from Elsci index (Admin only)
+  app.get('/external/elsci/discover', {
+    preHandler: [app.authenticate],
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      querystring: elsciDiscoverSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            status: 'error',
+            message: 'Forbidden: Admin access required',
+          });
+        }
+
+        const query = elsciDiscoverSchema.parse(request.query ?? {});
+        const files = await discoverElsciLightNovelFiles({
+          maxFiles: query.maxFiles,
+          formatPreference: query.formatPreference as ElsciRequestedFormat,
+          includePattern: query.includePattern,
+          excludePattern: query.excludePattern,
+          rootPath: query.rootPath,
+        });
+
+        return reply.send({
+          status: 'success',
+          data: files,
+          meta: {
+            total: files.length,
+          },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to discover Elsci light novels',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/external/elsci/file?href=...&disposition=inline|attachment
+  // Streams a specific Elsci file through our API.
+  app.get('/external/elsci/file', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      querystring: elsciFileQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { href, disposition } = elsciFileQuerySchema.parse(request.query ?? {});
+        const upstream = await fetchElsciLightNovelFileStream(href);
+        const upstreamDisposition = upstream.headers['content-disposition'];
+        const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
+
+        let fallbackFilename = href.split('/').pop() || 'light-novel-file';
+        try {
+          fallbackFilename = decodeURIComponent(fallbackFilename);
+        } catch {
+          // Use raw fallback filename when decode fails.
+        }
+
+        const filename = upstreamFilename || fallbackFilename;
+        const contentType =
+          inferContentTypeFromFilename(filename) ||
+          (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
+          'application/octet-stream';
+
+        const contentLength = upstream.headers['content-length'];
+        if (typeof contentLength === 'string') {
+          reply.header('content-length', contentLength);
+        }
+
+        reply.header('content-type', contentType);
+        reply.header('cache-control', 'private, max-age=0');
+        reply.header('content-disposition', `${disposition}; filename="${filename.replace(/"/g, '')}"`);
+        return reply.send(upstream.stream);
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to stream Elsci light novel file',
+        });
+      }
+    },
+  });
+
+  // POST /api/books/import/elsci-lightnovels - Import light novel metadata from Elsci index (Admin only)
+  app.post('/import/elsci-lightnovels', {
+    preHandler: [app.authenticate],
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      body: elsciImportSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            status: 'error',
+            message: 'Forbidden: Admin access required',
+          });
+        }
+
+        const payload = elsciImportSchema.parse(request.body ?? {});
+
+        const queue = bookImportQueue.get();
+        if (queue && !payload.dryRun) {
+          const job = await queue.add(
+            'import-elsci-lightnovels',
+            {
+              source: 'elsci-lightnovels',
+              mode: 'manual',
+              options: {
+                maxBooks: payload.maxBooks,
+                formatPreference: payload.formatPreference,
+                includePattern: payload.includePattern,
+                excludePattern: payload.excludePattern,
+                rootPath: payload.rootPath,
+                dryRun: false,
+              },
+              requestedByUserId: request.user.id,
+              requestedAt: Date.now(),
+            },
+            { removeOnComplete: true, removeOnFail: false },
+          );
+
+          return reply.send({
+            status: 'success',
+            data: {
+              mode: 'queued',
+              jobId: String(job.id),
+              queue: 'book-import',
+            },
+          });
+        }
+
+        const result = await importElsciLightNovelsCatalog(app.prisma, {
+          maxBooks: payload.maxBooks,
+          formatPreference: payload.formatPreference as ElsciRequestedFormat,
+          includePattern: payload.includePattern,
+          excludePattern: payload.excludePattern,
+          rootPath: payload.rootPath,
+          dryRun: payload.dryRun,
+        });
+
+        return reply.send({ status: 'success', data: result });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to import Elsci light novels',
+        });
+      }
+    },
+  });
+
   const importJobParamSchema = z.object({
     jobId: z.string().trim().min(1),
   });
@@ -1573,6 +1780,51 @@ export const bookRoutes = async (
           const fallbackFilename = `${externalSlug}.${effectiveFormat === 'kindle' ? 'mobi' : 'epub'}`;
           const filename = upstreamFilename || fallbackFilename;
 
+          const contentType =
+            inferContentTypeFromFilename(filename) ||
+            (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
+            'application/octet-stream';
+
+          const contentLength = upstream.headers['content-length'];
+          if (typeof contentLength === 'string') {
+            reply.header('content-length', contentLength);
+          }
+
+          reply.header('content-type', contentType);
+          reply.header('cache-control', 'private, max-age=0');
+          reply.header('content-disposition', `${disposition}; filename="${filename.replace(/\"/g, '')}"`);
+          return reply.send(upstream.stream);
+        }
+
+        const isElsci = slug.toLowerCase().startsWith('elsci-ln-') || (book.publisher || '').toLowerCase() === 'elsci';
+        if (isElsci) {
+          if (!book.downloadUrl) {
+            return reply.status(404).send({
+              status: 'error',
+              message: 'This Elsci book does not have a source href',
+            });
+          }
+
+          const href = extractElsciHrefFromUrl(book.downloadUrl);
+          if (!href) {
+            return reply.status(400).send({
+              status: 'error',
+              message: 'Invalid Elsci download URL format',
+            });
+          }
+
+          const upstream = await fetchElsciLightNovelFileStream(href);
+          const upstreamDisposition = upstream.headers['content-disposition'];
+          const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
+
+          let fallbackFilename = href.split('/').pop() || `${slug}.epub`;
+          try {
+            fallbackFilename = decodeURIComponent(fallbackFilename);
+          } catch {
+            // Keep raw fallback filename when decode fails.
+          }
+
+          const filename = upstreamFilename || fallbackFilename;
           const contentType =
             inferContentTypeFromFilename(filename) ||
             (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||

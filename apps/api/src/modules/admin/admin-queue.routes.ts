@@ -1,6 +1,11 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
 import { Queue } from "bullmq";
-import { torrentQueue, bookImportQueue } from "../../shared/services/queue.service";
+import {
+  torrentQueue,
+  bookImportQueue,
+  remoteIngestQueue,
+  remoteIngestDeadLetterQueue,
+} from "../../shared/services/queue.service";
 
 interface QueueStats {
   name: string;
@@ -73,12 +78,54 @@ export const adminQueueRoutes = async (
           });
         }
 
+        const remoteQ = remoteIngestQueue.get();
+        if (remoteQ) {
+          const [waiting, active, completed, failed, delayed] = await Promise.all([
+            remoteQ.getWaitingCount(),
+            remoteQ.getActiveCount(),
+            remoteQ.getCompletedCount(),
+            remoteQ.getFailedCount(),
+            remoteQ.getDelayedCount(),
+          ]);
+
+          queues.push({
+            name: "remote-ingest-processing",
+            waiting,
+            active,
+            completed,
+            failed,
+            delayed,
+            paused: await remoteQ.isPaused(),
+          });
+        }
+
+        const remoteDlq = remoteIngestDeadLetterQueue.get();
+        if (remoteDlq) {
+          const [waiting, active, completed, failed, delayed] = await Promise.all([
+            remoteDlq.getWaitingCount(),
+            remoteDlq.getActiveCount(),
+            remoteDlq.getCompletedCount(),
+            remoteDlq.getFailedCount(),
+            remoteDlq.getDelayedCount(),
+          ]);
+
+          queues.push({
+            name: "remote-ingest-dead-letter",
+            waiting,
+            active,
+            completed,
+            failed,
+            delayed,
+            paused: await remoteDlq.isPaused(),
+          });
+        }
+
         return reply.send({
           success: true,
           data: queues,
           meta: {
             totalQueues: queues.length,
-            hasRedis: !!torrentQ || !!bookQ,
+            hasRedis: !!torrentQ || !!bookQ || !!remoteQ || !!remoteDlq,
           },
         });
       } catch (error) {
@@ -107,6 +154,10 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "remote-ingest-processing") {
+          queue = remoteIngestQueue.get();
+        } else if (name === "remote-ingest-dead-letter") {
+          queue = remoteIngestDeadLetterQueue.get();
         }
 
         if (!queue) {
@@ -183,6 +234,10 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "remote-ingest-processing") {
+          queue = remoteIngestQueue.get();
+        } else if (name === "remote-ingest-dead-letter") {
+          queue = remoteIngestDeadLetterQueue.get();
         }
 
         if (!queue) {
@@ -219,6 +274,10 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "remote-ingest-processing") {
+          queue = remoteIngestQueue.get();
+        } else if (name === "remote-ingest-dead-letter") {
+          queue = remoteIngestDeadLetterQueue.get();
         }
 
         if (!queue) {
@@ -255,6 +314,10 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "remote-ingest-processing") {
+          queue = remoteIngestQueue.get();
+        } else if (name === "remote-ingest-dead-letter") {
+          queue = remoteIngestDeadLetterQueue.get();
         }
 
         if (!queue) {

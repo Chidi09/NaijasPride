@@ -7,6 +7,7 @@ import { YoutubeScoutService } from "./services/youtube-scout.service";
 import { RssScoutService } from "./services/rss-scout.service";
 import { TMDBMetadataService } from "./services/tmdb-metadata.service";
 import { YouTubeChannelService } from "./services/youtube-channel.service";
+import { AutoLibraryDiscoveryService } from "../books/auto-library-discovery.service";
 import { adminQueueRoutes } from "./admin-queue.routes";
 import { adminUserRoutes } from "./admin-user.routes";
 import { z } from "zod";
@@ -71,6 +72,16 @@ const CreateRssFeedSchema = z.object({
   url: z.string().url(),
 });
 
+const AutoLibraryDiscoverSchema = z.object({
+  includeMustHaves: z.boolean().optional().default(true),
+  includeTrending: z.boolean().optional().default(true),
+  maxTargets: z.number().int().min(1).max(60).optional().default(24),
+  maxMatches: z.number().int().min(1).max(25).optional().default(8),
+  minSeeders: z.number().int().min(0).max(5000).optional().default(5),
+  ingest: z.boolean().optional().default(false),
+  dryRun: z.boolean().optional().default(true),
+});
+
 export const adminRoutes = async (
   app: FastifyInstance,
   _opts: unknown,
@@ -78,6 +89,7 @@ export const adminRoutes = async (
   const ytService = new YoutubeScoutService(app.prisma);
   const rssService = new RssScoutService();
   const tmdbService = new TMDBMetadataService(app.prisma);
+  const autoLibraryService = new AutoLibraryDiscoveryService(app.prisma);
   const parsePositiveInt = (value?: string) => {
     if (!value) return undefined;
     const parsed = Number.parseInt(value, 10);
@@ -520,6 +532,59 @@ export const adminRoutes = async (
             error instanceof Error
               ? error.message
               : "Failed to import from YouTube channels",
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/books/auto-library/must-haves - Preview must-have seed list
+  app.get("/books/auto-library/must-haves", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        const mustHaves = await autoLibraryService.loadMustHaves();
+        return reply.send({
+          status: "success",
+          data: mustHaves,
+          meta: { total: mustHaves.length },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to load Auto-Library must-have list",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/books/auto-library/discover - Search 1337x for must-haves/trending books
+  app.post("/books/auto-library/discover", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: AutoLibraryDiscoverSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const body = request.body as z.infer<typeof AutoLibraryDiscoverSchema>;
+        const summary = await autoLibraryService.discoverAndSync(body);
+
+        return reply.send({
+          status: "success",
+          data: summary,
+          message: body.ingest
+            ? "Auto-Library discovery completed and pending records updated"
+            : "Auto-Library discovery completed",
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Auto-Library discovery failed",
         });
       }
     },

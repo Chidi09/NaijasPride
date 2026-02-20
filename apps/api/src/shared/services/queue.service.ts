@@ -29,6 +29,7 @@ const getQueue = (name: string): Queue | null => {
 export const torrentQueue = { get: () => getQueue('torrent-processing') };
 export const bookImportQueue = { get: () => getQueue('book-import') };
 export const remoteIngestQueue = { get: () => getQueue('remote-ingest-processing') };
+export const remoteIngestDeadLetterQueue = { get: () => getQueue('remote-ingest-dead-letter') };
 
 export type RemoteIngestJobPayload = {
   movieId: string;
@@ -73,12 +74,22 @@ export class QueueService {
       console.warn('[Queue] REDIS_URL not set — skipping remote ingest job');
       return;
     }
+    const attemptsRaw = Number.parseInt(process.env.REMOTE_INGEST_JOB_ATTEMPTS || '3', 10);
+    const attempts = Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.min(attemptsRaw, 8) : 3;
+    const backoffMsRaw = Number.parseInt(process.env.REMOTE_INGEST_JOB_BACKOFF_MS || '30000', 10);
+    const backoffMs = Number.isFinite(backoffMsRaw) && backoffMsRaw > 0 ? Math.min(backoffMsRaw, 10 * 60 * 1000) : 30_000;
+
     await queue.add('ingest-remote-stream', {
       ...payload,
       timestamp: Date.now(),
     }, {
       removeOnComplete: true,
       removeOnFail: false,
+      attempts,
+      backoff: {
+        type: 'exponential',
+        delay: backoffMs,
+      },
     });
     console.log(`[Queue] Added remote ingest job for movie ${payload.movieId}`);
   }

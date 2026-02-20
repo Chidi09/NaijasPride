@@ -1,0 +1,17 @@
+[
+  { "title": "1984", "author": "George Orwell", "year": 1949, "genre": ["Dystopian", "Classic"] },
+  { "title": "Beloved", "author": "Toni Morrison", "year": 1987, "genre": ["Literary Fiction", "Classic"] },
+  { "title": "The Alchemist", "author": "Paulo Coelho", "year": 1988, "genre": ["Fiction", "Philosophy"] },
+  { "title": "The Psychology of Money", "author": "Morgan Housel", "year": 2020, "genre": ["Finance", "Nonfiction"] },
+  { "title": "Atomic Habits", "author": "James Clear", "year": 2018, "genre": ["Self Help", "Nonfiction"] },
+  { "title": "The Seven Husbands of Evelyn Hugo", "author": "Taylor Jenkins Reid", "year": 2017, "genre": ["Fiction", "Romance"] },
+  { "title": "It Ends with Us", "author": "Colleen Hoover", "year": 2016, "genre": ["Romance", "Fiction"] },
+  { "title": "Fourth Wing", "author": "Rebecca Yarros", "year": 2023, "genre": ["Fantasy", "Romance"] },
+  { "title": "Throne of Glass", "author": "Sarah J. Maas", "year": 2012, "genre": ["Fantasy", "Young Adult"] },
+  { "title": "A Court of Thorns and Roses", "author": "Sarah J. Maas", "year": 2015, "genre": ["Fantasy", "Romance"] },
+  { "title": "People We Meet on Vacation", "author": "Emily Henry", "year": 2021, "genre": ["Romance", "Fiction"] },
+  { "title": "Lessons in Chemistry", "author": "Bonnie Garmus", "year": 2022, "genre": ["Fiction", "Historical"] },
+  { "title": "The Women", "author": "Kristin Hannah", "year": 2024, "genre": ["Historical", "Fiction"] },
+  { "title": "Tomorrow, and Tomorrow, and Tomorrow", "author": "Gabrielle Zevin", "year": 2022, "genre": ["Literary Fiction"] },
+  { "title": "Sapiens", "author": "Yuval Noah Harari", "year": 2011, "genre": ["History", "Nonfiction"] }
+]

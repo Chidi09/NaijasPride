@@ -49,7 +49,10 @@ export class BooksService {
       filters.push({ NOT: { genre: { has: 'Comic' } } });
     }
 
-    const where: Prisma.BookWhereInput = filters.length > 0 ? { AND: filters } : {};
+    const where: Prisma.BookWhereInput = {
+      status: 'active',
+      ...(filters.length > 0 ? { AND: filters } : {}),
+    };
 
     const [total, books] = await Promise.all([
       this.prisma.book.count({ where }),
@@ -79,7 +82,9 @@ export class BooksService {
   }
 
   async findBySlug(slug: string): Promise<Book | null> {
-    const book = await this.prisma.book.findUnique({ where: { slug } });
+    const book = await this.prisma.book.findFirst({
+      where: { slug, status: 'active' },
+    });
     if (!book) return null;
     return {
       ...book,

@@ -2,8 +2,12 @@ import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 import { importEpubBooksCatalog, type EpubBooksImportOptions, type EpubBooksImportSort } from '../modules/books/external/epubbooks/importer';
+import {
+  importElsciLightNovelsCatalog,
+  type ElsciLightNovelImportOptions,
+} from '../modules/books/external/elsci/importer';
 
-type BookImportJobData = {
+type EpubBooksImportJobData = {
   source: 'epubbooks';
   mode: 'manual' | 'auto';
   options?: Partial<EpubBooksImportOptions> & {
@@ -12,6 +16,16 @@ type BookImportJobData = {
   requestedByUserId?: string;
   requestedAt?: number;
 };
+
+type ElsciImportJobData = {
+  source: 'elsci-lightnovels';
+  mode: 'manual';
+  options?: Partial<ElsciLightNovelImportOptions>;
+  requestedByUserId?: string;
+  requestedAt?: number;
+};
+
+type BookImportJobData = EpubBooksImportJobData | ElsciImportJobData;
 
 const REDIS_URL = process.env.REDIS_URL;
 if (!REDIS_URL) {
@@ -68,8 +82,36 @@ const worker = new Worker(
   'book-import',
   async (job) => {
     const data = job.data as BookImportJobData;
-    if (!data || data.source !== 'epubbooks') {
+    if (!data || !data.source) {
       throw new Error('Unsupported import source');
+    }
+
+    if (data.source === 'elsci-lightnovels') {
+      if (data.mode !== 'manual') {
+        throw new Error('elsci-lightnovels import only supports manual mode');
+      }
+
+      const opts = data.options || {};
+      const maxBooks = typeof opts.maxBooks === 'undefined' ? 120 : clampInt(opts.maxBooks, 120, 1, 2000);
+      const formatPreference =
+        opts.formatPreference === 'pdf' || opts.formatPreference === 'any' || opts.formatPreference === 'epub'
+          ? opts.formatPreference
+          : 'epub';
+      const includePattern = typeof opts.includePattern === 'string' ? opts.includePattern.trim() : undefined;
+      const excludePattern = typeof opts.excludePattern === 'string' ? opts.excludePattern.trim() : undefined;
+      const rootPath = typeof opts.rootPath === 'string' && opts.rootPath.trim() ? opts.rootPath.trim() : undefined;
+      const dryRun = !!opts.dryRun;
+
+      const result = await importElsciLightNovelsCatalog(prisma, {
+        maxBooks,
+        formatPreference,
+        includePattern,
+        excludePattern,
+        rootPath,
+        dryRun,
+      });
+
+      return buildSafeReturnValue(result);
     }
 
     if (data.mode === 'auto') {

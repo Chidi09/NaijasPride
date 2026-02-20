@@ -28,6 +28,7 @@ import { watchRoutes } from "./modules/users/watch.routes";
 import { plansRoutes } from "./modules/payments/plans.routes";
 import { musicRoutes } from "./modules/music/music.routes";
 import { adminMusicRoutes } from "./modules/music/admin-music.routes";
+import { AutoLibraryDiscoveryService } from "./modules/books/auto-library-discovery.service";
 import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
 import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
@@ -313,6 +314,46 @@ const start = async () => {
             app.log.error({ error }, '[MusicBootstrap] Failed');
           });
       }, 20_000);
+    }
+
+    // Optional Auto-Library discovery scheduler for high-value books.
+    const autoLibraryEnabled = parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_ENABLED, false);
+    if (autoLibraryEnabled) {
+      const intervalMs = parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_INTERVAL_MS, 24 * 60 * 60 * 1000);
+      const startupDelayMs = parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_STARTUP_DELAY_MS, 3 * 60 * 1000);
+      const autoLibraryService = new AutoLibraryDiscoveryService(app.prisma, console);
+
+      const runAutoLibrary = () => {
+        autoLibraryService
+          .discoverAndSync({
+            includeMustHaves: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_INCLUDE_MUST_HAVES, true),
+            includeTrending: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_INCLUDE_TRENDING, true),
+            maxTargets: parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_MAX_TARGETS, 24),
+            maxMatches: parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_MAX_MATCHES, 8),
+            minSeeders: parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_MIN_SEEDERS, 5),
+            ingest: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_INGEST, false),
+            dryRun: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_DRY_RUN, true),
+          })
+          .then((summary) => {
+            app.log.info({ summary }, '[AutoLibrary] Scheduled run completed');
+          })
+          .catch((error) => {
+            app.log.error({ error }, '[AutoLibrary] Scheduled run failed');
+          });
+      };
+
+      setInterval(runAutoLibrary, intervalMs);
+      setTimeout(runAutoLibrary, startupDelayMs);
+
+      app.log.info(
+        {
+          intervalMs,
+          startupDelayMs,
+          ingest: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_INGEST, false),
+          dryRun: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_DRY_RUN, true),
+        },
+        '[AutoLibrary] Scheduler enabled',
+      );
     }
 
     // Optional torrent discovery scheduler (1337x + FlareSolverr).

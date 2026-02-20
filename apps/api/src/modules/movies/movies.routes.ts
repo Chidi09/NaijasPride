@@ -5,6 +5,7 @@ import { movieSearchSchema, createMovieSchema } from '@naijaspride/validators';
 import { Genre, Quality } from '@naijaspride/types';
 import { Genre as PrismaGenre, Quality as PrismaQuality, Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { QueueService } from '../../shared/services/queue.service';
 import { StorageService } from '../../shared/services/storage.service';
 import { notificationRoutes } from './notification.routes';
@@ -64,6 +65,67 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
 
     const url = await storageService.getDownloadUrl(key, { expiresInSeconds: movieSignedUrlTtlSeconds });
     return reply.redirect(url);
+  });
+
+  // GET /api/movies/stream/:movieId/* - authenticated HLS segment gateway.
+  // Keeps segment access within app auth even when storage is private.
+  app.get('/stream/:movieId/*', {
+    onRequest: [fastify.authenticate],
+  }, async (request, reply) => {
+    const params = request.params as { movieId?: string; '*': string };
+    const movieId = (params.movieId || '').trim();
+    const tail = decodeURIComponent((params['*'] || '').trim());
+
+    if (!movieId || !tail || tail.includes('..') || tail.startsWith('/')) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'BAD_REQUEST', message: 'Invalid stream path' },
+      });
+    }
+
+    const movie = await fastify.prisma.movie.findUnique({
+      where: { id: movieId },
+      select: { id: true, status: true },
+    });
+    if (!movie || movie.status === 'deleted') {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Movie not found' },
+      });
+    }
+
+    const key = `movies/${movieId}/hls/${tail}`;
+    try {
+      const response = await StorageService.getClient().send(
+        new GetObjectCommand({
+          Bucket: StorageService.getBucket(),
+          Key: key,
+        }),
+      );
+
+      const ext = tail.split('.').pop()?.toLowerCase();
+      const fallbackType =
+        ext === 'm3u8'
+          ? 'application/vnd.apple.mpegurl'
+          : ext === 'ts'
+            ? 'video/mp2t'
+            : 'application/octet-stream';
+
+      reply.header('content-type', response.ContentType || fallbackType);
+      if (ext === 'm3u8') {
+        reply.header('cache-control', 'private, no-store');
+      } else {
+        reply.header('cache-control', 'private, max-age=60');
+      }
+
+      return reply.send(response.Body as any);
+    } catch (error) {
+      fastify.log.warn({ error, key }, '[Movies] Stream gateway failed');
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Stream segment not found' },
+      });
+    }
   });
 
   // GET /api/movies/featured - Most Watched + Coming Soon (public, no auth required)

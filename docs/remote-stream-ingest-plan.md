@@ -34,15 +34,32 @@ This repository now supports a production-friendly `extract -> ingest -> re-host
 - `REMOTE_INGEST_WORKER_CONCURRENCY`
 - `REMOTE_INGEST_PACKAGE_HLS`
 - `REMOTE_INGEST_TMP_DIR`
-- `SOAP2DAY_ALLOWED_MIRRORS` (reserved for provider-specific filtering)
+- `REMOTE_INGEST_STREAM_GATEWAY`
+- `REMOTE_INGEST_JOB_ATTEMPTS`
+- `REMOTE_INGEST_JOB_BACKOFF_MS`
+- `SOAP2DAY_ALLOWED_MIRRORS`
 
 ## Deployment
 
 - `docker-compose.yml` includes `remote-ingest-worker`.
 - Worker uses same Redis and R2 config as existing ingest workers.
 
-## Next hardening steps
+## Hardening tasks completed
 
-- Add signed-URL gateway for segment access at edge (Cloudflare Worker).
-- Add provider-specific resolvers (Soap2Day mirror map + anti-bot selectors).
-- Add ingest retry policy and dead-letter queue dashboards.
+- Signed gateway for HLS segments
+  - `GET /api/v1/movies/stream/:movieId/*` serves playlist/segment objects through API auth.
+  - Remote ingest worker can publish HLS URLs to this gateway (`REMOTE_INGEST_STREAM_GATEWAY=true`).
+
+- Provider-specific resolver behavior
+  - `provider: "soap2day"` path now applies additional selectors and iframe interaction.
+  - Provider host allow-list can be configured via `SOAP2DAY_ALLOWED_MIRRORS`.
+
+- Retry + dead-letter flow
+  - Remote ingest jobs now use configurable retries/backoff.
+  - Final-attempt failures are mirrored to `remote-ingest-dead-letter` queue.
+  - Admin queue endpoints now expose both `remote-ingest-processing` and `remote-ingest-dead-letter`.
+
+## Next improvements
+
+- Cloudflare Worker edge token verification for segment URLs.
+- Per-provider health metrics and mirror failover scoring.
