@@ -450,7 +450,7 @@ export class AutoLibraryDiscoveryService {
           genre: match.target.genre && match.target.genre.length > 0 ? match.target.genre : ['General'],
           language: match.target.language || 'EN',
           publisher: match.target.publisher || 'AutoLibrary',
-          status: 'pending' as const,
+          status: 'active' as const,
         };
 
         await this.prisma.book.upsert({

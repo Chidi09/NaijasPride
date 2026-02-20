@@ -35,7 +35,7 @@ This document tracks the rollout for periodic discovery and ingestion of high-va
 
 ## Current ingestion behavior
 
-- In ingest mode, discovered items are upserted into `Book` as `pending` records.
+- In ingest mode, discovered items are upserted into `Book` as `active` records.
 - `downloadUrl` currently stores the magnet URI for downstream worker processing.
 
 ## Elsci light novel source support

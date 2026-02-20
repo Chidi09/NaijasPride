@@ -575,7 +575,7 @@ export const adminRoutes = async (
           status: "success",
           data: summary,
           message: body.ingest
-            ? "Auto-Library discovery completed and pending records updated"
+            ? "Auto-Library discovery completed and records imported"
             : "Auto-Library discovery completed",
         });
       } catch (error) {
