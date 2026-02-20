@@ -3,11 +3,12 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { MoviesService } from './movies.service';
 import { movieSearchSchema, createMovieSchema } from '@naijaspride/validators';
 import { Genre, Quality } from '@naijaspride/types';
-import { Genre as PrismaGenre, Quality as PrismaQuality } from '@prisma/client';
+import { Genre as PrismaGenre, Quality as PrismaQuality, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { QueueService } from '../../shared/services/queue.service';
 import { StorageService } from '../../shared/services/storage.service';
 import { notificationRoutes } from './notification.routes';
+import { RemoteProvider, RemoteStreamResolverService } from './remote-stream-resolver.service';
 
 const toQualityEnum = (value: '480p' | '720p' | '1080p' | '4K'): PrismaQuality => {
   switch (value) {
@@ -27,6 +28,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new MoviesService(fastify.prisma);
   const queueService = new QueueService();
   const storageService = new StorageService();
+  const remoteResolver = new RemoteStreamResolverService();
   const movieSignedUrlTtlSecondsRaw = Number.parseInt(process.env.MOVIE_DOWNLOAD_URL_TTL_SECONDS || '21600', 10);
   const movieSignedUrlTtlSeconds =
     Number.isFinite(movieSignedUrlTtlSecondsRaw) && movieSignedUrlTtlSecondsRaw >= 3600
@@ -232,6 +234,122 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
       success: true,
       message: 'Torrent queued for processing',
       data: movie,
+    });
+  });
+
+  // POST /api/movies/remote/resolve - resolve a stream URL from a provider page (Admin only)
+  app.post('/remote/resolve', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      body: z.object({
+        pageUrl: z.string().url(),
+        provider: z.enum(['generic', 'soap2day']).optional().default('generic'),
+        timeoutMs: z.number().int().min(5000).max(180000).optional(),
+      }),
+    },
+  }, async (request, reply) => {
+    if (request.user.role !== 'ADMIN') {
+      return reply.status(403).send({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Admins only' }
+      });
+    }
+
+    const body = request.body as {
+      pageUrl: string;
+      provider: RemoteProvider;
+      timeoutMs?: number;
+    };
+
+    const result = await remoteResolver.resolveFromPage(body.pageUrl, {
+      provider: body.provider,
+      timeoutMs: body.timeoutMs,
+    });
+
+    return reply.send({ success: true, data: result });
+  });
+
+  // POST /api/movies/remote/ingest - create movie and queue remote ingest job (Admin only)
+  app.post('/remote/ingest', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      body: z
+        .object({
+          title: z.string().trim().min(1),
+          year: z.number().int().min(1900).max(new Date().getFullYear() + 2),
+          genre: z.array(z.nativeEnum(Genre)).min(1).default([Genre.Hollywood]),
+          sourcePageUrl: z.string().url().optional(),
+          sourceStreamUrl: z.string().url().optional(),
+          provider: z.enum(['generic', 'soap2day']).optional().default('generic'),
+          referer: z.string().url().optional(),
+          queueNow: z.boolean().optional().default(true),
+        })
+        .refine((value) => !!value.sourcePageUrl || !!value.sourceStreamUrl, {
+          message: 'Either sourcePageUrl or sourceStreamUrl is required',
+        }),
+    },
+  }, async (request, reply) => {
+    if (request.user.role !== 'ADMIN') {
+      return reply.status(403).send({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Admins only' }
+      });
+    }
+
+    const body = request.body as {
+      title: string;
+      year: number;
+      genre: Genre[];
+      sourcePageUrl?: string;
+      sourceStreamUrl?: string;
+      provider: RemoteProvider;
+      referer?: string;
+      queueNow: boolean;
+    };
+
+    const createPayload: Parameters<MoviesService['create']>[0] = {
+      title: body.title,
+      year: body.year,
+      genre: body.genre,
+      quality: [Quality.Q720p],
+      fileUrls: {},
+      status: 'pending',
+    };
+
+    const movie = await service.create(createPayload);
+
+    await fastify.prisma.movie.update({
+      where: { id: movie.id },
+      data: {
+        metadata: {
+          sourceProvider: body.provider,
+          sourcePageUrl: body.sourcePageUrl || null,
+          sourceStreamUrl: body.sourceStreamUrl || null,
+          sourceReferer: body.referer || null,
+          ingestType: 'remote',
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    if (body.queueNow) {
+      await queueService.addRemoteIngestJob({
+        movieId: movie.id,
+        sourcePageUrl: body.sourcePageUrl,
+        sourceStreamUrl: body.sourceStreamUrl,
+        provider: body.provider,
+        referer: body.referer,
+      });
+    }
+
+    return reply.send({
+      success: true,
+      message: body.queueNow
+        ? 'Remote ingest queued for processing'
+        : 'Movie created in pending state (not queued)',
+      data: {
+        ...movie,
+        queued: body.queueNow,
+      },
     });
   });
 

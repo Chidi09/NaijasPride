@@ -85,6 +85,26 @@ services:
     volumes:
       - torrent_tmp:/tmp/naijaspride
 
+  # ── Remote Ingest Worker ───────────────────────────────────────────────────
+  # BullMQ consumer: resolves remote streams and ingests to R2/HLS
+  remote-ingest-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["node", "apps/api/dist/workers/remote-ingest.worker.js"]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      FLARESOLVERR_URL: http://flaresolverr:8191
+      REMOTE_INGEST_TMP_DIR: /tmp/naijaspride/remote-ingest
+      FFMPEG_PATH: /usr/bin/ffmpeg
+    volumes:
+      - torrent_tmp:/tmp/naijaspride
+
   # ── Book Import Worker ─────────────────────────────────────────────────────
   # BullMQ consumer: imports books from EpubBooks catalog
   book-worker:

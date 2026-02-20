@@ -9,6 +9,7 @@
     "start": "node dist/app.js",
     "worker:book-import": "npm run build && node dist/workers/book-import.worker.js",
     "worker:torrent": "npm run build && node dist/workers/torrent.worker.js",
+    "worker:remote-ingest": "npm run build && node dist/workers/remote-ingest.worker.js",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",

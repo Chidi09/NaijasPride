@@ -28,6 +28,16 @@ const getQueue = (name: string): Queue | null => {
 
 export const torrentQueue = { get: () => getQueue('torrent-processing') };
 export const bookImportQueue = { get: () => getQueue('book-import') };
+export const remoteIngestQueue = { get: () => getQueue('remote-ingest-processing') };
+
+export type RemoteIngestJobPayload = {
+  movieId: string;
+  sourcePageUrl?: string;
+  sourceStreamUrl?: string;
+  provider?: 'generic' | 'soap2day';
+  referer?: string;
+  headers?: Record<string, string>;
+};
 
 export class QueueService {
   async addTorrentJob(magnetLink: string, movieId: string) {
@@ -55,5 +65,21 @@ export class QueueService {
       removeOnFail: false,
     });
     console.log(`[Queue] Added book import job`);
+  }
+
+  async addRemoteIngestJob(payload: RemoteIngestJobPayload) {
+    const queue = remoteIngestQueue.get();
+    if (!queue) {
+      console.warn('[Queue] REDIS_URL not set — skipping remote ingest job');
+      return;
+    }
+    await queue.add('ingest-remote-stream', {
+      ...payload,
+      timestamp: Date.now(),
+    }, {
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
+    console.log(`[Queue] Added remote ingest job for movie ${payload.movieId}`);
   }
 }
