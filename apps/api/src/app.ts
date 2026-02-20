@@ -330,7 +330,7 @@ const start = async () => {
             includeTrending: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_INCLUDE_TRENDING, true),
             maxTargets: parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_MAX_TARGETS, 24),
             maxMatches: parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_MAX_MATCHES, 8),
-            minSeeders: parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_MIN_SEEDERS, 5),
+            minSeeders: parsePositiveInt(process.env.BOOK_AUTO_LIBRARY_MIN_SEEDERS, 1),
             ingest: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_INGEST, false),
             dryRun: parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_DRY_RUN, true),
           })

@@ -361,7 +361,7 @@ export class AutoLibraryDiscoveryService {
       : 8;
     const minSeeders = Number.isFinite(options.minSeeders) && (options.minSeeders as number) >= 0
       ? options.minSeeders as number
-      : 5;
+      : 1;
 
     const summary: AutoLibraryRunSummary = {
       sourceBaseUrl: this.sourceBaseUrl,
@@ -406,25 +406,37 @@ export class AutoLibraryDiscoveryService {
 
       try {
         const listing = await this.search1337xByQuery(`${target.title} ${target.author}`);
+        this.logger.info(`[AutoLibrary] "${target.title}" — raw results: ${listing.length}`);
+
         const nonAudio = listing.filter((entry) => {
           if (!entry.isAudiobook) return true;
           summary.filteredAudio += 1;
           return false;
         });
+        this.logger.info(`[AutoLibrary] "${target.title}" — after audio filter: ${nonAudio.length}`);
 
         const likelyBooks = nonAudio.filter((entry) => {
           if (entry.isLikelyVideo) return false;
           if (entry.format !== 'UNKNOWN') return true;
-          return hasAuthorSignal(entry.title, target.author) && hasTitleSignal(entry.title, target.title);
+          // For UNKNOWN format: accept if title OR author matches (not both required)
+          return hasTitleSignal(entry.title, target.title) || hasAuthorSignal(entry.title, target.author);
         });
+        this.logger.info(`[AutoLibrary] "${target.title}" — after book filter: ${likelyBooks.length}`);
 
         const seeded = likelyBooks.filter((entry) => entry.seeds >= minSeeders);
+        this.logger.info(`[AutoLibrary] "${target.title}" — after seeder filter (>=${minSeeders}): ${seeded.length}`);
+
         const top = seeded.sort((a, b) => scoreListing(b) - scoreListing(a))[0];
         if (!top) continue;
 
+        this.logger.info(`[AutoLibrary] "${target.title}" — best match: "${top.title}" (seeds=${top.seeds}, format=${top.format})`);
+
         const detailHtml = await this.fetchHtml(top.detailUrl, 'book-auto-library');
         const detail = parse1337xBookDetailHtml(detailHtml);
-        if (!detail.magnetLink) continue;
+        if (!detail.magnetLink) {
+          this.logger.warn(`[AutoLibrary] "${target.title}" — no magnet link found on detail page: ${top.detailUrl}`);
+          continue;
+        }
 
         matches.push({
           target,
@@ -435,6 +447,7 @@ export class AutoLibraryDiscoveryService {
       } catch (error) {
         summary.failed += 1;
         summary.errors.push(`${target.title} (${target.author}): ${toErrorMessage(error)}`);
+        this.logger.error(`[AutoLibrary] "${target.title}" failed: ${toErrorMessage(error)}`);
       }
     }
 

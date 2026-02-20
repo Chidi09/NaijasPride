@@ -77,7 +77,7 @@ const AutoLibraryDiscoverSchema = z.object({
   includeTrending: z.boolean().optional().default(true),
   maxTargets: z.number().int().min(1).max(60).optional().default(24),
   maxMatches: z.number().int().min(1).max(25).optional().default(8),
-  minSeeders: z.number().int().min(0).max(5000).optional().default(5),
+  minSeeders: z.number().int().min(0).max(5000).optional().default(1),
   ingest: z.boolean().optional().default(false),
   dryRun: z.boolean().optional().default(true),
 });
