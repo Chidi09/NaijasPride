@@ -4,8 +4,21 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { FlareSolverrFetcher } from './sources/fetch/flaresolverr.fetcher';
+import { HealthMonitorService } from '../../shared/services/health-monitor.service';
+import { retryWithBackoff, RetryableError, isRetryableStatus } from '../../shared/utils/retry';
 
 const DEFAULT_1337X_BASE_URL = 'https://www.1377x.to';
+
+// Mirror rotation list
+const MIRROR_URLS = [
+  'https://www.1377x.to',
+  'https://1337x.st',
+  'https://x1337x.ws',
+  'https://x1337x.eu',
+  'https://x1337x.se',
+  'https://1337x.is',
+  'https://1337x.gd',
+].filter(Boolean);
 
 export type MustHaveBook = {
   title: string;
@@ -224,12 +237,20 @@ const scoreListing = (entry: BookTorrentListingCandidate): number => {
 export class AutoLibraryDiscoveryService {
   private readonly flaresolverr = new FlareSolverrFetcher();
   private readonly sourceBaseUrl: string;
+  private readonly healthMonitor: HealthMonitorService;
+  private mirrorIndex = 0;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly logger: Pick<Console, 'info' | 'warn' | 'error'> = console,
   ) {
     this.sourceBaseUrl = (process.env.BOOK_AUTO_LIBRARY_SOURCE_URL || DEFAULT_1337X_BASE_URL).trim().replace(/\/+$/, '');
+    this.healthMonitor = new HealthMonitorService({
+      windowMs: 300000, // 5 minutes
+      failureThreshold: 3,
+      successThreshold: 2,
+      recoveryMs: 600000, // 10 minutes
+    });
   }
 
   async loadMustHaves(): Promise<MustHaveBook[]> {
@@ -501,10 +522,60 @@ export class AutoLibraryDiscoveryService {
   }
 
   private async fetchHtml(url: string, sourceId: string): Promise<string> {
+    const serviceName = '1337x';
+    
+    if (!this.healthMonitor.shouldAttempt(serviceName)) {
+      throw new Error(`1337x is currently unhealthy. Last failure: ${this.healthMonitor.getHealth(serviceName)?.lastChecked}`);
+    }
+
+    return retryWithBackoff(async () => {
+      // Try current mirror
+      const currentMirror = MIRROR_URLS[this.mirrorIndex] || this.sourceBaseUrl;
+      const mirrorUrl = url.replace(this.sourceBaseUrl, currentMirror);
+      
+      try {
+        const result = await this.attemptFetch(mirrorUrl, sourceId);
+        this.healthMonitor.recordSuccess(serviceName);
+        return result;
+      } catch (error) {
+        const status = error instanceof Error && 'status' in error 
+          ? (error as any).status 
+          : null;
+        
+        // Rotate mirror on failure
+        this.mirrorIndex = (this.mirrorIndex + 1) % MIRROR_URLS.length;
+        this.logger.warn(`[AutoLibrary] Mirror ${currentMirror} failed, trying ${MIRROR_URLS[this.mirrorIndex]}`);
+        
+        // Only retry on network errors or specific HTTP status codes
+        if (!status || isRetryableStatus(status)) {
+          throw new RetryableError(`Fetch failed: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error : undefined);
+        }
+        
+        this.healthMonitor.recordFailure(serviceName);
+        throw error;
+      }
+    }, {
+      maxAttempts: 3,
+      baseDelayMs: 2000,
+      maxDelayMs: 10000,
+      onRetry: (attempt, error, delay) => {
+        this.logger.warn(`[AutoLibrary] Retry attempt ${attempt} after ${delay}ms: ${error.message}`);
+      },
+    });
+  }
+
+  private async attemptFetch(url: string, sourceId: string): Promise<string> {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'DNT': '1',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
     };
 
+    // Try FlareSolverr first if available
     if (this.flaresolverr.canHandle()) {
       try {
         const response = await this.flaresolverr.get(url, {
@@ -520,15 +591,33 @@ export class AutoLibraryDiscoveryService {
       }
     }
 
+    // Fallback to direct request
     const response = await axios.get<string>(url, {
       headers,
       timeout: 60_000,
       responseType: 'text',
       validateStatus: () => true,
     });
-    if (response.status < 200 || response.status >= 300 || typeof response.data !== 'string') {
-      throw new Error(`Failed to fetch ${url} (status ${response.status})`);
+    
+    if (response.status < 200 || response.status >= 300) {
+      const error = new Error(`HTTP ${response.status}`) as any;
+      error.status = response.status;
+      throw error;
     }
+    
+    if (typeof response.data !== 'string' || response.data.trim().length === 0) {
+      throw new Error('Empty response');
+    }
+
+    // Check for Cloudflare challenge page
+    if (response.data.includes('cf-browser-verification') || 
+        response.data.includes('challenge-platform') ||
+        response.data.includes('Just a moment...')) {
+      const error = new Error('Cloudflare challenge detected') as any;
+      error.status = 503;
+      throw error;
+    }
+
     return response.data;
   }
 }

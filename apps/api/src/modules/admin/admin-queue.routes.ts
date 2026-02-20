@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
 import { Queue } from "bullmq";
+import axios from 'axios';
 import {
   torrentQueue,
   bookImportQueue,
@@ -7,6 +8,8 @@ import {
   remoteIngestQueue,
   remoteIngestDeadLetterQueue,
 } from "../../shared/services/queue.service";
+import { checkElsciHealth } from "../books/external/elsci/elsci-lightnovels";
+import { HealthMonitorService } from "../../shared/services/health-monitor.service";
 
 interface QueueStats {
   name: string;
@@ -375,6 +378,88 @@ export const adminQueueRoutes = async (
         return reply.status(500).send({
           success: false,
           error: "Failed to remove job",
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/health/external-services - Check health of external services
+  app.get("/health/external-services", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (request, reply) => {
+      try {
+        const results: Record<string, any> = {};
+
+        // Check Elsci health
+        const elsciHealth = await checkElsciHealth();
+        results.elsci = elsciHealth;
+
+        // Check 1337x health (basic connectivity test)
+        const mirrorUrls = [
+          'https://www.1377x.to',
+          'https://1337x.st',
+          'https://x1337x.ws',
+        ];
+
+        results['1337x'] = {
+          mirrors: [] as Array<{ url: string; healthy: boolean; responseTimeMs?: number; error?: string }>,
+        };
+
+        for (const url of mirrorUrls.slice(0, 3)) {
+          const startTime = Date.now();
+          try {
+            const response = await axios.get(url, {
+              timeout: 10000,
+              validateStatus: () => true,
+            });
+            results['1337x'].mirrors.push({
+              url,
+              healthy: response.status >= 200 && response.status < 400,
+              responseTimeMs: Date.now() - startTime,
+            });
+          } catch (error) {
+            results['1337x'].mirrors.push({
+              url,
+              healthy: false,
+              responseTimeMs: Date.now() - startTime,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
+        // Check FlareSolverr status
+        const flaresolverrUrl = (process.env.FLARESOLVERR_URL || '').trim();
+        if (flaresolverrUrl) {
+          const startTime = Date.now();
+          try {
+            const response = await axios.get(`${flaresolverrUrl}/v1`, {
+              timeout: 5000,
+              validateStatus: () => true,
+            });
+            results.flaresolverr = {
+              healthy: response.status >= 200 && response.status < 300,
+              responseTimeMs: Date.now() - startTime,
+            };
+          } catch (error) {
+            results.flaresolverr = {
+              healthy: false,
+              responseTimeMs: Date.now() - startTime,
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+        } else {
+          results.flaresolverr = { healthy: false, message: 'Not configured' };
+        }
+
+        return reply.send({
+          success: true,
+          timestamp: new Date().toISOString(),
+          services: results,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          success: false,
+          error: "Failed to check external service health",
         });
       }
     },

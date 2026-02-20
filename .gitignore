@@ -83,3 +83,6 @@ prisma/migrations/
 # Local reference repos
 kotatsu-parsers/
 Kotatsu/
+
+# Git worktrees
+.worktrees/
