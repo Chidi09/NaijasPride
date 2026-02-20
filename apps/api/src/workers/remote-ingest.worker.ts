@@ -88,6 +88,43 @@ const toPublicUrl = (baseUrl: string, key: string): string => {
 const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+const collectRedisKeys = async (pattern: string): Promise<string[]> => {
+  const keys: string[] = [];
+  let cursor = '0';
+
+  do {
+    const [nextCursor, batch] = await connection.scan(cursor, 'MATCH', pattern, 'COUNT', '200');
+    cursor = nextCursor;
+    if (batch.length > 0) {
+      keys.push(...batch);
+    }
+  } while (cursor !== '0');
+
+  return keys;
+};
+
+const invalidateMovieCaches = async (slug?: string | null): Promise<void> => {
+  try {
+    const keys = new Set<string>();
+
+    const normalizedSlug = (slug || '').trim();
+    if (normalizedSlug) {
+      keys.add(`movie:${normalizedSlug}`);
+    }
+
+    const searchKeys = await collectRedisKeys('search:*');
+    for (const key of searchKeys) {
+      keys.add(key);
+    }
+
+    if (keys.size === 0) return;
+
+    await connection.del(...Array.from(keys));
+  } catch (error) {
+    console.warn(`[RemoteIngestWorker] Failed to invalidate movie cache: ${toErrorMessage(error)}`);
+  }
+};
+
 const runFfmpeg = (args: string[]): Promise<void> => {
   return new Promise((resolve, reject) => {
     const proc = spawn(FFMPEG_PATH, args, {
@@ -313,6 +350,7 @@ const worker = new Worker(
     }
 
     const provider = payload.provider || 'generic';
+    let movieSlug: string | null = null;
 
     console.log(`[RemoteIngestWorker] Starting job ${job.id} for movie ${payload.movieId}`);
 
@@ -320,10 +358,13 @@ const worker = new Worker(
     const mp4Path = path.join(tempDir, 'source.mp4');
 
     try {
-      await prisma.movie.update({
+      const processingMovie = await prisma.movie.update({
         where: { id: payload.movieId },
         data: { status: 'processing' },
+        select: { slug: true },
       });
+      movieSlug = processingMovie.slug;
+      await invalidateMovieCaches(movieSlug);
 
       let streamUrl = payload.sourceStreamUrl;
       let streamReferer = payload.referer;
@@ -398,7 +439,7 @@ const worker = new Worker(
         },
       };
 
-      await prisma.movie.update({
+      const activeMovie = await prisma.movie.update({
         where: { id: payload.movieId },
         data: {
           status: 'active',
@@ -407,15 +448,29 @@ const worker = new Worker(
           fileSizes,
           metadata: mergedMetadata as Prisma.InputJsonValue,
         },
+        select: { slug: true },
       });
+      movieSlug = activeMovie.slug;
+      await invalidateMovieCaches(movieSlug);
 
       console.log(`[RemoteIngestWorker] Job ${job.id} completed for movie ${payload.movieId}`);
     } catch (error) {
       console.error(`[RemoteIngestWorker] Job ${job.id} failed: ${toErrorMessage(error)}`);
-      await prisma.movie.update({
-        where: { id: payload.movieId },
-        data: { status: 'pending' },
-      });
+
+      try {
+        const pendingMovie = await prisma.movie.update({
+          where: { id: payload.movieId },
+          data: { status: 'pending' },
+          select: { slug: true },
+        });
+        movieSlug = pendingMovie.slug;
+        await invalidateMovieCaches(movieSlug);
+      } catch (statusError) {
+        console.error(
+          `[RemoteIngestWorker] Failed to set pending status for movie ${payload.movieId}: ${toErrorMessage(statusError)}`,
+        );
+      }
+
       throw error;
     } finally {
       try {
