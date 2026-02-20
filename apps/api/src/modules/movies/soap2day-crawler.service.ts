@@ -214,8 +214,12 @@ export class Soap2DayCrawlerService {
       await page.setExtraHTTPHeaders({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36',
       });
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.timeoutMs });
-      await page.waitForTimeout(2000);
+      // Use 'load' (not 'domcontentloaded') so redirects fully settle before
+      // calling page.content(). 'domcontentloaded' fires mid-redirect on sites
+      // like soap2day.ac that issue a 302 before landing on the real page.
+      await page.goto(url, { waitUntil: 'load', timeout: this.timeoutMs });
+      // Extra wait for any JS-driven navigation / lazy rendering
+      await page.waitForTimeout(3000);
       return await page.content();
     } finally {
       await browser.close();
