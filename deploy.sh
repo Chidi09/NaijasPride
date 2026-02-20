@@ -82,7 +82,7 @@ services:
   redis-$stack:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis_data_$stack:/data
     healthcheck:
@@ -140,6 +140,21 @@ services:
     environment:
       REDIS_URL: redis://redis-$stack:6379
 
+  remote-ingest-worker-$stack:
+    image: naijaspride-api:$stack
+    restart: unless-stopped
+    command: ["node", "apps/api/dist/workers/remote-ingest.worker.js"]
+    depends_on:
+      redis-$stack:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis-$stack:6379
+      TORRENT_DOWNLOAD_DIR: /tmp/naijaspride/torrent-downloads
+      FFMPEG_PATH: /usr/bin/ffmpeg
+    volumes:
+      - torrent_tmp_$stack:/tmp/naijaspride
+
 volumes:
   redis_data_$stack:
   torrent_tmp_$stack:
@@ -166,7 +181,7 @@ if [ "$ROLLBACK" = true ]; then
   echo "==> Rolling back: $CURRENT → $PREVIOUS"
 
   # Restart previous stack if it's stopped
-  docker compose -f "$(compose_file "$PREVIOUS")" up -d
+  docker compose -f "$(compose_file "$PREVIOUS")" up -d --remove-orphans
 
   if ! health_check "$PREV_PORT"; then
     echo "ERROR: Previous stack ($PREVIOUS) is not healthy. Manual intervention required."
@@ -230,7 +245,7 @@ docker run --rm \
 
 echo ""
 echo "==> Starting $INACTIVE stack"
-docker compose -f "$(compose_file "$INACTIVE")" up -d
+docker compose -f "$(compose_file "$INACTIVE")" up -d --remove-orphans
 
 echo ""
 echo "==> Health checking new stack"
