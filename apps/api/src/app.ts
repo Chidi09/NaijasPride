@@ -356,6 +356,34 @@ const start = async () => {
       );
     }
 
+    // Optional Elsci light novels auto-import scheduler
+    const elsciAutoEnabled = parseBooleanFlag(process.env.ELSCI_AUTO_IMPORT_ENABLED, false);
+    if (elsciAutoEnabled) {
+      const elsciIntervalMs = parsePositiveInt(process.env.ELSCI_AUTO_IMPORT_INTERVAL_MS, 6 * 60 * 60 * 1000);
+      const elsciStartupDelayMs = parsePositiveInt(process.env.ELSCI_AUTO_IMPORT_STARTUP_DELAY_MS, 5 * 60 * 1000);
+
+      const runElsciImport = () => {
+        const q = bookImportQueue.get();
+        if (!q) {
+          app.log.warn('[ElsciScheduler] bookImportQueue not available — Redis may not be configured');
+          return;
+        }
+        q.add(
+          'elsci-lightnovels',
+          { source: 'elsci-lightnovels' },
+          { jobId: `elsci-auto-${Date.now()}`, removeOnComplete: 50, removeOnFail: 20 },
+        ).then(() => {
+          app.log.info('[ElsciScheduler] Enqueued elsci-lightnovels import job');
+        }).catch((err: unknown) => {
+          app.log.error({ err }, '[ElsciScheduler] Failed to enqueue import job');
+        });
+      };
+
+      setInterval(runElsciImport, elsciIntervalMs);
+      setTimeout(runElsciImport, elsciStartupDelayMs);
+      app.log.info({ elsciIntervalMs, elsciStartupDelayMs }, '[ElsciScheduler] Enabled');
+    }
+
     // Optional torrent discovery scheduler (1337x + FlareSolverr).
     const torrentDiscoveryEnabled = parseBooleanFlag(process.env.TORRENT_DISCOVERY_ENABLED, false);
     if (torrentDiscoveryEnabled) {
