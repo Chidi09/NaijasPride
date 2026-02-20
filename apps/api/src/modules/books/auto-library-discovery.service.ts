@@ -417,8 +417,13 @@ export class AutoLibraryDiscoveryService {
       if (matches.length >= maxMatches) break;
 
       try {
-        const listing = await this.search1337xByQuery(`${target.title} ${target.author}`);
+        // Search with "book" appended to bias 1337x results toward book torrents
+        const query = `${target.title} ${target.author} book`;
+        const listing = await this.search1337xByQuery(query);
         this.logger.info(`[AutoLibrary] "${target.title}" — raw results: ${listing.length}`);
+        if (listing.length > 0) {
+          this.logger.info(`[AutoLibrary] "${target.title}" — sample titles: ${listing.slice(0, 5).map(e => `"${e.title}" (video=${e.isLikelyVideo},fmt=${e.format})`).join(' | ')}`);
+        }
 
         const nonAudio = listing.filter((entry) => {
           if (!entry.isAudiobook) return true;
@@ -431,8 +436,6 @@ export class AutoLibraryDiscoveryService {
           if (entry.isLikelyVideo) return false;
           if (entry.format !== 'UNKNOWN') return true;
           // For UNKNOWN format: require a strong title match AND at least one author token.
-          // Using OR was too loose and matched unrelated torrents (e.g. JAV titles containing
-          // common words like "beloved"). Both signals together give much higher precision.
           return hasStrictTitleSignal(entry.title, target.title) && hasAuthorSignal(entry.title, target.author);
         });
         this.logger.info(`[AutoLibrary] "${target.title}" — after book filter: ${likelyBooks.length}`);
