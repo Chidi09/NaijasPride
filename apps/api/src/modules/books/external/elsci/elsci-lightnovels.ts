@@ -1,6 +1,11 @@
 import axios from 'axios';
+import { retryWithBackoff, RetryableError } from '../../../../shared/utils/retry';
 
 export type ElsciRequestedFormat = 'epub' | 'pdf' | 'any';
+
+// Cache for catalog data
+const catalogCache = new Map<string, { items: ElsciCatalogItem[]; timestamp: number }>();
+const CACHE_TTL_MS = 300000; // 5 minutes
 
 export type ElsciCatalogItem = {
   href: string;
@@ -116,6 +121,43 @@ const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   return String(error);
 };
+
+export type ElsciHealthStatus = {
+  healthy: boolean;
+  message: string;
+  lastChecked: Date;
+  responseTimeMs: number;
+};
+
+export async function checkElsciHealth(
+  baseUrl?: string,
+  timeoutMs: number = 10000
+): Promise<ElsciHealthStatus> {
+  const url = normalizeBaseUrl(baseUrl);
+  const startTime = Date.now();
+  
+  try {
+    await axios.get(`${url}/`, {
+      timeout: timeoutMs,
+      headers: DEFAULT_HEADERS,
+      validateStatus: (status) => status >= 200 && status < 500,
+    });
+    
+    return {
+      healthy: true,
+      message: 'Elsci server is accessible',
+      lastChecked: new Date(),
+      responseTimeMs: Date.now() - startTime,
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      message: `Elsci health check failed: ${toErrorMessage(error)}`,
+      lastChecked: new Date(),
+      responseTimeMs: Date.now() - startTime,
+    };
+  }
+}
 
 const parseElsciResponseBody = (rawBody: string): { items?: unknown } => {
   const trimmed = rawBody.trim();
@@ -462,71 +504,85 @@ export const fetchElsciCatalogItems = async (options: {
   baseUrl?: string;
   rootPath?: string;
   timeoutMs?: number;
+  skipCache?: boolean;
 } = {}): Promise<{ baseUrl: string; rootPath: string; items: ElsciCatalogItem[] }> => {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const rootPath = normalizeRootPath(options.rootPath);
+  const cacheKey = `${baseUrl}::${rootPath}`;
+  
+  // Check cache first
+  if (!options.skipCache) {
+    const cached = catalogCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      console.log(`[Elsci] Using cached catalog (${cached.items.length} items)`);
+      return { baseUrl, rootPath, items: cached.items };
+    }
+  }
+
   const timeoutMs =
     Number.isFinite(options.timeoutMs) && (options.timeoutMs as number) > 0
       ? Math.min(options.timeoutMs as number, 120_000)
       : Number.parseInt(process.env.ELSCI_LIGHT_NOVELS_REQUEST_TIMEOUT_MS || `${DEFAULT_TIMEOUT_MS}`, 10) ||
         DEFAULT_TIMEOUT_MS;
 
-  try {
-    const items = await requestElsciCatalogViaDirectPost({
-      baseUrl,
-      rootPath,
-      timeoutMs,
-    });
-
-    return {
-      baseUrl,
-      rootPath,
-      items,
-    };
-  } catch (error) {
-    const statusCode = getAxiosStatusCode(error);
-
-    if (!isAccessChallengeStatus(statusCode)) {
-      throw error;
-    }
-
-    const fallbackErrors: string[] = [];
-
+  const result = await retryWithBackoff(async () => {
     try {
-      const items = await requestElsciCatalogViaCookieRetry({
+      const items = await requestElsciCatalogViaDirectPost({
         baseUrl,
         rootPath,
         timeoutMs,
       });
 
-      return {
-        baseUrl,
-        rootPath,
-        items,
-      };
-    } catch (cookieRetryError) {
-      fallbackErrors.push(`cookie-retry: ${toErrorMessage(cookieRetryError)}`);
+      return { baseUrl, rootPath, items };
+    } catch (error) {
+      const statusCode = getAxiosStatusCode(error);
+
+      if (!isAccessChallengeStatus(statusCode)) {
+        throw error;
+      }
+
+      const fallbackErrors: string[] = [];
+
+      try {
+        const items = await requestElsciCatalogViaCookieRetry({
+          baseUrl,
+          rootPath,
+          timeoutMs,
+        });
+
+        return { baseUrl, rootPath, items };
+      } catch (cookieRetryError) {
+        fallbackErrors.push(`cookie-retry: ${toErrorMessage(cookieRetryError)}`);
+      }
+
+      try {
+        const items = await requestElsciCatalogViaFlareSolverr({
+          baseUrl,
+          rootPath,
+          timeoutMs,
+        });
+
+        return { baseUrl, rootPath, items };
+      } catch (solverError) {
+        fallbackErrors.push(`flaresolverr: ${toErrorMessage(solverError)}`);
+      }
+
+      const detail = fallbackErrors.length > 0 ? ` ${fallbackErrors.join(' | ')}` : '';
+      throw new RetryableError(`Elsci catalog request blocked with status ${statusCode}.${detail}`);
     }
+  }, {
+    maxAttempts: 3,
+    baseDelayMs: 2000,
+    maxDelayMs: 15000,
+    onRetry: (attempt, error) => {
+      console.warn(`[Elsci] Catalog fetch retry ${attempt}: ${error.message}`);
+    },
+  });
 
-    try {
-      const items = await requestElsciCatalogViaFlareSolverr({
-        baseUrl,
-        rootPath,
-        timeoutMs,
-      });
-
-      return {
-        baseUrl,
-        rootPath,
-        items,
-      };
-    } catch (solverError) {
-      fallbackErrors.push(`flaresolverr: ${toErrorMessage(solverError)}`);
-    }
-
-    const detail = fallbackErrors.length > 0 ? ` ${fallbackErrors.join(' | ')}` : '';
-    throw new Error(`Elsci catalog request blocked with status ${statusCode}.${detail}`);
-  }
+  // Cache the result
+  catalogCache.set(cacheKey, { items: result.items, timestamp: Date.now() });
+  
+  return result;
 };
 
 export const discoverElsciLightNovelFiles = async (
@@ -556,7 +612,7 @@ export const discoverElsciLightNovelFiles = async (
 
 export const fetchElsciLightNovelFileStream = async (
   href: string,
-  options: { baseUrl?: string; timeoutMs?: number } = {},
+  options: { baseUrl?: string; timeoutMs?: number; onProgress?: (downloaded: number, total?: number) => void } = {},
 ) => {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const normalizedHref = normalizeFileHref(href);
@@ -567,19 +623,33 @@ export const fetchElsciLightNovelFileStream = async (
         DEFAULT_TIMEOUT_MS;
 
   const url = toAbsoluteUrl(normalizedHref, baseUrl);
-  const response = await axios.get(url, {
-    timeout: timeoutMs,
-    responseType: 'stream',
-    headers: {
-      'user-agent': DEFAULT_HEADERS['user-agent'],
-      accept: '*/*',
-    },
-    validateStatus: (status) => status >= 200 && status < 400,
-  });
+  
+  return retryWithBackoff(async () => {
+    const response = await axios.get(url, {
+      timeout: timeoutMs,
+      responseType: 'stream',
+      headers: {
+        'user-agent': DEFAULT_HEADERS['user-agent'],
+        accept: '*/*',
+      },
+      validateStatus: (status) => status >= 200 && status < 400,
+      onDownloadProgress: (progressEvent) => {
+        options.onProgress?.(progressEvent.loaded, progressEvent.total);
+      },
+    });
 
-  return {
-    stream: response.data as NodeJS.ReadableStream,
-    headers: response.headers as Record<string, string | string[] | undefined>,
-    url,
-  };
+    return {
+      stream: response.data as NodeJS.ReadableStream,
+      headers: response.headers as Record<string, string | string[] | undefined>,
+      url,
+      size: response.headers['content-length'] ? parseInt(response.headers['content-length'], 10) : undefined,
+    };
+  }, {
+    maxAttempts: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 10000,
+    onRetry: (attempt, error) => {
+      console.warn(`[Elsci] File download retry ${attempt} for ${href}: ${error.message}`);
+    },
+  });
 };
