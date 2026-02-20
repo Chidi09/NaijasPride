@@ -51,11 +51,12 @@ export class MetadataService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async fetchAndSaveMetadata(movieId: string, movieTitle: string, year?: number) {
-    const tmdbKey = process.env.TMDB_KEY;
+    // Accept both TMDB_KEY and TMDB_API_KEY so either name works in .env
+    const tmdbKey = process.env.TMDB_KEY || process.env.TMDB_API_KEY;
     const omdbKey = process.env.OMDB_KEY;
 
     if (!tmdbKey) {
-      throw new Error('TMDB_KEY is missing. Set it in your API environment.');
+      throw new Error('TMDB_KEY (or TMDB_API_KEY) is missing. Set it in your API environment.');
     }
 
     const searchParams = new URLSearchParams({

@@ -427,18 +427,21 @@ export const adminQueueRoutes = async (
           }
         }
 
-        // Check FlareSolverr status
+        // Check FlareSolverr status — must use POST /v1 (GET returns 405)
         const flaresolverrUrl = (process.env.FLARESOLVERR_URL || '').trim();
         if (flaresolverrUrl) {
           const startTime = Date.now();
           try {
-            const response = await axios.get(`${flaresolverrUrl}/v1`, {
-              timeout: 5000,
-              validateStatus: () => true,
-            });
+            const response = await axios.post(`${flaresolverrUrl}/v1`,
+              { cmd: 'sessions.list' },
+              { timeout: 8000, validateStatus: () => true },
+            );
+            const ok = response.status >= 200 && response.status < 300 && response.data?.status === 'ok';
             results.flaresolverr = {
-              healthy: response.status >= 200 && response.status < 300,
+              healthy: ok,
               responseTimeMs: Date.now() - startTime,
+              version: response.data?.version,
+              sessions: response.data?.sessions,
             };
           } catch (error) {
             results.flaresolverr = {
