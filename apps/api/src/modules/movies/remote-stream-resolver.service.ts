@@ -32,6 +32,7 @@ export type ResolverOptions = {
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_CAPTURE_WINDOW_MS = 15_000;
+const SOAP2DAY_MAX_IFRAME_HOPS = 4;
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
 
@@ -175,9 +176,81 @@ export class RemoteStreamResolverService {
     try {
       const context = await browser.newContext({ userAgent });
       const page = await context.newPage();
+      const visitedPageUrls = new Set<string>();
+      visitedPageUrls.add(pageUrl);
 
       const candidates: StreamCandidate[] = [];
       const seen = new Set<string>();
+
+      const clickPlaybackSelectors = async (selectors: string[], includeFrames: boolean): Promise<void> => {
+        for (const selector of selectors) {
+          try {
+            const element = page.locator(selector).first();
+            if (await element.count()) {
+              await element.click({ timeout: 1_500, force: true });
+              await page.waitForTimeout(350);
+            }
+          } catch {
+            // Ignore interaction failures and continue trying other selectors.
+          }
+        }
+
+        try {
+          await page.keyboard.press('Space');
+        } catch {
+          // Ignore if keyboard focus/playback trigger fails.
+        }
+
+        if (!includeFrames) return;
+
+        try {
+          const frames = page.frames();
+          for (const frame of frames) {
+            for (const selector of selectors) {
+              try {
+                const candidate = frame.locator(selector).first();
+                if (await candidate.count()) {
+                  await candidate.click({ timeout: 1_000, force: true });
+                  await page.waitForTimeout(250);
+                }
+              } catch {
+                // Ignore per-frame selector failures and continue.
+              }
+            }
+          }
+        } catch {
+          // Ignore iframe interaction failures.
+        }
+      };
+
+      const collectSoap2daySourceUrls = async (): Promise<string[]> => {
+        const urls = await page.evaluate(() => {
+          const collected: string[] = [];
+          const pushIfValid = (value: string | null | undefined) => {
+            if (!value) return;
+            try {
+              const absolute = new URL(value, window.location.href).toString();
+              if (absolute.startsWith('http://') || absolute.startsWith('https://')) {
+                collected.push(absolute);
+              }
+            } catch {
+              // Ignore invalid/unsupported URL values.
+            }
+          };
+
+          document.querySelectorAll('iframe[src]').forEach((frame) => {
+            pushIfValid(frame.getAttribute('src'));
+          });
+
+          document.querySelectorAll('#serverSelect option').forEach((option) => {
+            pushIfValid(option.getAttribute('value'));
+          });
+
+          return Array.from(new Set(collected));
+        });
+
+        return urls;
+      };
 
       page.on('response', async (response) => {
         const url = response.url();
@@ -218,46 +291,36 @@ export class RemoteStreamResolverService {
 
       const playSelectors = provider === 'soap2day' ? SOAP2DAY_PLAY_SELECTORS : PLAY_SELECTORS;
 
-      for (const selector of playSelectors) {
-        try {
-          const element = page.locator(selector).first();
-          if (await element.count()) {
-            await element.click({ timeout: 1_500, force: true });
-            await page.waitForTimeout(350);
-          }
-        } catch {
-          // Ignore interaction failures and continue trying other selectors.
-        }
-      }
-
-      try {
-        await page.keyboard.press('Space');
-      } catch {
-        // Ignore if keyboard focus/playback trigger fails.
-      }
-
-      if (provider === 'soap2day') {
-        try {
-          const frames = page.frames();
-          for (const frame of frames) {
-            for (const selector of SOAP2DAY_PLAY_SELECTORS) {
-              const candidate = frame.locator(selector).first();
-              if (await candidate.count()) {
-                await candidate.click({ timeout: 1_000, force: true });
-                await page.waitForTimeout(250);
-              }
-            }
-          }
-        } catch {
-          // Ignore iframe interaction failures.
-        }
-      }
+      await clickPlaybackSelectors(playSelectors, provider === 'soap2day');
 
       await page.waitForTimeout(captureWindowMs);
 
-      const winner = pickBestStreamCandidate(candidates, allowedHosts);
+      let winner = pickBestStreamCandidate(candidates, allowedHosts);
+
+      if (!winner && provider === 'soap2day') {
+        const iframeSources = await collectSoap2daySourceUrls();
+        const hopTimeoutMs = Math.min(timeoutMs, 30_000);
+
+        for (const sourceUrl of iframeSources.slice(0, SOAP2DAY_MAX_IFRAME_HOPS)) {
+          if (visitedPageUrls.has(sourceUrl)) continue;
+          visitedPageUrls.add(sourceUrl);
+
+          try {
+            await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: hopTimeoutMs });
+            await clickPlaybackSelectors(PLAY_SELECTORS, true);
+            await page.waitForTimeout(Math.min(captureWindowMs, 10_000));
+            winner = pickBestStreamCandidate(candidates, allowedHosts);
+            if (winner) break;
+          } catch {
+            // Ignore source navigation failures and continue trying alternatives.
+          }
+        }
+      }
+
       if (!winner) {
-        throw new Error('No playable stream URL was detected from page network requests');
+        throw new Error(
+          `No playable stream URL was detected from page network requests (candidates=${candidates.length})`
+        );
       }
 
       const hostAllowed = !allowedHosts.length || allowedHosts.includes(winner.host.toLowerCase());

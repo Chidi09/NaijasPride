@@ -67,6 +67,14 @@ const buildElsciCatalogRequestBody = (rootPath: string) => ({
   },
 });
 
+const buildElsciCatalogFormBody = (rootPath: string): string => {
+  const params = new URLSearchParams();
+  params.set('action', 'get');
+  params.set('items[href]', rootPath);
+  params.set('items[what]', String(H5AI_CATALOG_WHAT));
+  return params.toString();
+};
+
 const buildElsciRequestHeaders = (baseUrl: string, cookieHeader?: string): Record<string, string> => {
   const headers: Record<string, string> = {
     ...DEFAULT_HEADERS,
@@ -107,6 +115,31 @@ const isAccessChallengeStatus = (status: number | null): boolean => {
 const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   return String(error);
+};
+
+const parseElsciResponseBody = (rawBody: string): { items?: unknown } => {
+  const trimmed = rawBody.trim();
+  if (!trimmed) {
+    throw new Error('Elsci response body was empty');
+  }
+
+  try {
+    return JSON.parse(trimmed) as { items?: unknown };
+  } catch {
+    const firstBraceIndex = trimmed.indexOf('{');
+    const lastBraceIndex = trimmed.lastIndexOf('}');
+    if (firstBraceIndex >= 0 && lastBraceIndex > firstBraceIndex) {
+      const candidate = trimmed.slice(firstBraceIndex, lastBraceIndex + 1);
+      try {
+        return JSON.parse(candidate) as { items?: unknown };
+      } catch {
+        // Fall through to detailed error below.
+      }
+    }
+
+    const preview = trimmed.slice(0, 160).replace(/\s+/g, ' ');
+    throw new Error(`Elsci response was not valid JSON (preview: ${preview})`);
+  }
 };
 
 const cleanWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
@@ -225,6 +258,29 @@ const requestElsciCatalogViaDirectPost = async (options: {
   return parseCatalogItems(response.data?.items);
 };
 
+const requestElsciCatalogViaDirectFormPost = async (options: {
+  baseUrl: string;
+  rootPath: string;
+  timeoutMs: number;
+  cookieHeader?: string;
+}): Promise<ElsciCatalogItem[]> => {
+  const response = await axios.post(
+    `${options.baseUrl}/?`,
+    buildElsciCatalogFormBody(options.rootPath),
+    {
+      timeout: options.timeoutMs,
+      headers: {
+        ...buildElsciRequestHeaders(options.baseUrl, options.cookieHeader),
+        'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      },
+      responseType: 'json',
+      validateStatus: (status) => status >= 200 && status < 400,
+    },
+  );
+
+  return parseCatalogItems(response.data?.items);
+};
+
 const requestElsciCatalogViaCookieRetry = async (options: {
   baseUrl: string;
   rootPath: string;
@@ -247,12 +303,21 @@ const requestElsciCatalogViaCookieRetry = async (options: {
     throw new Error('Elsci preflight did not provide a session cookie');
   }
 
-  return requestElsciCatalogViaDirectPost({
-    baseUrl: options.baseUrl,
-    rootPath: options.rootPath,
-    timeoutMs: options.timeoutMs,
-    cookieHeader,
-  });
+  try {
+    return await requestElsciCatalogViaDirectPost({
+      baseUrl: options.baseUrl,
+      rootPath: options.rootPath,
+      timeoutMs: options.timeoutMs,
+      cookieHeader,
+    });
+  } catch {
+    return requestElsciCatalogViaDirectFormPost({
+      baseUrl: options.baseUrl,
+      rootPath: options.rootPath,
+      timeoutMs: options.timeoutMs,
+      cookieHeader,
+    });
+  }
 };
 
 const requestElsciCatalogViaFlareSolverr = async (options: {
@@ -272,8 +337,7 @@ const requestElsciCatalogViaFlareSolverr = async (options: {
       session: ELSCI_FLARESOLVERR_SESSION,
       maxTimeout: options.timeoutMs,
       url: `${options.baseUrl}/?`,
-      postData: JSON.stringify(buildElsciCatalogRequestBody(options.rootPath)),
-      headers: buildElsciRequestHeaders(options.baseUrl),
+      postData: buildElsciCatalogFormBody(options.rootPath),
     },
     {
       timeout: Math.max(65_000, options.timeoutMs + 5_000),
@@ -291,12 +355,7 @@ const requestElsciCatalogViaFlareSolverr = async (options: {
     throw new Error(`FlareSolverr returned non-success HTTP status ${status ?? 'unknown'}`);
   }
 
-  let parsedBody: { items?: unknown };
-  try {
-    parsedBody = JSON.parse(data.solution.response || '{}') as { items?: unknown };
-  } catch {
-    throw new Error('FlareSolverr response was not valid JSON');
-  }
+  const parsedBody = parseElsciResponseBody(data.solution.response || '');
 
   return parseCatalogItems(parsedBody.items);
 };

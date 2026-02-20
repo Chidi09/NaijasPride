@@ -323,12 +323,20 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
       timeoutMs?: number;
     };
 
-    const result = await remoteResolver.resolveFromPage(body.pageUrl, {
-      provider: body.provider,
-      timeoutMs: body.timeoutMs,
-    });
+    try {
+      const result = await remoteResolver.resolveFromPage(body.pageUrl, {
+        provider: body.provider,
+        timeoutMs: body.timeoutMs,
+      });
 
-    return reply.send({ success: true, data: result });
+      return reply.send({ success: true, data: result });
+    } catch (error) {
+      return reply.status(422).send({
+        success: false,
+        code: 'STREAM_RESOLVE_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to resolve playable stream URL',
+      });
+    }
   });
 
   // POST /api/movies/remote/ingest - create movie and queue remote ingest job (Admin only)

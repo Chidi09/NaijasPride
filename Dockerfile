@@ -56,6 +56,8 @@ RUN cp -r apps/api/src/modules/wrapped/templates apps/api/dist/modules/wrapped/t
 # - ffmpeg from Debian repos is more stable for HLS transcoding
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV HOME=/home/appuser
 
 # System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -73,7 +75,9 @@ COPY --from=installer --chown=appuser:nodejs /app .
 
 # Install Playwright Chromium + system deps (must run as root)
 RUN npx playwright install chromium --with-deps \
- && rm -rf /tmp/* /root/.cache
+ && mkdir -p /home/appuser \
+ && chown -R appuser:nodejs /home/appuser "$PLAYWRIGHT_BROWSERS_PATH" \
+ && rm -rf /root/.cache
 
 # Temp dir for torrent downloads
 RUN mkdir -p /tmp/naijaspride/torrent-downloads \
