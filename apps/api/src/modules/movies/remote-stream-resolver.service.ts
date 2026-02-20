@@ -1,4 +1,13 @@
 import { chromium } from 'playwright';
+import { retryWithBackoff, RetryableError } from '../../shared/utils/retry';
+
+// Proxy configuration for rotation
+const PROXY_URLS = (process.env.REMOTE_INGEST_PROXY_URLS || '')
+  .split(',')
+  .map(url => url.trim())
+  .filter(Boolean);
+
+let proxyIndex = 0;
 
 export type RemoteProvider = 'generic' | 'soap2day';
 
@@ -139,6 +148,10 @@ export const pickBestStreamCandidate = (
 export class RemoteStreamResolverService {
   private readonly defaultAllowedHosts: string[];
   private readonly soap2dayAllowedMirrors: string[];
+  private consecutiveFailures = 0;
+  private lastSuccessTime = Date.now();
+  private readonly failureThreshold = 5;
+  private readonly cooldownMs = 300000; // 5 minutes
 
   constructor() {
     this.defaultAllowedHosts = normalizeAllowedHosts(
@@ -153,7 +166,62 @@ export class RemoteStreamResolverService {
     );
   }
 
+  private isInCooldown(): boolean {
+    if (this.consecutiveFailures < this.failureThreshold) return false;
+    return Date.now() - this.lastSuccessTime < this.cooldownMs;
+  }
+
+  private recordSuccess(): void {
+    this.consecutiveFailures = 0;
+    this.lastSuccessTime = Date.now();
+  }
+
+  private recordFailure(): void {
+    this.consecutiveFailures++;
+  }
+
+  private async launchBrowserWithRetry(): Promise<any> {
+    return retryWithBackoff(async () => {
+      const args: string[] = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--window-size=1920,1080',
+      ];
+
+      // Rotate through proxies if available
+      if (PROXY_URLS.length > 0) {
+        const proxy = PROXY_URLS[proxyIndex % PROXY_URLS.length];
+        args.push(`--proxy-server=${proxy}`);
+        proxyIndex++;
+      }
+
+      try {
+        const browser = await chromium.launch({ 
+          headless: true,
+          args,
+        });
+        return browser;
+      } catch (error) {
+        throw new RetryableError(`Failed to launch browser: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }, {
+      maxAttempts: 3,
+      baseDelayMs: 2000,
+      maxDelayMs: 10000,
+      onRetry: (attempt, error, delay) => {
+        console.warn(`[RemoteStream] Browser launch retry ${attempt} after ${delay}ms: ${error.message}`);
+      },
+    });
+  }
+
   async resolveFromPage(pageUrl: string, options: ResolverOptions = {}): Promise<ResolveStreamResult> {
+    if (this.isInCooldown()) {
+      throw new Error('Stream resolver is in cooldown due to consecutive failures. Please try again later.');
+    }
+
     const provider = options.provider || 'generic';
     const timeoutMs =
       Number.isFinite(options.timeoutMs) && (options.timeoutMs as number) > 0
@@ -164,6 +232,9 @@ export class RemoteStreamResolverService {
         ? Math.max(3_000, options.captureWindowMs as number)
         : DEFAULT_CAPTURE_WINDOW_MS;
     const userAgent = options.userAgent || DEFAULT_USER_AGENT;
+    const maxIframeHops = provider === 'soap2day' 
+      ? parseInt(process.env.SOAP2DAY_MAX_IFRAME_HOPS || `${SOAP2DAY_MAX_IFRAME_HOPS}`, 10)
+      : 0;
 
     const providerHosts = provider === 'soap2day' ? this.soap2dayAllowedMirrors : [];
     const allowedHosts = normalizeAllowedHosts([
@@ -172,7 +243,13 @@ export class RemoteStreamResolverService {
       ...(options.allowedHosts || []),
     ]);
 
-    const browser = await chromium.launch({ headless: true });
+    let browser: any;
+    try {
+      browser = await this.launchBrowserWithRetry();
+    } catch (error) {
+      this.recordFailure();
+      throw new Error(`Failed to initialize browser: ${error instanceof Error ? error.message : String(error)}`);
+    }
     try {
       const context = await browser.newContext({ userAgent });
       const page = await context.newPage();
@@ -252,7 +329,7 @@ export class RemoteStreamResolverService {
         return urls;
       };
 
-      page.on('response', async (response) => {
+      page.on('response', async (response: any) => {
         const url = response.url();
         const status = response.status();
         const headers = response.headers();
@@ -327,6 +404,7 @@ export class RemoteStreamResolverService {
 
       await context.close();
 
+      this.recordSuccess();
       return {
         provider,
         pageUrl,
@@ -337,6 +415,9 @@ export class RemoteStreamResolverService {
         hostAllowed,
         candidates,
       };
+    } catch (error) {
+      this.recordFailure();
+      throw error;
     } finally {
       await browser.close();
     }
