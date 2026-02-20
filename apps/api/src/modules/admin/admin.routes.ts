@@ -912,6 +912,30 @@ export const adminRoutes = async (
     },
   });
 
+  // POST /api/admin/movies/soap2day/crawl - Manually trigger Soap2Day crawler
+  app.post('/movies/soap2day/crawl', {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: z.object({
+        maxPerRun: z.number().int().min(1).max(10).optional().default(5),
+      }),
+    },
+    handler: async (request, reply) => {
+      try {
+        const { maxPerRun } = request.body as { maxPerRun: number };
+        const { Soap2DayCrawlerService } = await import('../movies/soap2day-crawler.service');
+        const crawler = new Soap2DayCrawlerService(app.prisma, console, { maxPerRun });
+        const summary = await crawler.crawl();
+        return reply.send({ status: 'success', data: summary });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Soap2Day crawl failed',
+        });
+      }
+    },
+  });
+
   // Register queue management routes
   await app.register(adminQueueRoutes, { prefix: '' });
 

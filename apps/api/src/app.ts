@@ -440,6 +440,28 @@ const start = async () => {
       );
     }
 
+    // Optional Soap2Day crawler scheduler
+    const soap2dayCrawlerEnabled = parseBooleanFlag(process.env.SOAP2DAY_CRAWLER_ENABLED, false);
+    if (soap2dayCrawlerEnabled) {
+      const soap2dayIntervalMs = parsePositiveInt(process.env.SOAP2DAY_CRAWLER_INTERVAL_MS, 12 * 60 * 60 * 1000);
+      const soap2dayStartupDelayMs = parsePositiveInt(process.env.SOAP2DAY_CRAWLER_STARTUP_DELAY_MS, 10 * 60 * 1000);
+
+      const { Soap2DayCrawlerService } = await import('./modules/movies/soap2day-crawler.service');
+      const soap2dayCrawler = new Soap2DayCrawlerService(app.prisma, console, {
+        maxPerRun: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_MAX_PER_RUN, 5),
+      });
+
+      const runSoap2DayCrawl = () => {
+        soap2dayCrawler.crawl()
+          .then(summary => app.log.info({ summary }, '[Soap2DayCrawler] Scheduled run complete'))
+          .catch(err => app.log.error({ err }, '[Soap2DayCrawler] Scheduled run failed'));
+      };
+
+      setInterval(runSoap2DayCrawl, soap2dayIntervalMs);
+      setTimeout(runSoap2DayCrawl, soap2dayStartupDelayMs);
+      app.log.info({ soap2dayIntervalMs, soap2dayStartupDelayMs }, '[Soap2DayCrawler] Scheduler enabled');
+    }
+
     // New-chapter checker: poll manga sources for new chapters every hour
     const newChapterIntervalMs = parseInt(process.env.NEW_CHAPTER_CHECK_INTERVAL_MS || '3600000', 10);
     const mangaService = new MangaService(app.prisma);
