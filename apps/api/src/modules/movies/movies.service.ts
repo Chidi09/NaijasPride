@@ -2,6 +2,7 @@ import { Prisma, PrismaClient, Genre as PrismaGenre, Quality as PrismaQuality } 
 import { 
   ContentStatus,
   Genre,
+  Quality,
   MovieSearchParams, 
   CreateMovieRequest, 
   Movie, 
@@ -30,7 +31,7 @@ export class MoviesService {
         ...data,
         slug: this.generateSlug(data.title, data.year),
         genre: data.genre as unknown as PrismaGenre[],
-        quality: data.quality as unknown as PrismaQuality[],
+        quality: this.toPrismaQualities(data.quality as unknown as string[]),
         fileUrls: data.fileUrls as Prisma.InputJsonValue,
         fileSizes: (data.fileSizes ?? {}) as Prisma.InputJsonValue,
         metadata: (data.metadata ?? {}) as Prisma.InputJsonValue,
@@ -179,7 +180,7 @@ export class MoviesService {
       }),
       ...(year && { year }),
       ...(genre && { genre: { hasSome: genre as unknown as PrismaGenre[] } }),
-      ...(quality && { quality: { has: quality as unknown as PrismaQuality } }),
+      ...(quality && { quality: { has: this.toPrismaQuality(quality as unknown as string) } }),
       ...(typeof isStreamOnly === 'boolean' && { isStreamOnly }),
     };
 
@@ -233,7 +234,13 @@ export class MoviesService {
 
     // 2. Notify subscribers when movie goes active (any quality)
     if (newStatus === 'active') {
-      await this.sendAvailableNotifications(movieId, movie.title, movie.slug, quality, movie.thumbnailUrl ?? undefined);
+      await this.sendAvailableNotifications(
+        movieId,
+        movie.title,
+        movie.slug,
+        this.fromPrismaQuality(quality),
+        movie.thumbnailUrl ?? undefined,
+      );
       // Also notify genre fans of new content
       this.sendNewContentNotifications(
         movieId,
@@ -401,6 +408,45 @@ export class MoviesService {
     }
   }
 
+  private toPrismaQualities(values: string[]): PrismaQuality[] {
+    return [...new Set(values.map((value) => this.toPrismaQuality(value)))];
+  }
+
+  private toPrismaQuality(value: string): PrismaQuality {
+    const normalized = value.trim();
+    switch (normalized) {
+      case '480p':
+      case PrismaQuality.Q480p:
+        return PrismaQuality.Q480p;
+      case '720p':
+      case PrismaQuality.Q720p:
+        return PrismaQuality.Q720p;
+      case '1080p':
+      case PrismaQuality.Q1080p:
+        return PrismaQuality.Q1080p;
+      case '4K':
+      case PrismaQuality.Q4K:
+        return PrismaQuality.Q4K;
+      default:
+        throw new Error(`Unsupported quality value: ${value}`);
+    }
+  }
+
+  private fromPrismaQuality(value: PrismaQuality): Quality {
+    switch (value) {
+      case PrismaQuality.Q480p:
+        return Quality.Q480p;
+      case PrismaQuality.Q720p:
+        return Quality.Q720p;
+      case PrismaQuality.Q1080p:
+        return Quality.Q1080p;
+      case PrismaQuality.Q4K:
+        return Quality.Q4K;
+      default:
+        throw new Error(`Unsupported Prisma quality value: ${value}`);
+    }
+  }
+
   private mapToMovie(raw: {
     id: string;
     title: string;
@@ -446,7 +492,7 @@ export class MoviesService {
     const mapped = {
       ...raw,
       genre: raw.genre as unknown as Genre[],
-      quality: raw.quality as unknown as Movie['quality'],
+      quality: raw.quality.map((value) => this.fromPrismaQuality(value)) as Movie['quality'],
       fileUrls: raw.fileUrls as Record<string, string>,
       fileSizes: raw.fileSizes as Record<string, number>,
       status: raw.status as ContentStatus,
@@ -489,7 +535,7 @@ export class MoviesService {
       slug: raw.slug,
       year: raw.year,
       genre: raw.genre as unknown as Genre[],
-      quality: raw.quality as unknown as MovieSummary['quality'],
+      quality: raw.quality.map((value) => this.fromPrismaQuality(value)) as MovieSummary['quality'],
       rating: raw.rating,
       thumbnailUrl: bestThumb,
       downloadCount: raw.downloadCount,

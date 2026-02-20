@@ -9,6 +9,22 @@ export const musicRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
   const service = new MusicService(fastify.prisma);
 
+  const normalizeGenreToken = (value: string): string =>
+    value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const genreQueryIndex = new Map<string, MusicGenre>(
+    Object.values(MusicGenre).map((genre) => [normalizeGenreToken(genre), genre]),
+  );
+
+  genreQueryIndex.set(normalizeGenreToken('R&B'), MusicGenre.RAndB);
+  genreQueryIndex.set(normalizeGenreToken('R and B'), MusicGenre.RAndB);
+  genreQueryIndex.set(normalizeGenreToken('RnB'), MusicGenre.RAndB);
+
+  const parseGenreQuery = (rawGenre?: string): MusicGenre | undefined => {
+    if (!rawGenre) return undefined;
+    return genreQueryIndex.get(normalizeGenreToken(rawGenre));
+  };
+
   const resolveOptionalUserId = (authHeader?: string): string | undefined => {
     if (!authHeader?.startsWith('Bearer ')) return undefined;
 
@@ -40,7 +56,7 @@ export const musicRoutes: FastifyPluginAsync = async (fastify) => {
     schema: {
       querystring: z.object({
         q: z.string().trim().optional(),
-        genre: z.nativeEnum(MusicGenre).optional(),
+        genre: z.string().trim().optional(),
         region: z.nativeEnum(MusicRegion).optional(),
         artist: z.string().trim().optional(),
         page: z.coerce.number().int().min(1).default(1),
@@ -48,7 +64,22 @@ export const musicRoutes: FastifyPluginAsync = async (fastify) => {
       }),
     },
   }, async (req, reply) => {
-    const result = await service.search(req.query);
+    const genre = parseGenreQuery(req.query.genre);
+    if (req.query.genre && !genre) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_QUERY', message: 'Invalid genre filter' },
+      });
+    }
+
+    const result = await service.search({
+      q: req.query.q,
+      genre,
+      region: req.query.region,
+      artist: req.query.artist,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
     return reply.send({ success: true, ...result });
   });
 

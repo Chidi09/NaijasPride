@@ -32,6 +32,7 @@ import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
 import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import { YouTubeMusicService } from "./modules/music/youtube-music.service";
+import { TorrentDiscoveryService } from "./modules/movies/torrent-discovery.service";
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
@@ -85,6 +86,16 @@ const parseCookies = (cookieHeader?: string) => {
 
 const readHeaderToken = (header: string | string[] | undefined) =>
   typeof header === "string" ? header : header?.[0];
+
+const parseBooleanFlag = (value: string | undefined, defaultValue: boolean): boolean => {
+  if (typeof value !== "string") return defaultValue;
+  return !["0", "false", "no", "off"].includes(value.trim().toLowerCase());
+};
+
+const parsePositiveInt = (value: string | undefined, fallback: number): number => {
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 
 const isCookieAuthenticatedRequest = (cookies: Record<string, string>) =>
   COOKIE_AUTH_NAMES.some((cookieName) => !!cookies[cookieName]);
@@ -302,6 +313,62 @@ const start = async () => {
             app.log.error({ error }, '[MusicBootstrap] Failed');
           });
       }, 20_000);
+    }
+
+    // Optional torrent discovery scheduler (1337x + FlareSolverr).
+    const torrentDiscoveryEnabled = parseBooleanFlag(process.env.TORRENT_DISCOVERY_ENABLED, false);
+    if (torrentDiscoveryEnabled) {
+      const torrentDiscoveryIntervalMs = parsePositiveInt(
+        process.env.TORRENT_DISCOVERY_INTERVAL_MS,
+        24 * 60 * 60 * 1000,
+      );
+      const torrentDiscoveryStartupDelayMs = parsePositiveInt(
+        process.env.TORRENT_DISCOVERY_STARTUP_DELAY_MS,
+        2 * 60 * 1000,
+      );
+
+      const torrentDiscoveryService = new TorrentDiscoveryService(
+        app.prisma,
+        console,
+        {
+          sourceUrl: process.env.TORRENT_SOURCE_URL,
+          maxItemsPerRun: parsePositiveInt(process.env.TORRENT_DISCOVERY_MAX_ITEMS, 8),
+          requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
+          requestTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_REQUEST_TIMEOUT_MS, 60_000),
+          dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
+          failureThreshold: parsePositiveInt(process.env.TORRENT_DISCOVERY_FAILURE_THRESHOLD, 5),
+          recoveryTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_RECOVERY_MS, 300_000),
+        },
+      );
+
+      const runTorrentDiscovery = () => {
+        torrentDiscoveryService
+          .discoverAndIngest()
+          .then((summary) => {
+            if (summary.skippedRunReason) {
+              app.log.warn({ summary }, '[TorrentDiscovery] Run skipped');
+              return;
+            }
+            app.log.info({ summary }, '[TorrentDiscovery] Run completed');
+          })
+          .catch((error) => {
+            app.log.error({ error }, '[TorrentDiscovery] Run failed');
+          });
+      };
+
+      setInterval(runTorrentDiscovery, torrentDiscoveryIntervalMs);
+      setTimeout(runTorrentDiscovery, torrentDiscoveryStartupDelayMs);
+
+      app.log.info(
+        {
+          intervalMs: torrentDiscoveryIntervalMs,
+          startupDelayMs: torrentDiscoveryStartupDelayMs,
+          sourceUrl: process.env.TORRENT_SOURCE_URL || 'https://www.1377x.to/popular-movies-week',
+          requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
+          dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
+        },
+        '[TorrentDiscovery] Scheduler enabled',
+      );
     }
 
     // New-chapter checker: poll manga sources for new chapters every hour

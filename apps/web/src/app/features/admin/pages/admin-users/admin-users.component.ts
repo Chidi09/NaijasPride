@@ -122,7 +122,7 @@ interface UserStats {
                 </tr>
               </thead>
               <tbody class="divide-y divide-[#2d1a21]">
-                @for (user of users(); track user.id) {
+                @for (user of users; track user.id) {
                   <tr class="hover:bg-[#1a1116] transition-colors">
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-3">
@@ -143,7 +143,7 @@ interface UserStats {
                         [value]="user.role"
                         (change)="updateRole(user.id, $event)"
                         class="bg-[#0f0f11] border border-[#2d1a21] rounded px-2 py-1 text-sm text-white focus:border-cinema-500 focus:outline-none"
-                        [disabled]="updatingUser() === user.id"
+                        [disabled]="updatingUser === user.id"
                       >
                         <option value="USER">User</option>
                         <option value="ADMIN">Admin</option>
@@ -180,7 +180,7 @@ interface UserStats {
                     <td class="px-4 py-3 text-right">
                       <button
                         (click)="togglePremium(user)"
-                        [disabled]="updatingUser() === user.id"
+                        [disabled]="updatingUser === user.id"
                         class="text-xs px-2 py-1 rounded mr-2 transition-colors"
                         [class.bg-cinema-500]="!user.isPremium"
                         [class.text-white]="!user.isPremium"
@@ -193,7 +193,7 @@ interface UserStats {
                       </button>
                       <button
                         (click)="deleteUser(user.id)"
-                        [disabled]="updatingUser() === user.id"
+                        [disabled]="updatingUser === user.id"
                         class="text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 px-2 py-1 rounded transition-colors"
                       >
                         Delete
@@ -206,7 +206,7 @@ interface UserStats {
           </div>
 
           <!-- Pagination -->
-          @if (meta(); as m) {
+          @if (meta; as m) {
             <div class="flex items-center justify-between px-4 py-3 border-t border-[#2d1a21]">
               <p class="text-sm text-[#9f7d73]">
                 Showing {{ (m.page - 1) * m.limit + 1 }} - {{ Math.min(m.page * m.limit, m.total) }} of {{ m.total }}
@@ -214,14 +214,14 @@ interface UserStats {
               <div class="flex gap-2">
                 <button
                   (click)="goToPage(m.page - 1)"
-                  [disabled]="!m.hasPrev || loading()"
+                  [disabled]="!m.hasPrev || loading"
                   class="px-3 py-1 text-sm bg-[#0f0f11] border border-[#2d1a21] rounded text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#1a1116]"
                 >
                   Previous
                 </button>
                 <button
                   (click)="goToPage(m.page + 1)"
-                  [disabled]="!m.hasNext || loading()"
+                  [disabled]="!m.hasNext || loading"
                   class="px-3 py-1 text-sm bg-[#0f0f11] border border-[#2d1a21] rounded text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#1a1116]"
                 >
                   Next
