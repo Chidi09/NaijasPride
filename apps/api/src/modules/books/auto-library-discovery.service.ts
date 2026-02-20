@@ -144,7 +144,9 @@ const isLikelyVideoRelease = (title: string): boolean => {
   return (
     /\b(2160p|1080p|720p|480p|x264|x265|h264|h265|webrip|web[- ]dl|bluray|brrip|hdrip|dvdrip|hdtv|ac3|aac|ddp|10bit|hevc|cam|ts)\b/i.test(lower) ||
     lower.includes(' yts ') ||
-    lower.includes(' xvid ')
+    lower.includes(' xvid ') ||
+    // JAV / AV release codes: e.g. MIAA-030, SSIS-123, IPX-456, PRED-789
+    /\b[a-z]{2,5}-\d{3,5}\b/i.test(title)
   );
 };
 
@@ -167,6 +169,16 @@ const hasTitleSignal = (candidateTitle: string, targetTitle: string): boolean =>
   if (!targetTokens.length) return false;
   const overlap = targetTokens.filter((token) => candidateTokens.has(token));
   return overlap.length >= Math.max(1, Math.floor(targetTokens.length / 2));
+};
+
+// Stricter title match for UNKNOWN-format torrents: requires majority of
+// longer tokens (≥5 chars) to appear in the candidate title.
+const hasStrictTitleSignal = (candidateTitle: string, targetTitle: string): boolean => {
+  const candidateTokens = new Set(splitTokens(candidateTitle));
+  const targetTokens = splitTokens(targetTitle).filter((token) => token.length >= 5);
+  if (!targetTokens.length) return hasTitleSignal(candidateTitle, targetTitle);
+  const overlap = targetTokens.filter((token) => candidateTokens.has(token));
+  return overlap.length >= Math.ceil(targetTokens.length * 0.6); // 60% of long tokens must match
 };
 
 export const parse1337xBookListingHtml = (
@@ -418,8 +430,10 @@ export class AutoLibraryDiscoveryService {
         const likelyBooks = nonAudio.filter((entry) => {
           if (entry.isLikelyVideo) return false;
           if (entry.format !== 'UNKNOWN') return true;
-          // For UNKNOWN format: accept if title OR author matches (not both required)
-          return hasTitleSignal(entry.title, target.title) || hasAuthorSignal(entry.title, target.author);
+          // For UNKNOWN format: require a strong title match AND at least one author token.
+          // Using OR was too loose and matched unrelated torrents (e.g. JAV titles containing
+          // common words like "beloved"). Both signals together give much higher precision.
+          return hasStrictTitleSignal(entry.title, target.title) && hasAuthorSignal(entry.title, target.author);
         });
         this.logger.info(`[AutoLibrary] "${target.title}" — after book filter: ${likelyBooks.length}`);
 
