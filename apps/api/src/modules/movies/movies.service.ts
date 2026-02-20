@@ -61,10 +61,20 @@ export class MoviesService {
 
     // 1. Check Redis
     if (redis) {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        console.log(`[Cache HIT] ${cacheKey}`);
-        return JSON.parse(cached);
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached) as Movie;
+            console.log(`[Cache HIT] ${cacheKey}`);
+            return parsed;
+          } catch {
+            await redis.del(cacheKey);
+            console.warn(`[Cache INVALID] ${cacheKey} (bad JSON)`);
+          }
+        }
+      } catch (error) {
+        console.warn(`[Cache READ ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
       }
     }
 
@@ -113,8 +123,12 @@ export class MoviesService {
       const mapped = this.mapToMovie(movie);
       // 5. Save to Redis (Infinite TTL, until we manually invalidate)
       if (redis) {
-        await redis.set(cacheKey, JSON.stringify(mapped));
-        console.log(`[Cache SET] ${cacheKey}`);
+        try {
+          await redis.set(cacheKey, JSON.stringify(mapped));
+          console.log(`[Cache SET] ${cacheKey}`);
+        } catch (error) {
+          console.warn(`[Cache WRITE ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
+        }
       }
       return mapped;
     }
@@ -163,10 +177,20 @@ export class MoviesService {
 
     // Check cache first
     if (redis) {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        console.log(`[Cache HIT] ${cacheKey}`);
-        return JSON.parse(cached);
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached) as { data: MovieSummary[]; meta: PaginationMeta };
+            console.log(`[Cache HIT] ${cacheKey}`);
+            return parsed;
+          } catch {
+            await redis.del(cacheKey);
+            console.warn(`[Cache INVALID] ${cacheKey} (bad JSON)`);
+          }
+        }
+      } catch (error) {
+        console.warn(`[Cache READ ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
       }
     }
 
@@ -208,8 +232,12 @@ export class MoviesService {
 
     // Cache for 1 hour
     if (redis) {
-      await redis.setex(cacheKey, 3600, JSON.stringify(result));
-      console.log(`[Cache SET] ${cacheKey} (TTL: 1h)`);
+      try {
+        await redis.setex(cacheKey, 3600, JSON.stringify(result));
+        console.log(`[Cache SET] ${cacheKey} (TTL: 1h)`);
+      } catch (error) {
+        console.warn(`[Cache WRITE ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
+      }
     }
     
     return result;
@@ -377,10 +405,17 @@ export class MoviesService {
   private async invalidateSearchCache(): Promise<void> {
     const redis = getRedis();
     if (!redis) return;
-    const searchKeys = await redis.keys('search:*');
-    if (searchKeys.length > 0) {
-      await redis.del(...searchKeys);
-      console.log(`[Cache INVALIDATED] ${searchKeys.length} search keys cleared`);
+    try {
+      const searchKeys = await redis.keys('search:*');
+      if (searchKeys.length > 0) {
+        await redis.del(...searchKeys);
+        console.log(`[Cache INVALIDATED] ${searchKeys.length} search keys cleared`);
+      }
+    } catch (error) {
+      console.warn(
+        '[Cache INVALIDATE ERROR] Failed to clear movie search cache:',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 

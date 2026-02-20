@@ -18,7 +18,7 @@ import {
   type ElsciRequestedFormat,
 } from './external/elsci/elsci-lightnovels';
 import { importElsciLightNovelsCatalog } from './external/elsci/importer';
-import { bookImportQueue } from '../../shared/services/queue.service';
+import { QueueService, bookImportQueue } from '../../shared/services/queue.service';
 import { getPushService } from '../../shared/services/push-notification.service';
 
 const createBookSchema = z.object({
@@ -269,6 +269,7 @@ export const bookRoutes = async (
   const booksService = new BooksService(app.prisma);
   const mangaService = new MangaService(app.prisma);
   const storageService = new StorageService();
+  const queueService = new QueueService();
 
   // Lightweight helpers for streaming external files.
   const inferContentTypeFromFilename = (filename: string | null): string | null => {
@@ -1977,6 +1978,17 @@ export const bookRoutes = async (
           ...basePayload,
           genre: normalizedGenre,
         });
+
+        if (!book.coverUrl && book.status !== 'deleted') {
+          queueService
+            .addBookCoverJob({
+              bookId: book.id,
+              reason: 'manual-create',
+            })
+            .catch((error) => {
+              app.log.error({ error, bookId: book.id }, '[BookCover] Failed to queue manual cover extraction');
+            });
+        }
 
         app.prisma.pushNotificationToken
           .findMany({

@@ -3,6 +3,7 @@ import { Queue } from "bullmq";
 import {
   torrentQueue,
   bookImportQueue,
+  bookCoverQueue,
   remoteIngestQueue,
   remoteIngestDeadLetterQueue,
 } from "../../shared/services/queue.service";
@@ -78,6 +79,27 @@ export const adminQueueRoutes = async (
           });
         }
 
+        const bookCoverQ = bookCoverQueue.get();
+        if (bookCoverQ) {
+          const [waiting, active, completed, failed, delayed] = await Promise.all([
+            bookCoverQ.getWaitingCount(),
+            bookCoverQ.getActiveCount(),
+            bookCoverQ.getCompletedCount(),
+            bookCoverQ.getFailedCount(),
+            bookCoverQ.getDelayedCount(),
+          ]);
+
+          queues.push({
+            name: "book-cover-processing",
+            waiting,
+            active,
+            completed,
+            failed,
+            delayed,
+            paused: await bookCoverQ.isPaused(),
+          });
+        }
+
         const remoteQ = remoteIngestQueue.get();
         if (remoteQ) {
           const [waiting, active, completed, failed, delayed] = await Promise.all([
@@ -125,7 +147,7 @@ export const adminQueueRoutes = async (
           data: queues,
           meta: {
             totalQueues: queues.length,
-            hasRedis: !!torrentQ || !!bookQ || !!remoteQ || !!remoteDlq,
+            hasRedis: !!torrentQ || !!bookQ || !!bookCoverQ || !!remoteQ || !!remoteDlq,
           },
         });
       } catch (error) {
@@ -154,6 +176,8 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "book-cover-processing") {
+          queue = bookCoverQueue.get();
         } else if (name === "remote-ingest-processing") {
           queue = remoteIngestQueue.get();
         } else if (name === "remote-ingest-dead-letter") {
@@ -234,6 +258,8 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "book-cover-processing") {
+          queue = bookCoverQueue.get();
         } else if (name === "remote-ingest-processing") {
           queue = remoteIngestQueue.get();
         } else if (name === "remote-ingest-dead-letter") {
@@ -274,6 +300,8 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "book-cover-processing") {
+          queue = bookCoverQueue.get();
         } else if (name === "remote-ingest-processing") {
           queue = remoteIngestQueue.get();
         } else if (name === "remote-ingest-dead-letter") {
@@ -314,6 +342,8 @@ export const adminQueueRoutes = async (
           queue = torrentQueue.get();
         } else if (name === "book-import") {
           queue = bookImportQueue.get();
+        } else if (name === "book-cover-processing") {
+          queue = bookCoverQueue.get();
         } else if (name === "remote-ingest-processing") {
           queue = remoteIngestQueue.get();
         } else if (name === "remote-ingest-dead-letter") {

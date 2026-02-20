@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 import { importEpubBooksCatalog, type EpubBooksImportOptions, type EpubBooksImportSort } from '../modules/books/external/epubbooks/importer';
@@ -36,6 +36,8 @@ if (!REDIS_URL) {
 const connection = new IORedis(REDIS_URL, {
   maxRetriesPerRequest: null,
 });
+
+const coverQueue = new Queue('book-cover-processing', { connection });
 
 const prisma = new PrismaClient();
 
@@ -78,6 +80,65 @@ const buildSafeReturnValue = (result: any) => {
   };
 };
 
+const enqueueBookCoverJobsBySlugs = async (slugs: string[]): Promise<number> => {
+  const uniqueSlugs = Array.from(new Set(slugs.map((value) => value.trim()).filter(Boolean)));
+  if (uniqueSlugs.length === 0) return 0;
+
+  const books = await prisma.book.findMany({
+    where: {
+      slug: { in: uniqueSlugs },
+      status: 'active',
+      OR: [{ coverUrl: null }, { coverUrl: '' }],
+    },
+    select: { id: true, slug: true },
+  });
+
+  if (books.length === 0) return 0;
+
+  const attemptsRaw = Number.parseInt(process.env.BOOK_COVER_JOB_ATTEMPTS || '3', 10);
+  const attempts = Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.min(attemptsRaw, 8) : 3;
+  const backoffMsRaw = Number.parseInt(process.env.BOOK_COVER_JOB_BACKOFF_MS || '30000', 10);
+  const backoffMs = Number.isFinite(backoffMsRaw) && backoffMsRaw > 0 ? Math.min(backoffMsRaw, 10 * 60 * 1000) : 30_000;
+
+  let enqueued = 0;
+  for (const book of books) {
+    try {
+      await coverQueue.add('extract-book-cover', {
+        bookId: book.id,
+        reason: 'book-import',
+        timestamp: Date.now(),
+      }, {
+        jobId: `book-cover:${book.id}`,
+        removeOnComplete: true,
+        removeOnFail: false,
+        attempts,
+        backoff: {
+          type: 'exponential',
+          delay: backoffMs,
+        },
+      });
+      enqueued++;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/job.+exists/i.test(message)) {
+        continue;
+      }
+      console.error(`[BookImportWorker] Failed to enqueue cover job for ${book.slug}: ${message}`);
+    }
+  }
+
+  return enqueued;
+};
+
+const extractSuccessfulSlugs = (result: any): string[] => {
+  if (!result || typeof result !== 'object') return [];
+  const rows: Array<{ ok?: boolean; slug?: unknown }> = Array.isArray(result.results) ? result.results : [];
+  return rows
+    .filter((entry) => entry && entry.ok === true)
+    .map((entry) => String(entry.slug || '').trim())
+    .filter(Boolean);
+};
+
 const worker = new Worker(
   'book-import',
   async (job) => {
@@ -111,6 +172,14 @@ const worker = new Worker(
         dryRun,
       });
 
+      if (!dryRun) {
+        const slugs = extractSuccessfulSlugs(result);
+        const queued = await enqueueBookCoverJobsBySlugs(slugs);
+        if (queued > 0) {
+          console.log(`[BookImportWorker] Queued ${queued} book cover jobs (elsci-lightnovels)`);
+        }
+      }
+
       return buildSafeReturnValue(result);
     }
 
@@ -129,6 +198,12 @@ const worker = new Worker(
         concurrency,
         dryRun: false,
       });
+
+      const autoSlugs = extractSuccessfulSlugs(result);
+      const autoQueued = await enqueueBookCoverJobsBySlugs(autoSlugs);
+      if (autoQueued > 0) {
+        console.log(`[BookImportWorker] Queued ${autoQueued} book cover jobs (epubbooks auto)`);
+      }
 
       // If we hit a blank page, assume end of catalog and reset.
       const nextPage = result.discovered > 0 ? currentPage + 1 : 1;
@@ -162,6 +237,14 @@ const worker = new Worker(
       dryRun,
     });
 
+    if (!dryRun) {
+      const slugs = extractSuccessfulSlugs(result);
+      const queued = await enqueueBookCoverJobsBySlugs(slugs);
+      if (queued > 0) {
+        console.log(`[BookImportWorker] Queued ${queued} book cover jobs (epubbooks manual)`);
+      }
+    }
+
     return buildSafeReturnValue(result);
   },
   {
@@ -181,6 +264,11 @@ worker.on('failed', (job, err) => {
 const shutdown = async () => {
   try {
     await worker.close();
+  } catch {
+    // ignore
+  }
+  try {
+    await coverQueue.close();
   } catch {
     // ignore
   }

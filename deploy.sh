@@ -140,6 +140,21 @@ services:
     environment:
       REDIS_URL: redis://redis-$stack:6379
 
+  book-cover-worker-$stack:
+    image: naijaspride-api:$stack
+    restart: unless-stopped
+    command: ["node", "apps/api/dist/workers/book-cover.worker.js"]
+    depends_on:
+      redis-$stack:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis-$stack:6379
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      FLARESOLVERR_URL: http://flaresolverr-$stack:8191
+    volumes:
+      - torrent_tmp_$stack:/tmp/naijaspride
+
   remote-ingest-worker-$stack:
     image: naijaspride-api:$stack
     restart: unless-stopped

@@ -123,6 +123,25 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
 
+  # ── Book Cover Worker ──────────────────────────────────────────────────────
+  # BullMQ consumer: extracts EPUB/PDF covers and uploads to R2
+  book-cover-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["node", "apps/api/dist/workers/book-cover.worker.js"]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      FLARESOLVERR_URL: http://flaresolverr:8191
+    volumes:
+      - torrent_tmp:/tmp/naijaspride
+
 volumes:
   redis_data:
   torrent_tmp:

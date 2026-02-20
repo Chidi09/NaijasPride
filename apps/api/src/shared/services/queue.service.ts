@@ -28,6 +28,7 @@ const getQueue = (name: string): Queue | null => {
 
 export const torrentQueue = { get: () => getQueue('torrent-processing') };
 export const bookImportQueue = { get: () => getQueue('book-import') };
+export const bookCoverQueue = { get: () => getQueue('book-cover-processing') };
 export const remoteIngestQueue = { get: () => getQueue('remote-ingest-processing') };
 export const remoteIngestDeadLetterQueue = { get: () => getQueue('remote-ingest-dead-letter') };
 
@@ -38,6 +39,12 @@ export type RemoteIngestJobPayload = {
   provider?: 'generic' | 'soap2day';
   referer?: string;
   headers?: Record<string, string>;
+};
+
+export type BookCoverJobPayload = {
+  bookId: string;
+  force?: boolean;
+  reason?: string;
 };
 
 export class QueueService {
@@ -66,6 +73,49 @@ export class QueueService {
       removeOnFail: false,
     });
     console.log(`[Queue] Added book import job`);
+  }
+
+  async addBookCoverJob(payload: BookCoverJobPayload) {
+    const queue = bookCoverQueue.get();
+    if (!queue) {
+      console.warn('[Queue] REDIS_URL not set — skipping book cover job');
+      return;
+    }
+
+    if (!payload.bookId || !payload.bookId.trim()) {
+      throw new Error('bookId is required for book cover extraction job');
+    }
+
+    const attemptsRaw = Number.parseInt(process.env.BOOK_COVER_JOB_ATTEMPTS || '3', 10);
+    const attempts = Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.min(attemptsRaw, 8) : 3;
+    const backoffMsRaw = Number.parseInt(process.env.BOOK_COVER_JOB_BACKOFF_MS || '30000', 10);
+    const backoffMs = Number.isFinite(backoffMsRaw) && backoffMsRaw > 0 ? Math.min(backoffMsRaw, 10 * 60 * 1000) : 30_000;
+
+    const jobId = `book-cover:${payload.bookId.trim()}`;
+
+    try {
+      await queue.add('extract-book-cover', {
+        ...payload,
+        bookId: payload.bookId.trim(),
+        timestamp: Date.now(),
+      }, {
+        jobId,
+        removeOnComplete: true,
+        removeOnFail: false,
+        attempts,
+        backoff: {
+          type: 'exponential',
+          delay: backoffMs,
+        },
+      });
+      console.log(`[Queue] Added book cover job for book ${payload.bookId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/job.+exists/i.test(message)) {
+        return;
+      }
+      throw error;
+    }
   }
 
   async addRemoteIngestJob(payload: RemoteIngestJobPayload) {

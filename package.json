@@ -20,6 +20,7 @@
     "db:generate": "cd apps/api && npx prisma generate",
     "db:push": "cd apps/api && npx prisma db push",
     "db:seed": "cd apps/api && npx ts-node ../../tools/scripts/seed-plans.ts",
+    "book-covers:backfill": "cd apps/api && npx ts-node --transpile-only ../../tools/scripts/backfill-book-covers.ts",
     "extract:kotatsu-sources": "node tools/scripts/extract-kotatsu-sources.mjs",
     "extract:kotatsu-sources:en": "node tools/scripts/extract-kotatsu-sources.mjs --locale en --exclude-broken --format env",
     "extract:kotatsu-sources:en:manga": "node tools/scripts/extract-kotatsu-sources.mjs --families madara,mangareader,mmrcms,wpcomics --locale en --content-types manga --exclude-broken --dedupe-base-url --format env --split-dir tools/generated/en-manga --out tools/generated/en-manga/index.json",
