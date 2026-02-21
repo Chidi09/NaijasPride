@@ -44,9 +44,10 @@ RUN npm run build --workspace @naijaspride/utils || true
 # Build API: runs prisma generate (prebuild) then tsc + tsc-alias
 RUN npm run build --workspace api
 
-# Copy non-TS assets (Handlebars templates, etc.) into dist/ so they're
+# Copy non-TS assets (Handlebars templates, MJML templates, etc.) into dist/ so they're
 # available at runtime via __dirname-relative paths
 RUN cp -r apps/api/src/modules/wrapped/templates apps/api/dist/modules/wrapped/templates
+RUN cp -r apps/api/src/shared/email-templates apps/api/dist/shared/email-templates
 
 # ---------------------------------------------------------------------------
 # Stage 3: Runner — production image
