@@ -25,7 +25,7 @@ RUN cp tsconfig.base.json out/full/tsconfig.base.json
 # ---------------------------------------------------------------------------
 # Stage 2: Install + Build — all TypeScript compiled here
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS installer
+FROM node:20-bookworm-slim AS installer
 WORKDIR /app
 
 # Copy pruned package manifests + lockfile (layer cached)
