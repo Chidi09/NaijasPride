@@ -154,7 +154,7 @@ interface FeaturedResponse {
         </div>
       }
 
-      <!-- Trending Now -->
+      <!-- Trending Now — Netflix-style wide landscape cards -->
       @if (trendingDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
@@ -164,12 +164,35 @@ interface FeaturedResponse {
             </div>
             <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
-          
+
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of trendingDownload(); track movie.id) {
-              <div class="w-[200px] md:w-[280px] flex-shrink-0">
-                <app-movie-card [movie]="movie" />
-              </div>
+            @for (movie of trendingDownload(); track movie.id; let i = $index) {
+              <a [routerLink]="['/movies', movie.slug]" class="flex-shrink-0 w-[300px] md:w-[400px] group/card relative rounded-sm overflow-hidden block">
+                <!-- Landscape thumbnail (16:9) -->
+                <div class="aspect-video w-full relative overflow-hidden bg-[var(--movies-surface)]">
+                  <img
+                    [src]="movie.backdropUrl || movie.thumbnailUrl || movie.coverUrl || ''"
+                    [alt]="movie.title"
+                    class="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                    referrerpolicy="no-referrer"
+                  />
+                  <!-- Rank number -->
+                  <div class="absolute bottom-0 left-0 text-[100px] font-black text-white/10 select-none pointer-events-none leading-none" style="font-family: serif; margin-left: -6px; margin-bottom: -12px">{{ i + 1 }}</div>
+                  <!-- Gradient overlay -->
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div>
+                  <!-- Quality badge -->
+                  @if (movie.quality?.[0]) {
+                    <div class="absolute top-2 right-2">
+                      <span class="bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wider">{{ movie.quality[0] }}</span>
+                    </div>
+                  }
+                </div>
+                <!-- Info bar -->
+                <div class="bg-[var(--movies-surface)] px-3 py-2.5">
+                  <p class="text-[var(--movies-text)] text-sm font-semibold truncate">{{ movie.title }}</p>
+                  <p class="text-[var(--movies-text-muted)] text-xs mt-0.5 sans-text">{{ movie.year }}@if (movie.genre?.[0]) { &middot; {{ movie.genre[0] }}}</p>
+                </div>
+              </a>
             }
           </div>
         </div>

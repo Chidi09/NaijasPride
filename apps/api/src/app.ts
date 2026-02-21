@@ -33,6 +33,7 @@ import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
 import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import { YouTubeMusicService } from "./modules/music/youtube-music.service";
+import { YouTubeStatsSyncService } from "./modules/music/youtube-stats-sync.service";
 import { TorrentDiscoveryService } from "./modules/movies/torrent-discovery.service";
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
@@ -295,6 +296,21 @@ const start = async () => {
     musicChannelService.monitorAll().catch((error) => {
       app.log.error({ error }, "Initial YouTube music channel monitor run failed");
     });
+
+    // Sync YouTube public stats (views + likes) for all music videos — daily.
+    const ytStatsSyncService = new YouTubeStatsSyncService(app.prisma, app.log);
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    setInterval(() => {
+      ytStatsSyncService.syncAll().catch((error) => {
+        app.log.error({ error }, '[YTStatsSync] Daily sync failed');
+      });
+    }, oneDayMs);
+    // First run 30 minutes after startup so we don't hammer the API at boot
+    setTimeout(() => {
+      ytStatsSyncService.syncAll().catch((error) => {
+        app.log.error({ error }, '[YTStatsSync] Initial sync failed');
+      });
+    }, 30 * 60 * 1000);
 
     // Optional bootstrap: auto-import from top Nigerian artists/labels when
     // the catalog is still empty or too small. This removes manual admin setup

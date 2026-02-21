@@ -248,6 +248,13 @@ generate_compose blue
 generate_compose green
 
 echo ""
+echo "==> Removing stale image from previous cycle (naijaspride-api:$INACTIVE)"
+# The $INACTIVE stack has been stopped since last deploy. Its image is now
+# two cycles old — we're about to overwrite it anyway, so remove it first
+# to reclaim disk space before the new build.
+docker rmi "naijaspride-api:$INACTIVE" 2>/dev/null && echo "    Removed old naijaspride-api:$INACTIVE" || echo "    No stale image to remove"
+
+echo ""
 echo "==> Building image: naijaspride-api:$INACTIVE"
 docker build -t "naijaspride-api:$INACTIVE" .
 
@@ -281,8 +288,14 @@ echo "$INACTIVE" > "$STATE_FILE"
 echo ""
 echo "==> Stopping old stack ($ACTIVE)"
 docker compose -f "$(compose_file "$ACTIVE")" stop || true
+# naijaspride-api:$ACTIVE image is intentionally kept — it's needed for
+# rollback. It will be removed at the start of the NEXT deploy cycle.
 
-docker tag "naijaspride-api:$INACTIVE" "naijaspride-api:latest"
+echo ""
+echo "==> Pruning build cache and dangling images"
+# Build cache grows ~2-5 GB per deploy. Always safe to prune here because
+# the final image layers are already written to disk in the new image.
+docker builder prune -f
 docker image prune -f
 
 echo ""

@@ -27,6 +27,8 @@ export interface MusicVideo {
   playCount: number;
   likeCount: number;
   weeklyPlays: number;
+  ytViewCount: number;
+  ytLikeCount: number;
 
   status: ContentStatus;
   createdAt: string;
@@ -57,6 +59,8 @@ export interface MusicVideoSummary {
   playCount: number;
   likeCount: number;
   weeklyPlays: number;
+  ytViewCount: number;
+  ytLikeCount: number;
   isLiked?: boolean;
 }
 

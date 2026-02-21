@@ -41,6 +41,8 @@ const MUSIC_VIDEO_SELECT = {
   playCount: true,
   likeCount: true,
   weeklyPlays: true,
+  ytViewCount: true,
+  ytLikeCount: true,
   publishedAt: true,
 } as const;
 
@@ -64,6 +66,8 @@ type MusicVideoRow = {
   playCount: number;
   likeCount: number;
   weeklyPlays: number;
+  ytViewCount: number;
+  ytLikeCount: number;
   publishedAt: Date | null;
 };
 

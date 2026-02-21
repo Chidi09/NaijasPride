@@ -86,9 +86,23 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
                       <span class="text-[var(--music-text-muted)]">&middot;</span>
                       <span class="text-[var(--music-text-muted)] text-sm">{{ video()!.year }}</span>
                     </div>
-                    <div class="flex items-center gap-4 mt-2 text-sm text-[var(--music-text-muted)]">
+                    <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-[var(--music-text-muted)]">
                       <span>{{ formatCount(video()!.viewCount) }} views</span>
                       <span>{{ formatCount(video()!.playCount) }} plays</span>
+                      @if (video()!.ytViewCount > 0) {
+                        <span class="flex items-center gap-1 text-red-400">
+                          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M23.495 6.205a3.007 3.007 0 0 0-2.088-2.088c-1.87-.501-9.396-.501-9.396-.501s-7.507-.01-9.396.501A3.007 3.007 0 0 0 .527 6.205a31.247 31.247 0 0 0-.522 5.805 31.247 31.247 0 0 0 .522 5.783 3.007 3.007 0 0 0 2.088 2.088c1.868.502 9.396.502 9.396.502s7.506 0 9.396-.502a3.007 3.007 0 0 0 2.088-2.088 31.247 31.247 0 0 0 .5-5.783 31.247 31.247 0 0 0-.5-5.805zM9.609 15.601V8.408l6.264 3.602z"/>
+                          </svg>
+                          {{ formatCount(video()!.ytViewCount) }} YT views
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                          </svg>
+                          {{ formatCount(video()!.ytLikeCount) }} YT likes
+                        </span>
+                      }
                       @if (!video()!.isOfficial) {
                         <span class="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full text-xs">Fan Upload</span>
                       }

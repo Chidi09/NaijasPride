@@ -522,6 +522,11 @@ model MusicVideo {
   likeCount       Int           @default(0)       // Cached from MusicLike count
   weeklyPlays     Int           @default(0)       // Reset weekly for trending
 
+  // Cached YouTube public stats (synced daily via YouTubeStatsSyncService)
+  ytViewCount     Int           @default(0)       // YouTube view count
+  ytLikeCount     Int           @default(0)       // YouTube like count
+  ytStatsUpdatedAt DateTime?                      // Last YouTube stats sync timestamp
+
   status          ContentStatus @default(active)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
