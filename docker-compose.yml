@@ -124,7 +124,7 @@ services:
       REDIS_URL: redis://redis:6379
 
   # ── Elsci Mirror Worker ─────────────────────────────────────────────────────
-  # BullMQ consumer: solves Cloudflare challenge and mirrors Elsci files to R2
+  # BullMQ consumer: uses Playwright to solve Cloudflare and mirror Elsci files to R2
   elsci-mirror-worker:
     build:
       context: .
@@ -137,7 +137,7 @@ services:
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379
-      FLARESOLVERR_URL: http://flaresolverr:8191
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
 
   # ── Book Cover Worker ──────────────────────────────────────────────────────
   # BullMQ consumer: extracts EPUB/PDF covers and uploads to R2

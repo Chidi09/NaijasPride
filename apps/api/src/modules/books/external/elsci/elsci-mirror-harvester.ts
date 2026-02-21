@@ -1,32 +1,28 @@
 /**
  * Elsci Mirror Harvester
  *
- * Uses FlareSolverr to solve the Cloudflare challenge once, then reuses
- * the `cf_clearance` cookie + matching user-agent to batch-download
- * Elsci light novel files and upload them to R2 storage.
+ * Uses Playwright (Chromium) to solve Cloudflare challenges natively,
+ * then downloads Elsci light novel files from *within* the browser
+ * context using `page.evaluate(fetch(...))` — which inherits the solved
+ * TLS fingerprint + cookies automatically. The binary file data is
+ * returned as a base64 string, decoded in Node, and uploaded to R2.
  *
  * Flow:
- *   1. Solve challenge via FlareSolverr → get cf_clearance + user-agent
- *   2. Query DB for unmirrored Elsci books
- *   3. Download each file using solved cookies
- *   4. Upload to R2 under `books/elsci/<slug>.<ext>`
- *   5. Update DB downloadUrl to local path
- *
- * If the cookie expires mid-batch (403), re-solve and continue.
+ *   1. Launch headless Chromium via Playwright
+ *   2. Navigate to Elsci root → Cloudflare challenge auto-solves
+ *   3. Query DB for unmirrored Elsci books
+ *   4. For each book: use in-browser `fetch()` to download → base64 → Node
+ *   5. Upload to R2 under `books/elsci/<slug>.<ext>`
+ *   6. Update DB downloadUrl to local path
+ *   7. Close browser
  */
 
-import axios from 'axios';
+import { chromium, type Browser, type Page } from 'playwright';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import type { PrismaClient } from '@prisma/client';
 import { StorageService } from '../../../../shared/services/storage.service';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-type SolvedSession = {
-  cookieHeader: string;
-  userAgent: string;
-  solvedAt: number;
-};
 
 export type MirrorResult = {
   attempted: number;
@@ -49,10 +45,8 @@ export type MirrorOptions = {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULT_ELSCI_BASE_URL = 'https://server.elsci.one';
-const DEFAULT_FLARESOLVERR_URL = 'http://flaresolverr:8191';
-const FLARESOLVERR_SESSION = 'np-elsci-mirror';
-const CHALLENGE_STATUS_CODES = new Set([403, 429, 503, 520, 521, 522, 523]);
 const MAX_FILE_SIZE_BYTES = 80 * 1024 * 1024; // 80 MB
+const CHALLENGE_WAIT_MS = 12_000; // time to let Cloudflare JS challenge complete
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,111 +56,129 @@ const getBaseUrl = (): string =>
   (process.env.ELSCI_LIGHT_NOVELS_BASE_URL || DEFAULT_ELSCI_BASE_URL).trim().replace(/\/+$/, '') ||
   DEFAULT_ELSCI_BASE_URL;
 
-const getFlaresolverrUrl = (): string =>
-  (process.env.FLARESOLVERR_URL || DEFAULT_FLARESOLVERR_URL).trim().replace(/\/+$/, '') ||
-  DEFAULT_FLARESOLVERR_URL;
-
-const isChallenge = (status: number | null | undefined): boolean =>
-  typeof status === 'number' && CHALLENGE_STATUS_CODES.has(status);
-
 /**
- * Solve the Cloudflare challenge via FlareSolverr and return cookies.
+ * Launch a headless Chromium browser suitable for solving Cloudflare.
  */
-const solveChallenge = async (baseUrl: string, timeoutMs = 60_000): Promise<SolvedSession> => {
-  const flareUrl = getFlaresolverrUrl();
-
-  // Destroy any stale session first, then create fresh
-  try {
-    await axios.post(
-      `${flareUrl}/v1`,
-      { cmd: 'sessions.destroy', session: FLARESOLVERR_SESSION },
-      { timeout: 10_000, validateStatus: () => true },
-    );
-  } catch {
-    // ignore — session may not exist
-  }
-
-  await sleep(500);
-
-  // Create a fresh session and navigate to the Elsci root
-  const response = await axios.post(
-    `${flareUrl}/v1`,
-    {
-      cmd: 'request.get',
-      session: FLARESOLVERR_SESSION,
-      url: `${baseUrl}/`,
-      maxTimeout: timeoutMs,
-    },
-    {
-      timeout: Math.max(65_000, timeoutMs + 10_000),
-      validateStatus: () => true,
-    },
-  );
-
-  const data = response.data;
-  if (!data || data.status !== 'ok' || !data.solution) {
-    throw new Error(`FlareSolverr challenge solve failed: ${data?.message || 'unknown error'}`);
-  }
-
-  const cookies: Array<{ name?: string; value?: string }> = data.solution.cookies || [];
-  const cfClearance = cookies.find((c) => c.name === 'cf_clearance');
-  const phpSession = cookies.find((c) => c.name === 'PHPSESSID');
-
-  if (!cfClearance?.value) {
-    throw new Error('FlareSolverr solved but no cf_clearance cookie returned');
-  }
-
-  const parts: string[] = [];
-  if (cfClearance?.value) parts.push(`cf_clearance=${cfClearance.value}`);
-  if (phpSession?.value) parts.push(`PHPSESSID=${phpSession.value}`);
-
-  // Also include any other cookies that might be relevant
-  for (const c of cookies) {
-    if (c.name && c.value && c.name !== 'cf_clearance' && c.name !== 'PHPSESSID') {
-      parts.push(`${c.name}=${c.value}`);
-    }
-  }
-
-  const userAgent =
-    typeof data.solution.userAgent === 'string' && data.solution.userAgent.length > 10
-      ? data.solution.userAgent
-      : 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
-
-  return {
-    cookieHeader: parts.join('; '),
-    userAgent,
-    solvedAt: Date.now(),
-  };
+const launchBrowser = async (): Promise<Browser> => {
+  return chromium.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-blink-features=AutomationControlled',
+    ],
+  });
 };
 
 /**
- * Download a single file from Elsci using solved cookies.
- * Returns the file buffer on success, or throws on failure.
+ * Navigate to Elsci and wait for any Cloudflare challenge to resolve.
+ * Returns the page (which now has valid cookies / fingerprint).
  */
-const downloadFile = async (
+const solveChallenge = async (page: Page, baseUrl: string): Promise<void> => {
+  console.log(`[ElsciMirror] Navigating to ${baseUrl}/ to solve challenge...`);
+
+  await page.goto(`${baseUrl}/`, { waitUntil: 'load', timeout: 60_000 });
+  // Give Cloudflare JS challenge time to complete
+  await page.waitForTimeout(CHALLENGE_WAIT_MS);
+
+  // Check if we landed on the real page (h5ai) or are still on a challenge page
+  const title = await page.title();
+  const url = page.url();
+  console.log(`[ElsciMirror] After challenge wait — title: "${title}", url: ${url}`);
+
+  // If still on a challenge page, wait a bit more
+  if (title.toLowerCase().includes('checking') || title.toLowerCase().includes('just a moment')) {
+    console.log('[ElsciMirror] Still on challenge page, waiting another 15s...');
+    await page.waitForTimeout(15_000);
+    const title2 = await page.title();
+    console.log(`[ElsciMirror] After extra wait — title: "${title2}"`);
+  }
+};
+
+/**
+ * Download a file using the browser's fetch() API.
+ *
+ * This runs inside the Chromium browser context, so it inherits the TLS
+ * fingerprint and all cookies that passed Cloudflare. The file is read as
+ * an ArrayBuffer, converted to base64, and returned to Node.
+ *
+ * For files > ~30 MB, we chunk the base64 conversion to avoid V8 stack
+ * overflow on btoa() with very large strings.
+ */
+const downloadFileViaBrowser = async (
+  page: Page,
   fileUrl: string,
-  session: SolvedSession,
-  options: { timeoutMs: number; maxBytes: number },
-): Promise<{ buffer: Buffer; contentType: string | null }> => {
-  const response = await axios.get(fileUrl, {
-    timeout: options.timeoutMs,
-    responseType: 'arraybuffer',
-    maxContentLength: options.maxBytes,
-    maxBodyLength: options.maxBytes,
-    headers: {
-      'user-agent': session.userAgent,
-      accept: '*/*',
-      'accept-language': 'en-US,en;q=0.9',
-      referer: `${getBaseUrl()}/`,
-      origin: getBaseUrl(),
-      cookie: session.cookieHeader,
+  maxBytes: number,
+  timeoutMs: number,
+): Promise<{ base64: string; size: number; contentType: string }> => {
+  const result = await page.evaluate(
+    async ({ url, maxSize, timeout }) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+
+      try {
+        const resp = await fetch(url, {
+          signal: controller.signal,
+          credentials: 'include',
+          redirect: 'follow',
+        });
+
+        if (!resp.ok) {
+          return { error: `HTTP ${resp.status} ${resp.statusText}`, status: resp.status };
+        }
+
+        const contentType = resp.headers.get('content-type') || 'application/octet-stream';
+        const contentLength = parseInt(resp.headers.get('content-length') || '0', 10);
+
+        if (contentLength > maxSize) {
+          return { error: `File too large: ${contentLength} bytes (max ${maxSize})`, status: 200 };
+        }
+
+        const arrayBuffer = await resp.arrayBuffer();
+
+        if (arrayBuffer.byteLength > maxSize) {
+          return { error: `File too large: ${arrayBuffer.byteLength} bytes (max ${maxSize})`, status: 200 };
+        }
+
+        // Convert to base64 in chunks to avoid stack overflow
+        const bytes = new Uint8Array(arrayBuffer);
+        const CHUNK = 32768;
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          const slice = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
+          binary += String.fromCharCode(...slice);
+        }
+        const b64 = btoa(binary);
+
+        return {
+          base64: b64,
+          size: arrayBuffer.byteLength,
+          contentType,
+          error: null,
+          status: resp.status,
+        };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { error: msg, status: 0 };
+      } finally {
+        clearTimeout(timer);
+      }
     },
-    validateStatus: (status) => status >= 200 && status < 400,
-  });
+    { url: fileUrl, maxSize: maxBytes, timeout: timeoutMs },
+  );
+
+  if (result.error) {
+    const err = new Error(result.error) as Error & { status?: number };
+    err.status = result.status ?? 0;
+    throw err;
+  }
 
   return {
-    buffer: Buffer.from(response.data),
-    contentType: typeof response.headers['content-type'] === 'string' ? response.headers['content-type'] : null,
+    base64: (result as { base64: string }).base64,
+    size: (result as { size: number }).size,
+    contentType: (result as { contentType: string }).contentType,
   };
 };
 
@@ -191,7 +203,8 @@ const uploadToR2 = async (key: string, body: Buffer, contentType: string): Promi
  *
  * Queries DB for Elsci books whose downloadUrl still points to the
  * external proxy endpoint (`/api/v1/books/external/elsci/file?href=`),
- * solves Cloudflare once, then batch-downloads and uploads to R2.
+ * launches Playwright to solve Cloudflare, then uses in-browser fetch
+ * to download files and upload them to R2.
  */
 export const runElsciMirrorHarvester = async (
   prisma: PrismaClient,
@@ -201,7 +214,7 @@ export const runElsciMirrorHarvester = async (
   const maxReAuth = options.maxReAuthAttempts ?? 3;
   const perFileTimeoutMs = options.perFileTimeoutMs ?? 120_000;
   const maxFileSizeBytes = options.maxFileSizeBytes ?? MAX_FILE_SIZE_BYTES;
-  const delayMs = options.delayBetweenDownloadsMs ?? 2_000;
+  const delayMs = options.delayBetweenDownloadsMs ?? 3_000;
   const dryRun = options.dryRun ?? false;
   const baseUrl = getBaseUrl();
 
@@ -239,7 +252,7 @@ export const runElsciMirrorHarvester = async (
     return result;
   }
 
-  console.log(`[ElsciMirror] Found ${unmirrored.length} unmirrored Elsci books. Solving challenge...`);
+  console.log(`[ElsciMirror] Found ${unmirrored.length} unmirrored Elsci books.`);
 
   if (dryRun) {
     console.log('[ElsciMirror] DRY RUN — would mirror these:');
@@ -251,115 +264,145 @@ export const runElsciMirrorHarvester = async (
     return result;
   }
 
-  // 2. Solve Cloudflare challenge
-  let session: SolvedSession;
+  // 2. Launch browser and solve Cloudflare
+  let browser: Browser | null = null;
+  let page: Page | null = null;
+
   try {
-    session = await solveChallenge(baseUrl);
-    console.log(`[ElsciMirror] Challenge solved. Cookie obtained (${session.cookieHeader.length} chars).`);
-  } catch (error) {
-    const msg = `Challenge solve failed: ${error instanceof Error ? error.message : String(error)}`;
-    console.error(`[ElsciMirror] ${msg}`);
-    result.errors.push(msg);
-    result.failed = unmirrored.length;
-    result.attempted = unmirrored.length;
-    return result;
-  }
+    browser = await launchBrowser();
+    const context = await browser.newContext({
+      userAgent:
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 720 },
+    });
+    page = await context.newPage();
 
-  // 3. Process each book
-  for (const book of unmirrored) {
-    result.attempted++;
+    await solveChallenge(page, baseUrl);
 
-    // Extract the href from the downloadUrl
-    const hrefMatch = (book.downloadUrl || '').match(/[?&]href=([^&]+)/);
-    if (!hrefMatch?.[1]) {
-      const msg = `${book.slug}: could not extract href from downloadUrl`;
-      console.warn(`[ElsciMirror] ${msg}`);
-      result.errors.push(msg);
-      result.failed++;
-      continue;
-    }
+    // 3. Process each book
+    for (const book of unmirrored) {
+      result.attempted++;
 
-    const href = decodeURIComponent(hrefMatch[1]);
-    const fileUrl = new URL(href.startsWith('/') ? href : `/${href}`, `${baseUrl}/`).toString();
-    const ext = (book.format || 'epub').toLowerCase() === 'pdf' ? 'pdf' : 'epub';
-    const storageKey = `books/elsci/${book.slug}.${ext}`;
-    const contentType = ext === 'pdf' ? 'application/pdf' : 'application/epub+zip';
+      // Extract the href from the downloadUrl
+      const hrefMatch = (book.downloadUrl || '').match(/[?&]href=([^&]+)/);
+      if (!hrefMatch?.[1]) {
+        const msg = `${book.slug}: could not extract href from downloadUrl`;
+        console.warn(`[ElsciMirror] ${msg}`);
+        result.errors.push(msg);
+        result.failed++;
+        continue;
+      }
 
-    console.log(`[ElsciMirror] [${result.attempted}/${unmirrored.length}] Downloading: ${book.title}`);
+      const href = decodeURIComponent(hrefMatch[1]);
+      const fileUrl = new URL(href.startsWith('/') ? href : `/${href}`, `${baseUrl}/`).toString();
+      const ext = (book.format || 'epub').toLowerCase() === 'pdf' ? 'pdf' : 'epub';
+      const storageKey = `books/elsci/${book.slug}.${ext}`;
+      const contentType = ext === 'pdf' ? 'application/pdf' : 'application/epub+zip';
 
-    let downloaded = false;
-    let retries = 0;
+      console.log(
+        `[ElsciMirror] [${result.attempted}/${unmirrored.length}] Downloading: ${book.title}`,
+      );
 
-    while (!downloaded && retries <= maxReAuth) {
-      try {
-        const { buffer } = await downloadFile(fileUrl, session, {
-          timeoutMs: perFileTimeoutMs,
-          maxBytes: maxFileSizeBytes,
-        });
+      let downloaded = false;
+      let retries = 0;
 
-        // Sanity check: file should be > 1KB (not an HTML challenge page)
-        if (buffer.length < 1024) {
-          const preview = buffer.toString('utf-8', 0, Math.min(200, buffer.length));
-          if (preview.includes('<html') || preview.includes('<!DOCTYPE') || preview.includes('challenge')) {
-            throw Object.assign(new Error('Received HTML challenge page instead of file'), {
-              response: { status: 403 },
-            });
-          }
-        }
-
-        // Upload to R2
-        await uploadToR2(storageKey, buffer, contentType);
-
-        // Update DB
-        const localUrl = `/api/v1/books/download?key=${encodeURIComponent(storageKey)}`;
-        await prisma.book.update({
-          where: { id: book.id },
-          data: {
-            downloadUrl: localUrl,
-            fileSize: buffer.byteLength,
-          },
-        });
-
-        console.log(
-          `[ElsciMirror] ✓ Mirrored "${book.title}" (${(buffer.byteLength / 1024 / 1024).toFixed(1)} MB) → ${storageKey}`,
-        );
-        result.mirrored++;
-        downloaded = true;
-      } catch (error) {
-        const status = axios.isAxiosError(error) ? error.response?.status : null;
-
-        if (isChallenge(status) && retries < maxReAuth) {
-          retries++;
-          result.reAuthCount++;
-          console.warn(
-            `[ElsciMirror] Cookie expired (${status}). Re-solving challenge (attempt ${retries}/${maxReAuth})...`,
+      while (!downloaded && retries <= maxReAuth) {
+        try {
+          const { base64, size } = await downloadFileViaBrowser(
+            page,
+            fileUrl,
+            maxFileSizeBytes,
+            perFileTimeoutMs,
           );
 
-          try {
-            session = await solveChallenge(baseUrl);
-            console.log('[ElsciMirror] Re-solved challenge successfully.');
-            // Retry this file immediately after re-auth
-            continue;
-          } catch (reAuthError) {
-            const msg = `${book.slug}: re-auth failed: ${reAuthError instanceof Error ? reAuthError.message : String(reAuthError)}`;
-            console.error(`[ElsciMirror] ${msg}`);
+          const buffer = Buffer.from(base64, 'base64');
+
+          // Sanity: check it's not an HTML challenge page
+          if (buffer.length < 2048) {
+            const preview = buffer.toString('utf-8', 0, Math.min(500, buffer.length));
+            if (
+              preview.includes('<html') ||
+              preview.includes('<!DOCTYPE') ||
+              preview.includes('challenge-platform')
+            ) {
+              throw Object.assign(
+                new Error('Received HTML challenge page instead of file'),
+                { status: 403 },
+              );
+            }
+          }
+
+          // Upload to R2
+          await uploadToR2(storageKey, buffer, contentType);
+
+          // Update DB
+          const localUrl = `/api/v1/books/download?key=${encodeURIComponent(storageKey)}`;
+          await prisma.book.update({
+            where: { id: book.id },
+            data: {
+              downloadUrl: localUrl,
+              fileSize: size,
+            },
+          });
+
+          console.log(
+            `[ElsciMirror] Mirrored "${book.title}" (${(size / 1024 / 1024).toFixed(1)} MB) -> ${storageKey}`,
+          );
+          result.mirrored++;
+          downloaded = true;
+        } catch (error) {
+          const status = (error as { status?: number }).status ?? 0;
+          const isBlock = status === 403 || status === 429 || status === 503;
+
+          if (isBlock && retries < maxReAuth) {
+            retries++;
+            result.reAuthCount++;
+            console.warn(
+              `[ElsciMirror] Blocked (${status}). Re-navigating to solve challenge (attempt ${retries}/${maxReAuth})...`,
+            );
+
+            try {
+              await solveChallenge(page, baseUrl);
+              console.log('[ElsciMirror] Re-solved challenge.');
+              continue; // retry this file
+            } catch (reAuthError) {
+              const msg = `${book.slug}: re-auth failed: ${reAuthError instanceof Error ? reAuthError.message : String(reAuthError)}`;
+              console.error(`[ElsciMirror] ${msg}`);
+              result.errors.push(msg);
+              result.failed++;
+              downloaded = true;
+            }
+          } else {
+            const msg = `${book.slug}: ${error instanceof Error ? error.message : String(error)}`;
+            console.error(`[ElsciMirror] Failed: ${msg}`);
             result.errors.push(msg);
             result.failed++;
-            downloaded = true; // Exit inner loop
+            downloaded = true;
           }
-        } else {
-          const msg = `${book.slug}: ${error instanceof Error ? error.message : String(error)}`;
-          console.error(`[ElsciMirror] ✗ ${msg}`);
-          result.errors.push(msg);
-          result.failed++;
-          downloaded = true; // Exit inner loop
         }
       }
-    }
 
-    // Delay between downloads to be polite
-    if (result.attempted < unmirrored.length) {
-      await sleep(delayMs);
+      // Delay between downloads
+      if (result.attempted < unmirrored.length) {
+        await sleep(delayMs);
+      }
+    }
+  } catch (error) {
+    const msg = `Browser-level error: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(`[ElsciMirror] ${msg}`);
+    result.errors.push(msg);
+    // Mark remaining as failed
+    const remaining = unmirrored.length - result.attempted;
+    result.failed += remaining;
+    result.attempted += remaining;
+  } finally {
+    // Always close browser
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {
+        // ignore
+      }
     }
   }
 
