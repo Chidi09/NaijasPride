@@ -67,11 +67,11 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.redirect(url);
   });
 
-  // GET /api/movies/stream/:movieId/* - authenticated HLS segment gateway.
-  // Keeps segment access within app auth even when storage is private.
-  app.get('/stream/:movieId/*', {
-    onRequest: [fastify.authenticate],
-  }, async (request, reply) => {
+  // GET /api/movies/stream/:movieId/* - public HLS segment gateway.
+  // Proxies R2 objects with proper cache headers for CDN/browser caching.
+  // No auth required — hls.js makes plain HTTP requests for segments
+  // and cannot attach Authorization headers without custom xhrSetup.
+  app.get('/stream/:movieId/*', async (request, reply) => {
     const params = request.params as { movieId?: string; '*': string };
     const movieId = (params.movieId || '').trim();
     const tail = decodeURIComponent((params['*'] || '').trim());

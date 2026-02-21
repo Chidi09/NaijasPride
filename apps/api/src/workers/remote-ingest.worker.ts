@@ -409,12 +409,14 @@ const worker = new Worker(
       fileSizes['720p'] = mp4Size;
 
       if (hlsKey) {
-        if (REMOTE_INGEST_STREAM_GATEWAY) {
+        // Prefer public R2 URL for direct CDN edge delivery (no proxy overhead).
+        // Fall back to stream gateway when no public base URL is configured.
+        if (STORAGE_PUBLIC_BASE_URL) {
+          fileUrls.hls = toPublicUrl(STORAGE_PUBLIC_BASE_URL, hlsKey);
+        } else if (REMOTE_INGEST_STREAM_GATEWAY) {
           fileUrls.hls = `/api/v1/movies/stream/${payload.movieId}/master.m3u8`;
         } else {
-          fileUrls.hls = STORAGE_PUBLIC_BASE_URL
-            ? toPublicUrl(STORAGE_PUBLIC_BASE_URL, hlsKey)
-            : `/api/v1/movies/download?key=${encodeURIComponent(hlsKey)}`;
+          fileUrls.hls = `/api/v1/movies/download?key=${encodeURIComponent(hlsKey)}`;
         }
       }
 
