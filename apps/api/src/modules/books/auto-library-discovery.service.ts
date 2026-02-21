@@ -628,10 +628,52 @@ export class AutoLibraryDiscoveryService {
   // Searches https://annas-archive.li/search?q=<title+author>&lang=en&ext=epub
   // and parses the HTML result list for title/author/md5/format.
   // Download URL is constructed as https://annas-archive.li/md5/<hash>.
+  //
+  // Note: annas-archive.org DNS fails from some VPS IPs. Use .li only.
   private readonly ANNAS_ARCHIVE_HOSTS = [
     'https://annas-archive.li',
-    'https://annas-archive.org',
+    'https://annas-archive.se',
   ];
+
+  // Rate-limit guard: wait between Anna's Archive requests to avoid 429/403
+  private annasLastRequestAt = 0;
+  private readonly ANNAS_MIN_INTERVAL_MS = 3000; // 3 seconds between requests
+
+  private async annasThrottledGet(url: string): Promise<string | null> {
+    const now = Date.now();
+    const elapsed = now - this.annasLastRequestAt;
+    if (elapsed < this.ANNAS_MIN_INTERVAL_MS) {
+      await new Promise((r) => setTimeout(r, this.ANNAS_MIN_INTERVAL_MS - elapsed));
+    }
+    this.annasLastRequestAt = Date.now();
+
+    const response = await axios.get<string>(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Referer': 'https://annas-archive.li/',
+      },
+      timeout: 30_000,
+      responseType: 'text',
+      validateStatus: (s) => s < 500,
+      maxRedirects: 5,
+    });
+
+    if (response.status === 403 || response.status === 429) {
+      this.logger.warn(`[AutoLibrary] Anna's Archive rate-limited (HTTP ${response.status}) for ${url}`);
+      // Back off an extra 5 seconds on rate-limit responses
+      this.annasLastRequestAt = Date.now() + 5000;
+      return null;
+    }
+
+    if (response.status !== 200 || !response.data) {
+      this.logger.warn(`[AutoLibrary] Anna's Archive returned HTTP ${response.status} for ${url}`);
+      return null;
+    }
+
+    return response.data as string;
+  }
 
   async searchAnnasArchive(title: string, author: string): Promise<BookTorrentListingCandidate[]> {
     const query = encodeURIComponent(`${title} ${author}`.trim());
@@ -644,24 +686,14 @@ export class AutoLibraryDiscoveryService {
           const url = `${host}/search?q=${query}&lang=en&ext=${ext}&sort=`;
           this.logger.info(`[AutoLibrary] Anna's Archive search: ${url}`);
 
-          const response = await axios.get<string>(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.5',
-            },
-            timeout: 30_000,
-            responseType: 'text',
-            validateStatus: (s) => s < 500,
-            maxRedirects: 5,
+          const html = await this.annasThrottledGet(url).catch((err) => {
+            this.logger.warn(`[AutoLibrary] Anna's Archive host ${host} failed: ${toErrorMessage(err)}`);
+            return null;
           });
 
-          if (response.status !== 200 || !response.data) {
-            this.logger.warn(`[AutoLibrary] Anna's Archive returned HTTP ${response.status} for ${url}`);
-            continue;
-          }
+          if (!html) continue;
 
-          const parsed = parseAnnasArchiveHtml(response.data, host, ext as 'epub' | 'pdf');
+          const parsed = parseAnnasArchiveHtml(html, host, ext as 'epub' | 'pdf');
           this.logger.info(`[AutoLibrary] Anna's Archive (${ext}): ${parsed.length} results from ${host}`);
           results.push(...parsed);
         }
