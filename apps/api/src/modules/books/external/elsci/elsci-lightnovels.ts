@@ -46,6 +46,8 @@ type FlareSolverrHttpResponse = {
   solution?: {
     status?: number;
     response?: string;
+    cookies?: Array<Record<string, unknown>>;
+    userAgent?: string;
   };
 };
 
