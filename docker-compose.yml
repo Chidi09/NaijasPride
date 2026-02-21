@@ -123,6 +123,22 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
 
+  # ── Elsci Mirror Worker ─────────────────────────────────────────────────────
+  # BullMQ consumer: solves Cloudflare challenge and mirrors Elsci files to R2
+  elsci-mirror-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["node", "apps/api/dist/workers/elsci-mirror.worker.js"]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      FLARESOLVERR_URL: http://flaresolverr:8191
+
   # ── Book Cover Worker ──────────────────────────────────────────────────────
   # BullMQ consumer: extracts EPUB/PDF covers and uploads to R2
   book-cover-worker:

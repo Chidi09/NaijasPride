@@ -29,6 +29,7 @@ const getQueue = (name: string): Queue | null => {
 export const torrentQueue = { get: () => getQueue('torrent-processing') };
 export const bookImportQueue = { get: () => getQueue('book-import') };
 export const bookCoverQueue = { get: () => getQueue('book-cover-processing') };
+export const elsciMirrorQueue = { get: () => getQueue('elsci-mirror') };
 export const remoteIngestQueue = { get: () => getQueue('remote-ingest-processing') };
 export const remoteIngestDeadLetterQueue = { get: () => getQueue('remote-ingest-dead-letter') };
 

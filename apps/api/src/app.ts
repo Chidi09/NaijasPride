@@ -39,7 +39,7 @@ import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
 import { sentryService } from "./shared/services/sentry.service";
-import { bookImportQueue } from "./shared/services/queue.service";
+import { bookImportQueue, elsciMirrorQueue } from "./shared/services/queue.service";
 
 const DEFAULT_BODY_LIMIT_BYTES = 1_048_576; // 1 MiB
 const DEFAULT_CORS_ORIGINS = [
@@ -428,6 +428,42 @@ const start = async () => {
       setInterval(runElsciImport, elsciIntervalMs);
       setTimeout(runElsciImport, elsciStartupDelayMs);
       app.log.info({ elsciIntervalMs, elsciStartupDelayMs }, '[ElsciScheduler] Enabled');
+    }
+
+    // Elsci mirror harvester scheduler — downloads unmirrored files to R2
+    const elsciMirrorEnabled = parseBooleanFlag(process.env.ELSCI_MIRROR_ENABLED, true);
+    if (elsciMirrorEnabled) {
+      const mirrorIntervalMs = parsePositiveInt(process.env.ELSCI_MIRROR_INTERVAL_MS, 4 * 60 * 60 * 1000); // 4h
+      const mirrorStartupDelayMs = parsePositiveInt(process.env.ELSCI_MIRROR_STARTUP_DELAY_MS, 8 * 60 * 1000); // 8min
+      const mirrorBatchSize = parsePositiveInt(process.env.ELSCI_MIRROR_BATCH_SIZE, 10);
+
+      const runElsciMirror = () => {
+        const q = elsciMirrorQueue.get();
+        if (!q) {
+          app.log.warn('[ElsciMirror] elsciMirrorQueue not available — Redis may not be configured');
+          return;
+        }
+        q.add(
+          'mirror-batch',
+          {
+            batchSize: mirrorBatchSize,
+            triggeredBy: 'scheduler',
+            timestamp: Date.now(),
+          },
+          { jobId: `elsci-mirror-${Date.now()}`, removeOnComplete: 20, removeOnFail: 10 },
+        ).then(() => {
+          app.log.info('[ElsciMirror] Enqueued mirror job');
+        }).catch((err: unknown) => {
+          app.log.error({ err }, '[ElsciMirror] Failed to enqueue mirror job');
+        });
+      };
+
+      setInterval(runElsciMirror, mirrorIntervalMs);
+      setTimeout(runElsciMirror, mirrorStartupDelayMs);
+      app.log.info(
+        { mirrorIntervalMs, mirrorStartupDelayMs, mirrorBatchSize },
+        '[ElsciMirror] Scheduler enabled',
+      );
     }
 
     // Optional torrent discovery scheduler (1337x + FlareSolverr).
