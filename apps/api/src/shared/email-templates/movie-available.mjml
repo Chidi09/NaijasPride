@@ -1,0 +1,75 @@
+<mjml>
+  <mj-head>
+    <mj-font name="Plus Jakarta Sans" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
+    <mj-attributes>
+      <mj-all font-family="Plus Jakarta Sans, Arial, sans-serif" />
+      <mj-text font-size="15px" line-height="24px" color="#f9f9f2" />
+      <mj-button background-color="#800020" color="#ffffff" font-weight="600" font-size="15px" border-radius="8px" padding="13px 24px" />
+      <mj-section background-color="#0a0a0a" padding="0" />
+      <mj-wrapper background-color="#0a0a0a" padding="32px 16px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#0a0a0a">
+    <mj-wrapper>
+      <!-- Header -->
+      <mj-section background-color="linear-gradient(135deg, #800020 0%, #660019 100%)" padding="28px">
+        <mj-column>
+          <mj-text align="center" color="#f4d7b2" font-size="11px" font-weight="600" letter-spacing="3px" text-transform="uppercase" padding-bottom="12px">
+            NAIJASPRIDE
+          </mj-text>
+          <mj-text align="center" color="#ffffff" font-size="26px" font-weight="700" line-height="1.25">
+            Your Movie is Ready!
+          </mj-text>
+          <mj-text align="center" color="#d7c4b6" font-size="14px" padding-top="10px">
+            {{movieTitle}} is now available in {{quality}}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <!-- Body -->
+      <mj-section background-color="#120a0d" padding="28px">
+        <mj-column>
+          <mj-text>
+            Hi {{name}},
+          </mj-text>
+          
+          <mj-text>
+            Great news! <strong style="color: #f9f9f2;">{{movieTitle}}</strong> is now available in <strong style="color: #f9f9f2;">{{quality}}</strong> on NAIJASPRIDE. You asked to be notified — here you go!
+          </mj-text>
+
+          {{#if thumbnailUrl}}
+          <mj-image src="{{thumbnailUrl}}" alt="{{movieTitle}}" width="280px" border-radius="8px" border="1px solid #5f1327" padding-bottom="20px" />
+          {{/if}}
+
+          <mj-button href="{{movieUrl}}" align="left">
+            Watch {{movieTitle}}
+          </mj-button>
+
+          <mj-divider border-color="#5f1327" padding="20px 0" />
+
+          <mj-text color="#a88a78" font-size="13px">
+            You're receiving this because you requested a notification for this title. <a href="{{movieUrl}}" style="color: #d7c4b6; text-decoration: underline;">Manage notifications</a> on the movie page.
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <!-- Footer -->
+      <mj-section background-color="#120a0d" padding="16px 28px 20px" border-top="1px solid #5f1327">
+        <mj-column>
+          <mj-text align="center" color="#a88a78" font-size="12px">
+            NAIJASPRIDE content notification &nbsp;|&nbsp; <a href="{{frontendUrl}}/browse" style="color: #d7c4b6; text-decoration: underline;">Browse all movies</a>
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <!-- Brand Stamp -->
+      <mj-section padding="20px 0 0">
+        <mj-column>
+          <mj-text align="center" color="#5f1327" font-size="11px" letter-spacing="1px" text-transform="uppercase">
+            &copy; {{year}} NAIJASPRIDE &mdash; Stream Nigerian &amp; Worldwide Content
+          </mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-wrapper>
+  </mj-body>
+</mjml>

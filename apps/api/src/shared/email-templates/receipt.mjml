@@ -1,0 +1,94 @@
+<mjml>
+  <mj-head>
+    <mj-font name="Plus Jakarta Sans" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
+    <mj-attributes>
+      <mj-all font-family="Plus Jakarta Sans, Arial, sans-serif" />
+      <mj-text font-size="15px" line-height="24px" color="#f9f9f2" />
+      <mj-button background-color="#800020" color="#ffffff" font-weight="600" font-size="15px" border-radius="8px" padding="13px 24px" />
+      <mj-section background-color="#0a0a0a" padding="0" />
+      <mj-wrapper background-color="#0a0a0a" padding="32px 16px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#0a0a0a">
+    <mj-wrapper>
+      <!-- Header -->
+      <mj-section background-color="linear-gradient(135deg, #800020 0%, #660019 100%)" padding="28px">
+        <mj-column>
+          <mj-text align="center" color="#f4d7b2" font-size="11px" font-weight="600" letter-spacing="3px" text-transform="uppercase" padding-bottom="12px">
+            NAIJASPRIDE BILLING
+          </mj-text>
+          <mj-text align="center" color="#ffffff" font-size="26px" font-weight="700" line-height="1.25">
+            Payment Received
+          </mj-text>
+          <mj-text align="center" color="#d7c4b6" font-size="14px" padding-top="10px">
+            Your NAIJASPRIDE subscription is confirmed
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <!-- Body -->
+      <mj-section background-color="#120a0d" padding="28px">
+        <mj-column>
+          <mj-text>
+            We've received your payment and your subscription is now active. Thank you for supporting <strong style="color: #f9f9f2;">NAIJASPRIDE</strong>!
+          </mj-text>
+
+          <mj-section background-color="#0a0a0a" border="1px solid #5f1327" border-radius="8px" padding="0">
+            <mj-column>
+              <mj-table cellpadding="8" cellspacing="0" width="100%">
+                <tr>
+                  <td style="padding: 8px 12px; font-size: 14px; color: #a88a78; white-space: nowrap;">Plan</td>
+                  <td style="padding: 8px 12px; font-size: 14px; color: #f9f9f2; font-weight: 600;">{{plan}}</td>
+                </tr>
+                <tr style="border-top: 1px solid #1b1014;">
+                  <td style="padding: 8px 12px; font-size: 14px; color: #a88a78; white-space: nowrap;">Amount</td>
+                  <td style="padding: 8px 12px; font-size: 14px; color: #f9f9f2; font-weight: 600;">{{amount}}</td>
+                </tr>
+                <tr style="border-top: 1px solid #1b1014;">
+                  <td style="padding: 8px 12px; font-size: 14px; color: #a88a78; white-space: nowrap;">Date</td>
+                  <td style="padding: 8px 12px; font-size: 14px; color: #f9f9f2; font-weight: 600;">{{date}}</td>
+                </tr>
+                <tr style="border-top: 1px solid #1b1014;">
+                  <td style="padding: 8px 12px; font-size: 14px; color: #a88a78; white-space: nowrap;">Status</td>
+                  <td style="padding: 8px 12px; font-size: 14px; color: #22c55e; font-weight: 600;">✓ Paid</td>
+                </tr>
+              </mj-table>
+            </mj-column>
+          </mj-section>
+
+          <mj-text color="#a88a78" font-size="14px" padding-top="16px">
+            Your PRO benefits are now active: 4K streaming, zero ads, and unlimited downloads.
+          </mj-text>
+
+          <mj-button href="{{frontendUrl}}/browse" align="left">
+            Start Streaming in 4K
+          </mj-button>
+
+          <mj-divider border-color="#5f1327" padding="20px 0" />
+
+          <mj-text color="#a88a78" font-size="13px">
+            If you did not authorise this payment, contact billing immediately at <a href="{{frontendUrl}}/help" style="color: #d7c4b6; text-decoration: underline;">our support page</a>.
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <!-- Footer -->
+      <mj-section background-color="#120a0d" padding="16px 28px 20px" border-top="1px solid #5f1327">
+        <mj-column>
+          <mj-text align="center" color="#a88a78" font-size="12px">
+            Billing support: <a href="{{frontendUrl}}/help" style="color: #d7c4b6; text-decoration: underline;">Help Centre</a> &nbsp;|&nbsp; billing@naijaspride.com
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <!-- Brand Stamp -->
+      <mj-section padding="20px 0 0">
+        <mj-column>
+          <mj-text align="center" color="#5f1327" font-size="11px" letter-spacing="1px" text-transform="uppercase">
+            &copy; {{year}} NAIJASPRIDE &mdash; Stream Nigerian &amp; Worldwide Content
+          </mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -1,0 +1,64 @@
+<mjml>
+  <mj-head>
+    <mj-font name="Plus Jakarta Sans" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
+    <mj-attributes>
+      <mj-all font-family="Plus Jakarta Sans, Arial, sans-serif" />
+      <mj-text font-size="15px" line-height="24px" color="#f9f9f2" />
+      <mj-button background-color="#800020" color="#ffffff" font-weight="600" font-size="15px" border-radius="8px" padding="13px 24px" />
+      <mj-section background-color="#0a0a0a" padding="0" />
+      <mj-wrapper background-color="#0a0a0a" padding="32px 16px" />
+    </mj-attributes>
+    <mj-style inline="inline">
+      .brand-text { font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+      .subtitle { color: #d7c4b6; font-size: 14px; }
+      .footer-text { color: #a88a78; font-size: 12px; }
+      .link { color: #d7c4b6; text-decoration: underline; }
+      .info-box { background-color: #120a0d; border: 1px solid #5f1327; border-radius: 8px; }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="#0a0a0a">
+    <mj-wrapper>
+      <!-- Header -->
+      <mj-section background-color="linear-gradient(135deg, #800020 0%, #660019 100%)" padding="28px">
+        <mj-column>
+          <mj-text align="center" color="#f4d7b2" font-size="11px" font-weight="600" letter-spacing="3px" text-transform="uppercase" padding-bottom="12px">
+            NAIJASPRIDE
+          </mj-text>
+          <mj-text align="center" color="#ffffff" font-size="26px" font-weight="700" line-height="1.25" letter-spacing="-0.3px">
+            {{title}}
+          </mj-text>
+          {{#if subtitle}}
+          <mj-text align="center" color="#d7c4b6" font-size="14px" padding-top="10px">
+            {{subtitle}}
+          </mj-text>
+          {{/if}}
+        </mj-column>
+      </mj-section>
+
+      <!-- Body -->
+      <mj-section background-color="#120a0d" padding="28px">
+        <mj-column>
+          {{{bodyContent}}}
+        </mj-column>
+      </mj-section>
+
+      <!-- Footer -->
+      <mj-section background-color="#120a0d" padding="16px 28px 20px" border-top="1px solid #5f1327">
+        <mj-column>
+          <mj-text css-class="footer-text" align="center">
+            {{{footerNote}}}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <!-- Brand Stamp -->
+      <mj-section padding="20px 0 0">
+        <mj-column>
+          <mj-text align="center" color="#5f1327" font-size="11px" letter-spacing="1px" text-transform="uppercase">
+            &copy; {{year}} NAIJASPRIDE &mdash; Stream Nigerian &amp; Worldwide Content
+          </mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-wrapper>
+  </mj-body>
+</mjml>
