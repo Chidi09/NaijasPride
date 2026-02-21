@@ -46,8 +46,10 @@ RUN npm run build --workspace api
 
 # Copy non-TS assets (Handlebars templates, MJML templates, etc.) into dist/ so they're
 # available at runtime via __dirname-relative paths
+# Copy email templates - need to copy contents, not the directory itself
+RUN mkdir -p apps/api/dist/shared/email-templates && \
+    cp -r apps/api/src/shared/email-templates/* apps/api/dist/shared/email-templates/
 RUN cp -r apps/api/src/modules/wrapped/templates apps/api/dist/modules/wrapped/templates
-RUN cp -r apps/api/src/shared/email-templates apps/api/dist/shared/email-templates
 
 # ---------------------------------------------------------------------------
 # Stage 3: Runner — production image
