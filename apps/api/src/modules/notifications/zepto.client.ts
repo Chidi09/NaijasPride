@@ -67,7 +67,7 @@ export class ZeptoMailClient {
           name: payload.fromName || "NaijasPride",
           address: payload.from || this.SMTP_FROM,
         },
-        to: toAddresses.map(email => ({ address: email })),
+        to: toAddresses,
         subject: payload.subject,
         html: payload.html,
         text: payload.text,
