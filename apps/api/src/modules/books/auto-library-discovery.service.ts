@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { FlareSolverrFetcher } from './sources/fetch/flaresolverr.fetcher';
 import { HealthMonitorService } from '../../shared/services/health-monitor.service';
 import { retryWithBackoff, RetryableError, isRetryableStatus } from '../../shared/utils/retry';
+import { QueueService } from '../../shared/services/queue.service';
 
 const DEFAULT_1337X_BASE_URL = 'https://www.1377x.to';
 
@@ -308,6 +309,7 @@ export class AutoLibraryDiscoveryService {
   private readonly flaresolverr = new FlareSolverrFetcher();
   private readonly sourceBaseUrl: string;
   private readonly healthMonitor: HealthMonitorService;
+  private readonly queueService = new QueueService();
   private mirrorIndex = 0;
 
   constructor(
@@ -605,6 +607,22 @@ export class AutoLibraryDiscoveryService {
           summary.updated += 1;
         } else {
           summary.created += 1;
+        }
+      }
+    }
+
+    // Enqueue Anna's Archive mirror jobs if we ingested any Anna's Archive books
+    if (ingest && !dryRun) {
+      const annasCount = matches.filter((m) => m.listing.downloadUrl).length;
+      if (annasCount > 0) {
+        try {
+          await this.queueService.addAnnasMirrorJob({
+            batchSize: annasCount,
+            triggeredBy: 'auto-library-discovery',
+          });
+          this.logger.info(`[AutoLibrary] Enqueued Anna's Archive mirror job for ${annasCount} books`);
+        } catch (err) {
+          this.logger.warn(`[AutoLibrary] Failed to enqueue Anna's Archive mirror job: ${toErrorMessage(err)}`);
         }
       }
     }

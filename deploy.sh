@@ -186,6 +186,18 @@ services:
       REDIS_URL: redis://redis-$stack:6379
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
 
+  annas-mirror-worker-$stack:
+    image: naijaspride-api:$stack
+    restart: unless-stopped
+    command: ["node", "apps/api/dist/workers/annas-mirror.worker.js"]
+    depends_on:
+      redis-$stack:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis-$stack:6379
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+
 volumes:
   redis_data_$stack:
   torrent_tmp_$stack:

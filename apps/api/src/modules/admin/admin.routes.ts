@@ -12,6 +12,7 @@ import { adminQueueRoutes } from "./admin-queue.routes";
 import { adminUserRoutes } from "./admin-user.routes";
 import { z } from "zod";
 import { Genre as PrismaGenre } from "@prisma/client";
+import { QueueService } from "../../shared/services/queue.service";
 
 // Validation schemas
 const RssUrlSchema = z.object({
@@ -80,6 +81,11 @@ const AutoLibraryDiscoverSchema = z.object({
   minSeeders: z.number().int().min(0).max(5000).optional().default(1),
   ingest: z.boolean().optional().default(false),
   dryRun: z.boolean().optional().default(true),
+});
+
+const AnnasMirrorRunSchema = z.object({
+  batchSize: z.number().int().min(1).max(50).optional().default(10),
+  dryRun: z.boolean().optional().default(false),
 });
 
 export const adminRoutes = async (
@@ -589,6 +595,41 @@ export const adminRoutes = async (
             error instanceof Error
               ? error.message
               : "Auto-Library discovery failed",
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/books/annas-mirror/run - Manually trigger Anna's Archive mirror harvester
+  const queueService = new QueueService();
+
+  app.post("/books/annas-mirror/run", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: AnnasMirrorRunSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { batchSize, dryRun } = request.body as z.infer<typeof AnnasMirrorRunSchema>;
+
+        await queueService.addAnnasMirrorJob({
+          batchSize,
+          dryRun,
+          triggeredBy: 'admin-api',
+        });
+
+        return reply.send({
+          status: "success",
+          message: `Anna's Archive mirror job enqueued (batch=${batchSize}, dryRun=${dryRun})`,
+          data: { batchSize, dryRun },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to enqueue Anna's Archive mirror job",
         });
       }
     },

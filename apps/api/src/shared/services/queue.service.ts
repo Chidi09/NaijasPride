@@ -30,6 +30,7 @@ export const torrentQueue = { get: () => getQueue('torrent-processing') };
 export const bookImportQueue = { get: () => getQueue('book-import') };
 export const bookCoverQueue = { get: () => getQueue('book-cover-processing') };
 export const elsciMirrorQueue = { get: () => getQueue('elsci-mirror') };
+export const annasMirrorQueue = { get: () => getQueue('annas-mirror') };
 export const remoteIngestQueue = { get: () => getQueue('remote-ingest-processing') };
 export const remoteIngestDeadLetterQueue = { get: () => getQueue('remote-ingest-dead-letter') };
 
@@ -40,6 +41,15 @@ export type RemoteIngestJobPayload = {
   provider?: 'generic' | 'soap2day';
   referer?: string;
   headers?: Record<string, string>;
+};
+
+export type AnnasMirrorJobPayload = {
+  batchSize?: number;
+  perFileTimeoutMs?: number;
+  maxFileSizeBytes?: number;
+  delayBetweenDownloadsMs?: number;
+  dryRun?: boolean;
+  triggeredBy?: string;
 };
 
 export type BookCoverJobPayload = {
@@ -117,6 +127,27 @@ export class QueueService {
       }
       throw error;
     }
+  }
+
+  async addAnnasMirrorJob(payload: AnnasMirrorJobPayload = {}) {
+    const queue = annasMirrorQueue.get();
+    if (!queue) {
+      console.warn('[Queue] REDIS_URL not set — skipping Anna\'s Archive mirror job');
+      return;
+    }
+
+    const jobId = `annas-mirror:${Date.now()}`;
+
+    await queue.add('mirror-annas-books', {
+      ...payload,
+      timestamp: Date.now(),
+    }, {
+      jobId,
+      removeOnComplete: true,
+      removeOnFail: false,
+      attempts: 1, // Harvester handles retries internally per-book
+    });
+    console.log(`[Queue] Added Anna's Archive mirror job (batch=${payload.batchSize || 10}, dryRun=${!!payload.dryRun})`);
   }
 
   async addRemoteIngestJob(payload: RemoteIngestJobPayload) {
