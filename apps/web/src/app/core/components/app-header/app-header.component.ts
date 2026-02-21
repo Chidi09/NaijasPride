@@ -181,7 +181,7 @@ export class AppHeaderComponent {
         this.userName.set('Guest');
         this.userInitials.set('G');
       }
-    });
+    }, { allowSignalWrites: true });
   }
 
   openUserMenu(): void {

@@ -11,6 +11,7 @@ import { ReaderStateService } from './core/services/reader-state.service';
 import { ThemeService } from './core/services/theme.service';
 import { PwaService } from './core/services/pwa.service';
 import { FirebaseMessagingService } from './core/services/firebase-messaging.service';
+import { AuthStateService } from './core/auth/auth-state.service';
 import { ToastContainerComponent } from './shared/components/toast-container/toast-container.component';
 import { CookieConsentComponent } from './shared/components/cookie-consent/cookie-consent.component';
 import { BackButtonComponent } from './shared/components/back-button/back-button.component';
@@ -36,7 +37,7 @@ import { filter } from 'rxjs/operators';
   ],
   template: `
     <div class="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300">
-      <!-- Classic Navbar (hidden in PWA mode) -->
+      <!-- Classic Navbar (hidden in PWA/app mode) -->
       @if (!readerState.navbarHidden() && !pwaService.isAppMode()) {
         <app-navbar />
       }
@@ -62,8 +63,8 @@ import { filter } from 'rxjs/operators';
         </div>
       }
 
-      <!-- Classic Footer (hidden in PWA mode) -->
-      @if (!readerState.navbarHidden() && !pwaService.isAppMode()) {
+      <!-- Classic Footer (hidden in PWA mode and on app pages when logged in) -->
+      @if (showFooter()) {
         <app-site-footer />
       }
 
@@ -97,11 +98,24 @@ export class AppComponent implements OnInit {
   
   protected readerState = inject(ReaderStateService);
   protected musicPlayer = inject(MusicPlayerService);
+  private authState = inject(AuthStateService);
   
   private sidePanel = viewChild<SidePanelComponent>('sidePanel');
   private bottomNav = viewChild<BottomNavComponent>('bottomNav');
   
   hideBottomNav = false;
+
+  // App pages where the footer should be hidden for logged-in users
+  private readonly APP_ROUTES = ['/home', '/movies', '/books', '/music', '/manga', '/browse', '/watch', '/admin', '/profile', '/settings', '/library', '/downloads'];
+
+  protected showFooter(): boolean {
+    if (this.readerState.navbarHidden() || this.pwaService.isAppMode()) return false;
+    // Hide footer on app pages when user is logged in
+    const url = this.router.url;
+    const isAppPage = this.APP_ROUTES.some(r => url.startsWith(r));
+    if (isAppPage && this.authState.currentUser()) return false;
+    return true;
+  }
 
   ngOnInit() {
     this.themeService.init();

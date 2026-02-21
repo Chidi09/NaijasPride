@@ -219,7 +219,7 @@ export class MoviesService {
     ]);
 
     const result = {
-      data: movies.map(this.mapToSummary),
+      data: movies.map((m) => this.mapToSummary(m)),
       meta: {
         page,
         limit,

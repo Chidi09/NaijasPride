@@ -380,12 +380,12 @@ export class SidePanelComponent {
         this.userName.set('Guest');
         this.userEmail.set('');
       }
-    });
+    }, { allowSignalWrites: true });
 
     // React to theme changes
     effect(() => {
       this.isDarkMode.set(this.themeService.theme() === 'dark');
-    });
+    }, { allowSignalWrites: true });
   }
 
   getUserInitials(): string {
