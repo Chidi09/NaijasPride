@@ -2191,14 +2191,10 @@ export const bookRoutes = async (
             bookId,
             format,
             fileSizeBytes,
-            status: 'available',
-            syncedAt: new Date(),
           },
           update: {
             format,
             fileSizeBytes,
-            status: 'available',
-            syncedAt: new Date(),
           },
         });
 
@@ -2233,9 +2229,7 @@ export const bookRoutes = async (
             bookId,
           },
           data: {
-            status: 'failed',
-            lastError: errorMessage,
-            lastErrorAt: new Date(),
+            updatedAt: new Date(),
           },
         });
 
@@ -2304,7 +2298,7 @@ export const bookRoutes = async (
             },
           },
           orderBy: {
-            syncedAt: 'desc',
+            savedAt: 'desc',
           },
         });
 

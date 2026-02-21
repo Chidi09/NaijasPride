@@ -27,9 +27,9 @@ export async function extractCoverFromEpub(epubUrl: string): Promise<Buffer | nu
 
     // Save to temp file
     const writer = createWriteStream(tempFile);
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       (response.data as Readable).pipe(writer);
-      writer.on('finish', resolve);
+      writer.on('finish', () => resolve());
       writer.on('error', reject);
     });
 
