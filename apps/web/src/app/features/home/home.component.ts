@@ -20,7 +20,7 @@ import { AuthService } from '../../core/auth/auth.service';
               <div>
                 <p class="text-xs uppercase tracking-[0.24em] text-white/70">{{ getGreeting() }}</p>
                 <h1 class="mt-1 text-2xl font-bold md:text-3xl">{{ userName() }}</h1>
-                <p class="mt-1 text-sm text-white/75">Welcome back to your culture dashboard.</p>
+                <p class="mt-1 text-sm text-white/75">Your Nollywood, Bollywood, and Hollywood dashboard.</p>
               </div>
 
               <div class="hidden items-center gap-2 rounded-xl bg-white/15 px-3 py-2 md:flex">

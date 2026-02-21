@@ -3,21 +3,29 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
 import { BookSummary, MovieSummary, MusicVideoSummary } from '@naijaspride/types';
+
+type MangaResult = {
+  id: string;
+  title: string;
+  coverUrl?: string | null;
+  sourceId?: string | null;
+};
 
 @Component({
   selector: 'app-global-search',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] pb-24">
+    <div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(128,0,32,0.12),_transparent_52%),var(--bg-primary)] text-[var(--text-primary)] pb-24">
       <div class="mx-auto max-w-6xl px-4 py-6 md:px-8">
-        <div class="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4 md:p-6 shadow-sm">
+        <div class="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4 shadow-sm md:p-6">
           <p class="text-[11px] uppercase tracking-[0.2em] text-[var(--text-muted)]">Global Search</p>
-          <h1 class="mt-1 text-2xl font-semibold">Find Movies, Books, and Music</h1>
+          <h1 class="mt-1 text-2xl font-semibold">Find Nollywood, Bollywood, Hollywood, books, manga, and music</h1>
+          <p class="mt-2 text-sm text-[var(--text-muted)]">One query searches every catalog currently indexed in NaijasPride.</p>
 
-          <form class="mt-4 flex gap-2" (submit)="onSubmit($event)">
+          <form class="mt-4 flex flex-col gap-2 sm:flex-row" (submit)="onSubmit($event)">
             <input
               type="text"
               [(ngModel)]="query"
@@ -88,6 +96,29 @@ import { BookSummary, MovieSummary, MusicVideoSummary } from '@naijaspride/types
 
             <section>
               <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Manga & Comics</h2>
+                <a routerLink="/books/manga" class="text-sm text-[#800020] hover:underline">Open Manga</a>
+              </div>
+              @if (manga().length > 0) {
+                <div class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
+                  @for (item of manga(); track item.id) {
+                    <a [routerLink]="['/books/manga', item.id]" class="group block overflow-hidden rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)]">
+                      <div class="aspect-[3/4] overflow-hidden bg-[var(--bg-secondary)]">
+                        <img [src]="item.coverUrl || ''" [alt]="item.title" class="h-full w-full object-cover transition group-hover:scale-105" referrerpolicy="no-referrer" />
+                      </div>
+                      <div class="p-2">
+                        <p class="truncate text-xs font-medium">{{ item.title }}</p>
+                      </div>
+                    </a>
+                  }
+                </div>
+              } @else {
+                <div class="rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-4 text-sm text-[var(--text-muted)]">No manga or comics found.</div>
+              }
+            </section>
+
+            <section>
+              <div class="mb-3 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Music</h2>
                 <a routerLink="/music" class="text-sm text-[#800020] hover:underline">Open Music</a>
               </div>
@@ -124,12 +155,14 @@ export class GlobalSearchComponent implements OnInit {
   movies = signal<MovieSummary[]>([]);
   books = signal<BookSummary[]>([]);
   music = signal<MusicVideoSummary[]>([]);
+  manga = signal<MangaResult[]>([]);
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe((params) => {
       const q = (params.get('q') || '').trim();
       if (q.length >= 2) {
         this.query = q;
+        this.submitted.set(true);
         this.runSearch(q);
       }
     });
@@ -144,6 +177,7 @@ export class GlobalSearchComponent implements OnInit {
       this.movies.set([]);
       this.books.set([]);
       this.music.set([]);
+      this.manga.set([]);
       return;
     }
 
@@ -154,26 +188,39 @@ export class GlobalSearchComponent implements OnInit {
     this.loading.set(true);
 
     forkJoin({
-      movies: this.http.get<{ success?: boolean; data?: MovieSummary[] }>('/api/v1/movies', {
-        params: { q, page: '1', limit: '12', sortBy: 'popular' },
-      }),
-      books: this.http.get<{ status?: string; data?: BookSummary[] }>('/api/v1/books', {
-        params: { q, page: '1', limit: '8' },
-      }),
-      music: this.http.get<{ success?: boolean; videos?: MusicVideoSummary[] }>('/api/v1/music', {
-        params: { q, page: '1', limit: '8' },
-      }),
+      movies: this.http
+        .get<{ success?: boolean; data?: MovieSummary[] }>('/api/v1/movies', {
+          params: { q, page: '1', limit: '12', sortBy: 'popular' },
+        })
+        .pipe(catchError(() => of({ data: [] }))),
+      books: this.http
+        .get<{ status?: string; data?: BookSummary[] }>('/api/v1/books', {
+          params: { q, page: '1', limit: '8' },
+        })
+        .pipe(catchError(() => of({ data: [] }))),
+      music: this.http
+        .get<{ success?: boolean; videos?: MusicVideoSummary[] }>('/api/v1/music', {
+          params: { q, page: '1', limit: '8' },
+        })
+        .pipe(catchError(() => of({ videos: [] }))),
+      manga: this.http
+        .get<{ status?: string; data?: MangaResult[] }>('/api/v1/books/manga/search', {
+          params: { q, limit: '12' },
+        })
+        .pipe(catchError(() => of({ data: [] }))),
     }).subscribe({
       next: (result) => {
         this.movies.set(result.movies.data || []);
         this.books.set(result.books.data || []);
         this.music.set(result.music.videos || []);
+        this.manga.set(result.manga.data || []);
         this.loading.set(false);
       },
       error: () => {
         this.movies.set([]);
         this.books.set([]);
         this.music.set([]);
+        this.manga.set([]);
         this.loading.set(false);
       },
     });

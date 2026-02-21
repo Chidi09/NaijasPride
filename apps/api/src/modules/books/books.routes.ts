@@ -1848,32 +1848,56 @@ export const bookRoutes = async (
             });
           }
 
-          const upstream = await fetchElsciLightNovelFileStream(href);
-          const upstreamDisposition = upstream.headers['content-disposition'];
-          const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
-
-          let fallbackFilename = href.split('/').pop() || `${slug}.epub`;
           try {
-            fallbackFilename = decodeURIComponent(fallbackFilename);
-          } catch {
-            // Keep raw fallback filename when decode fails.
+            const upstream = await fetchElsciLightNovelFileStream(href);
+            const upstreamDisposition = upstream.headers['content-disposition'];
+            const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
+
+            let fallbackFilename = href.split('/').pop() || `${slug}.epub`;
+            try {
+              fallbackFilename = decodeURIComponent(fallbackFilename);
+            } catch {
+              // Keep raw fallback filename when decode fails.
+            }
+
+            const filename = upstreamFilename || fallbackFilename;
+            const contentType =
+              inferContentTypeFromFilename(filename) ||
+              (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
+              'application/octet-stream';
+
+            const contentLength = upstream.headers['content-length'];
+            if (typeof contentLength === 'string') {
+              reply.header('content-length', contentLength);
+            }
+
+            reply.header('content-type', contentType);
+            reply.header('cache-control', 'private, max-age=0');
+            reply.header('content-disposition', `${disposition}; filename="${filename.replace(/\"/g, '')}"`);
+            return reply.send(upstream.stream);
+          } catch (error) {
+            const blockedByCloudflare =
+              error instanceof Error && /Elsci file request blocked with status/i.test(error.message);
+
+            if (blockedByCloudflare) {
+              const configuredBase =
+                (process.env.ELSCI_LIGHT_NOVELS_BASE_URL || 'https://server.elsci.one').trim() ||
+                'https://server.elsci.one';
+              const baseUrl = configuredBase.replace(/\/+$/, '');
+              const normalizedHref = href.startsWith('/') ? href : `/${href.replace(/^\/+/, '')}`;
+              const fallbackUrl = new URL(normalizedHref, `${baseUrl}/`).toString();
+
+              request.log.warn(
+                { err: error, slug, fallbackUrl },
+                '[Elsci] Upstream blocked server-side slug file request; redirecting client to source URL',
+              );
+
+              reply.header('cache-control', 'no-store');
+              return reply.redirect(fallbackUrl);
+            }
+
+            throw error;
           }
-
-          const filename = upstreamFilename || fallbackFilename;
-          const contentType =
-            inferContentTypeFromFilename(filename) ||
-            (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
-            'application/octet-stream';
-
-          const contentLength = upstream.headers['content-length'];
-          if (typeof contentLength === 'string') {
-            reply.header('content-length', contentLength);
-          }
-
-          reply.header('content-type', contentType);
-          reply.header('cache-control', 'private, max-age=0');
-          reply.header('content-disposition', `${disposition}; filename="${filename.replace(/\"/g, '')}"`);
-          return reply.send(upstream.stream);
         }
 
         // Otherwise, treat as internally hosted (GCS/S3/CDN) via storageKey.

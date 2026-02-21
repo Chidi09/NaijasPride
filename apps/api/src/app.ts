@@ -297,6 +297,36 @@ const start = async () => {
       app.log.error({ error }, "Initial YouTube music channel monitor run failed");
     });
 
+    const movieChannelBootstrapEnabled = parseBooleanFlag(process.env.MOVIE_CHANNEL_BOOTSTRAP_ENABLED, true);
+    if (movieChannelBootstrapEnabled) {
+      const fallbackUrls = [
+        'https://www.youtube.com/@shemaroomoviein',
+        'https://www.youtube.com/@UltraBollywood',
+        'https://www.youtube.com/@GoldminesBollywood',
+        'https://www.youtube.com/@MovieCentral',
+      ];
+      const configuredUrls = (process.env.MOVIE_CHANNEL_BOOTSTRAP_URLS || '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      const channelUrls = configuredUrls.length > 0 ? configuredUrls : fallbackUrls;
+
+      setTimeout(() => {
+        channelService.bootstrapChannels(channelUrls)
+          .then((summary) => {
+            app.log.info({ summary, attempted: channelUrls.length }, '[MovieChannelBootstrap] Completed');
+            if (summary.created > 0) {
+              channelService.monitorAllChannelsEvery6Hours().catch((error) => {
+                app.log.error({ error }, '[MovieChannelBootstrap] Monitor run after bootstrap failed');
+              });
+            }
+          })
+          .catch((error) => {
+            app.log.error({ error }, '[MovieChannelBootstrap] Failed');
+          });
+      }, 25_000);
+    }
+
     // Sync YouTube public stats (views + likes) for all music videos — daily.
     const ytStatsSyncService = new YouTubeStatsSyncService(app.prisma, app.log);
     const oneDayMs = 24 * 60 * 60 * 1000;
@@ -426,6 +456,20 @@ const start = async () => {
         },
       );
 
+      const bollywoodTorrentDiscoveryService = new TorrentDiscoveryService(
+        app.prisma,
+        console,
+        {
+          sourceUrl: process.env.TORRENT_BOLLYWOOD_SOURCE_URL || 'https://www.1377x.to/search/bollywood/1/',
+          maxItemsPerRun: parsePositiveInt(process.env.TORRENT_BOLLYWOOD_MAX_ITEMS, 5),
+          requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
+          requestTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_REQUEST_TIMEOUT_MS, 60_000),
+          dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
+          failureThreshold: parsePositiveInt(process.env.TORRENT_DISCOVERY_FAILURE_THRESHOLD, 5),
+          recoveryTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_RECOVERY_MS, 300_000),
+        },
+      );
+
       const runTorrentDiscovery = () => {
         torrentDiscoveryService
           .discoverAndIngest()
@@ -439,6 +483,19 @@ const start = async () => {
           .catch((error) => {
             app.log.error({ error }, '[TorrentDiscovery] Run failed');
           });
+
+        bollywoodTorrentDiscoveryService
+          .discoverAndIngest()
+          .then((summary) => {
+            if (summary.skippedRunReason) {
+              app.log.warn({ summary }, '[TorrentDiscovery:Bollywood] Run skipped');
+              return;
+            }
+            app.log.info({ summary }, '[TorrentDiscovery:Bollywood] Run completed');
+          })
+          .catch((error) => {
+            app.log.error({ error }, '[TorrentDiscovery:Bollywood] Run failed');
+          });
       };
 
       setInterval(runTorrentDiscovery, torrentDiscoveryIntervalMs);
@@ -449,6 +506,7 @@ const start = async () => {
           intervalMs: torrentDiscoveryIntervalMs,
           startupDelayMs: torrentDiscoveryStartupDelayMs,
           sourceUrl: process.env.TORRENT_SOURCE_URL || 'https://www.1377x.to/popular-movies-week',
+          bollywoodSourceUrl: process.env.TORRENT_BOLLYWOOD_SOURCE_URL || 'https://www.1377x.to/search/bollywood/1/',
           requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
           dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
         },

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Genre } from '@prisma/client';
 import { google, youtube_v3 } from 'googleapis';
 import { getRedis } from '../../../shared/services/redis.service';
 
@@ -72,6 +72,15 @@ export class YouTubeChannelService {
 
   constructor(private prisma: PrismaClient) {}
 
+  private inferMovieGenresFromText(title: string, channelName: string): Genre[] {
+    const text = `${title} ${channelName}`.toLowerCase();
+    if (text.includes('bollywood') || text.includes('hindi')) return [Genre.Bollywood];
+    if (text.includes('nollywood') || text.includes('yoruba') || text.includes('igbo') || text.includes('hausa')) {
+      return [Genre.Nollywood];
+    }
+    return [Genre.Hollywood];
+  }
+
   // ===== Channel Management =====
 
   async listChannels(): Promise<Array<any & { stats: ChannelStats }>> {
@@ -144,6 +153,68 @@ export class YouTubeChannelService {
     await this.prisma.youTubeChannel.delete({
       where: { id },
     });
+  }
+
+  async bootstrapChannels(urls: string[]): Promise<{ created: number; existing: number; failed: string[] }> {
+    const sanitized = urls
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+    if (sanitized.length === 0) {
+      return { created: 0, existing: 0, failed: [] };
+    }
+
+    const yt = getYoutube();
+    let created = 0;
+    let existing = 0;
+    const failed: string[] = [];
+
+    for (const url of sanitized) {
+      try {
+        const channelId = await this.extractChannelId(url);
+        if (!channelId) {
+          failed.push(`${url} -> could not resolve channel ID`);
+          continue;
+        }
+
+        const already = await this.prisma.youTubeChannel.findUnique({
+          where: { channelId },
+          select: { id: true },
+        });
+        if (already) {
+          existing += 1;
+          continue;
+        }
+
+        const channelInfo = await yt.channels.list({
+          part: ['snippet'],
+          id: [channelId],
+          maxResults: 1,
+        });
+
+        const snippet = channelInfo.data.items?.[0]?.snippet;
+        if (!snippet) {
+          failed.push(`${url} -> channel not found on YouTube`);
+          continue;
+        }
+
+        await this.prisma.youTubeChannel.create({
+          data: {
+            name: snippet.title || 'Unknown Channel',
+            channelId,
+            url,
+            isActive: true,
+          },
+        });
+
+        created += 1;
+        this.syncChannelStats(channelId).catch(console.error);
+      } catch (error) {
+        failed.push(`${url} -> ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    return { created, existing, failed };
   }
 
   // ===== Video Fetching with Pagination =====
@@ -372,7 +443,9 @@ export class YouTubeChannelService {
 
           // Create movie record
           const year = new Date(video.publishedAt).getFullYear() || new Date().getFullYear();
-          const slug = `${video.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}`;
+          const baseSlug = `${video.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}`;
+          const suffix = (video.youtubeId || '').toLowerCase().slice(0, 8);
+          const slug = suffix ? `${baseSlug}-${suffix}` : baseSlug;
 
           await this.prisma.movie.create({
             data: {
@@ -380,7 +453,7 @@ export class YouTubeChannelService {
               slug,
               description: video.description || null,
               year,
-              genre: ['Nollywood'],
+              genre: this.inferMovieGenresFromText(video.title, channelName),
               quality: [],
               language: 'English',
               thumbnailUrl: video.thumbnail || null,

@@ -46,70 +46,79 @@ type PaginationMeta = {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, PaginatorComponent],
   template: `
-    <div class="container mx-auto px-4 py-12 books-theme">
-      <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
-        <div>
-          <h1 class="text-3xl font-serif text-[#24181b] dark:text-white">Light Novels</h1>
-          <p class="text-[#8a756e] dark:text-gray-400 mt-2">
-            Grouped by series and sorted by volume number.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <a mat-stroked-button color="primary" routerLink="/books">Hub</a>
-          <a mat-stroked-button color="primary" routerLink="/books/all">Books</a>
-          <a mat-stroked-button color="primary" routerLink="/books/comics">Comics</a>
-          <a mat-stroked-button color="primary" routerLink="/books/manga">Manga</a>
-        </div>
-      </div>
+    <div class="mx-auto w-full max-w-6xl px-3 py-6 sm:px-4 sm:py-8 books-theme">
+      <div class="mb-6 rounded-3xl border border-[#e6d7cc] bg-[linear-gradient(135deg,#fff9f6_0%,#fff3ec_40%,#fde9de_100%)] p-4 shadow-sm dark:border-cinema-700 dark:bg-[linear-gradient(135deg,#161116_0%,#20151b_40%,#2c1821_100%)] sm:p-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-[11px] uppercase tracking-[0.24em] text-[#8a756e] dark:text-gray-400">Library</p>
+            <h1 class="mt-1 text-2xl font-serif text-[#24181b] dark:text-white sm:text-3xl">Light Novels</h1>
+            <p class="mt-2 max-w-2xl text-sm text-[#7d6660] dark:text-gray-300">
+              Read by series, jump between volumes, and continue your story without leaving NaijasPride.
+            </p>
+          </div>
 
-      <div class="mb-6 flex flex-col sm:flex-row gap-3">
-        <input
-          [(ngModel)]="searchQuery"
-          (keyup.enter)="applySearch()"
-          type="text"
-          placeholder="Search series or title"
-          class="flex-1 rounded-lg border border-[#d8c2b8] dark:border-cinema-700 bg-white dark:bg-cinema-900 px-4 py-2 text-[#24181b] dark:text-white outline-none"
-        >
-        <button mat-flat-button color="primary" (click)="applySearch()">Search</button>
+          <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+            <a mat-stroked-button color="primary" routerLink="/books">Hub</a>
+            <a mat-stroked-button color="primary" routerLink="/books/all">Books</a>
+            <a mat-stroked-button color="primary" routerLink="/books/comics">Comics</a>
+            <a mat-stroked-button color="primary" routerLink="/books/manga">Manga</a>
+          </div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+          <input
+            [(ngModel)]="searchQuery"
+            (keyup.enter)="applySearch()"
+            type="text"
+            placeholder="Search series, title, or volume"
+            class="h-11 rounded-xl border border-[#d8c2b8] bg-white/80 px-4 text-[#24181b] outline-none transition focus:border-[#800020] dark:border-cinema-700 dark:bg-cinema-900/80 dark:text-white"
+          >
+          <button mat-flat-button color="primary" class="h-11" (click)="applySearch()">Search</button>
+        </div>
       </div>
 
       @if (isLoading()) {
-        <div class="grid gap-4">
-          @for (i of [1,2,3]; track i) {
-            <mat-card class="np-surface-card p-4 animate-pulse">
+        <div class="grid gap-4 sm:grid-cols-2">
+          @for (i of [1,2,3,4]; track i) {
+            <mat-card class="np-surface-card animate-pulse p-4">
               <div class="h-6 w-2/5 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
-              <div class="mt-4 h-4 w-3/4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              <div class="mt-3 h-4 w-4/5 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+              <div class="mt-3 h-4 w-3/5 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
             </mat-card>
           }
         </div>
       }
 
       @if (!isLoading() && series().length === 0) {
-        <div class="text-center py-24 text-[#8a756e] dark:text-gray-400">
-          <span class="text-6xl">📚</span>
-          <p class="text-lg font-serif text-[#24181b] dark:text-white mt-4">No light novel series found.</p>
-          <p class="text-[#9a857d] dark:text-gray-500">Try a different search or run Elsci import again.</p>
+        <div class="rounded-2xl border border-dashed border-[#d4bcb1] bg-white/70 px-4 py-16 text-center text-[#8a756e] dark:border-cinema-700 dark:bg-cinema-900/50 dark:text-gray-400">
+          <span class="text-5xl">📚</span>
+          <p class="mt-4 text-lg font-serif text-[#24181b] dark:text-white">No light novel series found.</p>
+          <p class="text-[#9a857d] dark:text-gray-500">Try a different search keyword or run the Elsci import again.</p>
         </div>
       }
 
       @if (!isLoading() && series().length > 0) {
-        <div class="space-y-4">
+        <div class="space-y-4 sm:space-y-5">
           @for (item of series(); track item.seriesKey) {
-            <mat-card class="np-surface-card p-4">
-              <div class="flex gap-4 items-start">
-                <div class="w-20 h-28 rounded overflow-hidden bg-[#d9c4b7] dark:bg-cinema-800 shrink-0">
+            <mat-card class="overflow-hidden rounded-2xl border border-[#ecdcd3] bg-[var(--bg-card)] shadow-sm dark:border-cinema-800">
+              <div class="grid gap-0 sm:grid-cols-[132px_1fr]">
+                <div class="relative h-full min-h-36 overflow-hidden bg-[#d9c4b7] dark:bg-cinema-900">
                   @if (item.coverUrl) {
-                    <img [src]="item.coverUrl" [alt]="item.seriesTitle" class="w-full h-full object-cover" loading="lazy">
+                    <img [src]="item.coverUrl" [alt]="item.seriesTitle" class="h-full w-full object-cover" loading="lazy">
                   } @else {
-                    <div class="w-full h-full flex items-center justify-center text-2xl">📘</div>
+                    <div class="flex h-full w-full items-center justify-center text-4xl">📘</div>
                   }
+
+                  <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-white/85">
+                    Series
+                  </div>
                 </div>
 
-                <div class="min-w-0 flex-1">
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h2 class="text-xl font-serif text-[#24181b] dark:text-white">{{ item.seriesTitle }}</h2>
-                    <p class="text-xs text-[#8a756e] dark:text-gray-400 uppercase tracking-wide">
-                      {{ item.totalVolumes }} volumes • Latest {{ item.latestYear }}
+                <div class="p-3 sm:p-4">
+                  <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 class="text-lg font-serif leading-tight text-[#24181b] dark:text-white sm:text-xl">{{ item.seriesTitle }}</h2>
+                    <p class="text-xs uppercase tracking-[0.14em] text-[#8a756e] dark:text-gray-400">
+                      {{ item.totalVolumes }} Volumes • {{ item.latestYear }}
                     </p>
                   </div>
 
@@ -117,15 +126,15 @@ type PaginationMeta = {
                     @for (volume of item.volumes; track volume.id) {
                       <a
                         [routerLink]="['/books', volume.slug]"
-                        class="rounded border border-[#e6d7cc] dark:border-cinema-800 px-3 py-2 hover:border-[#800020] transition flex items-center justify-between gap-2"
+                        class="group flex items-center justify-between gap-2 rounded-lg border border-[#e6d7cc] px-3 py-2 transition hover:border-[#800020] hover:bg-[#fff6f2] dark:border-cinema-800 dark:hover:bg-cinema-900"
                       >
-                        <span class="text-sm text-[#24181b] dark:text-white truncate">
+                        <span class="truncate text-sm text-[#24181b] dark:text-white">
                           @if (volume.volumeNumber !== null) {
-                            <strong>Vol {{ volume.volumeNumber }}:</strong>
+                            <strong class="font-semibold">Vol {{ volume.volumeNumber }}:</strong>
                           }
                           {{ volume.title }}
                         </span>
-                        <span class="text-xs text-[#8a756e] dark:text-gray-400">{{ volume.year }}</span>
+                        <span class="shrink-0 text-xs text-[#8a756e] dark:text-gray-400">{{ volume.year }}</span>
                       </a>
                     }
                   </div>

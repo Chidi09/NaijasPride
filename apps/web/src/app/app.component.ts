@@ -104,9 +104,19 @@ export class AppComponent implements OnInit {
   private bottomNav = viewChild<BottomNavComponent>('bottomNav');
   
   hideBottomNav = false;
+  private readonly defaultViewportContent = 'width=device-width, initial-scale=1';
+  private readonly lockedViewportContent =
+    'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
 
   // App pages where the footer should be hidden for logged-in users
   private readonly APP_ROUTES = ['/home', '/movies', '/books', '/music', '/manga', '/browse', '/watch', '/admin', '/profile', '/account', '/settings', '/search', '/library', '/downloads'];
+
+  constructor() {
+    effect(() => {
+      const shouldLockViewport = this.pwaService.isAppMode() && !!this.authState.currentUser();
+      this.applyAppViewportMode(shouldLockViewport);
+    });
+  }
 
   protected showFooter(): boolean {
     if (this.readerState.navbarHidden() || this.pwaService.isAppMode()) return false;
@@ -150,5 +160,17 @@ export class AppComponent implements OnInit {
 
   onSidePanelClose(): void {
     // Handle any cleanup when side panel closes
+  }
+
+  private applyAppViewportMode(locked: boolean): void {
+    if (typeof document === 'undefined') return;
+
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    if (viewportMeta) {
+      viewportMeta.setAttribute('content', locked ? this.lockedViewportContent : this.defaultViewportContent);
+    }
+
+    document.body.classList.toggle('app-shell-locked', locked);
+    document.documentElement.classList.toggle('app-shell-locked', locked);
   }
 }

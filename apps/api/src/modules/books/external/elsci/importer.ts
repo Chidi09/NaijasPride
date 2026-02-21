@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import type { PrismaClient } from '@prisma/client';
 import {
   discoverElsciLightNovelFiles,
+  fetchElsciLightNovelFileStream,
   type ElsciLightNovelFile,
   type ElsciRequestedFormat,
 } from './elsci-lightnovels';
@@ -98,11 +100,29 @@ const buildElsciSlug = (entry: ElsciLightNovelFile): string => {
 const buildStableDownloadUrl = (href: string): string =>
   `/api/v1/books/external/elsci/file?href=${encodeURIComponent(href)}`;
 
+const streamToBuffer = async (stream: NodeJS.ReadableStream, maxBytes: number): Promise<Buffer> => {
+  const chunks: Buffer[] = [];
+  let total = 0;
+
+  for await (const chunk of stream as AsyncIterable<Buffer | Uint8Array | string>) {
+    const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += part.length;
+    if (total > maxBytes) {
+      throw new Error(`Elsci file exceeds mirror limit (${maxBytes} bytes)`);
+    }
+    chunks.push(part);
+  }
+
+  return Buffer.concat(chunks, total);
+};
+
 export const importElsciLightNovelsCatalog = async (
   prisma: PrismaClient,
   options: ElsciLightNovelImportOptions,
 ): Promise<ElsciLightNovelImportResult> => {
   const storageService = new StorageService();
+  const shouldMirrorToR2 = (process.env.ELSCI_MIRROR_TO_R2 || 'true').trim().toLowerCase() !== 'false';
+  const mirrorMaxBytes = Number.parseInt(process.env.ELSCI_MIRROR_MAX_BYTES || `${80 * 1024 * 1024}`, 10);
   const maxBooks =
     Number.isFinite(options.maxBooks) && (options.maxBooks as number) > 0
       ? Math.min(options.maxBooks as number, 2_000)
@@ -126,6 +146,8 @@ export const importElsciLightNovelsCatalog = async (
     const slug = buildElsciSlug(entry);
     const title = cleanWhitespace(entry.title || entry.series || 'Light Novel');
     const format = entry.format;
+    let downloadUrl = buildStableDownloadUrl(entry.href);
+    let fileSize = entry.sizeBytes || null;
 
     let coverUrl: string | null = null;
 
@@ -148,6 +170,34 @@ export const importElsciLightNovelsCatalog = async (
       }
     }
 
+    if (!options.dryRun && shouldMirrorToR2) {
+      try {
+        const upstream = await fetchElsciLightNovelFileStream(entry.href, { timeoutMs: 120_000 });
+        const ext = format === 'PDF' ? 'pdf' : 'epub';
+        const storageKey = `books/elsci/${slug}.${ext}`;
+        const contentType = format === 'PDF' ? 'application/pdf' : 'application/epub+zip';
+        const body = await streamToBuffer(upstream.stream, Number.isFinite(mirrorMaxBytes) && mirrorMaxBytes > 0
+          ? mirrorMaxBytes
+          : 80 * 1024 * 1024);
+
+        await StorageService.getClient().send(
+          new PutObjectCommand({
+            Bucket: StorageService.getBucket(),
+            Key: storageKey,
+            Body: body,
+            ContentType: contentType,
+          }),
+        );
+
+        downloadUrl = `/api/v1/books/download?key=${encodeURIComponent(storageKey)}`;
+        fileSize = body.byteLength;
+      } catch (error) {
+        console.warn(
+          `[ElsciImporter] Mirror skipped for "${title}": ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
     const payload = {
       title,
       slug,
@@ -155,8 +205,8 @@ export const importElsciLightNovelsCatalog = async (
       description: buildElsciDescription(entry),
       year: deriveBookYear(entry),
       coverUrl,
-      downloadUrl: buildStableDownloadUrl(entry.href),
-      fileSize: entry.sizeBytes || null,
+      downloadUrl,
+      fileSize,
       format,
       genre: ['Light Novel'],
       language: 'English',
