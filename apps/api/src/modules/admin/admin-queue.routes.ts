@@ -428,30 +428,26 @@ export const adminQueueRoutes = async (
         }
 
         // Check FlareSolverr status — must use POST /v1 (GET returns 405)
-        const flaresolverrUrl = (process.env.FLARESOLVERR_URL || '').trim();
-        if (flaresolverrUrl) {
-          const startTime = Date.now();
-          try {
-            const response = await axios.post(`${flaresolverrUrl}/v1`,
-              { cmd: 'sessions.list' },
-              { timeout: 8000, validateStatus: () => true },
-            );
-            const ok = response.status >= 200 && response.status < 300 && response.data?.status === 'ok';
-            results.flaresolverr = {
-              healthy: ok,
-              responseTimeMs: Date.now() - startTime,
-              version: response.data?.version,
-              sessions: response.data?.sessions,
-            };
-          } catch (error) {
-            results.flaresolverr = {
-              healthy: false,
-              responseTimeMs: Date.now() - startTime,
-              error: error instanceof Error ? error.message : String(error),
-            };
-          }
-        } else {
-          results.flaresolverr = { healthy: false, message: 'Not configured' };
+        const flaresolverrUrl = (process.env.FLARESOLVERR_URL || 'http://flaresolverr:8191').trim();
+        const startTime = Date.now();
+        try {
+          const response = await axios.post(`${flaresolverrUrl}/v1`,
+            { cmd: 'sessions.list' },
+            { timeout: 8000, validateStatus: () => true },
+          );
+          const ok = response.status >= 200 && response.status < 300 && response.data?.status === 'ok';
+          results.flaresolverr = {
+            healthy: ok,
+            responseTimeMs: Date.now() - startTime,
+            version: response.data?.version,
+            sessions: response.data?.sessions,
+          };
+        } catch (error) {
+          results.flaresolverr = {
+            healthy: false,
+            responseTimeMs: Date.now() - startTime,
+            error: error instanceof Error ? error.message : String(error),
+          };
         }
 
         return reply.send({

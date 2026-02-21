@@ -15,6 +15,8 @@ type FlareSolverrResponse = {
   sessions?: string[];
 };
 
+const DEFAULT_FLARESOLVERR_URL = 'http://flaresolverr:8191';
+
 const normalizeHeaders = (
   headers: Record<string, unknown>
 ): Record<string, string | string[] | undefined> => {
@@ -41,8 +43,8 @@ export class FlareSolverrFetcher implements SourceFetcher {
   private readonly sessions = new Map<string, number>();
 
   constructor() {
-    const configured = process.env.FLARESOLVERR_URL?.trim();
-    this.flaresolverrUrl = configured || null;
+    const configured = (process.env.FLARESOLVERR_URL || DEFAULT_FLARESOLVERR_URL).trim();
+    this.flaresolverrUrl = configured || DEFAULT_FLARESOLVERR_URL;
     const configuredSessionTtl = Number.parseInt(process.env.FLARESOLVERR_SESSION_MAX_AGE_MS || '1800000', 10);
     this.sessionMaxAgeMs = Number.isFinite(configuredSessionTtl) && configuredSessionTtl > 0
       ? configuredSessionTtl
@@ -71,10 +73,6 @@ export class FlareSolverrFetcher implements SourceFetcher {
   }
 
   async checkHealth(): Promise<{ ok: boolean; message?: string }> {
-    if (!this.flaresolverrUrl) {
-      return { ok: false, message: 'FLARESOLVERR_URL is not configured' };
-    }
-
     try {
       await this.listSessions();
       return { ok: true };
@@ -183,10 +181,6 @@ export class FlareSolverrFetcher implements SourceFetcher {
   }
 
   private async call<T>(payload: Record<string, unknown>, timeoutMs: number): Promise<T> {
-    if (!this.flaresolverrUrl) {
-      throw new Error('FlareSolverr is not configured (FLARESOLVERR_URL missing)');
-    }
-
     const response = await axios.post<FlareSolverrResponse>(`${this.flaresolverrUrl}/v1`, payload, {
       timeout: timeoutMs,
       validateStatus: () => true,

@@ -97,6 +97,10 @@ services:
     environment:
       LOG_LEVEL: \${FLARESOLVERR_LOG_LEVEL:-info}
       TZ: \${TZ:-Africa/Lagos}
+    networks:
+      default:
+        aliases:
+          - flaresolverr
 
   api-$stack:
     image: naijaspride-api:$stack
@@ -110,7 +114,7 @@ services:
     environment:
       PORT: "3000"
       REDIS_URL: redis://redis-$stack:6379
-      FLARESOLVERR_URL: http://flaresolverr-$stack:8191
+      FLARESOLVERR_URL: ""
       TORRENT_DOWNLOAD_DIR: /tmp/naijaspride/torrent-downloads
       FFMPEG_PATH: /usr/bin/ffmpeg
 
@@ -151,7 +155,7 @@ services:
     environment:
       REDIS_URL: redis://redis-$stack:6379
       FFMPEG_PATH: /usr/bin/ffmpeg
-      FLARESOLVERR_URL: http://flaresolverr-$stack:8191
+      FLARESOLVERR_URL: ""
     volumes:
       - torrent_tmp_$stack:/tmp/naijaspride
 
