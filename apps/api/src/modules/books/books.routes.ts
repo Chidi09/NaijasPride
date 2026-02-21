@@ -1282,8 +1282,10 @@ export const bookRoutes = async (
       querystring: elsciFileQuerySchema,
     },
     handler: async (request, reply) => {
+      let requestedHref = '';
       try {
         const { href, disposition } = elsciFileQuerySchema.parse(request.query ?? {});
+        requestedHref = href;
         const upstream = await fetchElsciLightNovelFileStream(href);
         const upstreamDisposition = upstream.headers['content-disposition'];
         const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
@@ -1311,6 +1313,28 @@ export const bookRoutes = async (
         reply.header('content-disposition', `${disposition}; filename="${filename.replace(/"/g, '')}"`);
         return reply.send(upstream.stream);
       } catch (error) {
+        const blockedByCloudflare =
+          error instanceof Error && /Elsci file request blocked with status/i.test(error.message);
+
+        if (blockedByCloudflare) {
+          const configuredBase =
+            (process.env.ELSCI_LIGHT_NOVELS_BASE_URL || 'https://server.elsci.one').trim() ||
+            'https://server.elsci.one';
+          const baseUrl = configuredBase.replace(/\/+$/, '');
+          const normalizedHref = requestedHref.startsWith('/')
+            ? requestedHref
+            : `/${requestedHref.replace(/^\/+/, '')}`;
+          const fallbackUrl = new URL(normalizedHref, `${baseUrl}/`).toString();
+
+          request.log.warn(
+            { err: error, fallbackUrl },
+            '[Elsci] Upstream blocked server-side request; redirecting client to source URL',
+          );
+
+          reply.header('cache-control', 'no-store');
+          return reply.redirect(fallbackUrl);
+        }
+
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to stream Elsci light novel file',

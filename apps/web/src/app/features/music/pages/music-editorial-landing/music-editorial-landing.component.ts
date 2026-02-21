@@ -30,7 +30,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
       --music-contrast: #111111;
       background: var(--music-bg);
       color: var(--music-text);
-      font-family: 'Space Grotesk', system-ui, sans-serif;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     }
 
     :host-context(.dark) {
@@ -55,24 +55,24 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
     ::-webkit-scrollbar-thumb { background: #800020; }
     .spin-slow { animation: spin 10s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
-    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal { opacity: 1; transform: none; }
+    .reveal.visible { opacity: 1; transform: none; }
     .image-zoom { transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease; }
     .group:hover .image-zoom { transform: scale(1.05); }
     .playlist-row { transition: background-color 0.3s ease, padding-left 0.3s ease; }
-    .playlist-row:hover { background-color: rgba(31, 31, 31, 0.3); padding-left: 16px; }
+    .playlist-row:hover { background-color: color-mix(in srgb, var(--music-surface) 75%, #800020 25%); padding-left: 16px; }
   `],
   template: `
-    <section class="min-h-screen pt-32 pb-12 px-6 flex flex-col justify-between border-b border-[var(--music-border)] relative">
+    <section class="min-h-screen pt-20 md:pt-28 pb-12 px-4 md:px-6 flex flex-col justify-between border-b border-[var(--music-border)] relative">
       <div class="absolute top-20 right-0 w-1/2 h-1/2 bg-gradient-to-b from-[var(--music-surface)] to-transparent opacity-20 -z-10 blur-3xl"></div>
       <div class="max-w-8xl mx-auto w-full">
         <div class="reveal visible flex flex-col mb-12">
           <div class="flex items-baseline gap-6 overflow-hidden flex-wrap">
-            <h1 class="display-text text-[8vw] md:text-[6vw] leading-[0.9] uppercase">Sonic</h1>
+            <h1 class="display-text text-[14vw] sm:text-[10vw] md:text-[6vw] leading-[0.9] uppercase">Music</h1>
             <div class="h-[2px] flex-grow bg-[#800020] self-center mx-4 min-w-[100px]"></div>
             <span class="serif-text text-lg md:text-2xl italic text-[#800020]">(Vol. 01)</span>
           </div>
-          <h1 class="display-text text-[8vw] md:text-[6vw] leading-[0.9] text-outline uppercase self-end">Visuals</h1>
+          <h1 class="display-text text-[14vw] sm:text-[10vw] md:text-[6vw] leading-[0.9] text-outline uppercase self-end">Landing</h1>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
