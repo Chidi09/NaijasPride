@@ -355,6 +355,20 @@ export class BookCoverService {
   }
 
   private async downloadBookSourceToFile(book: BookRecord, destinationPath: string): Promise<'epub' | 'pdf' | null> {
+    // If the book file is already mirrored to R2, use the R2 copy directly
+    // instead of trying to fetch from the original external source.
+    const r2Key = extractDownloadKeyFromUrl(book.downloadUrl || '');
+    if (r2Key && r2Key.startsWith('books/')) {
+      const downloadUrl = await this.resolveDownloadUrl(book.downloadUrl!);
+      const response = await axios.get(downloadUrl, {
+        timeout: BOOK_COVER_DOWNLOAD_TIMEOUT_MS,
+        responseType: 'stream',
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+      await streamToFileWithLimit(response.data, destinationPath, BOOK_COVER_MAX_FILE_BYTES);
+      return inferFormatFromFilePath(r2Key);
+    }
+
     if (isEpubBooksRecord(book)) {
       const externalSlug = normalizeExternalSlug(book.slug);
       if (!externalSlug) {

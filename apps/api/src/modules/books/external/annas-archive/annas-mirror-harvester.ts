@@ -104,30 +104,27 @@ const findDownloadLinks = async (
   await page.goto(md5Url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForTimeout(3_000);
 
-  // Extract download links from the page
+  // Extract download links from the page, prioritized by reliability:
+  // 1. LibGen mirrors (direct file downloads, no auth needed)
+  // 2. Direct file links (.epub/.pdf URLs)
+  // 3. Slow partner server links (may require waiting but no login)
+  // fast_download links are EXCLUDED — they require a paid account/login.
   const links = await page.evaluate(() => {
     const anchors = document.querySelectorAll('a[href]');
-    const urls: string[] = [];
+    const libgenLinks: string[] = [];
+    const directFileLinks: string[] = [];
+    const slowPartnerLinks: string[] = [];
 
     for (const a of anchors) {
       const href = a.getAttribute('href') || '';
       const text = (a.textContent || '').toLowerCase();
 
-      // Look for "slow download" / partner server links
-      // These are typically the most reliable direct download links
-      if (
-        href.includes('/slow_download/') ||
-        href.includes('/fast_download/') ||
-        text.includes('slow partner') ||
-        text.includes('slow download') ||
-        text.includes('fast partner') ||
-        text.includes('fast download')
-      ) {
-        urls.push(href);
+      // Skip fast_download — requires paid account/login
+      if (href.includes('/fast_download/') || text.includes('fast partner') || text.includes('fast download')) {
         continue;
       }
 
-      // Libgen mirrors
+      // LibGen mirrors — highest priority (direct downloads)
       if (
         href.includes('libgen.') ||
         href.includes('library.lol') ||
@@ -135,7 +132,7 @@ const findDownloadLinks = async (
         href.includes('libgen.gs') ||
         href.includes('lib-nwcdljpfb3ferhycbhb.b-cdn.net')
       ) {
-        urls.push(href);
+        libgenLinks.push(href);
         continue;
       }
 
@@ -144,11 +141,23 @@ const findDownloadLinks = async (
         href.match(/\.(epub|pdf|mobi|azw3?)(\?|$)/i) &&
         !href.includes('javascript:')
       ) {
-        urls.push(href);
+        directFileLinks.push(href);
+        continue;
+      }
+
+      // Slow partner server links (free but may require waiting)
+      if (
+        href.includes('/slow_download/') ||
+        text.includes('slow partner') ||
+        text.includes('slow download')
+      ) {
+        slowPartnerLinks.push(href);
+        continue;
       }
     }
 
-    return urls;
+    // Return in priority order: libgen first, then direct files, then slow partner
+    return [...libgenLinks, ...directFileLinks, ...slowPartnerLinks];
   });
 
   console.log(`[AnnasMirror] Found ${links.length} potential download links on md5 page`);

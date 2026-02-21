@@ -102,7 +102,7 @@ export class QueueService {
     const backoffMsRaw = Number.parseInt(process.env.BOOK_COVER_JOB_BACKOFF_MS || '30000', 10);
     const backoffMs = Number.isFinite(backoffMsRaw) && backoffMsRaw > 0 ? Math.min(backoffMsRaw, 10 * 60 * 1000) : 30_000;
 
-    const jobId = `book-cover:${payload.bookId.trim()}`;
+    const jobId = `book-cover-${payload.bookId.trim()}`;
 
     try {
       await queue.add('extract-book-cover', {

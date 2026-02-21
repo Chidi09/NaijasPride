@@ -113,9 +113,11 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
 
       reply.header('content-type', response.ContentType || fallbackType);
       if (ext === 'm3u8') {
-        reply.header('cache-control', 'private, no-store');
+        // VOD manifests are static; short cache to allow quick updates if re-encoded
+        reply.header('cache-control', 'public, max-age=300, s-maxage=600');
       } else {
-        reply.header('cache-control', 'private, max-age=60');
+        // .ts segments are immutable content-addressed chunks
+        reply.header('cache-control', 'public, max-age=31536000, immutable');
       }
 
       return reply.send(response.Body as any);
