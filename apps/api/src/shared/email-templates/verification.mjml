@@ -8,72 +8,84 @@
       <mj-section background-color="#0a0a0a" padding="0" />
       <mj-wrapper background-color="#0a0a0a" padding="32px 16px" />
     </mj-attributes>
+    <mj-style>
+      u + .body .body-wrapper { background-color: #0a0a0a !important; }
+      [data-ogsc] .body-wrapper { background-color: #0a0a0a !important; }
+      [data-ogsc] .card-bg { background-color: #120a0d !important; }
+      [data-ogsc] .text-primary { color: #f9f9f2 !important; }
+      [data-ogsc] .text-muted { color: #a88a78 !important; }
+      [data-ogsc] .text-subtle { color: #d7c4b6 !important; }
+      @media (prefers-color-scheme: dark) {
+        body { background-color: #0a0a0a !important; }
+        .body-wrapper { background-color: #0a0a0a !important; }
+        .card-bg { background-color: #120a0d !important; }
+        .text-primary { color: #f9f9f2 !important; }
+        .text-muted { color: #a88a78 !important; }
+        .text-subtle { color: #d7c4b6 !important; }
+      }
+    </mj-style>
   </mj-head>
-  <mj-body background-color="#0a0a0a">
-    <mj-wrapper>
+  <mj-body background-color="#0a0a0a" css-class="body-wrapper">
+    <mj-wrapper background-color="#0a0a0a" padding="32px 16px" css-class="body-wrapper">
+
       <!-- Header -->
-      <mj-section background-color="linear-gradient(135deg, #800020 0%, #660019 100%)" padding="28px">
-        <mj-column>
-          <mj-text align="center" color="#f4d7b2" font-size="11px" font-weight="600" letter-spacing="3px" text-transform="uppercase" padding-bottom="12px">
-            NAIJASPRIDE
-          </mj-text>
-          <mj-text align="center" color="#ffffff" font-size="26px" font-weight="700" line-height="1.25">
-            Verify Your Email
-          </mj-text>
-          <mj-text align="center" color="#d7c4b6" font-size="14px" padding-top="10px">
-            One quick step to secure your account
-          </mj-text>
+      <mj-section background-color="#800020" padding="0">
+        <mj-column padding="0">
+          <mj-raw>
+            <tr>
+              <td style="background: linear-gradient(135deg, #800020 0%, #660019 100%); padding: 28px; text-align: center;">
+                <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #f4d7b2; padding-bottom: 12px;">NAIJASPRIDE</div>
+                <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 26px; font-weight: 700; line-height: 1.25; color: #ffffff;">Verify Your Email</div>
+                <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 14px; color: #d7c4b6; padding-top: 10px;">One quick step to secure your account</div>
+              </td>
+            </tr>
+          </mj-raw>
         </mj-column>
       </mj-section>
 
       <!-- Body -->
-      <mj-section background-color="#120a0d" padding="28px">
-        <mj-column>
-          <mj-text>
+      <mj-section background-color="#120a0d" padding="28px" css-class="card-bg">
+        <mj-column css-class="card-bg">
+          <mj-text css-class="text-primary">
             Hi {{name}},
           </mj-text>
-          
-          <mj-text>
+          <mj-text css-class="text-primary">
             Thanks for signing up! Please verify your email address so we know it's really you.
           </mj-text>
-
           <mj-button href="{{verifyUrl}}" align="left">
             Verify Email Address
           </mj-button>
-
-          <mj-text color="#a88a78" font-size="13px" padding-top="16px" padding-bottom="6px">
+          <mj-text color="#a88a78" font-size="13px" padding-top="16px" padding-bottom="6px" css-class="text-muted">
             Or paste this link into your browser:
           </mj-text>
-          
-          <mj-text color="#d7c4b6" font-size="12px" word-break="break-all" padding-bottom="16px">
+          <mj-text color="#d7c4b6" font-size="12px" padding-bottom="16px" css-class="text-subtle">
             {{verifyUrl}}
           </mj-text>
-
           <mj-divider border-color="#5f1327" padding="20px 0" />
-
-          <mj-text color="#a88a78" font-size="13px">
+          <mj-text color="#a88a78" font-size="13px" css-class="text-muted">
             This link expires in <strong style="color: #f9f9f2;">24 hours</strong>. If you didn't create an account, you can safely ignore this email.
           </mj-text>
         </mj-column>
       </mj-section>
 
       <!-- Footer -->
-      <mj-section background-color="#120a0d" padding="16px 28px 20px" border-top="1px solid #5f1327">
-        <mj-column>
-          <mj-text align="center" color="#a88a78" font-size="12px">
+      <mj-section background-color="#120a0d" padding="16px 28px 20px" border-top="1px solid #5f1327" css-class="card-bg">
+        <mj-column css-class="card-bg">
+          <mj-text align="center" color="#a88a78" font-size="12px" css-class="text-muted">
             This verification email was sent by NAIJASPRIDE. &nbsp;|&nbsp; <a href="{{frontendUrl}}/help" style="color: #d7c4b6; text-decoration: underline;">Help</a>
           </mj-text>
         </mj-column>
       </mj-section>
 
       <!-- Brand Stamp -->
-      <mj-section padding="20px 0 0">
-        <mj-column>
+      <mj-section padding="20px 0 0" background-color="#0a0a0a" css-class="body-wrapper">
+        <mj-column css-class="body-wrapper">
           <mj-text align="center" color="#5f1327" font-size="11px" letter-spacing="1px" text-transform="uppercase">
             &copy; {{year}} NAIJASPRIDE &mdash; Stream Nigerian &amp; Worldwide Content
           </mj-text>
         </mj-column>
       </mj-section>
+
     </mj-wrapper>
   </mj-body>
 </mjml>
