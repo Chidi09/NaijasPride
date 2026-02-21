@@ -92,7 +92,7 @@ export class AppComponent implements OnInit {
   private deviceService = inject(DeviceService);
   private themeService = inject(ThemeService);
   private firebaseMessaging = inject(FirebaseMessagingService);
-  private pwaService = inject(PwaService);
+  protected pwaService = inject(PwaService);
   private router = inject(Router);
   
   protected readerState = inject(ReaderStateService);
@@ -114,8 +114,9 @@ export class AppComponent implements OnInit {
     // Listen for route changes to hide/show bottom nav
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
-    ).subscribe((event: NavigationEnd) => {
-      this.hideBottomNav = this.pwaService.shouldHideBottomNav(event.url);
+    ).subscribe((event) => {
+      const navEnd = event as NavigationEnd;
+      this.hideBottomNav = this.pwaService.shouldHideBottomNav(navEnd.url);
       
       // Update bottom nav visibility
       const nav = this.bottomNav();

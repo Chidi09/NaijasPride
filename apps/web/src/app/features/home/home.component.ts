@@ -247,7 +247,7 @@ export class HomeComponent implements OnInit {
 
   ngOnInit(): void {
     // Set user info
-    const user = this.authService.currentUser;
+    const user = this.authService.currentUser();
     if (user) {
       this.userName.set(user.name || user.email?.split('@')[0] || 'Guest');
       this.userInitials.set(this.userName().charAt(0).toUpperCase());

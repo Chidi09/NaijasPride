@@ -140,7 +140,7 @@ export class PwaService {
 
   // Helper to check if we should show app-like UI
   shouldShowAppUI(): boolean {
-    return this.isStandalone() || this.pwaState().isAppMode;
+    return this.isStandalone() || this.isAppMode();
   }
 
   // Check if bottom nav should be hidden (when watching/reading)

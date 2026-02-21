@@ -1,8 +1,8 @@
-import { Component, inject, signal, output } from '@angular/core';
+import { Component, inject, signal, output, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
-import { ThemeService } from '../../../shared/services/theme.service';
+import { ThemeService } from '../../services/theme.service';
 
 @Component({
   selector: 'app-side-panel',
@@ -370,17 +370,21 @@ export class SidePanelComponent {
   isDarkMode = signal(false);
 
   constructor() {
-    // Subscribe to auth state
-    this.authService.currentUser$.subscribe(user => {
+    // React to auth state changes
+    effect(() => {
+      const user = this.authService.currentUser();
       if (user) {
         this.userName.set(user.name || user.email?.split('@')[0] || 'User');
         this.userEmail.set(user.email || '');
+      } else {
+        this.userName.set('Guest');
+        this.userEmail.set('');
       }
     });
 
-    // Subscribe to theme
-    this.themeService.darkMode$.subscribe(isDark => {
-      this.isDarkMode.set(isDark);
+    // React to theme changes
+    effect(() => {
+      this.isDarkMode.set(this.themeService.theme() === 'dark');
     });
   }
 
@@ -402,7 +406,7 @@ export class SidePanelComponent {
   }
 
   toggleTheme(): void {
-    this.themeService.toggleDarkMode();
+    this.themeService.toggleTheme();
   }
 
   logout(): void {

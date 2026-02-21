@@ -1,4 +1,4 @@
-import { Component, inject, output } from '@angular/core';
+import { Component, inject, output, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
@@ -171,11 +171,15 @@ export class AppHeaderComponent {
   userInitials = signal('G');
 
   constructor() {
-    this.authService.currentUser$.subscribe(user => {
+    effect(() => {
+      const user = this.authService.currentUser();
       if (user) {
         const name = user.name || user.email?.split('@')[0] || 'Guest';
         this.userName.set(name);
         this.userInitials.set(name.charAt(0).toUpperCase());
+      } else {
+        this.userName.set('Guest');
+        this.userInitials.set('G');
       }
     });
   }

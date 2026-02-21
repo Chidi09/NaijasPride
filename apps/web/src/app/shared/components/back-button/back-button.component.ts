@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Location } from '@angular/common';
 import { Router } from '@angular/router';
-import { PwaService } from '../services/pwa.service';
+import { PwaService } from '../../../core/services/pwa.service';
 
 @Component({
   selector: 'app-back-button',
