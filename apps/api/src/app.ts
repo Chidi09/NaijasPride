@@ -386,7 +386,7 @@ const start = async () => {
         }
         q.add(
           'elsci-lightnovels',
-          { source: 'elsci-lightnovels' },
+          { source: 'elsci-lightnovels', mode: 'manual' },
           { jobId: `elsci-auto-${Date.now()}`, removeOnComplete: 50, removeOnFail: 20 },
         ).then(() => {
           app.log.info('[ElsciScheduler] Enqueued elsci-lightnovels import job');

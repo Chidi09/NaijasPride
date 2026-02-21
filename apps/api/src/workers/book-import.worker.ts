@@ -148,7 +148,8 @@ const worker = new Worker(
     }
 
     if (data.source === 'elsci-lightnovels') {
-      if (data.mode !== 'manual') {
+      const mode = data.mode || 'manual';
+      if (mode !== 'manual') {
         throw new Error('elsci-lightnovels import only supports manual mode');
       }
 

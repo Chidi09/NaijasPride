@@ -3,6 +3,7 @@ import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 // webtorrent v2+ is ESM-only — loaded via dynamic import() at runtime
 let WebTorrent: any;
+const dynamicImport = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<any>;
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -337,7 +338,7 @@ const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<
 }> => {
   // Lazy-load webtorrent (ESM-only module)
   if (!WebTorrent) {
-    const mod = await import('webtorrent');
+    const mod = await dynamicImport('webtorrent');
     WebTorrent = mod.default ?? mod;
   }
 

@@ -87,33 +87,35 @@ h1, h2, h3, h4, h5, h6, .brand-font {
   background: var(--brand);
 }
 
-/* TV Mode & Keyboard Accessibility */
-/* Enhanced focus states for remote/keyboard navigation */
-:focus {
+/* Keyboard accessibility baseline (non-TV) */
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* TV Mode focus treatment */
+body.tv-mode :focus {
   outline: 4px solid var(--focus-ring);
   outline-offset: 4px;
   z-index: 50;
   transition: all 0.2s ease-in-out;
 }
 
-/* Scale up focused elements for TV visibility */
-button:focus,
-a:focus,
-[tabindex]:focus {
+body.tv-mode button:focus,
+body.tv-mode a:focus,
+body.tv-mode [tabindex]:focus {
   transform: scale(1.05);
 }
 
-/* Hide default browser outline but keep accessibility */
-button:focus:not(:focus-visible),
-a:focus:not(:focus-visible) {
+body.tv-mode button:focus:not(:focus-visible),
+body.tv-mode a:focus:not(:focus-visible) {
   outline: none;
   transform: none;
 }
 
-/* Focus-visible for keyboard users only */
-button:focus-visible,
-a:focus-visible,
-[tabindex]:focus-visible {
+body.tv-mode button:focus-visible,
+body.tv-mode a:focus-visible,
+body.tv-mode [tabindex]:focus-visible {
   outline: 4px solid var(--focus-ring);
   outline-offset: 4px;
   transform: scale(1.05);
