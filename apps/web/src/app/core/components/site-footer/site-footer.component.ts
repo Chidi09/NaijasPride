@@ -32,7 +32,7 @@ import { RouterLink } from '@angular/router';
               <a routerLink="/movies" class="hover:text-[var(--text-primary)] transition-colors">Movies</a>
               <a routerLink="/books" class="hover:text-[var(--text-primary)] transition-colors">Books & Comics</a>
               <a routerLink="/music" class="hover:text-[var(--text-primary)] transition-colors">Music</a>
-              <a routerLink="/browse" class="hover:text-[var(--text-primary)] transition-colors">Browse All</a>
+              <a routerLink="/movies" class="hover:text-[var(--text-primary)] transition-colors">Browse All</a>
             </div>
           </div>
 

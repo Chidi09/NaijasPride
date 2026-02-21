@@ -51,7 +51,7 @@ import { filter } from 'rxjs/operators';
         class="flex-1" 
         [class.pt-16]="!readerState.navbarHidden() && !pwaService.isAppMode()"
         [class.pt-14]="pwaService.isAppMode()"
-        [class.pb-20]="pwaService.isAppMode() && !hideBottomNav"
+        [class.pb-24]="pwaService.isAppMode() && !hideBottomNav"
       >
         <router-outlet />
       </main>
@@ -106,7 +106,7 @@ export class AppComponent implements OnInit {
   hideBottomNav = false;
 
   // App pages where the footer should be hidden for logged-in users
-  private readonly APP_ROUTES = ['/home', '/movies', '/books', '/music', '/manga', '/browse', '/watch', '/admin', '/profile', '/settings', '/library', '/downloads'];
+  private readonly APP_ROUTES = ['/home', '/movies', '/books', '/music', '/manga', '/browse', '/watch', '/admin', '/profile', '/account', '/settings', '/search', '/library', '/downloads'];
 
   protected showFooter(): boolean {
     if (this.readerState.navbarHidden() || this.pwaService.isAppMode()) return false;

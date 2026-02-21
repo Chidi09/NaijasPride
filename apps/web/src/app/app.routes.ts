@@ -169,6 +169,12 @@ export const routes: Routes = [
       .then(m => m.AccountSettingsComponent)
   },
   {
+    path: 'settings',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/account-settings/account-settings.component')
+      .then(m => m.AccountSettingsComponent)
+  },
+  {
     path: 'ways-to-watch',
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
     data: {
@@ -266,9 +272,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent)
   },
   {
+    path: 'search',
+    loadComponent: () => import('./features/search/pages/global-search/global-search.component')
+      .then(m => m.GlobalSearchComponent)
+  },
+  {
     path: 'browse',
-    loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')
-      .then(m => m.MovieListComponent)
+    redirectTo: 'movies/downloads',
+    pathMatch: 'full'
   },
   {
     path: 'movies',
@@ -279,6 +290,11 @@ export const routes: Routes = [
     path: 'movies/stream',
     loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component')
       .then(m => m.StreamOnlyMoviesComponent)
+  },
+  {
+    path: 'movies/downloads',
+    loadComponent: () => import('./features/movies/pages/download-only-movies/download-only-movies.component')
+      .then(m => m.DownloadOnlyMoviesComponent)
   },
   // Legacy redirect
   {
@@ -307,6 +323,18 @@ export const routes: Routes = [
   // PROFILE ROUTES
   {
     path: 'profile',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component')
+      .then(m => m.ProfileDashboardComponent)
+  },
+  {
+    path: 'library',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component')
+      .then(m => m.ProfileDashboardComponent)
+  },
+  {
+    path: 'downloads',
     canActivate: [authGuard],
     loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component')
       .then(m => m.ProfileDashboardComponent)

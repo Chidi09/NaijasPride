@@ -1,4 +1,4 @@
-import { Component, inject, output, signal, effect } from '@angular/core';
+import { Component, ElementRef, HostListener, effect, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
@@ -33,7 +33,12 @@ import { PwaService } from '../../services/pwa.service';
     .header-right {
       display: flex;
       align-items: center;
-      width: 48px;
+      width: 64px;
+    }
+
+    .header-right {
+      justify-content: flex-end;
+      position: relative;
     }
 
     .header-center {
@@ -70,8 +75,9 @@ import { PwaService } from '../../services/pwa.service';
     }
 
     .logo {
-      width: 32px;
-      height: 32px;
+      width: 96px;
+      height: 28px;
+      object-fit: contain;
     }
 
     .notification-btn {
@@ -79,18 +85,19 @@ import { PwaService } from '../../services/pwa.service';
       height: 36px;
       border-radius: 50%;
       border: none;
-      background: transparent;
-      color: var(--text-muted, #6b5b52);
+      background: var(--bg-secondary, #efe1d7);
+      color: var(--text-primary, #24181b);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
-      transition: background 0.2s ease;
+      transition: background 0.2s ease, transform 0.2s ease;
     }
 
     .notification-btn:hover {
-      background: var(--bg-secondary, #efe1d7);
+      background: var(--border-color, #d8c2b8);
+      transform: translateY(-1px);
     }
 
     .notification-badge {
@@ -102,6 +109,58 @@ import { PwaService } from '../../services/pwa.service';
       background: var(--brand, #800020);
       border-radius: 50%;
       border: 2px solid var(--bg-primary, #f8f0e9);
+    }
+
+    .notifications-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 280px;
+      background: var(--bg-card, #fff);
+      border: 1px solid var(--border-color, #d8c2b8);
+      border-radius: 14px;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+      overflow: hidden;
+      z-index: 55;
+    }
+
+    .notifications-head {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color, #d8c2b8);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted, #6b5b52);
+    }
+
+    .notification-item {
+      display: block;
+      padding: 10px 12px;
+      text-decoration: none;
+      color: inherit;
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color, #d8c2b8) 65%, transparent);
+      transition: background 0.2s ease;
+    }
+
+    .notification-item:hover {
+      background: var(--bg-secondary, #efe1d7);
+    }
+
+    .notification-item:last-child {
+      border-bottom: 0;
+    }
+
+    .notification-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary, #24181b);
+    }
+
+    .notification-meta {
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--text-muted, #6b5b52);
     }
 
     /* Dark mode */
@@ -117,6 +176,37 @@ import { PwaService } from '../../services/pwa.service';
 
     :host-context(.dark) .notification-btn:hover {
       background: var(--bg-secondary, #1a1a1a);
+    }
+
+    :host-context(.dark) .notification-btn {
+      background: var(--bg-secondary, #1a1a1a);
+      color: var(--text-primary, #e6d5cc);
+    }
+
+    :host-context(.dark) .notifications-dropdown {
+      background: #121212;
+      border-color: #2a2a2a;
+    }
+
+    :host-context(.dark) .notifications-head {
+      border-bottom-color: #2a2a2a;
+      color: #bcae9e;
+    }
+
+    :host-context(.dark) .notification-item {
+      border-bottom-color: #2a2a2a;
+    }
+
+    :host-context(.dark) .notification-item:hover {
+      background: #1c1c1c;
+    }
+
+    :host-context(.dark) .notification-title {
+      color: #e6e0d4;
+    }
+
+    :host-context(.dark) .notification-meta {
+      color: #a39287;
     }
 
     /* Desktop hide - only show on mobile/tablet */
@@ -141,21 +231,31 @@ import { PwaService } from '../../services/pwa.service';
 
         <div class="header-center">
           <a routerLink="/home" class="logo-link" aria-label="NaijasPride Home">
-            <svg class="logo" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="40" height="40" rx="8" fill="#800020"/>
-              <path d="M12 30V10H16L24 22V10H28V30H24L16 18V30H12Z" fill="white"/>
-            </svg>
+            <img class="logo" src="assets/images/logo.svg" alt="NaijasPride" />
           </a>
         </div>
 
         <div class="header-right">
-          <button class="notification-btn" aria-label="Notifications">
+          <button class="notification-btn" (click)="toggleNotifications($event)" aria-label="Notifications">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
               <path d="M13.73 21a2 2 0 01-3.46 0"></path>
             </svg>
             <span class="notification-badge"></span>
           </button>
+
+          @if (showNotifications()) {
+            <div class="notifications-dropdown" (click)="$event.stopPropagation()">
+              <div class="notifications-head">Notifications</div>
+
+              @for (item of notifications(); track item.id) {
+                <a class="notification-item" [routerLink]="item.link" (click)="closeNotifications()">
+                  <div class="notification-title">{{ item.title }}</div>
+                  <div class="notification-meta">{{ item.meta }}</div>
+                </a>
+              }
+            </div>
+          }
         </div>
       </header>
     }
@@ -164,11 +264,18 @@ import { PwaService } from '../../services/pwa.service';
 export class AppHeaderComponent {
   authService = inject(AuthService);
   pwaService = inject(PwaService);
+  private host = inject(ElementRef<HTMLElement>);
   
   openMenu = output<void>();
 
   userName = signal('Guest');
   userInitials = signal('G');
+  showNotifications = signal(false);
+  notifications = signal([
+    { id: 'n1', title: 'Fresh movies dropped', meta: 'New torrent + Soap2Day titles are now live.', link: '/movies/downloads' },
+    { id: 'n2', title: 'Your library is ready', meta: 'Pick up from where you stopped watching.', link: '/library' },
+    { id: 'n3', title: 'Discover trending music', meta: 'New charting tracks have landed.', link: '/music' },
+  ]);
 
   constructor() {
     effect(() => {
@@ -186,5 +293,24 @@ export class AppHeaderComponent {
 
   openUserMenu(): void {
     this.openMenu.emit();
+  }
+
+  toggleNotifications(event: Event): void {
+    event.stopPropagation();
+    this.showNotifications.update((current) => !current);
+  }
+
+  closeNotifications(): void {
+    this.showNotifications.set(false);
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: Event): void {
+    if (!this.showNotifications()) return;
+    const target = event.target as Node | null;
+    if (!target) return;
+    if (!this.host.nativeElement.contains(target)) {
+      this.showNotifications.set(false);
+    }
   }
 }

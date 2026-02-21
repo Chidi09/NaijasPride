@@ -163,7 +163,7 @@ export class LandingComponent implements OnInit, OnDestroy {
     this.router.navigate(['/login'], {
       queryParams: {
         email: this.email() || undefined,
-        returnUrl: '/browse',
+        returnUrl: '/home',
       },
     });
   }

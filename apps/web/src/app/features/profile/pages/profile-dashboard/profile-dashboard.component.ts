@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ProfileQueryService } from '../../services/profile-query.service';
@@ -234,7 +234,7 @@ import { MovieSummary } from '@naijaspride/types';
                     {{ recommendationReason() === 'trending' ? 'Start watching to get personalised picks' : 'Based on what you love' }}
                   </p>
                 </div>
-                <a routerLink="/browse" class="text-[#800020] text-sm font-medium hover:underline">Browse all →</a>
+                <a routerLink="/movies/downloads" class="text-[#800020] text-sm font-medium hover:underline">Browse all →</a>
               </div>
               <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 @for (movie of mlRecommendations(); track movie.id) {
@@ -282,6 +282,7 @@ export class ProfileDashboardComponent implements OnInit {
   profileService = inject(ProfileQueryService);
   watchApi = inject(WatchApiService);
   private http = inject(HttpClient);
+  private route = inject(ActivatedRoute);
   query = this.profileService.getProfileQuery();
   activeTab: 'continue' | 'watchlist' | 'history' | 'subscription' = 'continue';
 
@@ -305,6 +306,20 @@ export class ProfileDashboardComponent implements OnInit {
   }
 
   ngOnInit() {
+    const routePath = this.route.routeConfig?.path;
+    if (routePath === 'library') {
+      this.activeTab = 'watchlist';
+    } else if (routePath === 'downloads') {
+      this.activeTab = 'history';
+    }
+
+    this.route.queryParamMap.subscribe((params) => {
+      const tab = params.get('tab');
+      if (tab === 'continue' || tab === 'watchlist' || tab === 'history' || tab === 'subscription') {
+        this.activeTab = tab;
+      }
+    });
+
     this.loadRecommendations();
   }
 

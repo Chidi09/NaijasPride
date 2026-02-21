@@ -72,7 +72,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   onSearchSubmit() {
     const query = this.searchForm.value.query?.trim();
-    this.router.navigate(['/browse'], {
+    this.router.navigate(['/search'], {
       queryParams: query ? { q: query } : {},
     });
     this.showSearchOverlay.set(false);

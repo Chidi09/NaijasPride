@@ -35,9 +35,9 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
       class="card group relative cursor-pointer"
     >
       <div class="relative aspect-[2/3]">
-        @if (movie.thumbnailUrl) {
+        @if (primaryImage(movie); as imageUrl) {
           <img 
-            [ngSrc]="movie.thumbnailUrl" 
+            [ngSrc]="imageUrl" 
             [alt]="movie.title"
             fill
             sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
@@ -140,6 +140,10 @@ export class MovieCardComponent {
       return 0;
     }
     return Math.max(0, Math.min(100, this.progress));
+  }
+
+  primaryImage(movie: MovieSummary): string | null {
+    return movie.thumbnailUrl || movie.posterUrl || movie.coverUrl || movie.backdropUrl || null;
   }
 
   isReadyForDownload(movie: MovieSummary): boolean {

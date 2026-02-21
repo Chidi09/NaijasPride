@@ -15,16 +15,19 @@ import { AuthService } from '../../../core/auth/auth.service';
 
     .bottom-nav {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 64px;
-      background: var(--bg-primary, #f8f0e9);
-      border-top: 1px solid var(--border-color, #d8c2b8);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+      left: 12px;
+      right: 12px;
+      height: 72px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--bg-card, #fff) 92%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border-color, #d8c2b8) 82%, transparent);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(12px);
       display: flex;
       justify-content: space-around;
       align-items: center;
-      padding-bottom: env(safe-area-inset-bottom, 0);
+      padding: 6px 8px;
       z-index: 50;
       transition: transform 0.3s ease;
     }
@@ -38,34 +41,27 @@ import { AuthService } from '../../../core/auth/auth.service';
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 4px;
-      padding: 8px 16px;
-      color: var(--text-muted, #6b5b52);
+      gap: 2px;
+      width: 20%;
+      height: 100%;
+      border-radius: 999px;
+      color: #5a4640;
       text-decoration: none;
-      transition: color 0.2s ease;
+      transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
       position: relative;
     }
 
     .nav-item:hover,
     .nav-item.active {
       color: var(--brand, #800020);
-    }
-
-    .nav-item.active::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 24px;
-      height: 3px;
-      background: var(--brand, #800020);
-      border-radius: 2px;
+      background: rgba(128, 0, 32, 0.12);
+      transform: translateY(-1px);
     }
 
     .nav-icon {
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
+      color: currentColor;
       transition: transform 0.2s ease;
     }
 
@@ -76,8 +72,9 @@ import { AuthService } from '../../../core/auth/auth.service';
 
     .nav-label {
       font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0.5px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      line-height: 1;
     }
 
     /* Vintage icon styling */
@@ -85,7 +82,8 @@ import { AuthService } from '../../../core/auth/auth.service';
       stroke-linecap: round;
       stroke-linejoin: round;
       fill: none;
-      stroke-width: 1.5;
+      stroke: currentColor;
+      stroke-width: 1.9;
     }
 
     .vintage-icon.filled {
@@ -94,8 +92,19 @@ import { AuthService } from '../../../core/auth/auth.service';
 
     /* Dark mode support */
     :host-context(.dark) .bottom-nav {
-      background: var(--bg-primary, #0a0a0a);
-      border-top-color: var(--border-color, #2a2a2a);
+      background: color-mix(in srgb, #101010 92%, transparent);
+      border-color: #2a2a2a;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    :host-context(.dark) .nav-item {
+      color: #c7b3a5;
+    }
+
+    :host-context(.dark) .nav-item.active,
+    :host-context(.dark) .nav-item:hover {
+      color: #f0d3be;
+      background: rgba(128, 0, 32, 0.35);
     }
 
     /* Desktop hide - only show on mobile/tablet */

@@ -270,14 +270,14 @@ import { ThemeService } from '../../services/theme.service';
             <span class="menu-text">My Profile</span>
           </a>
 
-          <a class="menu-item" routerLink="/profile" (click)="close()">
+          <a class="menu-item" routerLink="/library" (click)="close()">
             <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
             </svg>
             <span class="menu-text">My Library</span>
           </a>
 
-          <a class="menu-item" routerLink="/downloads" (click)="close()">
+          <a class="menu-item" routerLink="/downloads" [queryParams]="{ tab: 'history' }" (click)="close()">
             <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
