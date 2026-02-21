@@ -44,6 +44,8 @@ export type BookTorrentListingCandidate = {
   isAudiobook: boolean;
   isLikelyVideo: boolean;
   format: 'EPUB' | 'PDF' | 'MOBI' | 'AZW' | 'UNKNOWN';
+  // For Anna's Archive results: direct download URL (no magnet link)
+  downloadUrl?: string;
 };
 
 export type BookTorrentMatch = {
@@ -215,6 +217,62 @@ export const parse1337xBookListingHtml = (
       isAudiobook: isAudiobookTitle(title),
       isLikelyVideo: isLikelyVideoRelease(title),
       format: detectFormat(title),
+    });
+  });
+
+  return results;
+};
+
+// Parse Anna's Archive search result HTML.
+// Result items are <div class="h-[125px]"> or <a href="/md5/..."> blocks.
+// We look for <a href="/md5/..."> links and extract metadata from surrounding text.
+export const parseAnnasArchiveHtml = (
+  html: string,
+  baseUrl: string,
+  ext: 'epub' | 'pdf',
+): BookTorrentListingCandidate[] => {
+  const $ = cheerio.load(html);
+  const results: BookTorrentListingCandidate[] = [];
+  const seen = new Set<string>();
+
+  // Each search result is a <div> containing an <a href="/md5/...">
+  // The structure varies but md5 links are stable
+  $('a[href^="/md5/"]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (!href) return;
+
+    // Extract md5 hash from the href
+    const md5Match = href.match(/^\/md5\/([a-f0-9]+)$/i);
+    if (!md5Match || !md5Match[1]) return;
+    const md5 = md5Match[1].toLowerCase();
+
+    if (seen.has(md5)) return;
+    seen.add(md5);
+
+    const downloadUrl = `${baseUrl}/md5/${md5}`;
+
+    // Extract text content from the link or its container
+    const container = $(el).closest('div');
+    const rawText = (container.text() || $(el).text()).replace(/\s+/g, ' ').trim();
+
+    // Try to extract title from the link text or the h3/strong inside the container
+    let candidateTitle = (container.find('h3, strong, [class*="title"]').first().text() || $(el).text()).trim();
+    if (!candidateTitle) candidateTitle = rawText.slice(0, 100);
+
+    candidateTitle = normalizeTitle(candidateTitle);
+    if (!candidateTitle) return;
+
+    const format: BookTorrentListingCandidate['format'] = ext === 'epub' ? 'EPUB' : 'PDF';
+
+    results.push({
+      title: candidateTitle,
+      detailUrl: downloadUrl,
+      seeds: 999, // Anna's Archive is a library, not a torrent — use high synthetic seeder count
+      leeches: 0,
+      isAudiobook: isAudiobookTitle(candidateTitle) || rawText.toLowerCase().includes('audiobook'),
+      isLikelyVideo: isLikelyVideoRelease(candidateTitle),
+      format,
+      downloadUrl,
     });
   });
 
@@ -417,10 +475,19 @@ export class AutoLibraryDiscoveryService {
       if (matches.length >= maxMatches) break;
 
       try {
-        // Search with "book" appended to bias 1337x results toward book torrents
-        const query = `${target.title} ${target.author} book`;
-        const listing = await this.search1337xByQuery(query);
-        this.logger.info(`[AutoLibrary] "${target.title}" — raw results: ${listing.length}`);
+        // ── Primary: Anna's Archive (works even when VPS IP is banned by 1337x) ──
+        let listing = await this.searchAnnasArchive(target.title, target.author);
+        let source = "Anna's Archive";
+
+        // ── Fallback: 1337x (append "book" to bias results toward book torrents) ──
+        if (listing.length === 0) {
+          this.logger.info(`[AutoLibrary] "${target.title}" — Anna's Archive returned 0, falling back to 1337x`);
+          const query = `${target.title} ${target.author} book`;
+          listing = await this.search1337xByQuery(query);
+          source = '1337x';
+        }
+
+        this.logger.info(`[AutoLibrary] "${target.title}" — raw results: ${listing.length} (source: ${source})`);
         if (listing.length > 0) {
           this.logger.info(`[AutoLibrary] "${target.title}" — sample titles: ${listing.slice(0, 5).map(e => `"${e.title}" (video=${e.isLikelyVideo},fmt=${e.format})`).join(' | ')}`);
         }
@@ -448,6 +515,18 @@ export class AutoLibraryDiscoveryService {
 
         this.logger.info(`[AutoLibrary] "${target.title}" — best match: "${top.title}" (seeds=${top.seeds}, format=${top.format})`);
 
+        // Anna's Archive results have a direct downloadUrl — no magnet/detail page needed.
+        if (top.downloadUrl) {
+          matches.push({
+            target,
+            listing: top,
+            magnetLink: top.downloadUrl, // store the download URL in magnetLink field (reused for downloadUrl below)
+            infoHash: null,
+          });
+          continue;
+        }
+
+        // 1337x path: fetch detail page to get magnet link
         const detailHtml = await this.fetchHtml(top.detailUrl, 'book-auto-library');
         const detail = parse1337xBookDetailHtml(detailHtml);
         if (!detail.magnetLink) {
@@ -500,7 +579,7 @@ export class AutoLibraryDiscoveryService {
           format: match.listing.format === 'UNKNOWN' ? 'EPUB' : match.listing.format,
           genre: match.target.genre && match.target.genre.length > 0 ? match.target.genre : ['General'],
           language: match.target.language || 'EN',
-          publisher: match.target.publisher || 'AutoLibrary',
+          publisher: match.target.publisher || (match.listing.downloadUrl ? "Anna's Archive" : 'AutoLibrary'),
           status: 'active' as const,
         };
 
@@ -542,6 +621,58 @@ export class AutoLibraryDiscoveryService {
 
     this.logger.info({ summary }, '[AutoLibrary] Discovery run completed');
     return summary;
+  }
+
+  // ── Anna's Archive ──────────────────────────────────────────────────────────
+  // Primary book source (replaces 1337x when VPS IP is banned).
+  // Searches https://annas-archive.li/search?q=<title+author>&lang=en&ext=epub
+  // and parses the HTML result list for title/author/md5/format.
+  // Download URL is constructed as https://annas-archive.li/md5/<hash>.
+  private readonly ANNAS_ARCHIVE_HOSTS = [
+    'https://annas-archive.li',
+    'https://annas-archive.org',
+  ];
+
+  async searchAnnasArchive(title: string, author: string): Promise<BookTorrentListingCandidate[]> {
+    const query = encodeURIComponent(`${title} ${author}`.trim());
+    const results: BookTorrentListingCandidate[] = [];
+
+    for (const host of this.ANNAS_ARCHIVE_HOSTS) {
+      try {
+        // Try epub first, then pdf as fallback
+        for (const ext of ['epub', 'pdf']) {
+          const url = `${host}/search?q=${query}&lang=en&ext=${ext}&sort=`;
+          this.logger.info(`[AutoLibrary] Anna's Archive search: ${url}`);
+
+          const response = await axios.get<string>(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.5',
+            },
+            timeout: 30_000,
+            responseType: 'text',
+            validateStatus: (s) => s < 500,
+            maxRedirects: 5,
+          });
+
+          if (response.status !== 200 || !response.data) {
+            this.logger.warn(`[AutoLibrary] Anna's Archive returned HTTP ${response.status} for ${url}`);
+            continue;
+          }
+
+          const parsed = parseAnnasArchiveHtml(response.data, host, ext as 'epub' | 'pdf');
+          this.logger.info(`[AutoLibrary] Anna's Archive (${ext}): ${parsed.length} results from ${host}`);
+          results.push(...parsed);
+        }
+
+        if (results.length > 0) break; // got results from this host, stop
+      } catch (err) {
+        this.logger.warn(`[AutoLibrary] Anna's Archive host ${host} failed: ${toErrorMessage(err)}`);
+      }
+    }
+
+    return results;
   }
 
   private async search1337xByQuery(query: string): Promise<BookTorrentListingCandidate[]> {
