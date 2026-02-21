@@ -12,10 +12,35 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
   selector: 'app-music-watch',
   standalone: true,
   imports: [CommonModule, RouterLink, MusicCardComponent],
+  styles: [`
+    :host {
+      display: block;
+      min-height: 100vh;
+      --music-bg: #f6f1eb;
+      --music-surface: #ffffff;
+      --music-surface-strong: #ece3db;
+      --music-text: #1f1715;
+      --music-text-muted: #6b594f;
+      --music-border: #d8c9bf;
+      --music-border-strong: #baa89c;
+      background: var(--music-bg);
+      color: var(--music-text);
+    }
+
+    :host-context(.dark) {
+      --music-bg: #050505;
+      --music-surface: #1f1f1f;
+      --music-surface-strong: #121212;
+      --music-text: #e6e0d4;
+      --music-text-muted: #bcae9e;
+      --music-border: #2a2a2a;
+      --music-border-strong: #3a3a3a;
+    }
+  `],
   template: `
-    <div class="min-h-screen bg-gray-950 text-white pb-28">
+    <div class="min-h-screen bg-[var(--music-bg)] text-[var(--music-text)] pb-28">
       @if (loading()) {
-        <div class="flex items-center justify-center py-24 text-gray-500">Loading...</div>
+        <div class="flex items-center justify-center py-24 text-[var(--music-text-muted)]">Loading...</div>
       }
 
       @if (error()) {
@@ -49,26 +74,26 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
               <div class="mt-4">
                 <div class="flex items-start justify-between gap-4">
                   <div>
-                    <h1 class="text-2xl font-bold leading-tight">{{ video()!.title }}</h1>
+                    <h1 class="text-2xl font-bold leading-tight text-[var(--music-text)]">{{ video()!.title }}</h1>
                     <div class="flex items-center gap-2 mt-1 flex-wrap">
                       <a
                         [routerLink]="['/music/artist', video()!.artistSlug]"
                         class="text-[#800020] hover:text-red-400 font-semibold transition-colors"
                       >{{ video()!.artist }}</a>
                       @if (video()!.featuring.length > 0) {
-                        <span class="text-gray-500">ft. {{ video()!.featuring.join(', ') }}</span>
+                        <span class="text-[var(--music-text-muted)]">ft. {{ video()!.featuring.join(', ') }}</span>
                       }
-                      <span class="text-gray-600">&middot;</span>
-                      <span class="text-gray-500 text-sm">{{ video()!.year }}</span>
+                      <span class="text-[var(--music-text-muted)]">&middot;</span>
+                      <span class="text-[var(--music-text-muted)] text-sm">{{ video()!.year }}</span>
                     </div>
-                    <div class="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                    <div class="flex items-center gap-4 mt-2 text-sm text-[var(--music-text-muted)]">
                       <span>{{ formatCount(video()!.viewCount) }} views</span>
                       <span>{{ formatCount(video()!.playCount) }} plays</span>
                       @if (!video()!.isOfficial) {
                         <span class="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full text-xs">Fan Upload</span>
                       }
                       @if (video()!.isExplicit) {
-                        <span class="bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full text-xs">Explicit</span>
+                        <span class="bg-[var(--music-surface-strong)] text-[var(--music-text-muted)] px-2 py-0.5 rounded-full text-xs">Explicit</span>
                       }
                     </div>
                   </div>
@@ -80,11 +105,8 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
                       (click)="toggleLike()"
                       [disabled]="!isLoggedIn()"
                       class="flex items-center gap-1.5 px-4 py-2 rounded-full transition-all font-medium text-sm"
-                      [class.bg-[#800020]]="video()!.isLiked"
-                      [class.text-white]="video()!.isLiked"
-                      [class.bg-gray-800]="!video()!.isLiked"
-                      [class.text-gray-300]="!video()!.isLiked"
-                      [class.hover:bg-gray-700]="!video()!.isLiked"
+                      [style.backgroundColor]="video()!.isLiked ? '#800020' : 'var(--music-surface-strong)'"
+                      [style.color]="video()!.isLiked ? '#ffffff' : 'var(--music-text)'"
                       [title]="!isLoggedIn() ? 'Sign in to like' : ''"
                     >
                       <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -96,7 +118,7 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
                     <!-- Share -->
                     <button
                       (click)="share()"
-                      class="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 transition-all font-medium text-sm"
+                      class="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--music-surface-strong)] text-[var(--music-text)] hover:bg-[var(--music-border)] transition-all font-medium text-sm"
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
@@ -113,7 +135,7 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
                       <a
                         routerLink="/music/browse"
                         [queryParams]="{genre: g}"
-                        class="px-3 py-1 rounded-full bg-gray-800 text-gray-400 text-xs hover:bg-gray-700 hover:text-gray-200 transition-all"
+                        class="px-3 py-1 rounded-full bg-[var(--music-surface-strong)] text-[var(--music-text-muted)] text-xs hover:border hover:border-[var(--music-border-strong)] transition-all"
                       >{{ g }}</a>
                     }
                   </div>
@@ -123,13 +145,13 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
 
             <!-- Related videos sidebar -->
             <div class="lg:col-span-1">
-              <h2 class="text-lg font-semibold mb-4 text-gray-300">Up Next</h2>
+              <h2 class="text-lg font-semibold mb-4 text-[var(--music-text)]">Up Next</h2>
               @if (related().length > 0) {
                 <div class="space-y-3">
                   @for (rel of related(); track rel.id) {
                     <div
                       [routerLink]="['/music', rel.slug]"
-                      class="flex gap-3 cursor-pointer group hover:bg-gray-800/50 rounded-lg p-2 -mx-2 transition-colors"
+                        class="flex gap-3 cursor-pointer group hover:bg-[var(--music-surface)] rounded-lg p-2 -mx-2 transition-colors"
                     >
                       <div class="w-20 h-20 rounded-md overflow-hidden flex-shrink-0">
                         <img
@@ -140,15 +162,15 @@ import { MusicVideo, MusicVideoSummary } from '@naijaspride/types';
                         >
                       </div>
                       <div class="min-w-0">
-                        <p class="text-sm font-medium text-white leading-tight truncate">{{ rel.title }}</p>
-                        <p class="text-xs text-gray-400 mt-0.5 truncate">{{ rel.artist }}</p>
-                        <p class="text-xs text-gray-600 mt-1">{{ formatCount(rel.viewCount) }} views</p>
+                          <p class="text-sm font-medium text-[var(--music-text)] leading-tight truncate">{{ rel.title }}</p>
+                          <p class="text-xs text-[var(--music-text-muted)] mt-0.5 truncate">{{ rel.artist }}</p>
+                          <p class="text-xs text-[var(--music-text-muted)] mt-1">{{ formatCount(rel.viewCount) }} views</p>
                       </div>
                     </div>
                   }
                 </div>
               } @else {
-                <p class="text-gray-600 text-sm">No related videos</p>
+                <p class="text-[var(--music-text-muted)] text-sm">No related videos</p>
               }
             </div>
 

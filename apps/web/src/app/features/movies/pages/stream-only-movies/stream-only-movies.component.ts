@@ -100,13 +100,13 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
             <div class="text-6xl mb-4">🎬</div>
             <h3 class="text-xl text-[#24181b] dark:text-white mb-2">No YouTube movies yet</h3>
             <p class="text-[#75635c] dark:text-gray-400 mb-6">
-              Import movies from YouTube channels to see them here.
+              New stream-ready titles are being prepared. Explore the full library while this shelf updates.
             </p>
-            <a 
-              routerLink="/admin/discovery" 
+            <a
+              routerLink="/movies"
               class="inline-block bg-[#800020] hover:bg-[#660019] text-white px-6 py-3 rounded font-semibold transition-colors"
             >
-              Import Movies from YouTube
+              Browse All Movies
             </a>
           </div>
         }

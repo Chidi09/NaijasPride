@@ -180,6 +180,8 @@ model User {
   role          Role               @default(USER)
   isPremium     Boolean            @default(false)
   emailVerified Boolean            @default(false)
+  isGuest       Boolean            @default(false)
+  guestExpiresAt DateTime?
   
   // Email verification
   emailVerificationToken String?

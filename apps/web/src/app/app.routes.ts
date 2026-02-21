@@ -9,7 +9,7 @@ const guestLandingGuard = () => {
   const router = inject(Router);
 
   if (authState.isAuthenticated()) {
-    return router.createUrlTree(['/browse']);
+    return router.createUrlTree(['/home']);
   }
 
   return true;
@@ -261,6 +261,11 @@ export const routes: Routes = [
     }
   },
   {
+    path: 'home',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent)
+  },
+  {
     path: 'browse',
     loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')
       .then(m => m.MovieListComponent)
@@ -317,6 +322,11 @@ export const routes: Routes = [
     path: 'books/all',
     loadComponent: () => import('./features/books/pages/book-list/book-list.component')
       .then(m => m.BookListComponent)
+  },
+  {
+    path: 'books/light-novels',
+    loadComponent: () => import('./features/books/pages/light-novels-library/light-novels-library.component')
+      .then(m => m.LightNovelsLibraryComponent)
   },
   {
     path: 'books/comics',

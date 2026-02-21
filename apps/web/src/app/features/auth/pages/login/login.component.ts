@@ -129,6 +129,36 @@ type LoginWindow = Window & {
               Google sign-in is unavailable. Configure <code>google-client-id</code> meta tag.
             </p>
           }
+
+          <div class="relative py-1">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-[#d8b7a8] dark:border-[#5f1327]"></div>
+            </div>
+            <div class="relative flex justify-center text-xs uppercase tracking-[0.2em]">
+              <span class="bg-white dark:bg-[#120a0d] px-3 text-[#8a5f1c] dark:text-[#d6b87a]">or</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            (click)="continueAsGuest()"
+            [disabled]="isLoading || guestLoading"
+            class="flex w-full items-center justify-center gap-2 rounded-lg border border-[#d8b7a8] dark:border-[#5f1327] bg-white dark:bg-[#1b1014] px-4 py-3 text-sm font-semibold text-[#2a1c1f] dark:text-[#f7eee7] transition hover:bg-[#f7efe8] dark:hover:bg-[#2a151b] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            @if (guestLoading) {
+              Creating guest account...
+            } @else {
+              Continue as Guest
+            }
+          </button>
+
+          <p class="text-center text-xs text-[#8a756e] dark:text-[#a88a78]">
+            Guest accounts are temporary and expire after 30 days. 
+            <a [routerLink]="['/register']" class="text-[#800020] dark:text-[#d6b87a] hover:underline">Create an account</a> to save your data.
+          </p>
         </form>
       </div>
     </div>
@@ -150,6 +180,7 @@ export class LoginComponent implements OnInit, OnDestroy {
   error = '';
   googleLoading = false;
   googleEnabled = false;
+  guestLoading = false;
   private googleScriptEl: HTMLScriptElement | null = null;
 
   private getRuntimeWindow(): LoginWindow {
@@ -275,5 +306,22 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   private getReturnUrl() {
     return this.route.snapshot.queryParamMap.get('returnUrl') || undefined;
+  }
+
+  continueAsGuest() {
+    this.error = '';
+    this.guestLoading = true;
+
+    this.authService.loginAsGuest(this.getReturnUrl()).subscribe({
+      next: () => {
+        this.guestLoading = false;
+        this.toast.success('Welcome! You\'re browsing as a guest.');
+      },
+      error: (err) => {
+        this.guestLoading = false;
+        this.error = err.error?.error || 'Failed to create guest account. Please try again.';
+        this.toast.error(this.error);
+      }
+    });
   }
 }

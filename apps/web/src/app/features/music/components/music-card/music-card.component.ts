@@ -86,7 +86,7 @@ import { MusicPlayerService } from '../../services/music-player.service';
         <p class="text-[var(--music-text-muted)] text-xs mt-0.5 truncate">
           <a
             [routerLink]="['/music/artist', video.artistSlug]"
-            class="hover:text-[#8a1c1c] transition-colors"
+            class="hover:text-[#800020] transition-colors"
             (click)="$event.stopPropagation()"
           >{{ video.artist }}</a>
           @if (video.featuring.length > 0) {

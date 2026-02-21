@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, Input, forwardRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { MovieSummary } from '@naijaspride/types';
 import { MovieCardYoutubeComponent } from '../../components/movie-card-youtube/movie-card-youtube.component';
+import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 
 // Icons
 const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
@@ -22,7 +23,7 @@ interface FeaturedResponse {
 @Component({
   selector: 'app-movies-editorial-landing',
   standalone: true,
-  imports: [CommonModule, RouterLink, MovieCardYoutubeComponent, forwardRef(() => MovieCardComponent)],
+  imports: [CommonModule, RouterLink, MovieCardYoutubeComponent, MovieCardComponent],
   styles: [`
     :host {
       display: block;
@@ -62,7 +63,7 @@ interface FeaturedResponse {
     
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: var(--movies-bg); }
-    ::-webkit-scrollbar-thumb { background: #8a1c1c; }
+    ::-webkit-scrollbar-thumb { background: #800020; }
     
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -136,16 +137,18 @@ interface FeaturedResponse {
       @if (downloadOnly().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
               <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Download</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
-            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
 
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of downloadOnly(); track movie.id) {
-              <app-movie-card [movie]="movie" />
+              <div class="w-[200px] md:w-[280px] flex-shrink-0">
+                <app-movie-card [movie]="movie" />
+              </div>
             }
           </div>
         </div>
@@ -155,16 +158,18 @@ interface FeaturedResponse {
       @if (trendingDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
               <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Trending Now</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
-            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of trendingDownload(); track movie.id) {
-              <app-movie-card [movie]="movie" />
+              <div class="w-[200px] md:w-[280px] flex-shrink-0">
+                <app-movie-card [movie]="movie" />
+              </div>
             }
           </div>
         </div>
@@ -174,16 +179,18 @@ interface FeaturedResponse {
       @if (mostWatchedDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
               <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Most Watched</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
-            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of mostWatchedDownload(); track movie.id) {
-              <app-movie-card [movie]="movie" />
+              <div class="w-[200px] md:w-[280px] flex-shrink-0">
+                <app-movie-card [movie]="movie" />
+              </div>
             }
           </div>
         </div>
@@ -193,16 +200,18 @@ interface FeaturedResponse {
       @if (comingSoonDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
               <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Coming Soon</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
-            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
+            <a [routerLink]="['/browse']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of comingSoonDownload(); track movie.id) {
-              <app-movie-card [movie]="movie" [showNotify]="true" />
+              <div class="w-[200px] md:w-[280px] flex-shrink-0">
+                <app-movie-card [movie]="movie" />
+              </div>
             }
           </div>
         </div>
@@ -212,11 +221,11 @@ interface FeaturedResponse {
       @if (streamOnly().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#8a1c1c] transition-colors">
+            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
               <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Stream</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
-            <a [routerLink]="['/movies/stream']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#8a1c1c] transition-colors">View More</a>
+            <a [routerLink]="['/movies/stream']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
@@ -315,85 +324,5 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
-  }
-}
-
-@Component({
-  selector: 'app-movie-card',
-  standalone: true,
-  imports: [CommonModule, RouterLink],
-  styles: [`
-    :host { display: block; }
-    .movie-card { transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), z-index 0s; }
-    .movie-card:hover { transform: scale(1.05); z-index: 20; }
-    .poster-overlay { opacity: 0; transition: opacity 0.3s ease; }
-    .movie-card:hover .poster-overlay { opacity: 1; }
-  `],
-  template: `
-    <a [routerLink]="['/movies', movieValue.slug || movieValue.id]" class="movie-card relative flex-shrink-0 w-[200px] md:w-[280px] cursor-pointer mr-4">
-      <div class="aspect-[2/3] w-full overflow-hidden rounded-sm relative bg-[var(--movies-surface)] border border-[var(--movies-border)]">
-        @if (movieValue.posterUrl || movieValue.thumbnailUrl; as img) {
-          <img [src]="img" [alt]="movieValue.title" class="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity duration-500" referrerpolicy="no-referrer">
-        } @else {
-          <div class="w-full h-full flex items-center justify-center text-4xl">🎬</div>
-        }
-        
-        <!-- Stream Badge -->
-        @if (movieValue.isStreamOnly) {
-          <div class="absolute top-2 right-2 bg-[#4a0404] px-2 py-1 rounded-sm">
-            <span class="text-[10px] font-bold tracking-wider text-white">▶ STREAM</span>
-          </div>
-        }
-        
-        <!-- Hover Overlay -->
-        <div class="poster-overlay absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col justify-center items-center gap-4">
-          @if (movieValue.isStreamOnly) {
-            <button class="w-12 h-12 rounded-full bg-[var(--movies-contrast)] flex items-center justify-center hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            </button>
-          }
-          <div class="flex gap-4">
-            <button class="p-2 border border-[var(--movies-border-strong)] rounded-full hover:bg-[var(--movies-surface)] transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-3">
-        <h3 class="serif-text text-lg leading-tight text-[var(--movies-text)] truncate">{{ movieValue.title }}</h3>
-        <div class="flex items-center gap-3 mt-1 text-[10px] sans-text tracking-widest text-[var(--movies-text-muted)]">
-          <span>{{ movieValue.year }}</span>
-          <span>•</span>
-          <span>{{ movieValue.genre?.[0] || 'Movie' }}</span>
-          @if (movieValue.rating) {
-            <span class="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#8a1c1c"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-              {{ movieValue.rating }}%
-            </span>
-          }
-        </div>
-      </div>
-    </a>
-  `
-})
-class MovieCardComponent {
-  private movieSignal = signal<MovieSummary | null>(null);
-  private showNotifySignal = signal(false);
-  
-  @Input({ required: true }) set movie(value: MovieSummary) {
-    this.movieSignal.set(value);
-  }
-  
-  @Input() set showNotify(value: boolean) {
-    this.showNotifySignal.set(value);
-  }
-  
-  get movieValue() {
-    return this.movieSignal()!;
-  }
-  
-  get showNotifyValue() {
-    return this.showNotifySignal();
   }
 }

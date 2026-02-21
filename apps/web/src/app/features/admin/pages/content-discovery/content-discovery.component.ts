@@ -470,22 +470,69 @@ interface ChannelImportResult {
 
       <!-- ============ ADD CHANNELS TAB (BULK IMPORT) ============ -->
       @if (activeTab() === 'channels') {
-        <!-- ... existing channels tab content ... -->
+        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+          <h3 class="text-[#d6b87a] font-bold mb-2">Bulk Channel Import</h3>
+          <p class="text-gray-400 text-sm mb-4">
+            Bulk import is currently consolidated under <strong class="text-white">My Channels</strong>.
+            Add channels there, then run import in batches with progress tracking.
+          </p>
+          <button
+            (click)="activeTab.set('my-channels')"
+            class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold"
+          >
+            Open My Channels
+          </button>
+        </div>
       }
 
       <!-- ============ SEARCH BY TITLE TAB ============ -->
       @if (activeTab() === 'search') {
-        <!-- ... existing search tab content ... -->
+        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+          <h3 class="text-[#d6b87a] font-bold mb-2">Title Search Import</h3>
+          <p class="text-gray-400 text-sm mb-4">
+            Title-based import has been folded into channel workflows for reliability.
+            Use <strong class="text-white">My Channels</strong> to import verified long-form videos.
+          </p>
+          <button
+            (click)="activeTab.set('my-channels')"
+            class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold"
+          >
+            Open My Channels
+          </button>
+        </div>
       }
 
       <!-- ============ TRENDING SCAN TAB ============ -->
       @if (activeTab() === 'trending') {
-        <!-- ... existing trending tab content ... -->
+        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+          <h3 class="text-[#d6b87a] font-bold mb-2">Trending Scout</h3>
+          <p class="text-gray-400 text-sm mb-4">
+            Trending scan is temporarily paused while we prioritize channel-based imports.
+            This avoids duplicate entries and improves metadata quality.
+          </p>
+          <button
+            (click)="activeTab.set('my-channels')"
+            class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold"
+          >
+            Open My Channels
+          </button>
+        </div>
       }
 
       <!-- ============ RSS TAB ============ -->
       @if (activeTab() === 'rss') {
-        <!-- ... existing rss tab content ... -->
+        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+          <h3 class="text-[#d6b87a] font-bold mb-2">RSS Ingestion</h3>
+          <p class="text-gray-400 text-sm mb-4">
+            RSS import is managed from server-side automation. This panel is reserved for future manual controls.
+          </p>
+          <button
+            (click)="activeTab.set('my-channels')"
+            class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold"
+          >
+            Open My Channels
+          </button>
+        </div>
       }
     </div>
   `

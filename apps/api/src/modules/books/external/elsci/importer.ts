@@ -5,6 +5,8 @@ import {
   type ElsciLightNovelFile,
   type ElsciRequestedFormat,
 } from './elsci-lightnovels';
+import { extractCoverFromEpub, uploadCoverImage } from '../cover-extractor.service';
+import { StorageService } from '../../../../shared/services/storage.service';
 
 export type ElsciLightNovelImportOptions = {
   maxBooks?: number;
@@ -48,6 +50,34 @@ const slugify = (value: string): string =>
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
+const parseVolumeNumber = (title: string): number | null => {
+  const patterns = [
+    /\bvol(?:ume)?\.?\s*(\d{1,4})\b/i,
+    /\bv\.?\s*(\d{1,4})\b/i,
+    /\bpart\s*(\d{1,4})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = title.match(pattern);
+    if (!match?.[1]) continue;
+    const parsed = Number.parseInt(match[1], 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return null;
+};
+
+const buildElsciDescription = (entry: ElsciLightNovelFile): string => {
+  const volumeNumber = parseVolumeNumber(entry.title);
+  const lines = [
+    'Imported from Elsci light novel index.',
+    `Series: ${entry.series}`,
+    `Volume: ${volumeNumber ?? 'Unknown'}`,
+    `Source file: ${entry.fileName}`,
+  ];
+  return lines.join('\n');
+};
+
 const deriveBookYear = (entry: ElsciLightNovelFile): number => {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -72,6 +102,7 @@ export const importElsciLightNovelsCatalog = async (
   prisma: PrismaClient,
   options: ElsciLightNovelImportOptions,
 ): Promise<ElsciLightNovelImportResult> => {
+  const storageService = new StorageService();
   const maxBooks =
     Number.isFinite(options.maxBooks) && (options.maxBooks as number) > 0
       ? Math.min(options.maxBooks as number, 2_000)
@@ -96,13 +127,34 @@ export const importElsciLightNovelsCatalog = async (
     const title = cleanWhitespace(entry.title || entry.series || 'Light Novel');
     const format = entry.format;
 
+    let coverUrl: string | null = null;
+
+    // Try to extract cover directly from EPUB (for EPUB format)
+    if (format === 'EPUB' && !options.dryRun) {
+      try {
+        console.log(`[ElsciImporter] Extracting cover from EPUB for "${title}"...`);
+        const fullUrl = `${sourceBaseUrl}${entry.href}`;
+        const coverBuffer = await extractCoverFromEpub(fullUrl);
+
+        if (coverBuffer) {
+          console.log(`[ElsciImporter] ✓ Extracted cover from EPUB for "${title}"`);
+          coverUrl = await uploadCoverImage(storageService, slug, coverBuffer);
+          console.log(`[ElsciImporter] ✓ Uploaded cover for "${title}"`);
+        } else {
+          console.log(`[ElsciImporter] ✗ No cover found in EPUB for "${title}"`);
+        }
+      } catch (error) {
+        console.error(`[ElsciImporter] Failed to extract cover for "${title}":`, error);
+      }
+    }
+
     const payload = {
       title,
       slug,
       author: 'Unknown',
-      description: `Imported from Elsci light novel index (${entry.series}).`,
+      description: buildElsciDescription(entry),
       year: deriveBookYear(entry),
-      coverUrl: null,
+      coverUrl,
       downloadUrl: buildStableDownloadUrl(entry.href),
       fileSize: entry.sizeBytes || null,
       format,

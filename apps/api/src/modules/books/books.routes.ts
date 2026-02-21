@@ -105,6 +105,16 @@ const bookSearchSchema = z.object({
   kind: z.enum(['book', 'comic']).optional(),
 });
 
+const lightNovelSearchSchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  q: z.string().trim().optional(),
+});
+
+const lightNovelSeriesParamSchema = z.object({
+  slug: z.string().trim().min(1),
+});
+
 const bookUploadUrlSchema = z.object({
   fileName: z.string().trim().min(1),
   contentType: z.string().trim().min(1),
@@ -1882,12 +1892,83 @@ export const bookRoutes = async (
 
         reply.header('content-type', contentType);
         reply.header('cache-control', 'private, max-age=0');
-        reply.header('content-disposition', `${disposition}; filename="${effectiveFilename.replace(/\"/g, '')}"`);
+        reply.header('content-disposition', `${disposition}; filename="${effectiveFilename.replace(/"/g, '')}"`);
         return reply.send(upstream.data);
       } catch (error) {
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to stream book file',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/:slug/check-access - Check if book file is accessible (lightweight check)
+  app.get('/:slug/check-access', {
+    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    schema: {
+      params: bookFileParamSchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug } = request.params as z.infer<typeof bookFileParamSchema>;
+
+        const book = await booksService.findBySlug(slug);
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        // Check if book has a download URL
+        if (!book.downloadUrl) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book has no downloadable file',
+          });
+        }
+
+        // For epubBooks and Elsci books, we can't easily check accessibility without making a request
+        // So we just verify the downloadUrl format is valid
+        const isEpubBooks = slug.toLowerCase().startsWith('epubbooks-') || (book.publisher || '').toLowerCase() === 'epubbooks';
+        const isElsci = slug.toLowerCase().startsWith('elsci-ln-') || (book.publisher || '').toLowerCase() === 'elsci';
+
+        if (isEpubBooks || isElsci) {
+          // These are proxied through our API, so they should be accessible if downloadUrl exists
+          return reply.status(200).send({
+            status: 'success',
+            accessible: true,
+          });
+        }
+
+        // For internally hosted books, try to get a signed URL to verify it exists
+        try {
+          const key = extractDownloadKeyFromUrl(book.downloadUrl);
+          if (!key) {
+            return reply.status(400).send({
+              status: 'error',
+              message: 'Invalid download URL format',
+            });
+          }
+
+          // Just verify we can generate a signed URL (doesn't guarantee the file exists in storage)
+          await storageService.getDownloadUrl(key);
+          
+          return reply.status(200).send({
+            status: 'success',
+            accessible: true,
+          });
+        } catch {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'File not accessible',
+          });
+        }
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to check file accessibility',
         });
       }
     },
@@ -1914,6 +1995,54 @@ export const bookRoutes = async (
       return reply.status(500).send({
         status: 'error',
         message: error instanceof Error ? error.message : 'Failed to fetch books'
+      });
+    }
+  });
+
+  // GET /api/books/light-novels - Grouped light novel series with sorted volumes
+  app.get('/light-novels', async (request, reply) => {
+    try {
+      const { page, limit, q } = lightNovelSearchSchema.parse(request.query ?? {});
+      const result = await booksService.listLightNovelSeries({
+        page: page ?? 1,
+        limit: limit ?? 20,
+        q,
+      });
+
+      return reply.send({
+        status: 'success',
+        data: result.data,
+        meta: result.meta,
+      });
+    } catch (error) {
+      return reply.status(500).send({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Failed to fetch light novel series',
+      });
+    }
+  });
+
+  // GET /api/books/light-novels/:slug/volumes - Volumes for the same series as this slug
+  app.get('/light-novels/:slug/volumes', async (request, reply) => {
+    try {
+      const { slug } = lightNovelSeriesParamSchema.parse(request.params ?? {});
+      const result = await booksService.getLightNovelSeriesBySlug(slug);
+
+      if (!result) {
+        return reply.status(404).send({
+          status: 'error',
+          message: 'Light novel series not found',
+        });
+      }
+
+      return reply.send({
+        status: 'success',
+        data: result,
+      });
+    } catch (error) {
+      return reply.status(500).send({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Failed to fetch light novel volumes',
       });
     }
   });
@@ -2020,5 +2149,175 @@ export const bookRoutes = async (
         });
       }
     }
+  });
+
+  // Offline Book Management Endpoints
+
+  // POST /api/v1/library/books/offline - Register a book for offline access
+  app.post('/library/offline', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+        const { bookId, format, fileSizeBytes } = request.body as {
+          bookId: string;
+          format: string;
+          fileSizeBytes: number;
+        };
+
+        // Check if book exists
+        const book = await app.prisma.book.findUnique({
+          where: { id: bookId },
+          select: { id: true, title: true },
+        });
+
+        if (!book) {
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Book not found',
+          });
+        }
+
+        // Upsert offline book record
+        await app.prisma.offlineBook.upsert({
+          where: {
+            userId_bookId: {
+              userId,
+              bookId,
+            },
+          },
+          create: {
+            userId,
+            bookId,
+            format,
+            fileSizeBytes,
+            status: 'available',
+            syncedAt: new Date(),
+          },
+          update: {
+            format,
+            fileSizeBytes,
+            status: 'available',
+            syncedAt: new Date(),
+          },
+        });
+
+        return reply.status(200).send({
+          status: 'success',
+          message: 'Book registered for offline access',
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to register offline book',
+        });
+      }
+    },
+  });
+
+  // POST /api/v1/library/books/offline/failure - Report offline download failure
+  app.post('/library/offline/failure', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+        const { bookId, error: errorMessage } = request.body as {
+          bookId: string;
+          error: string;
+        };
+
+        // Update the offline book status to failed
+        await app.prisma.offlineBook.updateMany({
+          where: {
+            userId,
+            bookId,
+          },
+          data: {
+            status: 'failed',
+            lastError: errorMessage,
+            lastErrorAt: new Date(),
+          },
+        });
+
+        return reply.status(200).send({
+          status: 'success',
+          message: 'Offline failure recorded',
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to record offline failure',
+        });
+      }
+    },
+  });
+
+  // DELETE /api/v1/library/books/offline/:bookId - Remove a book from offline access
+  app.delete('/library/offline/:bookId', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+        const { bookId } = request.params as { bookId: string };
+
+        // Delete the offline book record
+        await app.prisma.offlineBook.deleteMany({
+          where: {
+            userId,
+            bookId,
+          },
+        });
+
+        return reply.status(200).send({
+          status: 'success',
+          message: 'Book removed from offline access',
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to remove offline book',
+        });
+      }
+    },
+  });
+
+  // GET /api/v1/library/books/offline - List all offline books for user
+  app.get('/library/offline', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+
+        const offlineBooks = await app.prisma.offlineBook.findMany({
+          where: {
+            userId,
+          },
+          include: {
+            book: {
+              select: {
+                id: true,
+                title: true,
+                author: true,
+                coverUrl: true,
+                slug: true,
+              },
+            },
+          },
+          orderBy: {
+            syncedAt: 'desc',
+          },
+        });
+
+        return reply.status(200).send({
+          status: 'success',
+          data: offlineBooks,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch offline books',
+        });
+      }
+    },
   });
 };

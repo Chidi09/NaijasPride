@@ -95,6 +95,10 @@ export const adminRoutes = async (
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   };
+  const parseBooleanFlag = (value: string | undefined, defaultValue: boolean): boolean => {
+    if (typeof value !== 'string') return defaultValue;
+    return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase());
+  };
   const requireAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
     if (request.user.role !== "ADMIN") {
       return reply.status(403).send({
@@ -931,6 +935,71 @@ export const adminRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Soap2Day crawl failed',
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/movies/soap2day/stats - Soap2Day tracked totals and scheduler state
+  app.get('/movies/soap2day/stats', {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        const soap2dayWhere = {
+          OR: [
+            { uploadedBy: 'soap2day-crawler' },
+            { metadata: { path: ['source'], equals: 'soap2day-crawler' } },
+          ],
+        };
+
+        const [totalTracked, activeTracked, pendingTracked, lastTracked] = await Promise.all([
+          app.prisma.movie.count({ where: soap2dayWhere }),
+          app.prisma.movie.count({ where: { ...soap2dayWhere, status: 'active' } }),
+          app.prisma.movie.count({ where: { ...soap2dayWhere, status: 'pending' } }),
+          app.prisma.movie.findFirst({
+            where: soap2dayWhere,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              slug: true,
+              title: true,
+              year: true,
+              status: true,
+              createdAt: true,
+            },
+          }),
+        ]);
+
+        const configuredUrls = (process.env.SOAP2DAY_CRAWLER_URLS || '')
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+
+        return reply.send({
+          status: 'success',
+          data: {
+            totalTracked,
+            activeTracked,
+            pendingTracked,
+            lastTracked: lastTracked
+              ? {
+                  ...lastTracked,
+                  createdAt: lastTracked.createdAt.toISOString(),
+                }
+              : null,
+            scheduler: {
+              enabled: parseBooleanFlag(process.env.SOAP2DAY_CRAWLER_ENABLED, false),
+              intervalMs: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_INTERVAL_MS) ?? 12 * 60 * 60 * 1000,
+              startupDelayMs: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_STARTUP_DELAY_MS) ?? 10 * 60 * 1000,
+              maxPerRun: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_MAX_PER_RUN) ?? 5,
+              urls: configuredUrls,
+            },
+          },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch Soap2Day stats',
         });
       }
     },

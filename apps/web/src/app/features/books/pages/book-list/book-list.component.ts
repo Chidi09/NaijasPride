@@ -31,6 +31,7 @@ type MangaDiscoverPayload = {
         </div>
         <div class="flex flex-wrap gap-2">
           <a mat-stroked-button color="primary" routerLink="/books">Hub</a>
+          <a mat-stroked-button color="primary" routerLink="/books/light-novels">Light Novels</a>
           <a mat-stroked-button color="primary" routerLink="/books/comics">Comics</a>
           <a mat-flat-button color="primary" routerLink="/books/manga">Manga</a>
           <a mat-stroked-button color="primary" routerLink="/movies">Movies</a>

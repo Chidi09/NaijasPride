@@ -52,7 +52,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
     .text-outline { -webkit-text-stroke: 1px var(--music-text); color: transparent; }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: var(--music-bg); }
-    ::-webkit-scrollbar-thumb { background: #8a1c1c; }
+    ::-webkit-scrollbar-thumb { background: #800020; }
     .spin-slow { animation: spin 10s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -69,8 +69,8 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         <div class="reveal visible flex flex-col mb-12">
           <div class="flex items-baseline gap-6 overflow-hidden flex-wrap">
             <h1 class="display-text text-[8vw] md:text-[6vw] leading-[0.9] uppercase">Sonic</h1>
-            <div class="h-[2px] flex-grow bg-[#8a1c1c] self-center mx-4 min-w-[100px]"></div>
-            <span class="serif-text text-lg md:text-2xl italic text-[#8a1c1c]">(Vol. 01)</span>
+            <div class="h-[2px] flex-grow bg-[#800020] self-center mx-4 min-w-[100px]"></div>
+            <span class="serif-text text-lg md:text-2xl italic text-[#800020]">(Vol. 01)</span>
           </div>
           <h1 class="display-text text-[8vw] md:text-[6vw] leading-[0.9] text-outline uppercase self-end">Visuals</h1>
         </div>
@@ -82,7 +82,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
                 @if (!isPlaying()) {
                   <div class="absolute inset-0 bg-black/40 z-10"></div>
                   <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/hqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-105 group-hover:scale-100" referrerpolicy="no-referrer">
-                  <button (click)="playHero(video)" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border border-[var(--music-border-strong)] rounded-full flex items-center justify-center z-20 backdrop-blur-sm hover:bg-[#8a1c1c] hover:border-[#8a1c1c] hover:text-white transition-all duration-300 group-hover:scale-110">
+                  <button (click)="playHero(video)" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border border-[var(--music-border-strong)] rounded-full flex items-center justify-center z-20 backdrop-blur-sm hover:bg-[#800020] hover:border-[#800020] hover:text-white transition-all duration-300 group-hover:scale-110">
                     <span [innerHTML]="playIcon" class="ml-2 text-[var(--music-text)]"></span>
                   </button>
                 } @else {
@@ -98,10 +98,10 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
           <div class="lg:col-span-3 flex flex-col justify-between h-full pb-8">
             @if (heroVideo(); as video) {
               <div>
-                <span class="block text-[#8a1c1c] text-xs tracking-widest mb-2 font-bold sans-text">NOW PREMIERING</span>
+                <span class="block text-[#800020] text-xs tracking-widest mb-2 font-bold sans-text">NOW PREMIERING</span>
                 <h2 class="serif-text text-3xl leading-none mb-2 text-[var(--music-text)]">{{ video.artist }}</h2>
                 <h3 class="sans-text text-lg text-[var(--music-text-muted)] uppercase mb-6">{{ video.title }}</h3>
-                <p class="sans-text text-sm text-[var(--music-text-muted)] leading-relaxed text-justify border-l border-[#8a1c1c] pl-4">
+                <p class="sans-text text-sm text-[var(--music-text-muted)] leading-relaxed text-justify border-l border-[#800020] pl-4">
                   Watch top tracks, artist releases, and trending videos from one place.
                 </p>
               </div>
@@ -125,9 +125,9 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
 
     <section class="py-24 px-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-end mb-16">
-        <h2 class="serif-text text-4xl md:text-5xl text-[var(--music-text)]">CURATED <span class="italic text-[#8a1c1c]">VIBES</span></h2>
+        <h2 class="serif-text text-4xl md:text-5xl text-[var(--music-text)]">CURATED <span class="italic text-[#800020]">VIBES</span></h2>
         <div class="hidden md:flex gap-2 items-center">
-          <div class="w-2 h-2 bg-[#8a1c1c] rounded-full animate-pulse"></div>
+          <div class="w-2 h-2 bg-[#800020] rounded-full animate-pulse"></div>
           <span class="text-[10px] tracking-widest sans-text">TRENDING NOW</span>
         </div>
       </div>
@@ -141,7 +141,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
           @for (track of trending().slice(0, 6); track track.id; let idx = $index) {
             <div (click)="playTrack(track)" class="playlist-row group flex flex-col md:flex-row items-start md:items-center justify-between py-8 border-b border-[var(--music-border)] px-4 cursor-pointer reveal" [style.transition-delay]="idx * 100 + 'ms'">
               <div class="flex items-center gap-4 md:gap-8 w-full md:w-2/3 min-w-0">
-                <span class="serif-text text-2xl text-[#8a1c1c] w-8">0{{ idx + 1 }}</span>
+                <span class="serif-text text-2xl text-[#800020] w-8">0{{ idx + 1 }}</span>
                 <div class="relative w-24 h-16 md:w-36 md:h-24 overflow-hidden border border-[var(--music-border)] bg-[var(--music-surface)] opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <img
                     [src]="videoThumbnail(track, 'mq')"
@@ -177,7 +177,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         </div>
       }
       <div class="mt-12 text-center">
-        <a routerLink="/music/browse" class="inline-block px-8 py-4 border border-[var(--music-border)] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] hover:text-white transition-all uppercase sans-text">Load More Archives</a>
+        <a routerLink="/music/browse" class="inline-block px-8 py-4 border border-[var(--music-border)] text-xs tracking-[0.2em] hover:bg-[#800020] hover:border-[#800020] hover:text-white transition-all uppercase sans-text">Load More Archives</a>
       </div>
     </section>
 
@@ -187,7 +187,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
       </div>
       <div class="max-w-7xl mx-auto px-6 relative z-10 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
         <div class="order-2 md:order-1">
-          <span class="text-[#8a1c1c] text-xs tracking-[0.2em] font-bold block mb-4 sans-text">ARTIST OF THE WEEK</span>
+          <span class="text-[#800020] text-xs tracking-[0.2em] font-bold block mb-4 sans-text">ARTIST OF THE WEEK</span>
           @if (spotlightArtist(); as artist) {
             <h2 class="serif-text text-4xl md:text-5xl mb-6 text-[var(--music-text)]">{{ artist.artistName }}</h2>
             <p class="sans-text text-sm text-[var(--music-text-muted)] leading-relaxed mb-8 text-justify">
@@ -206,7 +206,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
             <div class="aspect-[3/4] bg-black video-mask relative group cursor-pointer" (click)="playTrack(topVideo)">
               <img [src]="topVideo.thumbnailUrl || 'https://img.youtube.com/vi/' + topVideo.youtubeId + '/hqdefault.jpg'" [alt]="topVideo.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" referrerpolicy="no-referrer">
               <div class="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors"></div>
-              <div class="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-4 border-l-2 border-[#8a1c1c]">
+               <div class="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-4 border-l-2 border-[#800020]">
                 <p class="serif-text italic text-lg">"{{ topVideo.title }}"</p>
                 <p class="sans-text text-xs opacity-60 mt-1">{{ formatNumber(topVideo.viewCount) }} views</p>
               </div>
@@ -218,8 +218,8 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
 
     <section class="py-24 px-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-end mb-12 border-b border-[var(--music-border)] pb-6">
-        <h2 class="serif-text text-4xl md:text-5xl text-[var(--music-text)]">FRESH <span class="text-[#590d0d] italic">DROPS</span></h2>
-        <a routerLink="/music/browse" class="text-xs tracking-widest hover:text-[#8a1c1c] transition-colors sans-text flex items-center gap-2">VIEW ALL <span [innerHTML]="arrowIcon"></span></a>
+        <h2 class="serif-text text-4xl md:text-5xl text-[var(--music-text)]">FRESH <span class="text-[#800020] italic">DROPS</span></h2>
+        <a routerLink="/music/browse" class="text-xs tracking-widest hover:text-[#800020] transition-colors sans-text flex items-center gap-2">VIEW ALL <span [innerHTML]="arrowIcon"></span></a>
       </div>
       @if (newReleases().length > 0) {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -234,7 +234,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
                   referrerpolicy="no-referrer"
                   (error)="onThumbnailError($event, video)"
                 >
-                <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity mix-blend-multiply"></div>
+                <div class="absolute inset-0 bg-[#800020] opacity-0 group-hover:opacity-30 transition-opacity mix-blend-multiply"></div>
                 <div class="absolute top-2 right-2 px-2 py-1 bg-black/60 text-white text-[10px] tracking-[0.08em] uppercase">{{ formatDuration(video.durationSeconds) }}</div>
               </div>
               <h3 class="serif-text text-lg text-[var(--music-text)] line-clamp-2">{{ video.title }}</h3>

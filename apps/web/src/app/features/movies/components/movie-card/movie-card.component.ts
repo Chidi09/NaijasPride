@@ -9,19 +9,39 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
   selector: 'app-movie-card',
   standalone: true,
   imports: [CommonModule, RouterLink, NgOptimizedImage],
+  styles: [`
+    :host {
+      display: block;
+      width: 100%;
+    }
+
+    .card {
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--bg-card, #ffffff);
+      border: 1px solid var(--border-color, #d8c2b8);
+      transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px) scale(1.02);
+      border-color: rgba(128, 0, 32, 0.45);
+      box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25);
+    }
+  `],
   template: `
-    <div 
-      [routerLink]="['/movies', movie.slug || movie.id]" 
-      class="group relative bg-[#efe1d7] dark:bg-cinema-800 rounded-sm overflow-hidden cursor-pointer transition-all duration-300 ease-out hover:z-10 hover:scale-105 hover:shadow-2xl hover:shadow-black/30 dark:hover:shadow-black/50"
+    <article
+      [routerLink]="['/movies', movie.slug || movie.id]"
+      class="card group relative cursor-pointer"
     >
-      <div class="aspect-[2/3] relative">
+      <div class="relative aspect-[2/3]">
         @if (movie.thumbnailUrl) {
           <img 
             [ngSrc]="movie.thumbnailUrl" 
             [alt]="movie.title"
             fill
             sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
-            class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+            class="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity"
           >
         } @else {
           <div class="w-full h-full flex items-center justify-center bg-[#dfc8bb] dark:bg-cinema-700">
@@ -30,18 +50,18 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
         }
         
         @if (movie.quality?.includes('4K')) {
-          <div class="absolute top-0 right-0 bg-cinema-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div class="absolute top-2 right-2 bg-cinema-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
             4K UHD
           </div>
         }
 
         @if (movie.isStreamOnly) {
-          <div class="absolute top-2 left-2 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg">
-            ▶ STREAM
+          <div class="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
+            STREAM
           </div>
         } @else {
-          <div class="absolute top-2 left-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg">
-            📥 DOWNLOAD
+          <div class="absolute top-2 left-2 bg-cinema-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
+            DOWNLOAD
           </div>
         }
 
@@ -53,31 +73,35 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
             ></div>
           </div>
         }
+
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-3">
+          <h3 class="font-semibold text-white text-sm leading-tight line-clamp-2">{{ movie.title }}</h3>
+          <p class="mt-1 text-[11px] text-gray-200/90">{{ movie.year }} • {{ movie.genre?.[0] || 'Feature' }}</p>
+          <div class="mt-2 flex items-center gap-2 text-[10px]">
+            <span class="rounded-full bg-white/20 px-2 py-0.5 text-white">{{ movie.rating || 0 }}% Match</span>
+            @if (movie.isStreamOnly) {
+              <span class="rounded-full bg-blue-500/80 px-2 py-0.5 text-white">Watch</span>
+            } @else {
+              <span class="rounded-full bg-[#800020]/90 px-2 py-0.5 text-white">Download</span>
+            }
+          </div>
+        </div>
       </div>
 
-        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-4">
-        
-        <h3 class="font-serif text-white text-lg leading-tight mb-1 drop-shadow-md">{{ movie.title }}</h3>
-        
-        <div class="flex items-center gap-3 text-[10px] text-gray-300 font-medium">
-          <span class="text-green-400">{{ movie.rating || 95 }}% Match</span>
-          <span class="border border-gray-500 px-1 rounded-sm">{{ movie.year }}</span>
-          <span>{{ movie.genre?.[0] || 'Feature' }}</span>
-          <span class="border border-gray-500 px-1 rounded-sm uppercase text-[9px]">HD</span>
-        </div>
-
-        <div class="mt-3 flex gap-2">
-           <button
-             class="bg-white text-black rounded-full p-1.5 hover:bg-cinema-100 transition-colors"
-             (click)="$event.stopPropagation()"
+      <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end p-4 pointer-events-none">
+        <div class="w-full rounded-lg bg-black/70 border border-white/10 p-3 pointer-events-auto">
+          <div class="flex gap-2">
+            <button
+              class="bg-white text-black rounded-full p-1.5 hover:bg-cinema-100 transition-colors"
+              (click)="$event.stopPropagation()"
              aria-label="Play movie"
            >
              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
            </button>
-           @if (isLoggedIn()) {
-           <button
-             class="border border-gray-400 rounded-full p-1.5 hover:border-white transition-colors"
-             (click)="toggleWatchlist($event)"
+            @if (isLoggedIn()) {
+            <button
+              class="border border-gray-400 rounded-full p-1.5 hover:border-white transition-colors"
+              (click)="toggleWatchlist($event)"
              aria-label="Add movie"
             >
               @if (saved()) {
@@ -87,9 +111,19 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
               }
             </button>
             }
-         </div>
+          </div>
+          <div class="mt-2 text-[10px] text-gray-300">
+            @if (movie.isStreamOnly) {
+              Instant play available
+            } @else if (isReadyForDownload(movie)) {
+              Torrent/download ready
+            } @else {
+              Processing source
+            }
+          </div>
+        </div>
       </div>
-    </div>
+    </article>
   `
 })
 export class MovieCardComponent {
@@ -106,6 +140,10 @@ export class MovieCardComponent {
       return 0;
     }
     return Math.max(0, Math.min(100, this.progress));
+  }
+
+  isReadyForDownload(movie: MovieSummary): boolean {
+    return !movie.isStreamOnly && Array.isArray(movie.quality) && movie.quality.length > 0;
   }
 
   toggleWatchlist(event: Event) {

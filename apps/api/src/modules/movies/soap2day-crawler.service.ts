@@ -22,6 +22,8 @@ export type Soap2DayCrawlerSummary = {
   enriched: number;
   skippedExisting: number;
   failed: number;
+  trackedTotal: number;
+  trackedActive: number;
   errors: string[];
 };
 
@@ -74,6 +76,15 @@ export class Soap2DayCrawlerService {
   private readonly moviesService: MoviesService;
   private isRunning = false;
 
+  private soap2daySourceWhere() {
+    return {
+      OR: [
+        { uploadedBy: 'soap2day-crawler' },
+        { metadata: { path: ['source'], equals: 'soap2day-crawler' } },
+      ],
+    };
+  }
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly logger: LoggerLike = console,
@@ -100,7 +111,10 @@ export class Soap2DayCrawlerService {
     const summary: Soap2DayCrawlerSummary = {
       urls: this.listingUrls,
       discovered: 0, created: 0, resolved: 0, enriched: 0,
-      skippedExisting: 0, failed: 0, errors: [],
+      skippedExisting: 0, failed: 0,
+      trackedTotal: 0,
+      trackedActive: 0,
+      errors: [],
     };
 
     if (this.isRunning) {
@@ -185,6 +199,13 @@ export class Soap2DayCrawlerService {
             where: { id: movie.id },
             data: {
               status: 'active',
+              uploadedBy: 'soap2day-crawler',
+              metadata: {
+                source: 'soap2day-crawler',
+                provider: 'soap2day',
+                listingDetailUrl: item.detailUrl,
+                crawlerUpdatedAt: new Date().toISOString(),
+              },
               ...(Object.keys(fileUrls).length > 0 ? { fileUrls } : {}),
             },
           });
@@ -196,6 +217,19 @@ export class Soap2DayCrawlerService {
           this.logger.error(`[Soap2DayCrawler] Failed to ingest "${item.title}": ${toErrorMsg(err)}`);
         }
       }
+
+      const [trackedTotal, trackedActive] = await Promise.all([
+        this.prisma.movie.count({ where: this.soap2daySourceWhere() }),
+        this.prisma.movie.count({
+          where: {
+            ...this.soap2daySourceWhere(),
+            status: 'active',
+          },
+        }),
+      ]);
+
+      summary.trackedTotal = trackedTotal;
+      summary.trackedActive = trackedActive;
     } finally {
       this.isRunning = false;
     }

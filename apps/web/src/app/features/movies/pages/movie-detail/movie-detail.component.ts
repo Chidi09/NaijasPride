@@ -107,7 +107,19 @@ import { catchError, map, of, switchMap } from 'rxjs';
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                     </svg>
-                    Watch Now
+                     Watch Now
+                   </a>
+                } @else if (hasDownloadOption(movie)) {
+                  <a
+                    [href]="primaryDownloadUrl(movie) || '#'"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 bg-cinema-500 text-white px-6 py-3 rounded-full font-bold hover:bg-cinema-400 transition-colors"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    {{ isMagnetUrl(primaryDownloadUrl(movie) || '') ? 'Open Torrent' : 'Download' }}
                   </a>
                 }
                 @if (movie.trailerUrl) {
@@ -238,12 +250,18 @@ import { catchError, map, of, switchMap } from 'rxjs';
 
                 <div class="space-y-3">
                   @for (q of movie.quality; track q) {
+                    @if (getQualityAccess(movie, q); as qualityAccess) {
                     <div class="flex items-center justify-between p-3 rounded-sm border border-[#d9c4b7] dark:border-white/10 hover:border-cinema-500/50 hover:bg-cinema-500/10 transition-colors group">
                       <div class="min-w-0 flex-1 mr-2">
                         <div class="font-bold text-[#24181b] dark:text-white">{{ q }}</div>
                         <div class="text-xs text-[#725f58] dark:text-gray-500">
                           {{ getFileSize(movie.fileSizes, q) }}
                         </div>
+                        @if (!qualityAccess.link) {
+                          <div class="text-[11px] text-[#8a756e] dark:text-gray-500 mt-1">
+                            Source is still being prepared for this quality.
+                          </div>
+                        }
                         <!-- Offline download progress bar -->
                         @if (getOfflineStatus(movie.id, q) === 'downloading' || getOfflineStatus(movie.id, q) === 'queued') {
                           <div class="mt-1 h-1 bg-[#d9c4b7] dark:bg-white/10 rounded-full overflow-hidden">
@@ -263,16 +281,26 @@ import { catchError, map, of, switchMap } from 'rxjs';
 
                       <div class="flex gap-1.5 flex-shrink-0">
                         <!-- External download link -->
-                        <a
-                          [href]="movie.fileUrls[q]"
-                          target="_blank"
-                          class="bg-cinema-500 hover:bg-cinema-400 text-white text-xs font-bold px-3 py-2 rounded-sm transition-colors"
-                          title="Download file"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                          </svg>
-                        </a>
+                        @if (qualityAccess.link) {
+                          <a
+                            [href]="qualityAccess.link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="bg-cinema-500 hover:bg-cinema-400 text-white text-xs font-bold px-3 py-2 rounded-sm transition-colors"
+                            [title]="qualityAccess.label"
+                          >
+                            {{ qualityAccess.label }}
+                          </a>
+                        } @else {
+                          <button
+                            type="button"
+                            disabled
+                            class="bg-gray-400/40 text-gray-700 dark:text-gray-300 text-xs font-bold px-3 py-2 rounded-sm cursor-not-allowed"
+                            title="Not available yet"
+                          >
+                            Not Ready
+                          </button>
+                        }
 
                         <!-- Save for offline (PWA) — only for authenticated premium users -->
                         @if (auth.currentUser() && offline.isSupported) {
@@ -307,6 +335,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
                         }
                       </div>
                     </div>
+                    }
                   }
                 </div>
 
@@ -543,8 +572,8 @@ export class MovieDetailComponent {
   }
 
   saveOffline(movie: Movie, quality: string) {
-    const fileUrl = (movie.fileUrls as Record<string, string>)[quality];
-    if (!fileUrl) return;
+    const fileUrl = this.resolveQualityUrl(movie, quality);
+    if (!fileUrl || this.isMagnetUrl(fileUrl)) return;
     const fileSizeBytes = (movie.fileSizes as Record<string, number>)[quality];
     this.offline.download({
       movieId: movie.id,
@@ -583,5 +612,53 @@ export class MovieDetailComponent {
     return Object.values(urls).some(
       (value) => typeof value === 'string' && value.trim().length > 0 && this.isStreamableVideoUrl(value)
     );
+  }
+
+  isMagnetUrl(url: string): boolean {
+    return /^magnet:\?/i.test((url || '').trim());
+  }
+
+  hasDownloadOption(movie: Movie): boolean {
+    const urls = movie.fileUrls || {};
+    return Object.values(urls).some((value) => typeof value === 'string' && value.trim().length > 0);
+  }
+
+  primaryDownloadUrl(movie: Movie): string | null {
+    const urls = movie.fileUrls || {};
+    const qualityFirst = movie.quality
+      .map((q) => this.resolveQualityUrl(movie, q))
+      .find((value) => !!value);
+    if (qualityFirst) return qualityFirst;
+
+    const firstAny = Object.values(urls).find((value) => typeof value === 'string' && value.trim().length > 0);
+    return firstAny ?? null;
+  }
+
+  resolveQualityUrl(movie: Movie, quality: string): string | null {
+    const urls = movie.fileUrls || {};
+    const exact = urls[quality];
+    if (typeof exact === 'string' && exact.trim().length > 0) {
+      return exact;
+    }
+
+    const hls = urls['hls'];
+    if (typeof hls === 'string' && hls.trim().length > 0) {
+      return hls;
+    }
+
+    return null;
+  }
+
+  getQualityAccess(movie: Movie, quality: string): { link: string | null; label: string } {
+    const link = this.resolveQualityUrl(movie, quality);
+    if (!link) {
+      return { link: null, label: 'Not Ready' };
+    }
+
+    if (this.isMagnetUrl(link)) {
+      return { link, label: 'Open Torrent' };
+    }
+
+    return { link, label: 'Download' };
   }
 }

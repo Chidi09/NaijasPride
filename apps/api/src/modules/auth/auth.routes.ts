@@ -225,4 +225,42 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
   });
+
+  // Guest Account Routes
+  app.post('/guest', {
+    config: {
+      rateLimit: rateLimitByIp(10, '1 hour'),
+    },
+  }, async (_request, reply) => {
+    try {
+      const result = await service.createGuestAccount();
+      return reply.status(201).send({ success: true, data: result });
+    } catch (error: unknown) {
+      return reply.status(500).send({
+        success: false,
+        error: getErrorMessage(error, 'Failed to create guest account'),
+      });
+    }
+  });
+
+  app.post('/convert-guest', {
+    preHandler: [app.authenticate],
+    schema: {
+      body: signupSchema,
+    },
+    config: {
+      rateLimit: rateLimitByIp(5, '15 minutes'),
+    },
+  }, async (request, reply) => {
+    try {
+      const userId = request.user.userId;
+      const result = await service.convertGuestToUser(userId, request.body);
+      return { success: true, data: result };
+    } catch (error: unknown) {
+      return reply.status(400).send({
+        success: false,
+        error: getErrorMessage(error, 'Failed to convert guest account'),
+      });
+    }
+  });
 };

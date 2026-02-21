@@ -56,6 +56,26 @@ export class AuthService {
     );
   }
 
+  loginAsGuest(returnUrl?: string) {
+    return this.http.post<AuthResponse>('/api/v1/auth/guest', {}).pipe(
+      tap((response) => {
+        if (response.success) {
+          this.setSession(response.data, returnUrl);
+        }
+      })
+    );
+  }
+
+  convertGuestAccount(email: string, password: string, name?: string) {
+    return this.http.post<AuthResponse>('/api/v1/auth/convert-guest', { email, password, name }).pipe(
+      tap((response) => {
+        if (response.success) {
+          this.authState.updateUser(response.data.user);
+        }
+      })
+    );
+  }
+
   private setSession(data: AuthResponse['data'], returnUrl?: string) {
     this.authState.setSession(data);
 
@@ -68,7 +88,7 @@ export class AuthService {
     if (data.user.role === 'ADMIN') {
       this.router.navigate(['/admin']);
     } else {
-      this.router.navigate(['/']);
+      this.router.navigate(['/home']);
     }
   }
 }

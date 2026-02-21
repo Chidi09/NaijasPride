@@ -10,6 +10,23 @@ import { BookOfflineService } from '../../../../core/services/book-offline.servi
 import { LibraryService } from '../../../../core/services/library.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 
+type LightNovelVolume = {
+  id: string;
+  title: string;
+  slug: string;
+  year: number;
+  volumeNumber: number | null;
+};
+
+type LightNovelSeriesDetail = {
+  seriesKey: string;
+  seriesTitle: string;
+  totalVolumes: number;
+  latestYear: number;
+  currentSlug: string;
+  volumes: LightNovelVolume[];
+};
+
 @Component({
   selector: 'app-book-detail',
   standalone: true,
@@ -178,6 +195,37 @@ import { AuthService } from '../../../../core/auth/auth.service';
                 <p class="mt-2 text-[var(--text-secondary)] leading-relaxed">{{ book.description }}</p>
               </mat-card>
             }
+
+            @if (lightNovelSeries(); as series) {
+              <mat-card class="np-surface-card p-6 mt-6">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Light Novel Series</p>
+                    <h3 class="text-lg font-serif text-[#24181b] dark:text-white mt-1">{{ series.seriesTitle }}</h3>
+                  </div>
+                  <a routerLink="/books/light-novels" class="text-xs text-[#800020] hover:underline">Browse All Series</a>
+                </div>
+
+                <div class="mt-4 space-y-2">
+                  @for (volume of series.volumes; track volume.id) {
+                    <a
+                      [routerLink]="['/books', volume.slug]"
+                      class="flex items-center justify-between gap-3 rounded border px-3 py-2 transition"
+                      [class.border-[#800020]]="volume.slug === book.slug"
+                      [class.border-[#e4d0c5]]="volume.slug !== book.slug"
+                    >
+                      <span class="text-sm text-[#24181b] dark:text-white truncate">
+                        @if (volume.volumeNumber !== null) {
+                          <strong>Vol {{ volume.volumeNumber }}:</strong>
+                        }
+                        {{ volume.title }}
+                      </span>
+                      <span class="text-xs text-[#8a756e] dark:text-gray-400">{{ volume.year }}</span>
+                    </a>
+                  }
+                </div>
+              </mat-card>
+            }
             
             @if (book.isbn) {
               <div class="mt-6 text-[#8a756e] dark:text-gray-500 text-sm">
@@ -203,6 +251,7 @@ export class BookDetailComponent implements OnInit {
 
   book = signal<Book | null>(null);
   isLoading = signal(true);
+  lightNovelSeries = signal<LightNovelSeriesDetail | null>(null);
 
   ngOnInit() {
     this.loadBook();
@@ -214,6 +263,11 @@ export class BookDetailComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.book.set(response.data);
+          if (this.isLightNovel(response.data)) {
+            this.loadLightNovelSeries(response.data.slug);
+          } else {
+            this.lightNovelSeries.set(null);
+          }
           this.isLoading.set(false);
           // Load favorite state
           if (this.auth.currentUser()) {
@@ -225,6 +279,19 @@ export class BookDetailComponent implements OnInit {
           this.book.set(null);
           this.isLoading.set(false);
         }
+      });
+  }
+
+  private loadLightNovelSeries(slug: string) {
+    this.http
+      .get<{ status: string; data: LightNovelSeriesDetail }>(`/api/v1/books/light-novels/${encodeURIComponent(slug)}/volumes`)
+      .subscribe({
+        next: (response) => {
+          this.lightNovelSeries.set(response.data);
+        },
+        error: () => {
+          this.lightNovelSeries.set(null);
+        },
       });
   }
 
@@ -256,11 +323,35 @@ export class BookDetailComponent implements OnInit {
 
   isReadableInApp(book: Book): boolean {
     const format = (book.format || '').trim().toLowerCase();
-    return format === 'epub' || format === 'pdf';
+    const isSupportedFormat = format === 'epub' || format === 'pdf';
+    const hasDownloadUrl = !!book.downloadUrl;
+    return isSupportedFormat && hasDownloadUrl;
+  }
+
+  async checkFileAccessibility(book: Book): Promise<boolean> {
+    if (!book.slug) return false;
+    
+    try {
+      const response = await fetch(`/api/v1/books/${book.slug}/check-access`, {
+        method: 'HEAD',
+        credentials: 'include'
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 
   isEpubBooksSource(book: Book): boolean {
     return (book.publisher || '').trim().toLowerCase() === 'epubbooks' || book.slug.toLowerCase().startsWith('epubbooks-');
+  }
+
+  isLightNovel(book: Book): boolean {
+    return (
+      book.genre?.some((entry) => entry.toLowerCase() === 'light novel') ||
+      (book.publisher || '').toLowerCase().includes('elsci') ||
+      book.slug.toLowerCase().startsWith('elsci-ln-')
+    );
   }
 
   sourceUrl(book: Book): string | null {

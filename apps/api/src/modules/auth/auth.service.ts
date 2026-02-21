@@ -364,4 +364,67 @@ export class AuthService {
 
     return `${platform} ${browser}`;
   }
+
+  async createGuestAccount() {
+    // Generate a unique guest ID
+    const guestId = randomBytes(8).toString('hex');
+    const email = `guest_${guestId}@naijaspride.guest`;
+    const password = randomBytes(32).toString('hex');
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Guest accounts expire in 30 days
+    const guestExpiresAt = new Date();
+    guestExpiresAt.setDate(guestExpiresAt.getDate() + 30);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name: 'Guest User',
+        isGuest: true,
+        guestExpiresAt,
+        emailVerified: true, // Auto-verify guest accounts
+      },
+    });
+
+    const session = this.createSession(user);
+    return { ...session, isGuest: true };
+  }
+
+  async convertGuestToUser(guestUserId: string, data: z.infer<typeof signupSchema>) {
+    const guestUser = await this.prisma.user.findUnique({
+      where: { id: guestUserId },
+    });
+
+    if (!guestUser || !guestUser.isGuest) {
+      throw new Error('Invalid guest account');
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (existing) throw new Error('Email already in use');
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: guestUserId },
+      data: {
+        email: data.email,
+        password: hashedPassword,
+        name: data.name,
+        isGuest: false,
+        guestExpiresAt: null,
+        emailVerified: false,
+      },
+    });
+
+    // Send welcome email
+    emailService.sendWelcomeEmail(updatedUser.email, updatedUser.name || undefined).catch(console.error);
+    getPushService(this.prisma).sendWelcome(updatedUser.id, updatedUser.name || undefined).catch(console.error);
+
+    // Send verification email
+    this.sendVerificationEmail(updatedUser.id).catch(console.error);
+
+    const { password, ...result } = updatedUser;
+    return { ...result, message: 'Account converted successfully. Please verify your email.' };
+  }
 }

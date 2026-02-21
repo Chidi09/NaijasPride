@@ -33,6 +33,7 @@
     "@naijaspride/types": "*",
     "@naijaspride/validators": "*",
     "@prisma/client": "^5.10.2",
+    "adm-zip": "^0.5.16",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.4.1",

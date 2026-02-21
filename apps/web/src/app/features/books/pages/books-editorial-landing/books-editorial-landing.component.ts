@@ -168,6 +168,9 @@ type FeaturedContent = {
               <a routerLink="/books/all" class="mt-6 px-6 py-3 border border-[var(--books-border-strong)] text-[var(--books-text)] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:border-[#8a1c1c] hover:text-white transition-all duration-300 inline-block sans-text">
                 ENTER ARCHIVE
               </a>
+              <a routerLink="/books/light-novels" class="mt-3 ml-3 px-6 py-3 border border-[#8a1c1c] text-[#8a1c1c] text-xs tracking-[0.2em] hover:bg-[#8a1c1c] hover:text-white transition-all duration-300 inline-block sans-text">
+                LIGHT NOVELS
+              </a>
             </div>
           </div>
         </div>
@@ -374,11 +377,40 @@ type FeaturedContent = {
         }
       </div>
 
+      <!-- Light Novels Section -->
+      <div class="mb-20 reveal" *ngIf="lightNovels().length > 0">
+        <div class="flex items-center justify-between mb-10 border-b border-[var(--books-border)] pb-4">
+          <div class="flex items-baseline gap-4">
+            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">02</span>
+            <h2 class="serif-text text-3xl md:text-4xl text-[var(--books-text)]">LIGHT NOVELS</h2>
+          </div>
+          <a routerLink="/books/light-novels" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[var(--books-text)] transition-colors sans-text flex items-center gap-2">
+            VIEW SERIES <span [innerHTML]="arrowIcon"></span>
+          </a>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          @for (book of lightNovels().slice(0, 6); track book.id; let idx = $index) {
+            <a [routerLink]="['/books', book.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
+              <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
+                @if (book.coverUrl) {
+                  <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
+                } @else {
+                  <div class="w-full h-full flex items-center justify-center text-3xl">📘</div>
+                }
+              </div>
+              <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ book.title }}</h3>
+              <p class="sans-text text-xs text-[var(--books-text-muted)] uppercase tracking-wide">{{ book.publisher || 'Light Novel' }}</p>
+            </a>
+          }
+        </div>
+      </div>
+
       <!-- Comics Section -->
       <div class="mb-20 reveal">
         <div class="flex items-center justify-between mb-10 border-b border-[var(--books-border)] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">02</span>
+            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">03</span>
             <h2 class="serif-text text-3xl md:text-4xl text-[var(--books-text)]">COMICS</h2>
           </div>
           <a routerLink="/books/comics" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[var(--books-text)] transition-colors sans-text flex items-center gap-2">
@@ -420,7 +452,7 @@ type FeaturedContent = {
       <div class="reveal">
         <div class="flex items-center justify-between mb-10 border-b border-[var(--books-border)] pb-4">
           <div class="flex items-baseline gap-4">
-            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">03</span>
+            <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">04</span>
             <h2 class="serif-text text-3xl md:text-4xl text-[var(--books-text)]">MANGA</h2>
           </div>
           <a routerLink="/books/manga" class="text-xs tracking-widest text-[#8a1c1c] hover:text-[var(--books-text)] transition-colors sans-text flex items-center gap-2">
@@ -470,6 +502,13 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   books = signal<Book[]>([]);
   comics = signal<ContentItem[]>([]);
   manga = signal<ContentItem[]>([]);
+  lightNovels = computed(() =>
+    this.books().filter((book) =>
+      book.genre?.some((genre) => genre.toLowerCase() === 'light novel') ||
+      (book.publisher || '').toLowerCase().includes('elsci') ||
+      book.slug.toLowerCase().startsWith('elsci-ln-'),
+    ),
+  );
   
   // Loading states
   isBooksLoading = signal(true);

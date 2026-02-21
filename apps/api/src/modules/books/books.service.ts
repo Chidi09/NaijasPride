@@ -8,6 +8,43 @@ type BookSearchParams = {
   kind?: 'book' | 'comic';
 };
 
+type LightNovelSearchParams = {
+  page?: number;
+  limit?: number;
+  q?: string;
+};
+
+export type LightNovelVolumeSummary = Pick<
+  Book,
+  | 'id'
+  | 'title'
+  | 'slug'
+  | 'author'
+  | 'year'
+  | 'coverUrl'
+  | 'format'
+  | 'downloadUrl'
+  | 'fileSize'
+  | 'publisher'
+  | 'createdAt'
+  | 'updatedAt'
+> & {
+  volumeNumber: number | null;
+};
+
+export type LightNovelSeriesSummary = {
+  seriesKey: string;
+  seriesTitle: string;
+  totalVolumes: number;
+  latestYear: number;
+  coverUrl: string | null;
+  volumes: LightNovelVolumeSummary[];
+};
+
+export type LightNovelSeriesDetail = LightNovelSeriesSummary & {
+  currentSlug: string;
+};
+
 type CreateBookInput = {
   title: string;
   year: number;
@@ -25,8 +62,313 @@ type CreateBookInput = {
   publisher?: string;
 };
 
+const cleanWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+
+const normalizeKey = (value: string): string =>
+  cleanWhitespace(value)
+    .toLowerCase()
+    .replace(/[._]/g, ' ')
+    .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const parseSeriesFromDescription = (description: string | null | undefined): string | null => {
+  if (!description) return null;
+  const match = description.match(/(?:^|\n)\s*series\s*:\s*([^\n]+)/i);
+  const value = match?.[1] ? cleanWhitespace(match[1]) : '';
+  return value || null;
+};
+
+const parseVolumeFromDescription = (description: string | null | undefined): number | null => {
+  if (!description) return null;
+  const match = description.match(/(?:^|\n)\s*volume\s*:\s*(\d{1,4})\b/i);
+  if (!match?.[1]) return null;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseVolumeFromTitle = (title: string): number | null => {
+  const patterns = [
+    /\bvol(?:ume)?\.?\s*(\d{1,4})\b/i,
+    /\bv\.?\s*(\d{1,4})\b/i,
+    /\bpart\s*(\d{1,4})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = title.match(pattern);
+    if (!match?.[1]) continue;
+    const parsed = Number.parseInt(match[1], 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return null;
+};
+
+const stripVolumeSuffix = (title: string): string =>
+  cleanWhitespace(
+    title
+      .replace(/\bvol(?:ume)?\.?\s*\d{1,4}\b/gi, ' ')
+      .replace(/\bv\.?\s*\d{1,4}\b/gi, ' ')
+      .replace(/\bpart\s*\d{1,4}\b/gi, ' ')
+      .replace(/\[[^\]]+\]/g, ' ')
+      .replace(/\([^\)]*\)/g, ' '),
+  );
+
+const parseSeriesFromSlug = (slug: string): string | null => {
+  const match = slug.match(/^elsci-ln-([a-z0-9-]+)-[a-f0-9]{10}$/i);
+  if (!match?.[1]) return null;
+  return cleanWhitespace(match[1].replace(/-/g, ' '));
+};
+
+const isLikelyLightNovel = (book: {
+  genre: string[];
+  publisher: string | null;
+  slug: string;
+}): boolean => {
+  if (book.genre.some((entry) => entry.toLowerCase() === 'light novel')) return true;
+  if ((book.publisher || '').toLowerCase().includes('elsci')) return true;
+  return book.slug.toLowerCase().startsWith('elsci-ln-');
+};
+
 export class BooksService {
   constructor(private prisma: PrismaClient) {}
+
+  private deriveLightNovelMeta(book: {
+    title: string;
+    slug: string;
+    description: string | null;
+  }): { seriesTitle: string; seriesKey: string; volumeNumber: number | null } {
+    const seriesFromDescription = parseSeriesFromDescription(book.description);
+    const seriesFromSlug = parseSeriesFromSlug(book.slug);
+    const seriesFromTitle = stripVolumeSuffix(book.title);
+    const seriesTitle =
+      cleanWhitespace(seriesFromDescription || seriesFromSlug || seriesFromTitle || book.title) ||
+      cleanWhitespace(book.title);
+
+    const volumeFromDescription = parseVolumeFromDescription(book.description);
+    const volumeFromTitle = parseVolumeFromTitle(book.title);
+    const volumeNumber = volumeFromDescription ?? volumeFromTitle;
+
+    return {
+      seriesTitle,
+      seriesKey: normalizeKey(seriesTitle),
+      volumeNumber,
+    };
+  }
+
+  private toLightNovelVolumeSummary(book: {
+    id: string;
+    title: string;
+    slug: string;
+    author: string;
+    year: number;
+    coverUrl: string | null;
+    format: string;
+    downloadUrl: string | null;
+    fileSize: number | null;
+    publisher: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    description: string | null;
+  }): LightNovelVolumeSummary {
+    const meta = this.deriveLightNovelMeta(book);
+
+    return {
+      id: book.id,
+      title: book.title,
+      slug: book.slug,
+      author: book.author,
+      year: book.year,
+      coverUrl: book.coverUrl,
+      format: book.format,
+      downloadUrl: book.downloadUrl,
+      fileSize: book.fileSize,
+      publisher: book.publisher,
+      createdAt: book.createdAt.toISOString(),
+      updatedAt: book.updatedAt.toISOString(),
+      volumeNumber: meta.volumeNumber,
+    };
+  }
+
+  async listLightNovelSeries(
+    params: LightNovelSearchParams,
+  ): Promise<{ data: LightNovelSeriesSummary[]; meta: PaginationMeta }> {
+    const { page = 1, limit = 20, q } = params;
+
+    const books = await this.prisma.book.findMany({
+      where: {
+        status: 'active',
+        AND: [
+          {
+            OR: [
+              { genre: { has: 'Light Novel' } },
+              { publisher: { contains: 'elsci', mode: Prisma.QueryMode.insensitive } },
+              { slug: { startsWith: 'elsci-ln-' } },
+            ],
+          },
+          ...(q
+            ? [
+                {
+                  OR: [
+                    { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                    { author: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                    { description: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 4000,
+    });
+
+    const grouped = new Map<
+      string,
+      {
+        seriesTitle: string;
+        coverUrl: string | null;
+        latestYear: number;
+        latestUpdatedAt: number;
+        volumes: LightNovelVolumeSummary[];
+      }
+    >();
+
+    for (const book of books) {
+      if (!isLikelyLightNovel(book)) continue;
+      const meta = this.deriveLightNovelMeta(book);
+      if (!meta.seriesKey) continue;
+
+      const volume = this.toLightNovelVolumeSummary(book);
+      const existing = grouped.get(meta.seriesKey);
+
+      if (!existing) {
+        grouped.set(meta.seriesKey, {
+          seriesTitle: meta.seriesTitle,
+          coverUrl: book.coverUrl,
+          latestYear: book.year,
+          latestUpdatedAt: book.updatedAt.getTime(),
+          volumes: [volume],
+        });
+        continue;
+      }
+
+      existing.volumes.push(volume);
+      if (!existing.coverUrl && book.coverUrl) existing.coverUrl = book.coverUrl;
+      if (book.year > existing.latestYear) existing.latestYear = book.year;
+      if (book.updatedAt.getTime() > existing.latestUpdatedAt) {
+        existing.latestUpdatedAt = book.updatedAt.getTime();
+      }
+    }
+
+    const seriesList: Array<LightNovelSeriesSummary & { latestUpdatedAt: number }> =
+      Array.from(grouped.entries()).map(([seriesKey, entry]) => {
+        const sortedVolumes = [...entry.volumes].sort((a, b) => {
+          const av = a.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+          const bv = b.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+          if (av !== bv) return av - bv;
+          if (a.year !== b.year) return a.year - b.year;
+          return a.title.localeCompare(b.title);
+        });
+
+        return {
+          seriesKey,
+          seriesTitle: entry.seriesTitle,
+          totalVolumes: sortedVolumes.length,
+          latestYear: entry.latestYear,
+          coverUrl: entry.coverUrl,
+          volumes: sortedVolumes,
+          latestUpdatedAt: entry.latestUpdatedAt,
+        };
+      });
+
+    seriesList.sort((a, b) => b.latestUpdatedAt - a.latestUpdatedAt);
+
+    const total = seriesList.length;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paged = seriesList.slice(start, end).map(({ latestUpdatedAt: _drop, ...rest }) => rest);
+
+    return {
+      data: paged,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    };
+  }
+
+  async getLightNovelSeriesBySlug(slug: string): Promise<LightNovelSeriesDetail | null> {
+    const current = await this.prisma.book.findFirst({
+      where: { slug, status: 'active' },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        author: true,
+        year: true,
+        coverUrl: true,
+        format: true,
+        downloadUrl: true,
+        fileSize: true,
+        publisher: true,
+        createdAt: true,
+        updatedAt: true,
+        description: true,
+        genre: true,
+      },
+    });
+
+    if (!current || !isLikelyLightNovel(current)) return null;
+
+    const targetMeta = this.deriveLightNovelMeta(current);
+    if (!targetMeta.seriesKey) return null;
+
+    const candidates = await this.prisma.book.findMany({
+      where: {
+        status: 'active',
+        OR: [
+          { genre: { has: 'Light Novel' } },
+          { publisher: { contains: 'elsci', mode: Prisma.QueryMode.insensitive } },
+          { slug: { startsWith: 'elsci-ln-' } },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 4000,
+    });
+
+    const sameSeries = candidates
+      .filter((book) => isLikelyLightNovel(book))
+      .filter((book) => this.deriveLightNovelMeta(book).seriesKey === targetMeta.seriesKey)
+      .map((book) => this.toLightNovelVolumeSummary(book));
+
+    if (sameSeries.length === 0) return null;
+
+    sameSeries.sort((a, b) => {
+      const av = a.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+      const bv = b.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+      if (av !== bv) return av - bv;
+      if (a.year !== b.year) return a.year - b.year;
+      return a.title.localeCompare(b.title);
+    });
+
+    const latestYear = sameSeries.reduce((acc, item) => Math.max(acc, item.year), 0);
+    const coverUrl = sameSeries.find((item) => !!item.coverUrl)?.coverUrl || null;
+
+    return {
+      seriesKey: targetMeta.seriesKey,
+      seriesTitle: targetMeta.seriesTitle,
+      totalVolumes: sameSeries.length,
+      latestYear,
+      coverUrl,
+      volumes: sameSeries,
+      currentSlug: slug,
+    };
+  }
 
   async search(params: BookSearchParams): Promise<{ data: Book[]; meta: PaginationMeta }> {
     const { page = 1, limit = 20, q, kind } = params;
