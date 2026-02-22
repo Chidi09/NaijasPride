@@ -391,8 +391,13 @@ export class BooksService {
       filters.push({ NOT: { genre: { has: 'Comic' } } });
     }
 
-    // Only show books that have an actual downloadable file
-    filters.push({ downloadUrl: { not: null } });
+    // Only show books that have an actual downloadable file.
+    // Exclude books whose downloadUrl still points to an external Anna's Archive URL
+    // (not yet mirrored to R2). Mirrored books have downloadUrl starting with /api/v1/.
+    filters.push({
+      downloadUrl: { not: null },
+      NOT: { downloadUrl: { startsWith: 'https://annas-archive' } },
+    });
 
     const where: Prisma.BookWhereInput = {
       status: 'active',
