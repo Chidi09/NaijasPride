@@ -136,7 +136,7 @@ export class QueueService {
       return;
     }
 
-    const jobId = `annas-mirror:${Date.now()}`;
+    const jobId = `annas-mirror-${Date.now()}`;
 
     await queue.add('mirror-annas-books', {
       ...payload,

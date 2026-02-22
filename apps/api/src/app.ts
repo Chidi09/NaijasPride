@@ -39,7 +39,7 @@ import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
 import { sentryService } from "./shared/services/sentry.service";
-import { bookImportQueue, elsciMirrorQueue } from "./shared/services/queue.service";
+import { bookImportQueue, elsciMirrorQueue, annasMirrorQueue } from "./shared/services/queue.service";
 
 const DEFAULT_BODY_LIMIT_BYTES = 1_048_576; // 1 MiB
 const DEFAULT_CORS_ORIGINS = [
@@ -463,6 +463,42 @@ const start = async () => {
       app.log.info(
         { mirrorIntervalMs, mirrorStartupDelayMs, mirrorBatchSize },
         '[ElsciMirror] Scheduler enabled',
+      );
+    }
+
+    // Anna's Archive mirror scheduler — downloads discovered books to R2
+    const annasMirrorEnabled = parseBooleanFlag(process.env.ANNAS_MIRROR_ENABLED, false);
+    if (annasMirrorEnabled) {
+      const annasMirrorIntervalMs = parsePositiveInt(process.env.ANNAS_MIRROR_INTERVAL_MS, 6 * 60 * 60 * 1000); // 6h
+      const annasMirrorStartupDelayMs = parsePositiveInt(process.env.ANNAS_MIRROR_STARTUP_DELAY_MS, 10 * 60 * 1000); // 10min
+      const annasMirrorBatchSize = parsePositiveInt(process.env.ANNAS_MIRROR_BATCH_SIZE, 5);
+
+      const runAnnasMirror = () => {
+        const q = annasMirrorQueue.get();
+        if (!q) {
+          app.log.warn('[AnnasMirror] annasMirrorQueue not available — Redis may not be configured');
+          return;
+        }
+        q.add(
+          'mirror-annas-books',
+          {
+            batchSize: annasMirrorBatchSize,
+            triggeredBy: 'scheduler',
+            timestamp: Date.now(),
+          },
+          { jobId: `annas-mirror-${Date.now()}`, removeOnComplete: 20, removeOnFail: 10 },
+        ).then(() => {
+          app.log.info('[AnnasMirror] Enqueued mirror job');
+        }).catch((err: unknown) => {
+          app.log.error({ err }, '[AnnasMirror] Failed to enqueue mirror job');
+        });
+      };
+
+      setInterval(runAnnasMirror, annasMirrorIntervalMs);
+      setTimeout(runAnnasMirror, annasMirrorStartupDelayMs);
+      app.log.info(
+        { annasMirrorIntervalMs, annasMirrorStartupDelayMs, annasMirrorBatchSize },
+        '[AnnasMirror] Scheduler enabled',
       );
     }
 

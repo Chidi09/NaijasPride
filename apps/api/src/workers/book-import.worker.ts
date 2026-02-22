@@ -108,7 +108,7 @@ const enqueueBookCoverJobsBySlugs = async (slugs: string[]): Promise<number> => 
         reason: 'book-import',
         timestamp: Date.now(),
       }, {
-        jobId: `book-cover:${book.id}`,
+        jobId: `book-cover-${book.id}`,
         removeOnComplete: true,
         removeOnFail: false,
         attempts,
