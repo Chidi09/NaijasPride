@@ -540,7 +540,12 @@ const worker = new Worker(
       throw error;
     }
   },
-  { connection }
+  {
+    connection,
+    lockDuration: 30 * 60 * 1000,       // 30 minutes — torrent downloads can be very slow
+    stalledInterval: 10 * 60 * 1000,     // Check for stalled jobs every 10 minutes
+    maxStalledCount: 2,                  // Allow 2 stall events before failing the job
+  }
 );
 
 worker.on('failed', (job, err) => {

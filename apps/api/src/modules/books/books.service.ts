@@ -391,9 +391,12 @@ export class BooksService {
       filters.push({ NOT: { genre: { has: 'Comic' } } });
     }
 
+    // Only show books that have an actual downloadable file
+    filters.push({ downloadUrl: { not: null } });
+
     const where: Prisma.BookWhereInput = {
       status: 'active',
-      ...(filters.length > 0 ? { AND: filters } : {}),
+      AND: filters,
     };
 
     const [total, books] = await Promise.all([

@@ -194,14 +194,31 @@ export class MoviesService {
       }
     }
 
-    const where: Prisma.MovieWhereInput = {
-      status: 'active',
-      ...(q && { 
+    // Build AND conditions array for composable filtering
+    const andConditions: Prisma.MovieWhereInput[] = [
+      // Only show movies that have actual playable content:
+      // - Stream-only movies must have a youtubeId
+      // - Non-stream movies must have non-empty fileUrls (HLS/MP4 files in R2)
+      {
+        OR: [
+          { isStreamOnly: true, youtubeId: { not: null } },
+          { isStreamOnly: false, NOT: { fileUrls: { equals: {} } } },
+        ],
+      },
+    ];
+
+    if (q) {
+      andConditions.push({
         OR: [
           { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
-          { description: { contains: q, mode: Prisma.QueryMode.insensitive } }
-        ]
-      }),
+          { description: { contains: q, mode: Prisma.QueryMode.insensitive } },
+        ],
+      });
+    }
+
+    const where: Prisma.MovieWhereInput = {
+      status: 'active',
+      AND: andConditions,
       ...(year && { year }),
       ...(genre && { genre: { hasSome: genre as unknown as PrismaGenre[] } }),
       ...(quality && { quality: { has: this.toPrismaQuality(quality as unknown as string) } }),

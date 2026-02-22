@@ -299,6 +299,262 @@ const downloadFromPartnerLink = async (
   return null;
 };
 
+// ── LibGen Direct Download (no Playwright needed) ────────────────────────────
+
+const LIBGEN_USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
+
+/**
+ * Fetch an HTML page from a URL using plain Node fetch (no browser needed).
+ */
+const fetchPage = async (url: string, timeoutMs: number): Promise<string | null> => {
+  try {
+    const resp = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { 'User-Agent': LIBGEN_USER_AGENT },
+    });
+    if (!resp.ok) return null;
+    return await resp.text();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Download a binary file from a URL using plain Node fetch.
+ * Returns the file buffer, size, and content type — or null on failure.
+ */
+const fetchBinary = async (
+  url: string,
+  maxBytes: number,
+  timeoutMs: number,
+): Promise<{ buffer: Buffer; size: number; contentType: string } | null> => {
+  try {
+    const resp = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { 'User-Agent': LIBGEN_USER_AGENT },
+    });
+    if (!resp.ok) return null;
+
+    const contentType = resp.headers.get('content-type') || 'application/octet-stream';
+    const contentLength = parseInt(resp.headers.get('content-length') || '0', 10);
+    if (contentLength > maxBytes) {
+      console.warn(`[AnnasMirror/LibGen] File too large (${contentLength} bytes), skipping: ${url}`);
+      return null;
+    }
+
+    const arrayBuffer = await resp.arrayBuffer();
+    if (arrayBuffer.byteLength > maxBytes) {
+      console.warn(`[AnnasMirror/LibGen] Downloaded file too large (${arrayBuffer.byteLength} bytes), skipping: ${url}`);
+      return null;
+    }
+
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      size: arrayBuffer.byteLength,
+      contentType,
+    };
+  } catch (err) {
+    console.warn(`[AnnasMirror/LibGen] Binary download failed for ${url}: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+};
+
+/**
+ * Validate that a downloaded buffer looks like an actual book file, not HTML.
+ */
+const isValidBookFile = (buf: Buffer): boolean => {
+  if (buf.length < 512) return false;
+  const preview = buf.toString('utf-8', 0, Math.min(500, buf.length));
+  if (preview.includes('<html') || preview.includes('<!DOCTYPE') || preview.includes('challenge-platform')) {
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Try to download a book directly from LibGen mirrors using plain HTTP.
+ *
+ * LibGen mirrors do not use Cloudflare and do not require login.
+ * The flow for each mirror:
+ *   1. Fetch the mirror's HTML page for the given md5
+ *   2. Parse the page to extract the actual file download URL
+ *   3. Download the binary file from that URL
+ *   4. Validate it is not an HTML error page
+ *
+ * Tries these mirrors in order:
+ *   - library.lol/main/<md5>
+ *   - libgen.is/book/index.php?md5=<md5>
+ *   - libgen.rs/book/index.php?md5=<md5>
+ */
+const downloadFromLibGenDirect = async (
+  md5: string,
+  ext: string,
+  maxBytes: number,
+  timeoutMs: number,
+): Promise<{ buffer: Buffer; size: number; contentType: string } | null> => {
+
+  // ── Strategy 1: library.lol ────────────────────────────────────────────
+  try {
+    const libraryLolUrl = `https://library.lol/main/${md5}`;
+    console.log(`[AnnasMirror/LibGen] Trying library.lol: ${libraryLolUrl}`);
+    const html = await fetchPage(libraryLolUrl, 30_000);
+    if (html) {
+      // The download link is typically in an <h2><a href="https://download.library.lol/main/...">
+      // or in a generic <a href="...">GET</a> pattern
+      let downloadUrl: string | null = null;
+
+      // Pattern 1: download.library.lol direct link
+      const dlMatch = html.match(/href="(https?:\/\/download\.library\.lol[^"]+)"/i);
+      if (dlMatch?.[1]) {
+        downloadUrl = dlMatch[1];
+      }
+
+      // Pattern 2: <a> tag with "GET" text (common on library.lol pages)
+      if (!downloadUrl) {
+        const getMatch = html.match(/<a[^>]*href="([^"]+)"[^>]*>\s*GET\s*</i);
+        if (getMatch?.[1]) {
+          downloadUrl = getMatch[1].startsWith('http')
+            ? getMatch[1]
+            : `https://library.lol${getMatch[1].startsWith('/') ? '' : '/'}${getMatch[1]}`;
+        }
+      }
+
+      // Pattern 3: <h2><a href="..."> pattern
+      if (!downloadUrl) {
+        const h2Match = html.match(/<h2>\s*<a[^>]*href="([^"]+)"/i);
+        if (h2Match?.[1]) {
+          downloadUrl = h2Match[1].startsWith('http')
+            ? h2Match[1]
+            : `https://library.lol${h2Match[1].startsWith('/') ? '' : '/'}${h2Match[1]}`;
+        }
+      }
+
+      if (downloadUrl) {
+        console.log(`[AnnasMirror/LibGen] Found download URL from library.lol: ${downloadUrl}`);
+        const result = await fetchBinary(downloadUrl, maxBytes, timeoutMs);
+        if (result && isValidBookFile(result.buffer)) {
+          return result;
+        }
+        console.warn(`[AnnasMirror/LibGen] library.lol download returned invalid data`);
+      } else {
+        console.warn(`[AnnasMirror/LibGen] Could not parse download URL from library.lol page`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[AnnasMirror/LibGen] library.lol attempt failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ── Strategy 2: libgen.is ──────────────────────────────────────────────
+  try {
+    const libgenIsUrl = `https://libgen.is/book/index.php?md5=${md5}`;
+    console.log(`[AnnasMirror/LibGen] Trying libgen.is: ${libgenIsUrl}`);
+    const html = await fetchPage(libgenIsUrl, 30_000);
+    if (html) {
+      // libgen.is book page has mirror links. Look for library.lol or direct download links.
+      const mirrorLinks: string[] = [];
+
+      // Look for library.lol links on the page
+      const libraryLolLinks = html.matchAll(/href="(https?:\/\/library\.lol[^"]+)"/gi);
+      for (const m of libraryLolLinks) {
+        if (m[1]) mirrorLinks.push(m[1]);
+      }
+
+      // Look for direct download links (GET pattern, download links)
+      const directLinks = html.matchAll(/href="(https?:\/\/[^"]*(?:get|download)[^"]*)"/gi);
+      for (const m of directLinks) {
+        if (m[1]) mirrorLinks.push(m[1]);
+      }
+
+      // Look for any link with the md5 hash in it (common for libgen CDN links)
+      const md5Links = html.matchAll(new RegExp(`href="(https?://[^"]*${md5}[^"]*)"`, 'gi'));
+      for (const m of md5Links) {
+        if (m[1] && !m[1].includes('libgen.is/book/index.php')) mirrorLinks.push(m[1]);
+      }
+
+      for (const mirrorUrl of mirrorLinks) {
+        console.log(`[AnnasMirror/LibGen] Trying mirror from libgen.is: ${mirrorUrl}`);
+
+        // If it's a library.lol link, we need to parse it first (it's an intermediate page)
+        if (mirrorUrl.includes('library.lol')) {
+          const mirrorHtml = await fetchPage(mirrorUrl, 30_000);
+          if (mirrorHtml) {
+            const dlMatch = mirrorHtml.match(/href="(https?:\/\/download\.library\.lol[^"]+)"/i)
+              || mirrorHtml.match(/<a[^>]*href="([^"]+)"[^>]*>\s*GET\s*</i)
+              || mirrorHtml.match(/<h2>\s*<a[^>]*href="([^"]+)"/i);
+            if (dlMatch?.[1]) {
+              const finalUrl = dlMatch[1].startsWith('http') ? dlMatch[1] : `https://library.lol${dlMatch[1]}`;
+              const result = await fetchBinary(finalUrl, maxBytes, timeoutMs);
+              if (result && isValidBookFile(result.buffer)) return result;
+            }
+          }
+          continue;
+        }
+
+        // Otherwise try direct binary download
+        const result = await fetchBinary(mirrorUrl, maxBytes, timeoutMs);
+        if (result && isValidBookFile(result.buffer)) return result;
+      }
+    }
+  } catch (err) {
+    console.warn(`[AnnasMirror/LibGen] libgen.is attempt failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ── Strategy 3: libgen.rs ──────────────────────────────────────────────
+  try {
+    const libgenRsUrl = `https://libgen.rs/book/index.php?md5=${md5}`;
+    console.log(`[AnnasMirror/LibGen] Trying libgen.rs: ${libgenRsUrl}`);
+    const html = await fetchPage(libgenRsUrl, 30_000);
+    if (html) {
+      const mirrorLinks: string[] = [];
+
+      const libraryLolLinks = html.matchAll(/href="(https?:\/\/library\.lol[^"]+)"/gi);
+      for (const m of libraryLolLinks) {
+        if (m[1]) mirrorLinks.push(m[1]);
+      }
+
+      const directLinks = html.matchAll(/href="(https?:\/\/[^"]*(?:get|download)[^"]*)"/gi);
+      for (const m of directLinks) {
+        if (m[1]) mirrorLinks.push(m[1]);
+      }
+
+      const md5Links = html.matchAll(new RegExp(`href="(https?://[^"]*${md5}[^"]*)"`, 'gi'));
+      for (const m of md5Links) {
+        if (m[1] && !m[1].includes('libgen.rs/book/index.php')) mirrorLinks.push(m[1]);
+      }
+
+      for (const mirrorUrl of mirrorLinks) {
+        console.log(`[AnnasMirror/LibGen] Trying mirror from libgen.rs: ${mirrorUrl}`);
+
+        if (mirrorUrl.includes('library.lol')) {
+          const mirrorHtml = await fetchPage(mirrorUrl, 30_000);
+          if (mirrorHtml) {
+            const dlMatch = mirrorHtml.match(/href="(https?:\/\/download\.library\.lol[^"]+)"/i)
+              || mirrorHtml.match(/<a[^>]*href="([^"]+)"[^>]*>\s*GET\s*</i)
+              || mirrorHtml.match(/<h2>\s*<a[^>]*href="([^"]+)"/i);
+            if (dlMatch?.[1]) {
+              const finalUrl = dlMatch[1].startsWith('http') ? dlMatch[1] : `https://library.lol${dlMatch[1]}`;
+              const result = await fetchBinary(finalUrl, maxBytes, timeoutMs);
+              if (result && isValidBookFile(result.buffer)) return result;
+            }
+          }
+          continue;
+        }
+
+        const result = await fetchBinary(mirrorUrl, maxBytes, timeoutMs);
+        if (result && isValidBookFile(result.buffer)) return result;
+      }
+    }
+  } catch (err) {
+    console.warn(`[AnnasMirror/LibGen] libgen.rs attempt failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  console.warn(`[AnnasMirror/LibGen] All LibGen mirrors failed for md5: ${md5}`);
+  return null;
+};
+
 const uploadToR2 = async (key: string, body: Buffer, contentType: string): Promise<void> => {
   await StorageService.getClient().send(
     new PutObjectCommand({
@@ -484,8 +740,30 @@ export const runAnnasMirrorHarvester = async (
           }
         }
 
+        // ── LibGen direct fallback (no browser needed) ──────────────────
         if (!downloaded) {
-          const msg = `${book.slug}: all download links failed`;
+          console.log(`[AnnasMirror] All Anna's links failed, trying direct LibGen for md5: ${md5}`);
+          const libgenResult = await downloadFromLibGenDirect(md5, ext, maxFileSizeBytes, perFileTimeoutMs);
+          if (libgenResult && libgenResult.size > 1024) {
+            const preview = libgenResult.buffer.toString('utf-8', 0, Math.min(500, libgenResult.buffer.length));
+            if (!preview.includes('<html') && !preview.includes('<!DOCTYPE')) {
+              await uploadToR2(storageKey, libgenResult.buffer, contentType);
+              const localUrl = `/api/v1/books/download?key=${encodeURIComponent(storageKey)}`;
+              await prisma.book.update({
+                where: { id: book.id },
+                data: { downloadUrl: localUrl, fileSize: libgenResult.size },
+              });
+              console.log(
+                `[AnnasMirror] Mirrored "${book.title}" via LibGen (${(libgenResult.size / 1024 / 1024).toFixed(1)} MB) -> ${storageKey}`,
+              );
+              result.mirrored++;
+              downloaded = true;
+            }
+          }
+        }
+
+        if (!downloaded) {
+          const msg = `${book.slug}: all download links failed (including LibGen fallback)`;
           console.warn(`[AnnasMirror] ${msg}`);
           result.errors.push(msg);
           result.failed++;
