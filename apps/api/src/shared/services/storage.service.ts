@@ -125,6 +125,30 @@ export class StorageService {
   }
 
   /**
+   * Stream an object directly from R2 via the S3 API (bypasses public URL).
+   * Returns the readable Body stream plus metadata headers.
+   */
+  async getObjectStream(key: string): Promise<{
+    stream: NodeJS.ReadableStream;
+    contentType?: string;
+    contentLength?: number;
+  }> {
+    const command = new GetObjectCommand({
+      Bucket: s3Config.bucket,
+      Key: key,
+    });
+    const response = await s3Client.send(command);
+    if (!response.Body) {
+      throw new Error(`R2 returned empty body for key: ${key}`);
+    }
+    return {
+      stream: response.Body as unknown as NodeJS.ReadableStream,
+      contentType: response.ContentType ?? undefined,
+      contentLength: response.ContentLength ?? undefined,
+    };
+  }
+
+  /**
    * Get the raw S3 client for advanced operations
    */
   static getClient(): S3Client {

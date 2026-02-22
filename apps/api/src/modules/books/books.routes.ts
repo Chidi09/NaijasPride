@@ -1743,7 +1743,7 @@ export const bookRoutes = async (
     },
   });
 
-  // GET /api/books/download?key=books/... - Resolve a stable book key to a signed URL
+  // GET /api/books/download?key=books/... - Stream the book file from R2 directly
   app.get('/download', {
     schema: {
       querystring: bookDownloadSchema,
@@ -1755,8 +1755,21 @@ export const bookRoutes = async (
           return reply.redirect(key);
         }
 
-        const signedUrl = await storageService.getDownloadUrl(key);
-        return reply.redirect(signedUrl);
+        // Stream directly from R2 via S3 API (public URL may 403 for books)
+        const r2Object = await storageService.getObjectStream(key);
+        const filename = key.split('/').pop() || 'book';
+        const contentType =
+          inferContentTypeFromFilename(filename) ||
+          r2Object.contentType ||
+          'application/octet-stream';
+
+        if (r2Object.contentLength) {
+          reply.header('content-length', String(r2Object.contentLength));
+        }
+        reply.header('content-type', contentType);
+        reply.header('cache-control', 'private, max-age=3600');
+        reply.header('content-disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+        return reply.send(r2Object.stream);
       } catch (error) {
         return reply.status(404).send({
           status: 'error',
@@ -1920,32 +1933,26 @@ export const bookRoutes = async (
           });
         }
 
-        const signedUrl = await storageService.getDownloadUrl(key);
-        const upstream = await axios.get(signedUrl, {
-          responseType: 'stream',
-          timeout: 60_000,
-          validateStatus: (status) => status >= 200 && status < 400,
-        });
+        // Stream directly from R2 via S3 API (public URL may 403 for books)
+        const r2Object = await storageService.getObjectStream(key);
 
         const fallbackExt = (book.format || '').toLowerCase() === 'pdf' ? 'pdf' : (book.format || '').toLowerCase() === 'epub' ? 'epub' : 'bin';
         const safeTitle = sanitizeStorageFilename(book.title || 'book');
-        const filename = `${safeTitle}.${fallbackExt}`;
-        const upstreamFilename = extractFilenameFromContentDisposition(upstream.headers['content-disposition']);
-        const effectiveFilename = upstreamFilename || filename;
+        const effectiveFilename = `${safeTitle}.${fallbackExt}`;
 
         const contentType =
           inferContentTypeFromFilename(effectiveFilename) ||
-          (upstream.headers['content-type'] as string | undefined) ||
+          r2Object.contentType ||
           'application/octet-stream';
 
-        if (typeof upstream.headers['content-length'] === 'string') {
-          reply.header('content-length', upstream.headers['content-length']);
+        if (r2Object.contentLength) {
+          reply.header('content-length', String(r2Object.contentLength));
         }
 
         reply.header('content-type', contentType);
         reply.header('cache-control', 'private, max-age=0');
         reply.header('content-disposition', `${disposition}; filename="${effectiveFilename.replace(/"/g, '')}"`);
-        return reply.send(upstream.data);
+        return reply.send(r2Object.stream);
       } catch (error) {
         return reply.status(500).send({
           status: 'error',
