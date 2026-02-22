@@ -362,6 +362,44 @@ const start = async () => {
       }, 20_000);
     }
 
+    // One-time migration: update Elsci book downloadUrls to point to R2.
+    // The mirror harvester uploaded 120 books to R2 but may not have updated
+    // every DB row (Cloudflare blocks, timeouts, etc.).  This patches any
+    // remaining rows so the reader/download endpoints serve from R2 directly.
+    setTimeout(async () => {
+      try {
+        const staleElsci = await app.prisma.book.findMany({
+          where: {
+            OR: [
+              { publisher: { contains: 'elsci', mode: 'insensitive' } },
+              { slug: { startsWith: 'elsci-ln-' } },
+            ],
+            downloadUrl: { startsWith: '/api/v1/books/external/elsci/file' },
+          },
+          select: { id: true, slug: true, format: true },
+        });
+        if (staleElsci.length === 0) {
+          app.log.info('[ElsciUrlFix] All Elsci books already point to R2. Nothing to do.');
+        } else {
+          app.log.info(`[ElsciUrlFix] Fixing ${staleElsci.length} Elsci books with stale downloadUrl...`);
+          let fixed = 0;
+          for (const book of staleElsci) {
+            const ext = (book.format || 'epub').toLowerCase() === 'pdf' ? 'pdf' : 'epub';
+            const storageKey = `books/elsci/${book.slug}.${ext}`;
+            const localUrl = `/api/v1/books/download?key=${encodeURIComponent(storageKey)}`;
+            await app.prisma.book.update({
+              where: { id: book.id },
+              data: { downloadUrl: localUrl },
+            });
+            fixed++;
+          }
+          app.log.info(`[ElsciUrlFix] Updated ${fixed} Elsci book downloadUrls to R2 paths.`);
+        }
+      } catch (error) {
+        app.log.error({ error }, '[ElsciUrlFix] Failed to fix Elsci downloadUrls');
+      }
+    }, 15_000); // Run 15s after startup
+
     // Optional Auto-Library discovery scheduler for high-value books.
     const autoLibraryEnabled = parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_ENABLED, false);
     if (autoLibraryEnabled) {

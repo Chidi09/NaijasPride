@@ -1831,8 +1831,12 @@ export const bookRoutes = async (
           return reply.send(upstream.stream);
         }
 
+        // If an Elsci (or any) book's downloadUrl already has a `key=` param,
+        // it has been mirrored to R2 — fall through directly to the generic R2
+        // streaming path below instead of trying the Elsci proxy.
+        const r2KeyFromUrl = book.downloadUrl ? extractDownloadKeyFromUrl(book.downloadUrl) : null;
         const isElsci = slug.toLowerCase().startsWith('elsci-ln-') || (book.publisher || '').toLowerCase() === 'elsci';
-        if (isElsci) {
+        if (isElsci && !r2KeyFromUrl) {
           if (!book.downloadUrl) {
             return reply.status(404).send({
               status: 'error',

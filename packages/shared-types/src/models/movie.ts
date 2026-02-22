@@ -75,4 +75,6 @@ export interface MovieSummary {
   nollywood: boolean;
   isStreamOnly: boolean;
   youtubeId?: string | null;
+  /** True when the movie has at least one playable URL (HLS/MP4) or a youtubeId */
+  canStream?: boolean;
 }

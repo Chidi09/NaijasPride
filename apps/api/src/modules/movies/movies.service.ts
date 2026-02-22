@@ -574,6 +574,7 @@ export class MoviesService {
     viewCount: number;
     isStreamOnly: boolean;
     youtubeId: string | null;
+    fileUrls?: Prisma.JsonValue;
   }): MovieSummary {
     const bestThumb =
       raw.thumbnailUrl ||
@@ -581,6 +582,18 @@ export class MoviesService {
       raw.coverUrl ||
       raw.backdropUrl ||
       null;
+
+    // Compute canStream: true if there's a youtubeId or any .mp4/.m3u8 URL in fileUrls
+    let canStream = !!raw.youtubeId;
+    if (!canStream && raw.fileUrls && typeof raw.fileUrls === 'object' && !Array.isArray(raw.fileUrls)) {
+      const urls = raw.fileUrls as Record<string, unknown>;
+      canStream = Object.values(urls).some((v) => {
+        if (typeof v !== 'string' || !v.trim()) return false;
+        const lower = v.toLowerCase();
+        return lower.endsWith('.mp4') || lower.endsWith('.m3u8') || lower.includes('.mp4?') || lower.includes('.m3u8?');
+      });
+    }
+
     return {
       id: raw.id,
       title: raw.title,
@@ -595,6 +608,7 @@ export class MoviesService {
       nollywood: raw.genre.includes('Nollywood' as PrismaGenre),
       isStreamOnly: raw.isStreamOnly,
       youtubeId: raw.youtubeId,
+      canStream,
     };
   }
 }

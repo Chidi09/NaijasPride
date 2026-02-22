@@ -59,6 +59,10 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
           <div class="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
             STREAM
           </div>
+        } @else if (movie.canStream) {
+          <div class="absolute top-2 left-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
+            WATCH
+          </div>
         } @else {
           <div class="absolute top-2 left-2 bg-cinema-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
             DOWNLOAD
@@ -79,7 +83,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
           <p class="mt-1 text-[11px] text-gray-200/90">{{ movie.year }} • {{ movie.genre?.[0] || 'Feature' }}</p>
           <div class="mt-2 flex items-center gap-2 text-[10px]">
             <span class="rounded-full bg-white/20 px-2 py-0.5 text-white">{{ movie.rating || 0 }}% Match</span>
-            @if (movie.isStreamOnly) {
+            @if (movie.isStreamOnly || movie.canStream) {
               <span class="rounded-full bg-blue-500/80 px-2 py-0.5 text-white">Watch</span>
             } @else {
               <span class="rounded-full bg-[#800020]/90 px-2 py-0.5 text-white">Download</span>
@@ -113,7 +117,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
             }
           </div>
           <div class="mt-2 text-[10px] text-gray-300">
-            @if (movie.isStreamOnly) {
+            @if (movie.isStreamOnly || movie.canStream) {
               Instant play available
             } @else if (isReadyForDownload(movie)) {
               Torrent/download ready
