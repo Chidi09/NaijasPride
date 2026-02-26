@@ -19,6 +19,7 @@ type LoggerLike = {
 
 export type TorrentDiscoveryConfig = {
   sourceUrl?: string;
+  sourceUrls?: string[];
   maxItemsPerRun?: number;
   requireApproval?: boolean;
   requestTimeoutMs?: number;
@@ -178,6 +179,28 @@ const inferGenres = (title: string): Genre[] => {
 const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+const normalizeUrlList = (values: string[]): string[] => {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const raw of values) {
+    const url = (raw || '').trim();
+    if (!url) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    output.push(url);
+  }
+  return output;
+};
+
+const normalizeTitleForDedupe = (value: string): string =>
+  normalizeTorrentTitle(value || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(the|a|an|movie|film|proper|repack|extended|remastered|uncut|director|cut)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export class TorrentDiscoveryService {
   private readonly config: Required<TorrentDiscoveryConfig>;
   private readonly logger: LoggerLike;
@@ -192,6 +215,11 @@ export class TorrentDiscoveryService {
     this.logger = logger;
     this.config = {
       sourceUrl: (config.sourceUrl || DEFAULT_SOURCE_URL).trim(),
+      sourceUrls: normalizeUrlList(
+        (config.sourceUrls && config.sourceUrls.length > 0
+          ? config.sourceUrls
+          : [config.sourceUrl || DEFAULT_SOURCE_URL]).map((value) => value.trim()),
+      ),
       maxItemsPerRun: Number.isFinite(config.maxItemsPerRun) && (config.maxItemsPerRun as number) > 0
         ? Math.min(config.maxItemsPerRun as number, 25)
         : 8,
@@ -212,6 +240,13 @@ export class TorrentDiscoveryService {
     };
     this.metadataService = new MetadataService(prisma);
     this.moviesService = new MoviesService(prisma);
+
+    // Keep sourceUrl aligned with the first normalized source for summary output.
+    if (!this.config.sourceUrls.length) {
+      this.config.sourceUrls = [DEFAULT_SOURCE_URL];
+    }
+    this.config.sourceUrl = this.config.sourceUrls[0] || DEFAULT_SOURCE_URL;
+
     this.circuitBreaker = new CircuitBreaker({
       failureThreshold: this.config.failureThreshold,
       recoveryTimeoutMs: this.config.recoveryTimeoutMs,
@@ -252,13 +287,33 @@ export class TorrentDiscoveryService {
     this.isRunning = true;
 
     try {
-      const listingHtml = await this.fetchHtml(this.config.sourceUrl);
       const listingWindow = Math.min(Math.max(this.config.maxItemsPerRun * 12, this.config.maxItemsPerRun), 300);
-      const listingCandidates = parseTorrentListing(
-        listingHtml,
-        this.config.sourceUrl,
-        listingWindow,
-      );
+
+      let selectedSourceUrl = this.config.sourceUrl;
+      let listingCandidates: ListingCandidate[] = [];
+
+      for (const sourceUrl of this.config.sourceUrls) {
+        try {
+          const listingHtml = await this.fetchHtml(sourceUrl);
+          const candidates = parseTorrentListing(listingHtml, sourceUrl, listingWindow);
+          if (candidates.length > 0) {
+            selectedSourceUrl = sourceUrl;
+            listingCandidates = candidates;
+            break;
+          }
+          this.logger.warn(`[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`);
+        } catch (error) {
+          this.logger.warn(
+            `[TorrentDiscovery] Failed listing fetch from ${sourceUrl}; trying next mirror: ${toErrorMessage(error)}`,
+          );
+        }
+      }
+
+      if (listingCandidates.length === 0) {
+        throw new Error(`No torrent candidates found from any configured source mirror (${this.config.sourceUrls.length} tried)`);
+      }
+
+      baseSummary.sourceUrl = selectedSourceUrl;
       baseSummary.discovered = listingCandidates.length;
 
       const resolved: ResolvedTorrentCandidate[] = [];
@@ -301,23 +356,8 @@ export class TorrentDiscoveryService {
         const slug = toMovieSlug(candidate.normalizedTitle, candidate.year);
 
         try {
-          const existingBySlug = await this.prisma.movie.findUnique({
-            where: { slug },
-            select: { id: true },
-          });
-          if (existingBySlug) {
-            baseSummary.skippedExisting += 1;
-            continue;
-          }
-
-          const existingByTitleYear = await this.prisma.movie.findFirst({
-            where: {
-              title: candidate.normalizedTitle,
-              year: candidate.year,
-            },
-            select: { id: true },
-          });
-          if (existingByTitleYear) {
+          const duplicate = await this.isDuplicateCandidate(candidate, slug);
+          if (duplicate) {
             baseSummary.skippedExisting += 1;
             continue;
           }
@@ -338,6 +378,17 @@ export class TorrentDiscoveryService {
             genre: inferGenres(candidate.normalizedTitle),
             quality: [Quality.Q720p],
             fileUrls: {},
+            metadata: {
+              source: 'torrent-discovery',
+              sourceUrl: baseSummary.sourceUrl,
+              sourceDetailUrl: candidate.detailUrl,
+              sourceInfoHash: candidate.infoHash,
+              sourceRawTitle: candidate.rawTitle,
+              sourceNormalizedTitle: candidate.normalizedTitle,
+              sourceSeeds: candidate.seeds,
+              sourceLeeches: candidate.leeches,
+              discoveredAt: new Date().toISOString(),
+            } as any,
             status: 'pending',
           });
 
@@ -370,6 +421,56 @@ export class TorrentDiscoveryService {
     } finally {
       this.isRunning = false;
     }
+  }
+
+  private async isDuplicateCandidate(candidate: ResolvedTorrentCandidate, slug: string): Promise<boolean> {
+    const existingBySlug = await this.prisma.movie.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (existingBySlug) return true;
+
+    const existingByTitleYear = await this.prisma.movie.findFirst({
+      where: {
+        title: candidate.normalizedTitle,
+        year: candidate.year,
+      },
+      select: { id: true },
+    });
+    if (existingByTitleYear) return true;
+
+    if (candidate.infoHash) {
+      const existingByInfoHash = await this.prisma.movie.findFirst({
+        where: {
+          metadata: {
+            path: ['sourceInfoHash'],
+            equals: candidate.infoHash,
+          },
+        },
+        select: { id: true },
+      });
+      if (existingByInfoHash) return true;
+    }
+
+    const candidateKey = normalizeTitleForDedupe(candidate.normalizedTitle || candidate.rawTitle);
+    if (!candidateKey) return false;
+
+    const nearby = await this.prisma.movie.findMany({
+      where: {
+        year: {
+          gte: candidate.year - 1,
+          lte: candidate.year + 1,
+        },
+        status: { not: 'deleted' },
+      },
+      select: {
+        id: true,
+        title: true,
+        year: true,
+      },
+    });
+
+    return nearby.some((item) => normalizeTitleForDedupe(item.title) === candidateKey);
   }
 
   private async fetchHtml(url: string): Promise<string> {

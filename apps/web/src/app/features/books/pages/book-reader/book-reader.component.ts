@@ -564,9 +564,19 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         const format = (data?.format || '').trim().toLowerCase();
         this.readerType.set(format === 'pdf' ? 'pdf' : 'epub');
 
+        const normalizedDownloadUrl = (data?.downloadUrl || '').trim();
+        const hasLocalDownloadKey = normalizedDownloadUrl.startsWith('/api/v1/books/download?key=');
+
         // Use offline cached file when available (Kotatsu-style offline reading)
         if (data?.id && this.bookOffline.isAvailable(data.id)) {
           this.fileUrl.set(this.bookOffline.getOfflineFileUrl(data.id));
+        } else if (hasLocalDownloadKey) {
+          // Prefer key-based endpoint for mirrored books; this avoids slug-specific
+          // proxy branches and keeps LN/EPUB reading stable.
+          const delimiter = normalizedDownloadUrl.includes('?') ? '&' : '?';
+          this.fileUrl.set(`${normalizedDownloadUrl}${delimiter}t=${Date.now()}`);
+        } else {
+          this.fileUrl.set(this.bookFileUrl(slug));
         }
 
         this.metaLoading.set(false);

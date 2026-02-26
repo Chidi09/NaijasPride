@@ -101,6 +101,19 @@ const parsePositiveInt = (value: string | undefined, fallback: number): number =
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const parseCsvList = (value: string | undefined): string[] => {
+  if (!value) return [];
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const item of value.split(',')) {
+    const url = item.trim();
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    output.push(url);
+  }
+  return output;
+};
+
 const isCookieAuthenticatedRequest = (cookies: Record<string, string>) =>
   COOKIE_AUTH_NAMES.some((cookieName) => !!cookies[cookieName]);
 
@@ -657,67 +670,131 @@ const start = async () => {
     if (torrentDiscoveryEnabled) {
       const torrentDiscoveryIntervalMs = parsePositiveInt(
         process.env.TORRENT_DISCOVERY_INTERVAL_MS,
-        12 * 60 * 60 * 1000,
+        24 * 60 * 60 * 1000,
       );
       const torrentDiscoveryStartupDelayMs = parsePositiveInt(
         process.env.TORRENT_DISCOVERY_STARTUP_DELAY_MS,
         2 * 60 * 1000,
       );
 
-      const torrentDiscoveryService = new TorrentDiscoveryService(
-        app.prisma,
-        console,
-        {
-          sourceUrl: process.env.TORRENT_SOURCE_URL,
-          maxItemsPerRun: parsePositiveInt(process.env.TORRENT_DISCOVERY_MAX_ITEMS, 8),
-          requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
-          requestTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_REQUEST_TIMEOUT_MS, 60_000),
-          dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
-          failureThreshold: parsePositiveInt(process.env.TORRENT_DISCOVERY_FAILURE_THRESHOLD, 5),
-          recoveryTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_RECOVERY_MS, 300_000),
-        },
+      const requireApproval = parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true);
+      const dryRun = parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false);
+      const requestTimeoutMs = parsePositiveInt(process.env.TORRENT_DISCOVERY_REQUEST_TIMEOUT_MS, 60_000);
+      const failureThreshold = parsePositiveInt(process.env.TORRENT_DISCOVERY_FAILURE_THRESHOLD, 5);
+      const recoveryTimeoutMs = parsePositiveInt(process.env.TORRENT_DISCOVERY_RECOVERY_MS, 300_000);
+
+      // Per-source ingest cap (user requested 10 per source daily).
+      const maxGlobalPerSource = parsePositiveInt(
+        process.env.TORRENT_DISCOVERY_MAX_ITEMS_PER_SOURCE || process.env.TORRENT_DISCOVERY_MAX_ITEMS,
+        10,
+      );
+      const maxBollywoodPerSource = parsePositiveInt(
+        process.env.TORRENT_BOLLYWOOD_MAX_ITEMS_PER_SOURCE || process.env.TORRENT_BOLLYWOOD_MAX_ITEMS,
+        10,
       );
 
-      const bollywoodTorrentDiscoveryService = new TorrentDiscoveryService(
-        app.prisma,
-        console,
-        {
-          sourceUrl: process.env.TORRENT_BOLLYWOOD_SOURCE_URL || 'https://www.1377x.to/search/bollywood/1/',
-          maxItemsPerRun: parsePositiveInt(process.env.TORRENT_BOLLYWOOD_MAX_ITEMS, 4),
-          requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
-          requestTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_REQUEST_TIMEOUT_MS, 60_000),
-          dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
-          failureThreshold: parsePositiveInt(process.env.TORRENT_DISCOVERY_FAILURE_THRESHOLD, 5),
-          recoveryTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_RECOVERY_MS, 300_000),
-        },
-      );
+      const mergeUniqueUrls = (urls: string[]): string[] => {
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const value of urls) {
+          const url = (value || '').trim();
+          if (!url || seen.has(url)) continue;
+          seen.add(url);
+          out.push(url);
+        }
+        return out;
+      };
+
+      const configuredGlobalSources = parseCsvList(process.env.TORRENT_DISCOVERY_SOURCE_URLS);
+      const configuredBollywoodSources = parseCsvList(process.env.TORRENT_BOLLYWOOD_SOURCE_URLS);
+
+      const globalSourceUrls = configuredGlobalSources.length > 0
+        ? configuredGlobalSources
+        : mergeUniqueUrls([
+            (process.env.TORRENT_SOURCE_URL || '').trim(),
+            'https://www.1377x.to/popular-movies-week',
+            'https://1337x.to/popular-movies-week',
+            'https://1337x.tw/popular-movies-week',
+            'https://1337xx.to/popular-movies-week',
+          ]);
+
+      const bollywoodSourceUrls = configuredBollywoodSources.length > 0
+        ? configuredBollywoodSources
+        : mergeUniqueUrls([
+            (process.env.TORRENT_BOLLYWOOD_SOURCE_URL || '').trim(),
+            'https://www.1377x.to/search/bollywood/1/',
+            'https://1337x.to/search/bollywood/1/',
+            'https://1337x.tw/search/bollywood/1/',
+            'https://1337xx.to/search/bollywood/1/',
+          ]);
+
+      const discoverySources: Array<{
+        label: string;
+        url: string;
+        maxItemsPerRun: number;
+        service: TorrentDiscoveryService;
+      }> = [];
+
+      for (const url of globalSourceUrls) {
+        discoverySources.push({
+          label: 'global',
+          url,
+          maxItemsPerRun: maxGlobalPerSource,
+          service: new TorrentDiscoveryService(app.prisma, console, {
+            sourceUrl: url,
+            sourceUrls: [url],
+            maxItemsPerRun: maxGlobalPerSource,
+            requireApproval,
+            requestTimeoutMs,
+            dryRun,
+            failureThreshold,
+            recoveryTimeoutMs,
+          }),
+        });
+      }
+
+      for (const url of bollywoodSourceUrls) {
+        discoverySources.push({
+          label: 'bollywood',
+          url,
+          maxItemsPerRun: maxBollywoodPerSource,
+          service: new TorrentDiscoveryService(app.prisma, console, {
+            sourceUrl: url,
+            sourceUrls: [url],
+            maxItemsPerRun: maxBollywoodPerSource,
+            requireApproval,
+            requestTimeoutMs,
+            dryRun,
+            failureThreshold,
+            recoveryTimeoutMs,
+          }),
+        });
+      }
 
       const runTorrentDiscovery = () => {
-        torrentDiscoveryService
-          .discoverAndIngest()
-          .then((summary) => {
-            if (summary.skippedRunReason) {
-              app.log.warn({ summary }, '[TorrentDiscovery] Run skipped');
-              return;
+        void (async () => {
+          for (const source of discoverySources) {
+            try {
+              const summary = await source.service.discoverAndIngest();
+              const logContext = {
+                sourceType: source.label,
+                sourceUrl: source.url,
+                maxItemsPerRun: source.maxItemsPerRun,
+                summary,
+              };
+              if (summary.skippedRunReason) {
+                app.log.warn(logContext, '[TorrentDiscovery] Source run skipped');
+              } else {
+                app.log.info(logContext, '[TorrentDiscovery] Source run completed');
+              }
+            } catch (error) {
+              app.log.error(
+                { error, sourceType: source.label, sourceUrl: source.url },
+                '[TorrentDiscovery] Source run failed',
+              );
             }
-            app.log.info({ summary }, '[TorrentDiscovery] Run completed');
-          })
-          .catch((error) => {
-            app.log.error({ error }, '[TorrentDiscovery] Run failed');
-          });
-
-        bollywoodTorrentDiscoveryService
-          .discoverAndIngest()
-          .then((summary) => {
-            if (summary.skippedRunReason) {
-              app.log.warn({ summary }, '[TorrentDiscovery:Bollywood] Run skipped');
-              return;
-            }
-            app.log.info({ summary }, '[TorrentDiscovery:Bollywood] Run completed');
-          })
-          .catch((error) => {
-            app.log.error({ error }, '[TorrentDiscovery:Bollywood] Run failed');
-          });
+          }
+        })();
       };
 
       setInterval(runTorrentDiscovery, torrentDiscoveryIntervalMs);
@@ -727,10 +804,13 @@ const start = async () => {
         {
           intervalMs: torrentDiscoveryIntervalMs,
           startupDelayMs: torrentDiscoveryStartupDelayMs,
-          sourceUrl: process.env.TORRENT_SOURCE_URL || 'https://www.1377x.to/popular-movies-week',
-          bollywoodSourceUrl: process.env.TORRENT_BOLLYWOOD_SOURCE_URL || 'https://www.1377x.to/search/bollywood/1/',
-          requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
-          dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
+          sourceCount: discoverySources.length,
+          globalSources: globalSourceUrls,
+          bollywoodSources: bollywoodSourceUrls,
+          maxGlobalPerSource,
+          maxBollywoodPerSource,
+          requireApproval,
+          dryRun,
         },
         '[TorrentDiscovery] Scheduler enabled',
       );
