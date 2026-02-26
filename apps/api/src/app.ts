@@ -470,7 +470,10 @@ const start = async () => {
           where: {
             status: 'active',
             OR: [{ coverUrl: null }, { coverUrl: '' }],
-            downloadUrl: { not: null },
+            AND: [
+              { downloadUrl: { not: null } },
+              { NOT: { downloadUrl: { startsWith: 'magnet:' } } },
+            ],
           },
           select: { id: true },
           take: parsePositiveInt(process.env.BOOK_COVER_STARTUP_BACKFILL_LIMIT, 200),
