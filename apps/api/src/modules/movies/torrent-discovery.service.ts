@@ -253,16 +253,19 @@ export class TorrentDiscoveryService {
 
     try {
       const listingHtml = await this.fetchHtml(this.config.sourceUrl);
+      const listingWindow = Math.min(Math.max(this.config.maxItemsPerRun * 12, this.config.maxItemsPerRun), 300);
       const listingCandidates = parseTorrentListing(
         listingHtml,
         this.config.sourceUrl,
-        this.config.maxItemsPerRun * 4,
+        listingWindow,
       );
       baseSummary.discovered = listingCandidates.length;
 
       const resolved: ResolvedTorrentCandidate[] = [];
       for (const candidate of listingCandidates) {
-        if (resolved.length >= this.config.maxItemsPerRun) break;
+        // Resolve a larger pool than the per-run creation cap so we still get
+        // fresh movies even when top candidates are already in the catalog.
+        if (resolved.length >= this.config.maxItemsPerRun * 4) break;
 
         try {
           const detailHtml = await this.fetchHtml(candidate.detailUrl);
@@ -291,6 +294,10 @@ export class TorrentDiscoveryService {
       baseSummary.resolved = resolved.length;
 
       for (const candidate of resolved) {
+        if (baseSummary.created >= this.config.maxItemsPerRun) {
+          break;
+        }
+
         const slug = toMovieSlug(candidate.normalizedTitle, candidate.year);
 
         try {

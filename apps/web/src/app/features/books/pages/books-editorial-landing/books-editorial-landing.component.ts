@@ -33,6 +33,24 @@ type ContentItem = {
   description?: string;
 };
 
+type LightNovelSeriesVolume = {
+  id: string;
+  title: string;
+  slug: string;
+  year: number;
+  coverUrl: string | null;
+  volumeNumber: number | null;
+};
+
+type LightNovelSeries = {
+  seriesKey: string;
+  seriesTitle: string;
+  totalVolumes: number;
+  latestYear: number;
+  coverUrl: string | null;
+  volumes: LightNovelSeriesVolume[];
+};
+
 type FeaturedContent = {
   book: ContentItem | null;
   comic: ContentItem | null;
@@ -377,8 +395,8 @@ type FeaturedContent = {
         }
       </div>
 
-      <!-- Light Novels Section -->
-      <div class="mb-20 reveal" *ngIf="lightNovels().length > 0">
+      <!-- Light Novels Section (grouped by series) -->
+      <div class="mb-20 reveal" *ngIf="lightNovelSeries().length > 0">
         <div class="flex items-center justify-between mb-10 border-b border-[var(--books-border)] pb-4">
           <div class="flex items-baseline gap-4">
             <span class="serif-text text-5xl md:text-6xl text-[var(--books-border)]">02</span>
@@ -390,17 +408,17 @@ type FeaturedContent = {
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-          @for (book of lightNovels().slice(0, 6); track book.id; let idx = $index) {
-            <a [routerLink]="['/books', book.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
+          @for (series of lightNovelSeries().slice(0, 6); track series.seriesKey; let idx = $index) {
+            <a [routerLink]="['/books/light-novels']" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
               <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
-                @if (book.coverUrl) {
-                  <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
+                @if (series.coverUrl) {
+                  <img [src]="series.coverUrl" [alt]="series.seriesTitle" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
                 } @else {
                   <div class="w-full h-full flex items-center justify-center text-3xl">📘</div>
                 }
               </div>
-              <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ book.title }}</h3>
-              <p class="sans-text text-xs text-[var(--books-text-muted)] uppercase tracking-wide">{{ book.publisher || 'Light Novel' }}</p>
+              <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ series.seriesTitle }}</h3>
+              <p class="sans-text text-xs text-[var(--books-text-muted)] uppercase tracking-wide">{{ series.totalVolumes }} Volumes</p>
             </a>
           }
         </div>
@@ -502,13 +520,7 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   books = signal<Book[]>([]);
   comics = signal<ContentItem[]>([]);
   manga = signal<ContentItem[]>([]);
-  lightNovels = computed(() =>
-    this.books().filter((book) =>
-      book.genre?.some((genre) => genre.toLowerCase() === 'light novel') ||
-      (book.publisher || '').toLowerCase().includes('elsci') ||
-      book.slug.toLowerCase().startsWith('elsci-ln-'),
-    ),
-  );
+  lightNovelSeries = signal<LightNovelSeries[]>([]);
   
   // Loading states
   isBooksLoading = signal(true);
@@ -534,6 +546,7 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.loadBooks();
+    this.loadLightNovelSeries();
     this.loadComics();
     this.loadManga();
     this.setupScrollListener();
@@ -606,6 +619,21 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
           this.isBooksLoading.set(false);
           this.observeReveals();
         }
+      });
+  }
+
+  loadLightNovelSeries() {
+    this.http
+      .get<{ status: string; data: LightNovelSeries[] }>('/api/v1/books/light-novels?page=1&limit=20')
+      .subscribe({
+        next: (response) => {
+          this.lightNovelSeries.set(response.data || []);
+          this.observeReveals();
+        },
+        error: () => {
+          this.lightNovelSeries.set([]);
+          this.observeReveals();
+        },
       });
   }
 

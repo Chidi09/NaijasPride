@@ -7,6 +7,7 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import sanitizeHtml from "sanitize-html";
 import { randomUUID } from "crypto";
+import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -39,7 +40,8 @@ import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
 import { sentryService } from "./shared/services/sentry.service";
-import { bookImportQueue, elsciMirrorQueue, annasMirrorQueue } from "./shared/services/queue.service";
+import { StorageService } from './shared/services/storage.service';
+import { bookImportQueue, elsciMirrorQueue, annasMirrorQueue, bookCoverQueue } from "./shared/services/queue.service";
 
 const DEFAULT_BODY_LIMIT_BYTES = 1_048_576; // 1 MiB
 const DEFAULT_CORS_ORIGINS = [
@@ -400,6 +402,113 @@ const start = async () => {
       }
     }, 15_000); // Run 15s after startup
 
+    // One-time migration: if cover images already exist in R2 under
+    // covers/books/<slug>.<ext>, backfill missing book.coverUrl values.
+    setTimeout(async () => {
+      try {
+        const storagePublicBaseUrl = (process.env.STORAGE_PUBLIC_BASE_URL || process.env.S3_PUBLIC_BASE_URL || '').trim();
+        const coverKeyBySlug = new Map<string, string>();
+        let continuationToken: string | undefined;
+
+        do {
+          const page = await StorageService.getClient().send(
+            new ListObjectsV2Command({
+              Bucket: StorageService.getBucket(),
+              Prefix: 'covers/books/',
+              ContinuationToken: continuationToken,
+            }),
+          );
+
+          for (const entry of page.Contents || []) {
+            const key = (entry.Key || '').trim();
+            if (!key || !/\.(jpg|jpeg|png|webp|gif|avif)$/i.test(key)) continue;
+            const fileName = key.split('/').pop() || '';
+            const slug = fileName.replace(/\.[^.]+$/i, '').trim();
+            if (!slug || coverKeyBySlug.has(slug)) continue;
+            coverKeyBySlug.set(slug, key);
+          }
+
+          continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+        } while (continuationToken);
+
+        if (coverKeyBySlug.size === 0) {
+          app.log.info('[BookCoverUrlFix] No R2 cover keys found under covers/books/.');
+          return;
+        }
+
+        const missingCovers = await app.prisma.book.findMany({
+          where: {
+            status: 'active',
+            OR: [{ coverUrl: null }, { coverUrl: '' }],
+          },
+          select: { id: true, slug: true },
+        });
+
+        let updated = 0;
+        for (const book of missingCovers) {
+          const key = coverKeyBySlug.get(book.slug);
+          if (!key) continue;
+
+          const coverUrl = storagePublicBaseUrl
+            ? `${storagePublicBaseUrl.replace(/\/+$/, '')}/${key}`
+            : `/api/v1/books/download?key=${encodeURIComponent(key)}`;
+
+          await app.prisma.book.update({
+            where: { id: book.id },
+            data: { coverUrl },
+          });
+          updated++;
+        }
+
+        app.log.info(
+          { r2CoverKeys: coverKeyBySlug.size, missingBefore: missingCovers.length, updated },
+          '[BookCoverUrlFix] Backfilled book cover URLs from existing R2 objects',
+        );
+
+        // Queue cover extraction for remaining missing covers so they are filled over time.
+        const remainingMissing = await app.prisma.book.findMany({
+          where: {
+            status: 'active',
+            OR: [{ coverUrl: null }, { coverUrl: '' }],
+            downloadUrl: { not: null },
+          },
+          select: { id: true },
+          take: parsePositiveInt(process.env.BOOK_COVER_STARTUP_BACKFILL_LIMIT, 200),
+        });
+
+        const queue = bookCoverQueue.get();
+        if (!queue || remainingMissing.length === 0) return;
+
+        let queued = 0;
+        for (const book of remainingMissing) {
+          try {
+            await queue.add(
+              'extract-book-cover',
+              {
+                bookId: book.id,
+                reason: 'startup-missing-cover-backfill',
+                timestamp: Date.now(),
+              },
+              {
+                jobId: `book-cover-${book.id}`,
+                removeOnComplete: true,
+                removeOnFail: false,
+              },
+            );
+            queued++;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (/job.+exists/i.test(message)) continue;
+            app.log.warn({ error, bookId: book.id }, '[BookCoverUrlFix] Failed to queue cover extraction job');
+          }
+        }
+
+        app.log.info({ queued }, '[BookCoverUrlFix] Queued missing cover extraction jobs');
+      } catch (error) {
+        app.log.error({ error }, '[BookCoverUrlFix] Failed to backfill book cover URLs');
+      }
+    }, 25_000); // Run after Elsci URL migration
+
     // Optional Auto-Library discovery scheduler for high-value books.
     const autoLibraryEnabled = parseBooleanFlag(process.env.BOOK_AUTO_LIBRARY_ENABLED, false);
     if (autoLibraryEnabled) {
@@ -545,7 +654,7 @@ const start = async () => {
     if (torrentDiscoveryEnabled) {
       const torrentDiscoveryIntervalMs = parsePositiveInt(
         process.env.TORRENT_DISCOVERY_INTERVAL_MS,
-        24 * 60 * 60 * 1000,
+        12 * 60 * 60 * 1000,
       );
       const torrentDiscoveryStartupDelayMs = parsePositiveInt(
         process.env.TORRENT_DISCOVERY_STARTUP_DELAY_MS,
@@ -571,7 +680,7 @@ const start = async () => {
         console,
         {
           sourceUrl: process.env.TORRENT_BOLLYWOOD_SOURCE_URL || 'https://www.1377x.to/search/bollywood/1/',
-          maxItemsPerRun: parsePositiveInt(process.env.TORRENT_BOLLYWOOD_MAX_ITEMS, 5),
+          maxItemsPerRun: parsePositiveInt(process.env.TORRENT_BOLLYWOOD_MAX_ITEMS, 4),
           requireApproval: parseBooleanFlag(process.env.TORRENT_DISCOVERY_REQUIRE_APPROVAL, true),
           requestTimeoutMs: parsePositiveInt(process.env.TORRENT_DISCOVERY_REQUEST_TIMEOUT_MS, 60_000),
           dryRun: parseBooleanFlag(process.env.TORRENT_DISCOVERY_DRY_RUN, false),
@@ -627,12 +736,12 @@ const start = async () => {
     // Optional Soap2Day crawler scheduler
     const soap2dayCrawlerEnabled = parseBooleanFlag(process.env.SOAP2DAY_CRAWLER_ENABLED, false);
     if (soap2dayCrawlerEnabled) {
-      const soap2dayIntervalMs = parsePositiveInt(process.env.SOAP2DAY_CRAWLER_INTERVAL_MS, 12 * 60 * 60 * 1000);
+      const soap2dayIntervalMs = parsePositiveInt(process.env.SOAP2DAY_CRAWLER_INTERVAL_MS, 24 * 60 * 60 * 1000);
       const soap2dayStartupDelayMs = parsePositiveInt(process.env.SOAP2DAY_CRAWLER_STARTUP_DELAY_MS, 10 * 60 * 1000);
 
       const { Soap2DayCrawlerService } = await import('./modules/movies/soap2day-crawler.service');
       const soap2dayCrawler = new Soap2DayCrawlerService(app.prisma, console, {
-        maxPerRun: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_MAX_PER_RUN, 5),
+        maxPerRun: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_MAX_PER_RUN, 1),
       });
 
       const runSoap2DayCrawl = () => {

@@ -179,7 +179,10 @@ export class BookListComponent {
     this.http.get<{ status: string; data: Book[]; meta: PaginationMeta }>(`/api/v1/books?page=${this.currentPage()}&kind=book`)
       .subscribe({
         next: (response) => {
-          this.books.set(response.data);
+          // Keep /books/all focused on standalone books; light novels are grouped
+          // in /books/light-novels to avoid scattered volumes.
+          const filtered = (response.data || []).filter((book) => !this.isLightNovel(book));
+          this.books.set(filtered);
           this.meta.set(response.meta);
           this.isLoading.set(false);
         },
@@ -188,6 +191,14 @@ export class BookListComponent {
           this.isLoading.set(false);
         }
       });
+  }
+
+  private isLightNovel(book: Book): boolean {
+    const genres = Array.isArray(book.genre) ? book.genre : [];
+    if (genres.some((entry) => String(entry).toLowerCase() === 'light novel')) return true;
+    const publisher = (book.publisher || '').toLowerCase();
+    if (publisher.includes('elsci')) return true;
+    return (book.slug || '').toLowerCase().startsWith('elsci-ln-');
   }
 
   onPageChange(page: number) {

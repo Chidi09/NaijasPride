@@ -147,17 +147,22 @@ export class WatchRoomComponent {
 
   private async _resolveStreamUrl(movie: Movie) {
     // 1. Check offline cache first (highest priority — works when offline)
+    // If offline lookup fails for any reason, still fall back to remote stream.
     const preferred = ['4K', '1080p', '720p', '480p'];
     for (const q of preferred) {
-      if (this.offlineService.isAvailableOffline(movie.id, q)) {
+      try {
+        if (!this.offlineService.isAvailableOffline(movie.id, q)) continue;
         const offlineUrl = await this.offlineService.getOfflineUrl(movie.id, q);
         if (offlineUrl) {
           this.resolvedStreamUrl.set(offlineUrl);
           this.isOffline.set(true);
           return;
         }
+      } catch {
+        // Ignore offline lookup issues and continue to remote fallback.
       }
     }
+
     // 2. Fall back to remote stream
     this.resolvedStreamUrl.set(this.primaryStreamUrl(movie));
     this.isOffline.set(false);

@@ -98,6 +98,12 @@ const s3Client = new S3Client({
   forcePathStyle: true,
 });
 
+const parsePositiveInt = (value: string | undefined, fallback: number, min: number, max: number): number => {
+  const parsed = Number.parseInt(value || '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(min, Math.min(parsed, max));
+};
+
 const TORRENT_DOWNLOAD_DIR = (process.env.TORRENT_DOWNLOAD_DIR || path.join(os.tmpdir(), 'naijaspride-downloads')).trim();
 const TORRENT_TRANSCODE_MKV = !['0', 'false', 'no', 'off'].includes(
   (process.env.TORRENT_TRANSCODE_MKV || '').trim().toLowerCase()
@@ -107,6 +113,8 @@ const TORRENT_PACKAGE_HLS = !['0', 'false', 'no', 'off'].includes(
 );
 const FFMPEG_PATH = (process.env.FFMPEG_PATH || 'ffmpeg').trim() || 'ffmpeg';
 const STORAGE_PUBLIC_BASE_URL = (process.env.STORAGE_PUBLIC_BASE_URL || process.env.S3_PUBLIC_BASE_URL || '').trim();
+const TORRENT_WORKER_CONCURRENCY = parsePositiveInt(process.env.TORRENT_WORKER_CONCURRENCY, 2, 1, 4);
+const TORRENT_JOB_TIMEOUT_MS = parsePositiveInt(process.env.TORRENT_JOB_TIMEOUT_MS, 60 * 60 * 1000, 5 * 60 * 1000, 4 * 60 * 60 * 1000);
 
 const toPublicUrl = (baseUrl: string, key: string): string => {
   const base = (baseUrl || '').trim().replace(/\/+$/, '');
@@ -116,6 +124,39 @@ const toPublicUrl = (baseUrl: string, key: string): string => {
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const collectRedisKeys = async (pattern: string): Promise<string[]> => {
+  const keys: string[] = [];
+  let cursor = '0';
+
+  do {
+    const [nextCursor, batch] = await connection.scan(cursor, 'MATCH', pattern, 'COUNT', '200');
+    cursor = nextCursor;
+    if (batch.length > 0) keys.push(...batch);
+  } while (cursor !== '0');
+
+  return keys;
+};
+
+const invalidateMovieCaches = async (slug?: string | null): Promise<void> => {
+  try {
+    const keys = new Set<string>();
+    const normalizedSlug = (slug || '').trim();
+    if (normalizedSlug) {
+      keys.add(`movie:${normalizedSlug}`);
+    }
+
+    const searchKeys = await collectRedisKeys('search:*');
+    for (const key of searchKeys) {
+      keys.add(key);
+    }
+
+    if (keys.size === 0) return;
+    await connection.del(...Array.from(keys));
+  } catch (error) {
+    console.warn(`[Worker] Cache invalidation failed: ${getErrorMessage(error)}`);
+  }
+};
 
 const runFfmpeg = (args: string[]): Promise<void> => {
   return new Promise((resolve, reject) => {
@@ -330,6 +371,24 @@ const uploadDirectoryToR2 = async (
   }
 };
 
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+};
+
 // Download a torrent and process the video for streaming
 const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<{
   mp4Key: string | null;
@@ -492,14 +551,22 @@ const worker = new Worker(
   async (job) => {
     console.log(`[Worker] Starting Job ${job.id}`);
     const { magnetLink, movieId } = job.data as { magnetLink: string; movieId: string };
+    let movieSlug: string | null = null;
 
     try {
-      await prisma.movie.update({
+      const processingMovie = await prisma.movie.update({
         where: { id: movieId },
         data: { status: 'processing' },
+        select: { slug: true },
       });
+      movieSlug = processingMovie.slug;
+      await invalidateMovieCaches(movieSlug);
 
-      const { mp4Key, hlsKey, mp4Size } = await downloadAndProcess(magnetLink, movieId);
+      const { mp4Key, hlsKey, mp4Size } = await withTimeout(
+        downloadAndProcess(magnetLink, movieId),
+        TORRENT_JOB_TIMEOUT_MS,
+        `torrent job ${job.id}`,
+      );
 
       const fileUrls: Record<string, string> = {};
       const fileSizes: Record<string, number> = {};
@@ -519,29 +586,36 @@ const worker = new Worker(
         fileUrls['hls'] = hlsUrl;
       }
 
-      await prisma.movie.update({
+      const activeMovie = await prisma.movie.update({
         where: { id: movieId },
         data: {
           status: 'active',
           fileUrls,
           fileSizes: Object.keys(fileSizes).length > 0 ? fileSizes : undefined,
         },
+        select: { slug: true },
       });
+      movieSlug = activeMovie.slug;
+      await invalidateMovieCaches(movieSlug);
 
       console.log(`[Worker] Job ${job.id} SUCCESS`);
       console.log(`[Worker]   MP4: ${mp4Key || 'N/A'}`);
       console.log(`[Worker]   HLS: ${hlsKey || 'N/A'}`);
     } catch (error: unknown) {
       console.error(`[Worker] Job ${job.id} FAILED: ${getErrorMessage(error)}`);
-      await prisma.movie.update({
+      const pendingMovie = await prisma.movie.update({
         where: { id: movieId },
         data: { status: 'pending' },
+        select: { slug: true },
       });
+      movieSlug = pendingMovie.slug;
+      await invalidateMovieCaches(movieSlug);
       throw error;
     }
   },
   {
     connection,
+    concurrency: TORRENT_WORKER_CONCURRENCY,
     lockDuration: 30 * 60 * 1000,       // 30 minutes — torrent downloads can be very slow
     stalledInterval: 10 * 60 * 1000,     // Check for stalled jobs every 10 minutes
     maxStalledCount: 2,                  // Allow 2 stall events before failing the job
@@ -557,6 +631,8 @@ worker.on('completed', (job) => {
 });
 
 console.log('[Worker] Torrent worker started');
+console.log(`[Worker] Concurrency: ${TORRENT_WORKER_CONCURRENCY}`);
+console.log(`[Worker] Job timeout: ${TORRENT_JOB_TIMEOUT_MS}ms`);
 console.log(`[Worker] HLS Packaging: ${TORRENT_PACKAGE_HLS ? 'enabled' : 'disabled'}`);
 console.log(`[Worker] MKV Transcoding: ${TORRENT_TRANSCODE_MKV ? 'enabled' : 'disabled'}`);
 console.log(`[Worker] Download directory: ${TORRENT_DOWNLOAD_DIR}`);

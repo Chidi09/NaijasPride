@@ -65,10 +65,24 @@ export class QueueService {
       console.warn(`[Queue] REDIS_URL not set — skipping torrent job for movie ${movieId}`);
       return;
     }
+
+    const attemptsRaw = Number.parseInt(process.env.TORRENT_JOB_ATTEMPTS || '2', 10);
+    const attempts = Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.min(attemptsRaw, 5) : 2;
+    const backoffMsRaw = Number.parseInt(process.env.TORRENT_JOB_BACKOFF_MS || '120000', 10);
+    const backoffMs = Number.isFinite(backoffMsRaw) && backoffMsRaw > 0 ? Math.min(backoffMsRaw, 30 * 60 * 1000) : 120_000;
+
     await queue.add('download-torrent', {
       magnetLink,
       movieId,
       timestamp: Date.now(),
+    }, {
+      removeOnComplete: true,
+      removeOnFail: false,
+      attempts,
+      backoff: {
+        type: 'exponential',
+        delay: backoffMs,
+      },
     });
     console.log(`[Queue] Added job for movie ${movieId}`);
   }
