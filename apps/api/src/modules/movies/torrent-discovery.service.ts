@@ -11,6 +11,8 @@ import { MoviesService } from './movies.service';
 const DEFAULT_SOURCE_URL = 'https://www.1377x.to/popular-movies-week';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+export type TorrentSourceType = 'html-1337x' | 'json-yts' | 'json-apibay';
+
 type LoggerLike = {
   info: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
@@ -20,7 +22,10 @@ type LoggerLike = {
 export type TorrentDiscoveryConfig = {
   sourceUrl?: string;
   sourceUrls?: string[];
+  sourceType?: TorrentSourceType;
+  approachName?: string;
   maxItemsPerRun?: number;
+  minSeeders?: number;
   requireApproval?: boolean;
   requestTimeoutMs?: number;
   dryRun?: boolean;
@@ -45,6 +50,8 @@ export type ResolvedTorrentCandidate = ListingCandidate & {
 
 export type TorrentDiscoveryRunSummary = {
   sourceUrl: string;
+  sourceType: TorrentSourceType;
+  approachName: string;
   dryRun: boolean;
   requireApproval: boolean;
   skippedRunReason?: 'already-running' | 'circuit-open';
@@ -54,13 +61,20 @@ export type TorrentDiscoveryRunSummary = {
   queued: number;
   awaitingApproval: number;
   skippedExisting: number;
+  skippedLowSeeders: number;
   failed: number;
   errors: string[];
 };
 
-const toNumber = (value: string): number => {
-  const parsed = Number.parseInt(value.replace(/[^\d]/g, ''), 10);
+const toNumber = (value: string | number): number => {
+  const parsed = Number.parseInt(String(value ?? '').replace(/[^\d]/g, ''), 10);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const buildMagnetLink = (infoHash: string, displayName: string): string => {
+  const hash = (infoHash || '').trim().toUpperCase();
+  const dn = encodeURIComponent((displayName || '').trim() || hash);
+  return `magnet:?xt=urn:btih:${hash}&dn=${dn}`;
 };
 
 export const toMovieSlug = (title: string, year: number): string =>
@@ -166,6 +180,134 @@ export const extractInfoHash = (magnetLink: string): string | null => {
   return match?.[1]?.toUpperCase() || null;
 };
 
+type YtsMovieRecord = {
+  title?: string;
+  title_long?: string;
+  year?: number;
+  url?: string;
+  torrents?: Array<{
+    hash?: string;
+    quality?: string;
+    seeds?: number;
+    peers?: number;
+  }>;
+};
+
+export const parseYtsListingJson = (
+  json: string,
+  maxEntries: number,
+  sourceUrl: string,
+): ResolvedTorrentCandidate[] => {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+
+  const movies: YtsMovieRecord[] = Array.isArray(parsed?.data?.movies) ? parsed.data.movies : [];
+  const output: ResolvedTorrentCandidate[] = [];
+
+  for (const movie of movies) {
+    if (output.length >= maxEntries) break;
+
+    const title = (movie.title || movie.title_long || '').trim();
+    if (!title) continue;
+
+    const year = Number.isFinite(movie.year)
+      ? Number(movie.year)
+      : extractYearFromTitle(movie.title_long || movie.title || '') || 0;
+    if (!year) continue;
+
+    const torrents = Array.isArray(movie.torrents) ? movie.torrents : [];
+    const ranked = torrents
+      .filter((item) => typeof item?.hash === 'string' && !!item.hash.trim())
+      .sort((a, b) => toNumber(b.seeds || 0) - toNumber(a.seeds || 0));
+
+    const best = ranked[0];
+    if (!best?.hash) continue;
+
+    const infoHash = best.hash.trim().toUpperCase();
+    if (!/^[A-F0-9]{40}$/i.test(infoHash)) continue;
+
+    const normalizedTitle = normalizeTorrentTitle(title);
+    const rawTitle = movie.title_long || title;
+    const detailUrl = (movie.url || sourceUrl || '').trim() || sourceUrl;
+    const displayName = `${normalizedTitle} ${year}`.trim();
+
+    output.push({
+      rawTitle,
+      normalizedTitle,
+      year,
+      detailUrl,
+      detailTitle: title,
+      seeds: toNumber(best.seeds || 0),
+      leeches: toNumber(best.peers || 0),
+      magnetLink: buildMagnetLink(infoHash, displayName),
+      infoHash,
+    });
+  }
+
+  return output;
+};
+
+type ApibayRecord = {
+  id?: string | number;
+  name?: string;
+  info_hash?: string;
+  seeders?: string | number;
+  leechers?: string | number;
+};
+
+export const parseApibayListingJson = (
+  json: string,
+  maxEntries: number,
+  sourceUrl: string,
+): ResolvedTorrentCandidate[] => {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+
+  const rows: ApibayRecord[] = Array.isArray(parsed) ? parsed : [];
+  const output: ResolvedTorrentCandidate[] = [];
+
+  for (const row of rows) {
+    if (output.length >= maxEntries) break;
+
+    const rawTitle = (row.name || '').trim();
+    const infoHash = (row.info_hash || '').trim().toUpperCase();
+    if (!rawTitle || !infoHash || !/^[A-F0-9]{40}$/i.test(infoHash)) continue;
+
+    const year = extractYearFromTitle(rawTitle);
+    if (!year) continue;
+
+    const id = String(row.id || '').trim();
+    const detailUrl = /^\d+$/.test(id)
+      ? `https://thepiratebay.org/description.php?id=${id}`
+      : sourceUrl;
+
+    const normalizedTitle = normalizeTorrentTitle(rawTitle);
+    const displayName = `${normalizedTitle} ${year}`.trim();
+
+    output.push({
+      rawTitle,
+      normalizedTitle,
+      year,
+      detailUrl,
+      detailTitle: normalizedTitle,
+      seeds: toNumber(row.seeders || 0),
+      leeches: toNumber(row.leechers || 0),
+      magnetLink: buildMagnetLink(infoHash, displayName),
+      infoHash,
+    });
+  }
+
+  return output;
+};
+
 const inferGenres = (title: string): Genre[] => {
   const text = title.toLowerCase();
   if (text.includes('nollywood')) return [Genre.Nollywood];
@@ -220,9 +362,14 @@ export class TorrentDiscoveryService {
           ? config.sourceUrls
           : [config.sourceUrl || DEFAULT_SOURCE_URL]).map((value) => value.trim()),
       ),
+      sourceType: config.sourceType || 'html-1337x',
+      approachName: (config.approachName || 'direct').trim() || 'direct',
       maxItemsPerRun: Number.isFinite(config.maxItemsPerRun) && (config.maxItemsPerRun as number) > 0
         ? Math.min(config.maxItemsPerRun as number, 25)
         : 8,
+      minSeeders: Number.isFinite(config.minSeeders) && (config.minSeeders as number) > 0
+        ? Math.min(Math.max(config.minSeeders as number, 1), 100_000)
+        : 1,
       requireApproval: config.requireApproval ?? true,
       requestTimeoutMs:
         Number.isFinite(config.requestTimeoutMs) && (config.requestTimeoutMs as number) > 0
@@ -257,6 +404,8 @@ export class TorrentDiscoveryService {
   async discoverAndIngest(): Promise<TorrentDiscoveryRunSummary> {
     const baseSummary: TorrentDiscoveryRunSummary = {
       sourceUrl: this.config.sourceUrl,
+      sourceType: this.config.sourceType,
+      approachName: this.config.approachName,
       dryRun: this.config.dryRun,
       requireApproval: this.config.requireApproval,
       discovered: 0,
@@ -265,6 +414,7 @@ export class TorrentDiscoveryService {
       queued: 0,
       awaitingApproval: 0,
       skippedExisting: 0,
+      skippedLowSeeders: 0,
       failed: 0,
       errors: [],
     };
@@ -290,18 +440,72 @@ export class TorrentDiscoveryService {
       const listingWindow = Math.min(Math.max(this.config.maxItemsPerRun * 12, this.config.maxItemsPerRun), 300);
 
       let selectedSourceUrl = this.config.sourceUrl;
-      let listingCandidates: ListingCandidate[] = [];
+      let discoveredCount = 0;
+      let resolved: ResolvedTorrentCandidate[] = [];
 
       for (const sourceUrl of this.config.sourceUrls) {
         try {
-          const listingHtml = await this.fetchHtml(sourceUrl);
-          const candidates = parseTorrentListing(listingHtml, sourceUrl, listingWindow);
-          if (candidates.length > 0) {
+          const body = await this.fetchHtml(sourceUrl);
+
+          if (this.config.sourceType === 'html-1337x') {
+            const listingCandidates = parseTorrentListing(body, sourceUrl, listingWindow);
+            if (listingCandidates.length === 0) {
+              this.logger.warn(`[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`);
+              continue;
+            }
+
+            const sourceResolved: ResolvedTorrentCandidate[] = [];
+            for (const candidate of listingCandidates) {
+              if (sourceResolved.length >= this.config.maxItemsPerRun * 4) break;
+
+              try {
+                const detailHtml = await this.fetchHtml(candidate.detailUrl);
+                const detail = parseTorrentDetail(detailHtml);
+                if (!detail.magnetLink) {
+                  continue;
+                }
+
+                const titleFromDetail = normalizeTorrentTitle(detail.detailTitle || candidate.rawTitle);
+                const yearFromDetail = extractYearFromTitle(detail.detailTitle || '') || candidate.year;
+
+                sourceResolved.push({
+                  ...candidate,
+                  detailTitle: detail.detailTitle,
+                  normalizedTitle: titleFromDetail,
+                  year: yearFromDetail,
+                  magnetLink: detail.magnetLink,
+                  infoHash: extractInfoHash(detail.magnetLink),
+                });
+              } catch (error) {
+                baseSummary.failed += 1;
+                baseSummary.errors.push(`detail:${candidate.detailUrl} -> ${toErrorMessage(error)}`);
+              }
+            }
+
+            if (sourceResolved.length === 0) {
+              this.logger.warn(`[TorrentDiscovery] No resolved torrents from ${sourceUrl}; trying next mirror`);
+              continue;
+            }
+
             selectedSourceUrl = sourceUrl;
-            listingCandidates = candidates;
+            discoveredCount = listingCandidates.length;
+            resolved = sourceResolved;
             break;
           }
-          this.logger.warn(`[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`);
+
+          const sourceResolved = this.config.sourceType === 'json-yts'
+            ? parseYtsListingJson(body, listingWindow, sourceUrl)
+            : parseApibayListingJson(body, listingWindow, sourceUrl);
+
+          if (sourceResolved.length === 0) {
+            this.logger.warn(`[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`);
+            continue;
+          }
+
+          selectedSourceUrl = sourceUrl;
+          discoveredCount = sourceResolved.length;
+          resolved = sourceResolved;
+          break;
         } catch (error) {
           this.logger.warn(
             `[TorrentDiscovery] Failed listing fetch from ${sourceUrl}; trying next mirror: ${toErrorMessage(error)}`,
@@ -309,48 +513,22 @@ export class TorrentDiscoveryService {
         }
       }
 
-      if (listingCandidates.length === 0) {
+      if (resolved.length === 0) {
         throw new Error(`No torrent candidates found from any configured source mirror (${this.config.sourceUrls.length} tried)`);
       }
 
       baseSummary.sourceUrl = selectedSourceUrl;
-      baseSummary.discovered = listingCandidates.length;
-
-      const resolved: ResolvedTorrentCandidate[] = [];
-      for (const candidate of listingCandidates) {
-        // Resolve a larger pool than the per-run creation cap so we still get
-        // fresh movies even when top candidates are already in the catalog.
-        if (resolved.length >= this.config.maxItemsPerRun * 4) break;
-
-        try {
-          const detailHtml = await this.fetchHtml(candidate.detailUrl);
-          const detail = parseTorrentDetail(detailHtml);
-          if (!detail.magnetLink) {
-            continue;
-          }
-
-          const titleFromDetail = normalizeTorrentTitle(detail.detailTitle || candidate.rawTitle);
-          const yearFromDetail = extractYearFromTitle(detail.detailTitle || '') || candidate.year;
-
-          resolved.push({
-            ...candidate,
-            detailTitle: detail.detailTitle,
-            normalizedTitle: titleFromDetail,
-            year: yearFromDetail,
-            magnetLink: detail.magnetLink,
-            infoHash: extractInfoHash(detail.magnetLink),
-          });
-        } catch (error) {
-          baseSummary.failed += 1;
-          baseSummary.errors.push(`detail:${candidate.detailUrl} -> ${toErrorMessage(error)}`);
-        }
-      }
-
+      baseSummary.discovered = discoveredCount;
       baseSummary.resolved = resolved.length;
 
       for (const candidate of resolved) {
         if (baseSummary.created >= this.config.maxItemsPerRun) {
           break;
+        }
+
+        if (candidate.seeds < this.config.minSeeders) {
+          baseSummary.skippedLowSeeders += 1;
+          continue;
         }
 
         const slug = toMovieSlug(candidate.normalizedTitle, candidate.year);
@@ -380,6 +558,8 @@ export class TorrentDiscoveryService {
             fileUrls: {},
             metadata: {
               source: 'torrent-discovery',
+              discoveryApproach: this.config.approachName,
+              discoverySourceType: this.config.sourceType,
               sourceUrl: baseSummary.sourceUrl,
               sourceDetailUrl: candidate.detailUrl,
               sourceInfoHash: candidate.infoHash,

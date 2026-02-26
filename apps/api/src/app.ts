@@ -35,7 +35,7 @@ import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import { YouTubeMusicService } from "./modules/music/youtube-music.service";
 import { YouTubeStatsSyncService } from "./modules/music/youtube-stats-sync.service";
-import { TorrentDiscoveryService } from "./modules/movies/torrent-discovery.service";
+import { TorrentDiscoveryService, type TorrentSourceType } from "./modules/movies/torrent-discovery.service";
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
@@ -665,7 +665,7 @@ const start = async () => {
       );
     }
 
-    // Optional torrent discovery scheduler (1337x + FlareSolverr).
+    // Optional torrent discovery scheduler (direct, API, or bakeoff mode).
     const torrentDiscoveryEnabled = parseBooleanFlag(process.env.TORRENT_DISCOVERY_ENABLED, false);
     if (torrentDiscoveryEnabled) {
       const torrentDiscoveryIntervalMs = parsePositiveInt(
@@ -682,6 +682,13 @@ const start = async () => {
       const requestTimeoutMs = parsePositiveInt(process.env.TORRENT_DISCOVERY_REQUEST_TIMEOUT_MS, 60_000);
       const failureThreshold = parsePositiveInt(process.env.TORRENT_DISCOVERY_FAILURE_THRESHOLD, 5);
       const recoveryTimeoutMs = parsePositiveInt(process.env.TORRENT_DISCOVERY_RECOVERY_MS, 300_000);
+      const minSeeders = parsePositiveInt(process.env.TORRENT_DISCOVERY_MIN_SEEDERS, 5);
+
+      const approachModeRaw = (process.env.TORRENT_DISCOVERY_APPROACH_MODE || 'hybrid').trim().toLowerCase();
+      const approachMode: 'direct' | 'api' | 'hybrid' | 'bakeoff' =
+        approachModeRaw === 'direct' || approachModeRaw === 'api' || approachModeRaw === 'hybrid' || approachModeRaw === 'bakeoff'
+          ? approachModeRaw
+          : 'hybrid';
 
       // Per-source ingest cap (user requested 10 per source daily).
       const maxGlobalPerSource = parsePositiveInt(
@@ -691,6 +698,14 @@ const start = async () => {
       const maxBollywoodPerSource = parsePositiveInt(
         process.env.TORRENT_BOLLYWOOD_MAX_ITEMS_PER_SOURCE || process.env.TORRENT_BOLLYWOOD_MAX_ITEMS,
         10,
+      );
+      const maxYtsPerSource = parsePositiveInt(
+        process.env.TORRENT_YTS_MAX_ITEMS_PER_SOURCE,
+        maxGlobalPerSource,
+      );
+      const maxPirateBayPerSource = parsePositiveInt(
+        process.env.TORRENT_PIRATEBAY_MAX_ITEMS_PER_SOURCE,
+        maxGlobalPerSource,
       );
 
       const mergeUniqueUrls = (urls: string[]): string[] => {
@@ -707,6 +722,8 @@ const start = async () => {
 
       const configuredGlobalSources = parseCsvList(process.env.TORRENT_DISCOVERY_SOURCE_URLS);
       const configuredBollywoodSources = parseCsvList(process.env.TORRENT_BOLLYWOOD_SOURCE_URLS);
+      const configuredYtsSources = parseCsvList(process.env.TORRENT_YTS_SOURCE_URLS);
+      const configuredPirateBaySources = parseCsvList(process.env.TORRENT_PIRATEBAY_SOURCE_URLS);
 
       const globalSourceUrls = configuredGlobalSources.length > 0
         ? configuredGlobalSources
@@ -728,22 +745,50 @@ const start = async () => {
             'https://1337xx.to/search/bollywood/1/',
           ]);
 
+      const ytsSourceUrls = configuredYtsSources.length > 0
+        ? configuredYtsSources
+        : mergeUniqueUrls([
+            'https://yts.mx/api/v2/list_movies.json?limit=50&sort_by=date_added&order_by=desc&page=1',
+          ]);
+
+      const pirateBaySourceUrls = configuredPirateBaySources.length > 0
+        ? configuredPirateBaySources
+        : mergeUniqueUrls([
+            'https://apibay.org/precompiled/data_top100_201.json',
+            'https://apibay.org/precompiled/data_top100_207.json',
+          ]);
+
+      type DiscoveryApproach = 'direct' | 'api' | 'hybrid';
+
       const discoverySources: Array<{
+        approach: DiscoveryApproach;
         label: string;
+        sourceType: TorrentSourceType;
         url: string;
         maxItemsPerRun: number;
         service: TorrentDiscoveryService;
       }> = [];
 
-      for (const url of globalSourceUrls) {
+      const addSource = (
+        approach: DiscoveryApproach,
+        label: string,
+        sourceType: TorrentSourceType,
+        url: string,
+        maxItemsPerRun: number,
+      ) => {
         discoverySources.push({
-          label: 'global',
+          approach,
+          label,
+          sourceType,
           url,
-          maxItemsPerRun: maxGlobalPerSource,
+          maxItemsPerRun,
           service: new TorrentDiscoveryService(app.prisma, console, {
             sourceUrl: url,
             sourceUrls: [url],
-            maxItemsPerRun: maxGlobalPerSource,
+            sourceType,
+            approachName: approach,
+            maxItemsPerRun,
+            minSeeders,
             requireApproval,
             requestTimeoutMs,
             dryRun,
@@ -751,35 +796,137 @@ const start = async () => {
             recoveryTimeoutMs,
           }),
         });
+      };
+
+      const enabledApproaches: DiscoveryApproach[] =
+        approachMode === 'bakeoff'
+          ? ['direct', 'api', 'hybrid']
+          : [approachMode as DiscoveryApproach];
+
+      if (enabledApproaches.includes('direct') || enabledApproaches.includes('hybrid')) {
+        for (const url of globalSourceUrls) {
+          if (enabledApproaches.includes('direct')) {
+            addSource('direct', 'global', 'html-1337x', url, maxGlobalPerSource);
+          }
+          if (enabledApproaches.includes('hybrid')) {
+            addSource('hybrid', 'global', 'html-1337x', url, maxGlobalPerSource);
+          }
+        }
+
+        for (const url of bollywoodSourceUrls) {
+          if (enabledApproaches.includes('direct')) {
+            addSource('direct', 'bollywood', 'html-1337x', url, maxBollywoodPerSource);
+          }
+          if (enabledApproaches.includes('hybrid')) {
+            addSource('hybrid', 'bollywood', 'html-1337x', url, maxBollywoodPerSource);
+          }
+        }
       }
 
-      for (const url of bollywoodSourceUrls) {
-        discoverySources.push({
-          label: 'bollywood',
-          url,
-          maxItemsPerRun: maxBollywoodPerSource,
-          service: new TorrentDiscoveryService(app.prisma, console, {
-            sourceUrl: url,
-            sourceUrls: [url],
-            maxItemsPerRun: maxBollywoodPerSource,
-            requireApproval,
-            requestTimeoutMs,
-            dryRun,
-            failureThreshold,
-            recoveryTimeoutMs,
-          }),
-        });
+      if (enabledApproaches.includes('api') || enabledApproaches.includes('hybrid')) {
+        for (const url of ytsSourceUrls) {
+          if (enabledApproaches.includes('api')) {
+            addSource('api', 'yts', 'json-yts', url, maxYtsPerSource);
+          }
+          if (enabledApproaches.includes('hybrid')) {
+            addSource('hybrid', 'yts', 'json-yts', url, maxYtsPerSource);
+          }
+        }
+
+        for (const url of pirateBaySourceUrls) {
+          if (enabledApproaches.includes('api')) {
+            addSource('api', 'piratebay', 'json-apibay', url, maxPirateBayPerSource);
+          }
+          if (enabledApproaches.includes('hybrid')) {
+            addSource('hybrid', 'piratebay', 'json-apibay', url, maxPirateBayPerSource);
+          }
+        }
       }
+
+      const disabledApproaches = new Set<DiscoveryApproach>();
+      const approachFirstRunAt = new Map<DiscoveryApproach, number>();
+      let bakeoffWinner: DiscoveryApproach | null = null;
+
+      const getSourceWindowStats = async (approach: DiscoveryApproach, sourceUrl: string, windowHours: number) => {
+        const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+        const commonWhere = {
+          createdAt: { gte: since },
+          metadata: {
+            path: ['discoveryApproach'],
+            equals: approach,
+          },
+        } as const;
+
+        const sourceWhere = {
+          createdAt: { gte: since },
+          metadata: {
+            path: ['sourceUrl'],
+            equals: sourceUrl,
+          },
+        } as const;
+
+        const created = await app.prisma.movie.count({
+          where: {
+            AND: [commonWhere, sourceWhere],
+          },
+        });
+
+        const active = await app.prisma.movie.count({
+          where: {
+            status: 'active',
+            AND: [commonWhere, sourceWhere],
+          },
+        });
+
+        return { created, active };
+      };
 
       const runTorrentDiscovery = () => {
         void (async () => {
+          const approachesToRun = bakeoffWinner
+            ? new Set<DiscoveryApproach>([bakeoffWinner])
+            : new Set(enabledApproaches.filter((value) => !disabledApproaches.has(value)));
+
+          const perApproachBurstPass = new Map<DiscoveryApproach, boolean>();
+          const perApproachConversionPass = new Map<DiscoveryApproach, boolean>();
+
           for (const source of discoverySources) {
+            if (!approachesToRun.has(source.approach)) continue;
+
+            if (!approachFirstRunAt.has(source.approach)) {
+              approachFirstRunAt.set(source.approach, Date.now());
+            }
+
             try {
               const summary = await source.service.discoverAndIngest();
+
+              const produced = summary.created;
+              const enqueued = summary.queued + summary.awaitingApproval;
+              const burstPass = produced >= 10 && enqueued >= 10;
+
+              const stats6h = await getSourceWindowStats(source.approach, source.url, 6);
+              const stats12h = await getSourceWindowStats(source.approach, source.url, 12);
+              const conversionPass = stats12h.active >= 10;
+
+              if (burstPass) {
+                perApproachBurstPass.set(source.approach, true);
+              }
+              if (conversionPass) {
+                perApproachConversionPass.set(source.approach, true);
+              }
+
               const logContext = {
+                approach: source.approach,
                 sourceType: source.label,
+                sourceParserType: source.sourceType,
                 sourceUrl: source.url,
                 maxItemsPerRun: source.maxItemsPerRun,
+                gate: {
+                  burstPass,
+                  conversionPass,
+                  activeWithin6h: stats6h.active,
+                  activeWithin12h: stats12h.active,
+                },
                 summary,
               };
               if (summary.skippedRunReason) {
@@ -789,9 +936,43 @@ const start = async () => {
               }
             } catch (error) {
               app.log.error(
-                { error, sourceType: source.label, sourceUrl: source.url },
+                { error, approach: source.approach, sourceType: source.label, sourceUrl: source.url },
                 '[TorrentDiscovery] Source run failed',
               );
+            }
+          }
+
+          if (approachMode === 'bakeoff' && !bakeoffWinner) {
+            for (const approach of enabledApproaches) {
+              if (disabledApproaches.has(approach)) continue;
+
+              const burstPass = perApproachBurstPass.get(approach) || false;
+              const conversionPass = perApproachConversionPass.get(approach) || false;
+
+              if (conversionPass) {
+                bakeoffWinner = approach;
+                app.log.info({ approach }, '[TorrentDiscovery] Bakeoff winner selected');
+                break;
+              }
+
+              if (!burstPass) {
+                disabledApproaches.add(approach);
+                app.log.warn(
+                  { approach },
+                  '[TorrentDiscovery] Bakeoff discarded approach: failed 10-movie burst gate',
+                );
+                continue;
+              }
+
+              const firstRunAt = approachFirstRunAt.get(approach) || Date.now();
+              const elapsedMs = Date.now() - firstRunAt;
+              if (elapsedMs >= 12 * 60 * 60 * 1000 && !conversionPass) {
+                disabledApproaches.add(approach);
+                app.log.warn(
+                  { approach },
+                  '[TorrentDiscovery] Bakeoff discarded approach: did not hit 12h active gate',
+                );
+              }
             }
           }
         })();
@@ -804,11 +985,18 @@ const start = async () => {
         {
           intervalMs: torrentDiscoveryIntervalMs,
           startupDelayMs: torrentDiscoveryStartupDelayMs,
+          approachMode,
+          enabledApproaches,
           sourceCount: discoverySources.length,
           globalSources: globalSourceUrls,
           bollywoodSources: bollywoodSourceUrls,
+          ytsSources: ytsSourceUrls,
+          pirateBaySources: pirateBaySourceUrls,
           maxGlobalPerSource,
           maxBollywoodPerSource,
+          maxYtsPerSource,
+          maxPirateBayPerSource,
+          minSeeders,
           requireApproval,
           dryRun,
         },
