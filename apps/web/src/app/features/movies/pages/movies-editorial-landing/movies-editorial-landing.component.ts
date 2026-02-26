@@ -219,12 +219,12 @@ interface FeaturedResponse {
         </div>
       }
 
-      <!-- Torrent + Soap2Day Drops -->
+      <!-- Latest Drops -->
       @if (comingSoonDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
             <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Torrent + Soap2Day Drops</h2>
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Latest Drops</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
             <a [routerLink]="['/movies/downloads']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>

@@ -179,7 +179,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     const movie = await service.findBySlug(request.params.slug);
-    if (!movie) {
+    if (!movie || movie.status !== 'active') {
       return reply.status(404).send({
         success: false,
         error: { code: 'NOT_FOUND', message: 'Movie not found' }

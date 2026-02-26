@@ -22,9 +22,9 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
             Back to Movies
           </a>
 
-          <h1 class="mt-4 text-3xl font-semibold md:text-4xl">Torrent + Soap2Day Downloads</h1>
+          <h1 class="mt-4 text-3xl font-semibold md:text-4xl">Download Library</h1>
           <p class="mt-2 max-w-2xl text-sm text-[#6f5e57] dark:text-gray-400">
-            Download-ready titles sourced from our torrent and Soap2Day ingestion pipeline.
+            Download-ready titles from the ingestion pipeline.
           </p>
         </div>
       </div>
