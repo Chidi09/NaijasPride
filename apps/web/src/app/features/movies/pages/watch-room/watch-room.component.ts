@@ -4,6 +4,7 @@ import { MoviesQueryService } from "../../services/movies-query.service";
 import { VideoPlayerComponent } from "../../../../shared/components/video-player/video-player.component";
 import { BrandedIntroComponent } from "../../../../shared/components/branded-intro/branded-intro.component";
 import { AdBannerComponent } from "../../../../shared/components/ad-banner/ad-banner.component";
+import { VidkingPlayerComponent } from "../../../../shared/components/vidking-player/vidking-player.component";
 import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
 import { OfflineStorageService } from "../../../../core/services/offline-storage.service";
@@ -16,6 +17,7 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
     VideoPlayerComponent,
     BrandedIntroComponent,
     AdBannerComponent,
+    VidkingPlayerComponent,
     RouterLink,
   ],
   template: `
@@ -53,7 +55,12 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
               >
               </app-video-player>
             } @else {
-              @if (resolvedStreamUrl(); as streamUrl) {
+              @if (streamSource() === 'vidking' && m.tmdbId) {
+                <app-vidking-player
+                  [movieId]="m.id"
+                  [tmdbId]="m.tmdbId!"
+                ></app-vidking-player>
+              } @else if (streamSource() === 'hosted' && resolvedStreamUrl(); as streamUrl) {
                 @if (isOffline()) {
                   <div class="mb-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded">
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -68,8 +75,7 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
                   [movie]="m"
                   [config]="playerConfig"
                   (playerReady)="onPlayerReady()"
-                >
-                </app-video-player>
+                ></app-video-player>
               } @else {
                 <div class="aspect-video rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center">
                   <div class="max-w-md">
@@ -90,8 +96,9 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
             >
               <p class="text-[#9a857d] dark:text-gray-500 text-sm text-center sm:text-left">
                 @if (m.youtubeId) {
-                  Streaming via YouTube • Support the creators by subscribing to
-                  their channel.
+                  Streaming via YouTube • Support the creators by subscribing to their channel.
+                } @else if (streamSource() === 'vidking') {
+                  Streaming via Vidking • Enjoy the show.
                 } @else if (isOffline()) {
                   Playing from offline storage • No internet required.
                 } @else if (resolvedStreamUrl()) {
@@ -135,6 +142,7 @@ export class WatchRoomComponent {
   showIntro = true;
   isOffline = signal(false);
   resolvedStreamUrl = signal<string | null>(null);
+  streamSource = signal<'vidking' | 'hosted' | null>(null);
 
   playerConfig = {
     showSkipButtons: true,
@@ -151,8 +159,7 @@ export class WatchRoomComponent {
   }
 
   private async _resolveStreamUrl(movie: Movie) {
-    // 1. Check offline cache first (highest priority — works when offline)
-    // If offline lookup fails for any reason, still fall back to remote stream.
+    // 1. Offline cache (highest priority — works when offline)
     const preferred = ['4K', '1080p', '720p', '480p'];
     for (const q of preferred) {
       try {
@@ -160,16 +167,26 @@ export class WatchRoomComponent {
         const offlineUrl = await this.offlineService.getOfflineUrl(movie.id, q);
         if (offlineUrl) {
           this.resolvedStreamUrl.set(offlineUrl);
+          this.streamSource.set('hosted');
           this.isOffline.set(true);
           return;
         }
       } catch {
-        // Ignore offline lookup issues and continue to remote fallback.
+        // continue to next priority
       }
     }
 
-    // 2. Fall back to remote stream
-    this.resolvedStreamUrl.set(this.primaryStreamUrl(movie));
+    // 2. Vidking embed (requires tmdbId)
+    if (movie.tmdbId) {
+      this.streamSource.set('vidking');
+      this.isOffline.set(false);
+      return;
+    }
+
+    // 3. Self-hosted HLS/MP4
+    const hostedUrl = this.primaryStreamUrl(movie);
+    this.resolvedStreamUrl.set(hostedUrl);
+    this.streamSource.set(hostedUrl ? 'hosted' : null);
     this.isOffline.set(false);
   }
 
