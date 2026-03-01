@@ -3,6 +3,7 @@ import { CommonModule } from "@angular/common";
 import { MoviesQueryService } from "../../services/movies-query.service";
 import { VideoPlayerComponent } from "../../../../shared/components/video-player/video-player.component";
 import { BrandedIntroComponent } from "../../../../shared/components/branded-intro/branded-intro.component";
+import { AdBannerComponent } from "../../../../shared/components/ad-banner/ad-banner.component";
 import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
 import { OfflineStorageService } from "../../../../core/services/offline-storage.service";
@@ -14,6 +15,7 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
     CommonModule,
     VideoPlayerComponent,
     BrandedIntroComponent,
+    AdBannerComponent,
     RouterLink,
   ],
   template: `
@@ -80,8 +82,11 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
               }
             }
 
+            <!-- Adsterra 250x250 display banner -->
+            <app-ad-banner></app-ad-banner>
+
             <div
-              class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+              class="mt-2 flex flex-col sm:flex-row items-center justify-between gap-4"
             >
               <p class="text-[#9a857d] dark:text-gray-500 text-sm text-center sm:text-left">
                 @if (m.youtubeId) {
