@@ -143,16 +143,13 @@ export class PwaService {
     return this.isStandalone() || this.isAppMode();
   }
 
-  // Check if bottom nav should be hidden (when watching/reading)
+  // Check if bottom nav should be hidden (when watching/reading in immersive views)
   shouldHideBottomNav(currentRoute: string): boolean {
-    const hideRoutes = [
-      '/watch/',
-      '/books/reader/',
-      '/music/',
-      '/manga/reader/',
-      '/comics/reader/'
+    const hidePatterns = [
+      '/watch',          // Movie watch room: /movies/:slug/watch
+      '/read',           // Book reader: /books/novel/:slug/read, manga reader: /books/manga/:id/read/:chapter
     ];
     
-    return hideRoutes.some(route => currentRoute.includes(route));
+    return hidePatterns.some(pattern => currentRoute.includes(pattern));
   }
 }

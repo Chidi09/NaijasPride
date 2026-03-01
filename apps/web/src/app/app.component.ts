@@ -37,52 +37,74 @@ import { filter } from 'rxjs/operators';
   ],
   template: `
     <div class="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300">
-      <!-- Classic Navbar (hidden in PWA/app mode) -->
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- WEB MODE: Classic Navbar (hidden in PWA/app mode)      -->
+      <!-- ═══════════════════════════════════════════════════════ -->
       @if (!readerState.navbarHidden() && !pwaService.isAppMode()) {
         <app-navbar />
       }
 
-      <!-- App Header (PWA mode only) -->
-      @if (pwaService.isAppMode()) {
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- APP MODE: Compact header (PWA/standalone only)         -->
+      <!-- Hidden on md+ where the side rail provides enough nav  -->
+      <!-- ═══════════════════════════════════════════════════════ -->
+      @if (pwaService.isAppMode() && !readerState.navbarHidden()) {
         <app-app-header (openMenu)="openSidePanel()" />
       }
 
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- MAIN CONTENT                                           -->
+      <!-- Padding accounts for:                                  -->
+      <!--   Web mode: pt-16 for fixed navbar                    -->
+      <!--   App mobile: pt-14 for app-header, pb-24 for bottom  -->
+      <!--   App tablet+: md:pl-20 for left side rail             -->
+      <!-- ═══════════════════════════════════════════════════════ -->
       <main 
         class="flex-1" 
         [class.pt-16]="!readerState.navbarHidden() && !pwaService.isAppMode()"
-        [class.pt-14]="pwaService.isAppMode()"
+        [class.pt-14]="pwaService.isAppMode() && !readerState.navbarHidden()"
         [class.pb-24]="pwaService.isAppMode() && !hideBottomNav"
+        [class.md:pb-0]="pwaService.isAppMode()"
+        [class.md:pl-20]="pwaService.isAppMode()"
       >
         <router-outlet />
       </main>
 
       <!-- Back Button (PWA/TV mode, non-home pages) -->
-      @if (pwaService.isAppMode()) {
-        <div class="fixed left-4 top-20 z-40">
-          <app-back-button />
-        </div>
+      <!-- The back-button component handles its own fixed positioning -->
+      @if (pwaService.isAppMode() && !readerState.navbarHidden()) {
+        <app-back-button />
       }
 
-      <!-- Classic Footer (hidden in PWA mode and on app pages when logged in) -->
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- WEB MODE: Classic Footer                               -->
+      <!-- Hidden in PWA mode, reader mode, and on app pages      -->
+      <!-- when user is logged in                                 -->
+      <!-- ═══════════════════════════════════════════════════════ -->
       @if (showFooter()) {
         <app-site-footer />
       }
 
-      <!-- Bottom Navigation (PWA mode only) -->
-      @if (pwaService.isAppMode()) {
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- APP MODE: Bottom Nav (mobile) / Side Rail (tablet+)    -->
+      <!-- ═══════════════════════════════════════════════════════ -->
+      @if (pwaService.isAppMode() && !readerState.navbarHidden()) {
         <app-bottom-nav #bottomNav />
       }
 
-      <!-- Side Panel for User Menu -->
+      <!-- Side Panel for User Menu (always available) -->
       <app-side-panel #sidePanel (closed)="onSidePanelClose()" />
 
-      <!-- PWA Install Prompt -->
-      <app-pwa-install-prompt />
+      <!-- PWA Install Prompt (shows on web, not in standalone) -->
+      @if (!pwaService.isAppMode()) {
+        <app-pwa-install-prompt />
+      }
 
       <app-toast-container />
       <app-cookie-consent />
 
-      <!-- Mini-player: show only when there's an active track -->
+      <!-- Global Mini-player: show only when there's an active track -->
       @if (musicPlayer.currentTrack()) {
         <app-mini-player />
       }
@@ -109,7 +131,7 @@ export class AppComponent implements OnInit {
     'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
 
   // App pages where the footer should be hidden for logged-in users
-  private readonly APP_ROUTES = ['/home', '/movies', '/books', '/music', '/manga', '/browse', '/watch', '/admin', '/profile', '/account', '/settings', '/search', '/library', '/downloads'];
+  private readonly APP_ROUTES = ['/home', '/movies', '/books', '/music', '/browse', '/watch', '/admin', '/profile', '/account', '/settings', '/search', '/library', '/downloads'];
 
   constructor() {
     effect(() => {
@@ -120,7 +142,6 @@ export class AppComponent implements OnInit {
 
   protected showFooter(): boolean {
     if (this.readerState.navbarHidden() || this.pwaService.isAppMode()) return false;
-    // Hide footer on app pages when user is logged in
     const url = this.router.url;
     const isAppPage = this.APP_ROUTES.some(r => url.startsWith(r));
     if (isAppPage && this.authState.currentUser()) return false;
@@ -135,14 +156,13 @@ export class AppComponent implements OnInit {
       document.body.classList.add('tv-mode');
     }
 
-    // Listen for route changes to hide/show bottom nav
+    // Listen for route changes to hide/show bottom nav in immersive views
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event) => {
       const navEnd = event as NavigationEnd;
       this.hideBottomNav = this.pwaService.shouldHideBottomNav(navEnd.url);
       
-      // Update bottom nav visibility
       const nav = this.bottomNav();
       if (nav) {
         if (this.hideBottomNav) {

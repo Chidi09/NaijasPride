@@ -62,7 +62,7 @@ type LightNovelSeriesDetail = {
                 <div class="mt-6 grid gap-2">
                   @if (isReadableInApp(book)) {
                     <a
-                      [routerLink]="['/books/read', book.slug]"
+                      [routerLink]="['/books/novel', book.slug, 'read']"
                       mat-flat-button
                       color="primary"
                       class="w-full"

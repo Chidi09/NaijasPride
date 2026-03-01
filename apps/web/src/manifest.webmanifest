@@ -4,9 +4,9 @@
   "description": "Stream Nollywood movies, Bollywood films, and African books",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#000000",
-  "theme_color": "#dc2626",
+  "theme_color": "#800020",
   "categories": ["entertainment", "video"],
   "icons": [
     {

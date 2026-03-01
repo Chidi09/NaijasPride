@@ -241,15 +241,18 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
       );
       if (pages.length === 0) {
         sourceMetrics.incrementParseEmptyPages(this.id);
-        const externalResult: MangaPagesResult = {
+        // Return empty pages with no external redirect — the frontend reader
+        // will show a "chapter unavailable" message instead of bouncing users
+        // to the external source site (e.g. readcomicsonline.ru).
+        const emptyResult: MangaPagesResult = {
           chapterId: chapterPath,
           readerMode: 'reversed',
           pages: [],
-          externalUrl: `${this.baseUrl}${chapterPath}`,
-          isExternal: true,
+          externalUrl: null,
+          isExternal: false,
         };
-        await this.setCache(cacheKey, externalResult, this.defaultCacheTtlSeconds * 2);
-        return externalResult;
+        await this.setCache(cacheKey, emptyResult, this.defaultCacheTtlSeconds * 2);
+        return emptyResult;
       }
 
       const result: MangaPagesResult = {
@@ -263,12 +266,13 @@ export abstract class MmrcmsBaseSource extends BaseHtmlSource {
       await this.setCache(cacheKey, result, this.defaultCacheTtlSeconds * 2);
       return result;
     } catch {
+      // On fetch/parse error, return empty rather than redirecting externally.
       return {
         chapterId: chapterPath,
         readerMode: 'reversed',
         pages: [],
-        externalUrl: `${this.baseUrl}${chapterPath}`,
-        isExternal: true,
+        externalUrl: null,
+        isExternal: false,
       };
     }
   }

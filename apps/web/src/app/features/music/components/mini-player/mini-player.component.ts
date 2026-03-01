@@ -11,8 +11,9 @@ import { MusicApiService } from '../../services/music-api.service';
   template: `
     @if (player.currentTrack()) {
       <div
-        class="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-md border-t border-gray-700/50
-               flex items-center gap-3 px-4 py-2 shadow-2xl"
+        class="fixed left-0 right-0 z-[51] bg-gray-900/95 backdrop-blur-md border-t border-gray-700/50
+               flex items-center gap-3 px-4 py-2 shadow-2xl
+               bottom-[92px] md:bottom-0 md:left-20"
         [class.pb-safe]="true"
       >
         <!-- Thumbnail + link to watch page -->

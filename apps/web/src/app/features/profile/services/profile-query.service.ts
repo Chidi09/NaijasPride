@@ -18,9 +18,13 @@ export class ProfileQueryService {
   toggleWatchlistMutation() {
     return injectMutation(() => ({
       mutationFn: (movieId: string) => lastValueFrom(this.api.toggleWatchlist(movieId)),
-      onSuccess: () => {
+      onSuccess: (result) => {
+        console.log('Watchlist toggle success:', result);
         // Invalidate profile query to refresh watchlist
         this.queryClient.invalidateQueries({ queryKey: ['profile'] });
+      },
+      onError: (error) => {
+        console.error('Watchlist toggle error:', error);
       },
     }));
   }

@@ -104,7 +104,7 @@ type PaginationMeta = {
               <div class="grid gap-0 sm:grid-cols-[132px_1fr]">
                 <div class="relative h-full min-h-36 overflow-hidden bg-[#d9c4b7] dark:bg-cinema-900">
                   @if (item.coverUrl) {
-                    <img [src]="item.coverUrl" [alt]="item.seriesTitle" class="h-full w-full object-cover" loading="lazy">
+                    <img [src]="item.coverUrl" [alt]="item.seriesTitle" class="h-full w-full object-cover" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
                     <div class="flex h-full w-full items-center justify-center text-4xl">📘</div>
                   }

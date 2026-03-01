@@ -554,8 +554,9 @@ export class MangaDetailComponent implements OnInit {
     return this.isComicsMode() ? '/books/comics' : '/books/manga';
   }
 
-  readBasePath() {
-    return this.isComicsMode() ? '/books/comics/read' : '/books/manga/read';
+readBasePath() {
+    const mangaId = this.detail()?.id ?? '';
+    return this.isComicsMode() ? `/books/comics/${mangaId}/read` : `/books/manga/${mangaId}/read`;
   }
 
   toRouteParam(value: string) {

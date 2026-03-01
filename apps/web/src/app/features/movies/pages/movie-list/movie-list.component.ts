@@ -32,19 +32,6 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
             All Movies
           </span>
         </a>
-        <a 
-          routerLink="/movies/stream" 
-          routerLinkActive="bg-cinema-500 text-white"
-          class="px-4 py-2 rounded-lg bg-[#efe1d7] text-[#5f4d47] hover:bg-[#e3d0c4] dark:bg-cinema-800 dark:text-gray-300 dark:hover:bg-cinema-700 transition-colors font-medium"
-        >
-          <span class="flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            Stream Only
-          </span>
-        </a>
       </div>
 
       <app-filter-bar 

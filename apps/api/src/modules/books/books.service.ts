@@ -460,4 +460,63 @@ export class BooksService {
   private generateSlug(title: string, year: number): string {
     return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}`;
   }
+
+  async isFavorite(userId: string, bookId: string) {
+    const count = await this.prisma.bookFavorite.count({
+      where: { userId, bookId },
+    });
+    return count > 0;
+  }
+
+  async getUserFavorites(userId: string) {
+    return this.prisma.bookFavorite.findMany({
+      where: { userId },
+      include: {
+        book: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            author: true,
+            coverUrl: true,
+            format: true,
+            pageCount: true,
+            genre: true,
+            year: true,
+          }
+        },
+      },
+      orderBy: { addedAt: 'desc' },
+    });
+  }
+
+  async addFavorite(userId: string, bookId: string) {
+    return this.prisma.bookFavorite.upsert({
+      where: { userId_bookId: { userId, bookId } },
+      update: { addedAt: new Date() },
+      create: { userId, bookId },
+      include: {
+        book: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            author: true,
+            coverUrl: true,
+            format: true,
+            pageCount: true,
+            genre: true,
+            year: true,
+          }
+        },
+      },
+    });
+  }
+
+  async removeFavorite(userId: string, bookId: string) {
+    return this.prisma.bookFavorite.deleteMany({
+      where: { userId, bookId },
+    });
+  }
 }
+

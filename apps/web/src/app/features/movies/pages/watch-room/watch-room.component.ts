@@ -60,7 +60,7 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
                   [movieId]="m.id"
                   [tmdbId]="m.tmdbId!"
                 ></app-vidking-player>
-              } @else if (streamSource() === 'hosted' && resolvedStreamUrl(); as streamUrl) {
+              } @else if (streamSource() === 'hosted' && resolvedStreamUrl()) {
                 @if (isOffline()) {
                   <div class="mb-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded">
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -70,7 +70,7 @@ import { OfflineStorageService } from "../../../../core/services/offline-storage
                   </div>
                 }
                 <app-video-player
-                  [videoUrl]="streamUrl"
+                  [videoUrl]="resolvedStreamUrl()!"
                   [movieId]="m.id"
                   [movie]="m"
                   [config]="playerConfig"

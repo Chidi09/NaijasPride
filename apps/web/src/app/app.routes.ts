@@ -16,13 +16,177 @@ const guestLandingGuard = () => {
 };
 
 export const routes: Routes = [
+  // ──────────────────────────────────────────────────────────────
+  // 1. ENTRY & ONBOARDING
+  // ──────────────────────────────────────────────────────────────
   {
     path: '',
     canActivate: [guestLandingGuard],
     loadComponent: () => import('./pages/landing/editorial-landing.component').then(m => m.EditorialLandingComponent)
   },
+  {
+    path: 'auth',
+    children: [
+      { path: 'login', loadComponent: () => import('./features/auth/pages/login/login.component').then(m => m.LoginComponent) },
+      { path: 'register', loadComponent: () => import('./features/auth/pages/register/register.component').then(m => m.RegisterComponent) },
+      { path: 'forgot-password', loadComponent: () => import('./features/auth/pages/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent) },
+      { path: 'reset-password', loadComponent: () => import('./features/auth/pages/reset-password/reset-password.component').then(m => m.ResetPasswordComponent) },
+      { path: 'verify-email', loadComponent: () => import('./features/auth/pages/verify-email/verify-email.component').then(m => m.VerifyEmailComponent) }
+    ]
+  },
+  // Legacy auth redirects (keep old URLs working)
+  { path: 'login', redirectTo: 'auth/login', pathMatch: 'full' },
+  { path: 'register', redirectTo: 'auth/register', pathMatch: 'full' },
+  { path: 'forgot-password', redirectTo: 'auth/forgot-password', pathMatch: 'full' },
+  { path: 'reset-password', redirectTo: 'auth/reset-password', pathMatch: 'full' },
+  { path: 'verify-email', redirectTo: 'auth/verify-email', pathMatch: 'full' },
 
-  // Static/footer pages
+  // ──────────────────────────────────────────────────────────────
+  // 2. MAIN DASHBOARD (Cross-Content Continue Watching/Reading)
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'home',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent)
+  },
+
+  // ──────────────────────────────────────────────────────────────
+  // 3. SEARCH (Global, cross-content)
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'search',
+    loadComponent: () => import('./features/search/pages/global-search/global-search.component').then(m => m.GlobalSearchComponent)
+  },
+
+  // ──────────────────────────────────────────────────────────────
+  // 4. MOVIES HUB (The Spoke Center for all Video)
+  //    Standard, download-only, and stream-only handled via UI Tabs, NOT routes
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'movies',
+    canActivate: [authGuard],
+    children: [
+      // Main movie dashboard (handles standard/download-only/stream-only via tabs)
+      { path: '', loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component').then(m => m.MovieListComponent) },
+      // Single detail page (synopsis, cast, "Play" or "Download" button)
+      { path: ':slug', loadComponent: () => import('./features/movies/pages/movie-detail/movie-detail.component').then(m => m.MovieDetailComponent) },
+      // Player (activated from detail page)
+      { path: ':slug/watch', loadComponent: () => import('./features/movies/pages/watch-room/watch-room.component').then(m => m.WatchRoomComponent) }
+    ]
+  },
+  // Legacy movie redirects
+  { path: 'movies/stream', redirectTo: 'movies', pathMatch: 'full' },
+  { path: 'movies/downloads', redirectTo: 'movies', pathMatch: 'full' },
+  { path: 'movies/youtube', redirectTo: 'movies', pathMatch: 'full' },
+  { path: 'browse', redirectTo: 'movies', pathMatch: 'full' },
+  { path: 'category/:slug', loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component').then(m => m.MovieListComponent) },
+  // Legacy watch route redirect
+  { path: 'watch/:slug', redirectTo: 'movies/:slug/watch', pathMatch: 'full' },
+
+  // ──────────────────────────────────────────────────────────────
+  // 5. BOOKS & MANGA HUB
+  //    Tabs for Novels, Manga, Comics within the hub
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'books',
+    canActivate: [authGuard],
+    children: [
+      // Main reading dashboard (tabs for Novels, Manga, Comics)
+      { path: '', loadComponent: () => import('./features/books/pages/book-hub/book-hub.component').then(m => m.BookHubComponent) },
+      // Book detail & reader
+      { path: 'novel/:slug', loadComponent: () => import('./features/books/pages/book-detail/book-detail.component').then(m => m.BookDetailComponent) },
+      { path: 'novel/:slug/read', loadComponent: () => import('./features/books/pages/book-reader/book-reader.component').then(m => m.BookReaderComponent) },
+      // Manga detail & reader
+      { path: 'manga/:mangaId', loadComponent: () => import('./features/books/pages/manga-detail/manga-detail.component').then(m => m.MangaDetailComponent) },
+      { path: 'manga/:mangaId/read/:chapter', loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component').then(m => m.MangaReaderComponent) },
+      // Comics detail & reader (same components as manga)
+      { path: 'comics/:mangaId', loadComponent: () => import('./features/books/pages/manga-detail/manga-detail.component').then(m => m.MangaDetailComponent) },
+      { path: 'comics/:mangaId/read/:chapter', loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component').then(m => m.MangaReaderComponent) }
+    ]
+  },
+  // Legacy book redirects
+  { path: 'books/all', redirectTo: 'books', pathMatch: 'full' },
+  { path: 'books/light-novels', redirectTo: 'books', pathMatch: 'full' },
+  { path: 'books/comics', redirectTo: 'books', pathMatch: 'full' },
+  { path: 'books/manga', redirectTo: 'books', pathMatch: 'full' },
+  // Legacy reader redirects
+  { path: 'books/read/:slug', redirectTo: 'books/novel/:slug/read', pathMatch: 'full' },
+  { path: 'books/comics/read/:chapterId', redirectTo: 'books/comics/:chapterId/read/1', pathMatch: 'full' },
+  { path: 'books/manga/read/:chapterId', redirectTo: 'books/manga/:chapterId/read/1', pathMatch: 'full' },
+
+  // ──────────────────────────────────────────────────────────────
+  // 6. MUSIC HUB
+  //    Music plays in the persistent MiniPlayer/Global Service
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'music',
+    canActivate: [authGuard],
+    children: [
+      // Main music discovery dashboard
+      { path: '', loadComponent: () => import('./features/music/pages/music-landing/music-landing.component').then(m => m.MusicLandingComponent) },
+      // Browse/explore
+      { path: 'browse', loadComponent: () => import('./features/music/pages/music-browse/music-browse.component').then(m => m.MusicBrowseComponent) },
+      // Artist profile view
+      { path: 'artist/:slug', loadComponent: () => import('./features/music/pages/artist-detail/artist-detail.component').then(m => m.ArtistDetailComponent) },
+      // Music video watch (kept for direct music video content)
+      { path: ':slug', loadComponent: () => import('./features/music/pages/music-watch/music-watch.component').then(m => m.MusicWatchComponent) }
+    ]
+  },
+
+  // ──────────────────────────────────────────────────────────────
+  // 7. PROFILE & LIBRARY
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'profile',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component').then(m => m.ProfileDashboardComponent)
+  },
+  {
+    path: 'library',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/library/pages/unified-library/unified-library.component').then(m => m.UnifiedLibraryComponent)
+  },
+  {
+    path: 'downloads',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component').then(m => m.ProfileDashboardComponent)
+  },
+  {
+    path: 'account',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/account-settings/account-settings.component').then(m => m.AccountSettingsComponent)
+  },
+  {
+    path: 'settings',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/pages/account-settings/account-settings.component').then(m => m.AccountSettingsComponent)
+  },
+
+  // ──────────────────────────────────────────────────────────────
+  // 8. PREMIUM & PAYMENTS
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'premium',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/premium/pages/premium-landing/premium-landing.component').then(m => m.PremiumLandingComponent)
+  },
+  {
+    path: 'payment/callback',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/premium/pages/payment-callback/payment-callback.component').then(m => m.PaymentCallbackComponent)
+  },
+
+  // ──────────────────────────────────────────────────────────────
+  // 9. WRAPPED (Monthly/Annual Stats)
+  // ──────────────────────────────────────────────────────────────
+  {
+    path: 'wrapped',
+    loadChildren: () => import('./features/wrapped/wrapped.routes').then(m => m.WRAPPED_ROUTES)
+  },
+
+  // ──────────────────────────────────────────────────────────────
+  // 10. STATIC & LEGAL PAGES
+  // ──────────────────────────────────────────────────────────────
   {
     path: 'faq',
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
@@ -163,18 +327,6 @@ export const routes: Routes = [
     }
   },
   {
-    path: 'account',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/profile/pages/account-settings/account-settings.component')
-      .then(m => m.AccountSettingsComponent)
-  },
-  {
-    path: 'settings',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/profile/pages/account-settings/account-settings.component')
-      .then(m => m.AccountSettingsComponent)
-  },
-  {
     path: 'ways-to-watch',
     loadComponent: () => import('./pages/static/static-page.component').then(m => m.StaticPageComponent),
     data: {
@@ -266,262 +418,29 @@ export const routes: Routes = [
       body: 'Contact us for support, content requests, or business inquiries.\n\nSupport\n- support@naijaspride.com\n\nPrivacy\n- privacy@naijaspride.com\n\nLegal\n- legal@naijaspride.com\n\nBusiness\n- business@naijaspride.com\n\nPlease include your account email and device/browser details for faster help.'
     }
   },
-  {
-    path: 'home',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent)
-  },
-  {
-    path: 'search',
-    loadComponent: () => import('./features/search/pages/global-search/global-search.component')
-      .then(m => m.GlobalSearchComponent)
-  },
-  {
-    path: 'browse',
-    redirectTo: 'movies/downloads',
-    pathMatch: 'full'
-  },
-  {
-    path: 'movies',
-    loadComponent: () => import('./features/movies/pages/movies-editorial-landing/movies-editorial-landing.component')
-      .then(m => m.MoviesEditorialLandingComponent)
-  },
-  {
-    path: 'movies/stream',
-    loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component')
-      .then(m => m.StreamOnlyMoviesComponent)
-  },
-  {
-    path: 'movies/downloads',
-    loadComponent: () => import('./features/movies/pages/download-only-movies/download-only-movies.component')
-      .then(m => m.DownloadOnlyMoviesComponent)
-  },
-  // Legacy redirect
-  {
-    path: 'movies/youtube',
-    redirectTo: 'movies/stream',
-    pathMatch: 'full'
-  },
-  {
-    path: 'category/:slug',
-    loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component')
-      .then(m => m.MovieListComponent)
-  },
-  {
-    path: 'movies/:slug',
-    loadComponent: () => import('./features/movies/pages/movie-detail/movie-detail.component')
-      .then(m => m.MovieDetailComponent)
-  },
-  
-  // WATCH ROOM - Streaming experience (now open to guests)
-  {
-    path: 'watch/:slug',
-    loadComponent: () => import('./features/movies/pages/watch-room/watch-room.component')
-      .then(m => m.WatchRoomComponent)
-  },
-  
-  // PROFILE ROUTES
-  {
-    path: 'profile',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component')
-      .then(m => m.ProfileDashboardComponent)
-  },
-  {
-    path: 'library',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component')
-      .then(m => m.ProfileDashboardComponent)
-  },
-  {
-    path: 'downloads',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/profile/pages/profile-dashboard/profile-dashboard.component')
-      .then(m => m.ProfileDashboardComponent)
-  },
 
-  // BOOK ROUTES
-  {
-    path: 'books',
-    loadComponent: () => import('./features/books/pages/books-editorial-landing/books-editorial-landing.component')
-      .then(m => m.BooksEditorialLandingComponent)
-  },
-  {
-    path: 'books/all',
-    loadComponent: () => import('./features/books/pages/book-list/book-list.component')
-      .then(m => m.BookListComponent)
-  },
-  {
-    path: 'books/light-novels',
-    loadComponent: () => import('./features/books/pages/light-novels-library/light-novels-library.component')
-      .then(m => m.LightNovelsLibraryComponent)
-  },
-  {
-    path: 'books/comics',
-    loadComponent: () => import('./features/books/pages/comics-library/comics-library.component')
-      .then(m => m.ComicsLibraryComponent)
-  },
-  {
-    path: 'books/comics/read/:chapterId',
-    loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component')
-      .then(m => m.MangaReaderComponent)
-  },
-  {
-    path: 'books/comics/:mangaId',
-    loadComponent: () => import('./features/books/pages/manga-detail/manga-detail.component')
-      .then(m => m.MangaDetailComponent)
-  },
-  {
-    path: 'books/manga',
-    loadComponent: () => import('./features/books/pages/manga-library/manga-library.component')
-      .then(m => m.MangaLibraryComponent)
-  },
-  {
-    path: 'books/manga/read/:chapterId',
-    loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component')
-      .then(m => m.MangaReaderComponent)
-  },
-  {
-    path: 'books/read/:slug',
-    loadComponent: () => import('./features/books/pages/book-reader/book-reader.component')
-      .then(m => m.BookReaderComponent)
-  },
-  {
-    path: 'books/manga/:mangaId',
-    loadComponent: () => import('./features/books/pages/manga-detail/manga-detail.component')
-      .then(m => m.MangaDetailComponent)
-  },
-  {
-    path: 'books/:slug',
-    loadComponent: () => import('./features/books/pages/book-detail/book-detail.component')
-      .then(m => m.BookDetailComponent)
-  },
-
-  // AUTH ROUTES
-  {
-    path: 'login',
-    loadComponent: () => import('./features/auth/pages/login/login.component')
-      .then(m => m.LoginComponent)
-  },
-  {
-    path: 'register',
-    loadComponent: () => import('./features/auth/pages/register/register.component')
-      .then(m => m.RegisterComponent)
-  },
-  {
-    path: 'forgot-password',
-    loadComponent: () => import('./features/auth/pages/forgot-password/forgot-password.component')
-      .then(m => m.ForgotPasswordComponent)
-  },
-  {
-    path: 'reset-password',
-    loadComponent: () => import('./features/auth/pages/reset-password/reset-password.component')
-      .then(m => m.ResetPasswordComponent)
-  },
-  {
-    path: 'verify-email',
-    loadComponent: () => import('./features/auth/pages/verify-email/verify-email.component')
-      .then(m => m.VerifyEmailComponent)
-  },
-  
-  // PREMIUM ROUTES
-  {
-    path: 'premium',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/premium/pages/premium-landing/premium-landing.component')
-      .then(m => m.PremiumLandingComponent)
-  },
-  {
-    path: 'payment/callback',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/premium/pages/payment-callback/payment-callback.component')
-      .then(m => m.PaymentCallbackComponent)
-  },
-  
-  // MUSIC ROUTES
-  {
-    path: 'music',
-    loadComponent: () => import('./features/music/pages/music-editorial-landing/music-editorial-landing.component')
-      .then(m => m.MusicEditorialLandingComponent),
-  },
-  {
-    path: 'music/browse',
-    loadComponent: () => import('./features/music/pages/music-browse/music-browse.component')
-      .then(m => m.MusicBrowseComponent),
-  },
-  {
-    path: 'music/artist/:slug',
-    loadComponent: () => import('./features/music/pages/artist-detail/artist-detail.component')
-      .then(m => m.ArtistDetailComponent),
-  },
-  {
-    path: 'music/:slug',
-    loadComponent: () => import('./features/music/pages/music-watch/music-watch.component')
-      .then(m => m.MusicWatchComponent),
-  },
-
-  // WRAPPED ROUTES (Monthly/Annual Stats)
-  {
-    path: 'wrapped',
-    loadChildren: () => import('./features/wrapped/wrapped.routes')
-      .then(m => m.WRAPPED_ROUTES)
-  },
-
-  // ADMIN ROUTES
+  // ──────────────────────────────────────────────────────────────
+  // 11. ADMIN (Layout with child routes)
+  // ──────────────────────────────────────────────────────────────
   {
     path: 'admin',
-    canActivate: [adminGuard], // The Lock 🔒
-    loadComponent: () => import('./features/admin/layouts/admin-layout/admin-layout.component')
-      .then(m => m.AdminLayoutComponent),
+    canActivate: [adminGuard],
+    loadComponent: () => import('./features/admin/layouts/admin-layout/admin-layout.component').then(m => m.AdminLayoutComponent),
     children: [
-      {
-        path: 'dashboard',
-        loadComponent: () => import('./features/admin/pages/admin-dashboard/admin-dashboard.component')
-          .then(m => m.AdminDashboardComponent)
-      },
-      {
-        path: 'books',
-        loadComponent: () => import('./features/admin/pages/admin-books/admin-books.component')
-          .then(m => m.AdminBooksComponent)
-      },
-      {
-        path: 'movies',
-        loadComponent: () => import('./features/admin/pages/admin-movie-list/admin-movie-list.component')
-          .then(m => m.AdminMovieListComponent)
-      },
-      {
-        path: 'movies/new',
-        loadComponent: () => import('./features/admin/pages/admin-movie-create/admin-movie-create.component')
-          .then(m => m.AdminMovieCreateComponent)
-      },
-      {
-        path: 'movies/:id/edit',
-        loadComponent: () => import('./features/admin/pages/admin-movie-edit/admin-movie-edit.component')
-          .then(m => m.AdminMovieEditComponent)
-      },
-      {
-        path: 'discovery',
-        loadComponent: () => import('./features/admin/pages/content-discovery/content-discovery.component')
-          .then(m => m.ContentDiscoveryComponent)
-      },
-      {
-        path: 'queues',
-        loadComponent: () => import('./features/admin/pages/admin-job-queue/admin-job-queue.component')
-          .then(m => m.AdminJobQueueComponent)
-      },
-      {
-        path: 'users',
-        loadComponent: () => import('./features/admin/pages/admin-users/admin-users.component')
-          .then(m => m.AdminUsersComponent)
-      },
+      { path: 'dashboard', loadComponent: () => import('./features/admin/pages/admin-dashboard/admin-dashboard.component').then(m => m.AdminDashboardComponent) },
+      { path: 'books', loadComponent: () => import('./features/admin/pages/admin-books/admin-books.component').then(m => m.AdminBooksComponent) },
+      { path: 'movies', loadComponent: () => import('./features/admin/pages/admin-movie-list/admin-movie-list.component').then(m => m.AdminMovieListComponent) },
+      { path: 'movies/new', loadComponent: () => import('./features/admin/pages/admin-movie-create/admin-movie-create.component').then(m => m.AdminMovieCreateComponent) },
+      { path: 'movies/:id/edit', loadComponent: () => import('./features/admin/pages/admin-movie-edit/admin-movie-edit.component').then(m => m.AdminMovieEditComponent) },
+      { path: 'discovery', loadComponent: () => import('./features/admin/pages/content-discovery/content-discovery.component').then(m => m.ContentDiscoveryComponent) },
+      { path: 'queues', loadComponent: () => import('./features/admin/pages/admin-job-queue/admin-job-queue.component').then(m => m.AdminJobQueueComponent) },
+      { path: 'users', loadComponent: () => import('./features/admin/pages/admin-users/admin-users.component').then(m => m.AdminUsersComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },
-  
-  // 404 - Wildcard route must be last
-  {
-    path: '**',
-    loadComponent: () => import('./features/errors/pages/not-found/not-found.component')
-      .then(m => m.NotFoundComponent)
-  }
+
+  // ──────────────────────────────────────────────────────────────
+  // 404 FALLBACK - Must be last
+  // ──────────────────────────────────────────────────────────────
+  { path: '**', loadComponent: () => import('./features/errors/pages/not-found/not-found.component').then(m => m.NotFoundComponent) }
 ];

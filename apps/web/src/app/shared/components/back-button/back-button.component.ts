@@ -49,7 +49,7 @@ export class BackButtonComponent {
 
   buttonClass = () => {
     if (this.pwaService.isAppMode() || this.pwaService.isTV()) {
-      return 'fixed left-4 z-30 rounded-full bg-[var(--bg-card)] border border-[var(--border-color)] p-2 shadow-lg';
+      return 'fixed left-4 md:left-24 top-[72px] z-[41] rounded-full bg-[var(--bg-card)] border border-[var(--border-color)] p-2 shadow-lg';
     }
     return '';
   };

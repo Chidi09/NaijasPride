@@ -14,6 +14,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getPushService } from '../../shared/services/push-notification.service';
+import { BooksService } from './books.service';
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ const MangaChapterCheckMarkSchema = z.object({
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 export const booksLibraryRoutes = async (app: FastifyInstance) => {
+  const booksService = new BooksService(app.prisma);
 
   // ══════════════════════════════════════════════════════════════════════════
   // BOOK FAVORITES
@@ -434,3 +436,4 @@ export const booksLibraryRoutes = async (app: FastifyInstance) => {
     },
   });
 };
+
