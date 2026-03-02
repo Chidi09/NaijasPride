@@ -290,7 +290,7 @@ export class AuthService {
     return { success: true, email: user.email };
   }
 
-  private createSession(user: { id: string; email: string; role: string; password: string }) {
+  private createSession(user: { id: string; email: string; role: string; password: string; isPremium?: boolean; subStatus?: string }) {
     const accessPayload: AccessPayload = {
       id: user.id,
       email: user.email,

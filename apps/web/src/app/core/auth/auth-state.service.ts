@@ -6,6 +6,8 @@ export interface AuthUser {
   name?: string | null;
   role: string;
   isGuest?: boolean;
+  isPremium?: boolean;
+  subStatus?: 'active' | 'inactive' | 'cancelled' | 'past_due';
 }
 
 interface SessionData {

@@ -8,6 +8,7 @@ import { VidkingPlayerComponent } from "../../../../shared/components/vidking-pl
 import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
 import { OfflineStorageService } from "../../../../core/services/offline-storage.service";
+import { AuthStateService } from "../../../../core/auth/auth-state.service";
 
 @Component({
   selector: "app-watch-room",
@@ -137,6 +138,7 @@ export class WatchRoomComponent {
   slug = input<string>('');
   private movieQuery = inject(MoviesQueryService);
   private offlineService = inject(OfflineStorageService);
+  auth = inject(AuthStateService);
   query = this.movieQuery.getMovieDetailQuery(this.slug);
 
   showIntro = true;

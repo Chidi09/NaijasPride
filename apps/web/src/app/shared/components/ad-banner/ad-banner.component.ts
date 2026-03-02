@@ -1,10 +1,12 @@
-import { Component, OnInit, OnDestroy, ElementRef, inject, PLATFORM_ID } from '@angular/core';
+import { Component, OnInit, OnDestroy, ElementRef, inject, PLATFORM_ID, computed } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
+import { AuthStateService } from '../../../core/auth/auth-state.service';
 
 /**
  * Adsterra 250x250 display banner.
  * Injects the ad script on init and cleans up on destroy so the ad
  * reloads cleanly on every SPA navigation to the watch room.
+ * Premium users do not see ads.
  *
  * Zone key: de3f243cb85127ed9142c1ba7abf8c27
  * Network: effectivegatecpm.com
@@ -13,23 +15,37 @@ import { isPlatformBrowser } from '@angular/common';
   selector: 'app-ad-banner',
   standalone: true,
   template: `
-    <div class="flex justify-center my-6">
-      <div class="relative">
-        <span class="absolute -top-4 left-0 text-[10px] text-gray-600 dark:text-gray-500 uppercase tracking-widest select-none">
-          Advertisement
-        </span>
-        <div id="adsterra-banner-wrapper"></div>
+    @if (shouldShowAd()) {
+      <div class="flex justify-center my-6">
+        <div class="relative">
+          <span class="absolute -top-4 left-0 text-[10px] text-gray-600 dark:text-gray-500 uppercase tracking-widest select-none">
+            Advertisement
+          </span>
+          <div id="adsterra-banner-wrapper"></div>
+        </div>
       </div>
-    </div>
+    }
   `,
 })
 export class AdBannerComponent implements OnInit, OnDestroy {
   private el = inject(ElementRef);
   private platformId = inject(PLATFORM_ID);
+  private auth = inject(AuthStateService);
+
+  shouldShowAd = computed(() => {
+    const user = this.auth.currentUser();
+    // Don't show ads for premium users
+    if (user?.isPremium) {
+      return false;
+    }
+    return true;
+  });
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
-    this.injectAd();
+    if (this.shouldShowAd()) {
+      this.injectAd();
+    }
   }
 
   private injectAd(): void {
