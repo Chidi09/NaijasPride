@@ -209,12 +209,17 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
       this.resolveLibraryMode();
-      const chapterId = this.fromRouteParam(params.get('chapterId'));
+      // Route param is :chapter (not :chapterId) — see app.routes.ts
+      const chapterId = this.fromRouteParam(params.get('chapter'));
       if (!chapterId) return;
 
       this.chapterId.set(chapterId);
       this.title.set(this.route.snapshot.queryParamMap.get('title') || 'Reader');
-      this.mangaId.set(this.route.snapshot.queryParamMap.get('mangaId') || '');
+      // mangaId comes from route param :mangaId in hub-and-spoke routes;
+      // fall back to query param for any legacy deep-links
+      const mangaIdFromRoute = params.get('mangaId') || '';
+      const mangaIdFromQuery = this.route.snapshot.queryParamMap.get('mangaId') || '';
+      this.mangaId.set(mangaIdFromRoute || mangaIdFromQuery);
 
       // Persist a lightweight "continue reading" pointer for the detail page.
       this.rememberContinueFromReader();
@@ -382,7 +387,10 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private readBasePath() {
-    return this.libraryMode() === 'comics' ? '/books/comics/read' : '/books/manga/read';
+    const mangaId = this.mangaId();
+    return this.libraryMode() === 'comics'
+      ? `/books/comics/${mangaId}/read`
+      : `/books/manga/${mangaId}/read`;
   }
 
   private async loadChapter() {
@@ -629,7 +637,12 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private resolveLibraryMode() {
+    // When loaded as a child route, routeConfig.path is only the child segment,
+    // e.g. "comics/:mangaId/read/:chapter" — NOT "books/comics/...".
+    // Checking the child path directly (without "books/" prefix) is correct.
+    // Fall back to the full router URL for safety.
     const routePath = this.route.snapshot.routeConfig?.path || '';
-    this.libraryMode.set(routePath.startsWith('books/comics') ? 'comics' : 'manga');
+    const isComics = routePath.startsWith('comics') || this.router.url.includes('/comics/');
+    this.libraryMode.set(isComics ? 'comics' : 'manga');
   }
 }

@@ -105,6 +105,23 @@ const parsePositiveInt = (value: string | undefined, fallback: number, min: numb
 };
 
 const TORRENT_DOWNLOAD_DIR = (process.env.TORRENT_DOWNLOAD_DIR || path.join(os.tmpdir(), 'naijaspride-downloads')).trim();
+// Minimum free bytes required before accepting a torrent job (default 15 GB)
+const TORRENT_MIN_FREE_BYTES = parsePositiveInt(
+  process.env.TORRENT_MIN_FREE_DISK_GB ? String(Math.round(Number(process.env.TORRENT_MIN_FREE_DISK_GB) * 1024 * 1024 * 1024)) : undefined,
+  15 * 1024 * 1024 * 1024,
+  1 * 1024 * 1024 * 1024,
+  200 * 1024 * 1024 * 1024
+);
+
+const getFreeDiskBytes = (): Promise<number> => {
+  return new Promise((resolve) => {
+    // statfs is available in Node 18+; fall back to 0 (always-pass) on error
+    fs.promises.statfs(TORRENT_DOWNLOAD_DIR).then((s) => {
+      resolve(s.bavail * s.bsize);
+    }).catch(() => resolve(0));
+  });
+};
+
 const TORRENT_TRANSCODE_MKV = !['0', 'false', 'no', 'off'].includes(
   (process.env.TORRENT_TRANSCODE_MKV || '').trim().toLowerCase()
 );
@@ -319,13 +336,16 @@ const uploadFileToR2 = async (
   key: string,
   contentType: string
 ): Promise<void> => {
-  const fileBuffer = await fs.promises.readFile(localPath);
+  // Stream the file rather than reading it all into RAM — avoids OOM on large video files.
+  const stat = await fs.promises.stat(localPath);
+  const stream = fs.createReadStream(localPath);
   await s3Client.send(
     new PutObjectCommand({
       Bucket: r2Config.bucket,
       Key: key,
-      Body: fileBuffer,
+      Body: stream,
       ContentType: contentType,
+      ContentLength: stat.size,
     })
   );
 };
@@ -553,6 +573,18 @@ const worker = new Worker(
     const { magnetLink, movieId } = job.data as { magnetLink: string; movieId: string };
     let movieSlug: string | null = null;
 
+    // Disk-space guard: refuse to start if free space is below threshold.
+    // This prevents disk-full cascades that corrupt Redis AOF and stall all workers.
+    const freeBytes = await getFreeDiskBytes();
+    const freeGB = (freeBytes / 1024 / 1024 / 1024).toFixed(1);
+    if (freeBytes > 0 && freeBytes < TORRENT_MIN_FREE_BYTES) {
+      const requiredGB = (TORRENT_MIN_FREE_BYTES / 1024 / 1024 / 1024).toFixed(1);
+      console.warn(`[Worker] Job ${job.id} SKIPPED — only ${freeGB} GB free, need ${requiredGB} GB. Job will be retried later.`);
+      // Throw a non-fatal error so BullMQ retries after backoff rather than marking failed.
+      throw Object.assign(new Error(`Insufficient disk space: ${freeGB} GB free, need ${requiredGB} GB`), { skipMovie: true });
+    }
+    console.log(`[Worker] Job ${job.id} — disk free: ${freeGB} GB`);
+
     try {
       const processingMovie = await prisma.movie.update({
         where: { id: movieId },
@@ -603,6 +635,10 @@ const worker = new Worker(
       console.log(`[Worker]   HLS: ${hlsKey || 'N/A'}`);
     } catch (error: unknown) {
       console.error(`[Worker] Job ${job.id} FAILED: ${getErrorMessage(error)}`);
+      // If this is a disk-space skip, the movie was never set to 'processing' — don't touch it.
+      if ((error as any)?.skipMovie) {
+        throw error;
+      }
       const pendingMovie = await prisma.movie.update({
         where: { id: movieId },
         data: { status: 'pending' },
