@@ -1,0 +1,34 @@
+# Dependencies — never send to Docker build context (huge, not needed — Dockerfile does npm install inside)
+node_modules
+**/node_modules
+
+# Build outputs
+apps/web/dist
+apps/api/dist
+**/dist
+
+# Dev tools & local config
+.env.local
+.env.development
+*.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docs & plans (not needed at runtime)
+docs/
+
+# Test output
+coverage/
+*.log

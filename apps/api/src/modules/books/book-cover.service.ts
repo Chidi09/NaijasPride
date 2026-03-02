@@ -355,23 +355,9 @@ export class BookCoverService {
   }
 
   private async downloadBookSourceToFile(book: BookRecord, destinationPath: string): Promise<'epub' | 'pdf' | null> {
-    // If the book file is already mirrored to R2, stream directly from S3
-    // (avoids DNS resolution issues with public URLs inside worker containers).
-    const r2Key = extractDownloadKeyFromUrl(book.downloadUrl || '');
-    if (r2Key && r2Key.startsWith('books/')) {
-      const s3Response = await StorageService.getClient().send(
-        new GetObjectCommand({
-          Bucket: StorageService.getBucket(),
-          Key: r2Key,
-        }),
-      );
-      if (!s3Response.Body) {
-        throw new Error(`R2 returned empty body for key: ${r2Key}`);
-      }
-      await streamToFileWithLimit(s3Response.Body as NodeJS.ReadableStream, destinationPath, BOOK_COVER_MAX_FILE_BYTES);
-      return inferFormatFromFilePath(r2Key);
-    }
-
+    // Check named external sources FIRST before attempting R2 key extraction.
+    // The Elsci downloadUrl path (/api/v1/books/external/elsci/file?href=...) contains
+    // "/books/" which would be incorrectly matched as an R2 key by extractDownloadKeyFromUrl.
     if (isEpubBooksRecord(book)) {
       const externalSlug = normalizeExternalSlug(book.slug);
       if (!externalSlug) {
@@ -402,6 +388,23 @@ export class BookCoverService {
       const upstream = await fetchElsciLightNovelFileStream(href);
       await streamToFileWithLimit(upstream.stream, destinationPath, BOOK_COVER_MAX_FILE_BYTES);
       return inferFormatFromFilePath(href);
+    }
+
+    // If the book file is already mirrored to R2, stream directly from S3
+    // (avoids DNS resolution issues with public URLs inside worker containers).
+    const r2Key = extractDownloadKeyFromUrl(book.downloadUrl || '');
+    if (r2Key && r2Key.startsWith('books/')) {
+      const s3Response = await StorageService.getClient().send(
+        new GetObjectCommand({
+          Bucket: StorageService.getBucket(),
+          Key: r2Key,
+        }),
+      );
+      if (!s3Response.Body) {
+        throw new Error(`R2 returned empty body for key: ${r2Key}`);
+      }
+      await streamToFileWithLimit(s3Response.Body as NodeJS.ReadableStream, destinationPath, BOOK_COVER_MAX_FILE_BYTES);
+      return inferFormatFromFilePath(r2Key);
     }
 
     if (!book.downloadUrl) {
