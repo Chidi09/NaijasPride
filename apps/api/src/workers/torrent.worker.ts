@@ -672,3 +672,18 @@ console.log(`[Worker] Job timeout: ${TORRENT_JOB_TIMEOUT_MS}ms`);
 console.log(`[Worker] HLS Packaging: ${TORRENT_PACKAGE_HLS ? 'enabled' : 'disabled'}`);
 console.log(`[Worker] MKV Transcoding: ${TORRENT_TRANSCODE_MKV ? 'enabled' : 'disabled'}`);
 console.log(`[Worker] Download directory: ${TORRENT_DOWNLOAD_DIR}`);
+
+// Pre-create required subdirectories at startup so they are owned by appuser.
+// If the Docker volume is recreated (owned by root), mkdir here will fail and
+// we surface the error immediately rather than per-job.
+void (async () => {
+  try {
+    await fs.promises.mkdir(path.join(TORRENT_DOWNLOAD_DIR, '_transcode'), { recursive: true });
+    await fs.promises.mkdir(path.join(TORRENT_DOWNLOAD_DIR, '_hls'), { recursive: true });
+    console.log('[Worker] Download subdirectories ready');
+  } catch (err) {
+    console.error('[Worker] FATAL: Cannot create download subdirectories:', (err as Error).message);
+    console.error('[Worker] Fix: chown the torrent volume to uid 1001 and restart the worker.');
+    process.exit(1);
+  }
+})();
