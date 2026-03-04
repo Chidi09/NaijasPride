@@ -441,11 +441,13 @@ const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<
       void (async () => {
         console.log(`[Worker] Torrent metadata fetched: ${torrent.name}`);
 
+        const jobKey = String(torrent.infoHash || movieId);
+
         const cleanupPaths = [
           path.join(TORRENT_DOWNLOAD_DIR, String(torrent.infoHash || '')),
           path.join(TORRENT_DOWNLOAD_DIR, String(torrent.name || '')),
-          path.join(TORRENT_DOWNLOAD_DIR, '_transcode', String(torrent.infoHash || '')),
-          path.join(TORRENT_DOWNLOAD_DIR, '_hls', String(torrent.infoHash || '')),
+          path.join(TORRENT_DOWNLOAD_DIR, '_transcode', jobKey),
+          path.join(TORRENT_DOWNLOAD_DIR, '_hls', jobKey),
         ].filter((value) => value && value !== TORRENT_DOWNLOAD_DIR);
 
         const finalize = async () => {
@@ -490,7 +492,7 @@ const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<
           const baseName = safeName.replace(/\.[^.]+$/, '');
           const isMkv = safeName.toLowerCase().endsWith('.mkv');
 
-          const transcodeDir = path.join(TORRENT_DOWNLOAD_DIR, '_transcode', String(torrent.infoHash || movieId));
+          const transcodeDir = path.join(TORRENT_DOWNLOAD_DIR, '_transcode', jobKey);
           await fs.promises.mkdir(transcodeDir, { recursive: true });
 
           // Download to disk for processing
@@ -527,7 +529,7 @@ const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<
 
           // Create HLS package if enabled
           if (TORRENT_PACKAGE_HLS) {
-            const hlsDir = path.join(TORRENT_DOWNLOAD_DIR, '_hls', String(torrent.infoHash || movieId));
+            const hlsDir = path.join(TORRENT_DOWNLOAD_DIR, '_hls', jobKey);
             console.log(`[Worker] Creating HLS package...`);
 
             try {
