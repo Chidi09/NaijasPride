@@ -12,6 +12,8 @@ import { ThemeService } from './core/services/theme.service';
 import { PwaService } from './core/services/pwa.service';
 import { FirebaseMessagingService } from './core/services/firebase-messaging.service';
 import { AuthStateService } from './core/auth/auth-state.service';
+import { AdPolicyService } from './core/services/ad-policy.service';
+import { AdScriptService } from './core/services/ad-script.service';
 import { ToastContainerComponent } from './shared/components/toast-container/toast-container.component';
 import { CookieConsentComponent } from './shared/components/cookie-consent/cookie-consent.component';
 import { BackButtonComponent } from './shared/components/back-button/back-button.component';
@@ -121,6 +123,8 @@ export class AppComponent implements OnInit {
   protected readerState = inject(ReaderStateService);
   protected musicPlayer = inject(MusicPlayerService);
   private authState = inject(AuthStateService);
+  private adPolicy = inject(AdPolicyService);
+  private adScriptService = inject(AdScriptService);
   
   private sidePanel = viewChild<SidePanelComponent>('sidePanel');
   private bottomNav = viewChild<BottomNavComponent>('bottomNav');
@@ -137,6 +141,16 @@ export class AppComponent implements OnInit {
     effect(() => {
       const shouldLockViewport = this.pwaService.isAppMode() && !!this.authState.currentUser();
       this.applyAppViewportMode(shouldLockViewport);
+    });
+
+    effect(() => {
+      const canShowAds = this.adPolicy.canShowAds();
+      if (canShowAds) {
+        this.adScriptService.ensureAdSenseAutoAdsScript();
+        this.adScriptService.ensureEffectiveGateSocialBarScript();
+      } else {
+        this.adScriptService.unloadAllAdScripts();
+      }
     });
   }
 

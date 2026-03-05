@@ -142,8 +142,13 @@ interface ArchiveSection {
                     <img 
                       [src]="section.image"
                       [alt]="section.title"
+                      width="1200"
+                      height="1600"
+                      loading="lazy"
+                      decoding="async"
+                      fetchpriority="low"
                       referrerpolicy="no-referrer"
-                      class="w-full h-full object-cover opacity-60 grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700 ease-out"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-all duration-700 ease-out"
                     />
                     
                     <div class="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors duration-500"></div>
@@ -259,7 +264,7 @@ interface ArchiveSection {
                 <!-- TV -->
                 <div class="flex flex-col items-center gap-4 border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl p-4">
                   <div class="w-full h-[320px] border border-[var(--border-color)] bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center relative overflow-hidden hover:border-[#8a1c1c] transition-colors">
-                    <img src="assets/images/tv-device.png" alt="TV app" class="w-full h-full object-contain p-6" loading="lazy" />
+                    <img src="assets/images/tv-device.png" alt="TV app" width="1200" height="800" class="w-full h-full object-contain p-6" loading="lazy" decoding="async" />
                   </div>
                   <span class="text-[10px] tracking-[0.2em] text-[var(--text-secondary)]">TV</span>
                   <p class="text-xs text-[var(--text-secondary)] text-center leading-relaxed">
