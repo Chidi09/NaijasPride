@@ -93,11 +93,11 @@ export const routes: Routes = [
     children: [
       // Main reading dashboard (tabs for Novels, Manga, Comics)
       { path: '', loadComponent: () => import('./features/books/pages/book-hub/book-hub.component').then(m => m.BookHubComponent) },
-      // Legacy tabs inside /books namespace
-      { path: 'all', redirectTo: '', pathMatch: 'full' },
-      { path: 'light-novels', redirectTo: '', pathMatch: 'full' },
-      { path: 'comics', redirectTo: '', pathMatch: 'full' },
-      { path: 'manga', redirectTo: '', pathMatch: 'full' },
+      // Library views
+      { path: 'all', loadComponent: () => import('./features/books/pages/book-list/book-list.component').then(m => m.BookListComponent) },
+      { path: 'light-novels', loadComponent: () => import('./features/books/pages/light-novels-library/light-novels-library.component').then(m => m.LightNovelsLibraryComponent) },
+      { path: 'comics', loadComponent: () => import('./features/books/pages/comics-library/comics-library.component').then(m => m.ComicsLibraryComponent) },
+      { path: 'manga', loadComponent: () => import('./features/books/pages/manga-library/manga-library.component').then(m => m.MangaLibraryComponent) },
       // Book detail & reader
       { path: 'novel/:slug', loadComponent: () => import('./features/books/pages/book-detail/book-detail.component').then(m => m.BookDetailComponent) },
       { path: 'novel/:slug/read', loadComponent: () => import('./features/books/pages/book-reader/book-reader.component').then(m => m.BookReaderComponent) },
@@ -113,10 +113,6 @@ export const routes: Routes = [
   },
   // Legacy book redirects
   { path: 'books/:slug', redirectTo: 'books/novel/:slug', pathMatch: 'full' },
-  { path: 'books/all', redirectTo: 'books', pathMatch: 'full' },
-  { path: 'books/light-novels', redirectTo: 'books', pathMatch: 'full' },
-  { path: 'books/comics', redirectTo: 'books', pathMatch: 'full' },
-  { path: 'books/manga', redirectTo: 'books', pathMatch: 'full' },
   // Legacy reader redirects
   { path: 'books/read/:slug', redirectTo: 'books/novel/:slug/read', pathMatch: 'full' },
   { path: 'books/comics/read/:chapterId', redirectTo: 'books/comics/:chapterId/read/1', pathMatch: 'full' },

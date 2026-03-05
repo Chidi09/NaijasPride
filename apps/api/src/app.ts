@@ -133,6 +133,10 @@ const buildServer = async () => {
   const usePrettyLogger = process.env.NODE_ENV === 'development';
   const app = Fastify({
     bodyLimit: parseBodyLimit(),
+    // Some imported light-novel slugs exceed find-my-way's default 100-char param limit.
+    // Without this, routes like /api/v1/books/:slug and /api/v1/books/progress/:slug
+    // intermittently return route-level 404 for valid long slugs.
+    maxParamLength: 512,
     requestIdHeader: "x-request-id",
     genReqId: (req) => {
       const requestId = req.headers["x-request-id"];
