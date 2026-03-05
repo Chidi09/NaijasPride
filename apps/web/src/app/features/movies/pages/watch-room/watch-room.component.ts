@@ -3,7 +3,7 @@ import { CommonModule } from "@angular/common";
 import { MoviesQueryService } from "../../services/movies-query.service";
 import { VideoPlayerComponent } from "../../../../shared/components/video-player/video-player.component";
 import { BrandedIntroComponent } from "../../../../shared/components/branded-intro/branded-intro.component";
-import { AdBannerComponent } from "../../../../shared/components/ad-banner/ad-banner.component";
+import { EffectivegateBannerComponent } from "../../../../shared/components/effectivegate-banner/effectivegate-banner.component";
 import { VidkingPlayerComponent } from "../../../../shared/components/vidking-player/vidking-player.component";
 import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
@@ -17,7 +17,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
     CommonModule,
     VideoPlayerComponent,
     BrandedIntroComponent,
-    AdBannerComponent,
+    EffectivegateBannerComponent,
     VidkingPlayerComponent,
     RouterLink,
   ],
@@ -89,8 +89,20 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
               }
             }
 
-            <!-- Adsterra 250x250 display banner -->
-            <app-ad-banner></app-ad-banner>
+            <app-effectivegate-banner></app-effectivegate-banner>
+
+            @if (!auth.isPremium()) {
+              <div class="mb-4 flex justify-center">
+                <a
+                  [href]="smartlinkUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-2 rounded-full border border-[#9a857d]/40 px-4 py-2 text-xs font-semibold text-[#9a857d] transition-colors hover:border-[#9a857d] hover:text-white"
+                >
+                  Explore sponsor offers
+                </a>
+              </div>
+            }
 
             <div
               class="mt-2 flex flex-col sm:flex-row items-center justify-between gap-4"
@@ -135,6 +147,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
   `,
 })
 export class WatchRoomComponent {
+  readonly smartlinkUrl = 'https://www.effectivegatecpm.com/qm7irj9i?key=106d46d6ef4f93102f2d54643357b11c';
   slug = input<string>('');
   private movieQuery = inject(MoviesQueryService);
   private offlineService = inject(OfflineStorageService);
@@ -199,16 +212,20 @@ export class WatchRoomComponent {
   private isStreamableVideoUrl(url: string): boolean {
     const raw = (url || '').trim();
     if (!raw) return false;
+    if (/^magnet:\?/i.test(raw)) return false;
+    if (/\.torrent(\?|#|$)/i.test(raw)) return false;
 
     const withoutHash = raw.split('#')[0] || raw;
     try {
       const parsed = new URL(withoutHash, 'http://localhost');
       const key = parsed.searchParams.get('key');
       const target = (key || parsed.pathname || '').toLowerCase();
-      return target.endsWith('.mp4') || target.endsWith('.m3u8');
+      if (target.endsWith('.mp4') || target.endsWith('.m3u8')) return true;
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     } catch {
       const clean = (withoutHash.split('?')[0] || '').toLowerCase();
-      return clean.endsWith('.mp4') || clean.endsWith('.m3u8');
+      if (clean.endsWith('.mp4') || clean.endsWith('.m3u8')) return true;
+      return /^https?:\/\//i.test(raw);
     }
   }
 

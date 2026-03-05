@@ -8,6 +8,7 @@ import { MoviesQueryService } from '../../services/movies-query.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { OfflineStorageService } from '../../../../core/services/offline-storage.service';
+import { EffectivegateBannerComponent } from '../../../../shared/components/effectivegate-banner/effectivegate-banner.component';
 import { CastMember, Quality, Movie } from '@naijaspride/types';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap } from 'rxjs';
@@ -15,7 +16,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
 @Component({
   selector: 'app-movie-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, EffectivegateBannerComponent],
   template: `
     @if (query.isPending()) {
       <div class="animate-pulse">
@@ -370,6 +371,21 @@ import { catchError, map, of, switchMap } from 'rxjs';
                       <span>4K</span>
                    </div>
                 </div>
+
+                <app-effectivegate-banner></app-effectivegate-banner>
+
+                @if (!auth.currentUser()?.isPremium) {
+                  <div class="mt-3 text-center">
+                    <a
+                      [href]="smartlinkUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-2 rounded-full border border-[#d9c4b7] px-4 py-2 text-xs font-semibold text-[#725f58] transition-colors hover:border-cinema-500/60 hover:text-cinema-500"
+                    >
+                      Sponsor offers
+                    </a>
+                  </div>
+                }
               }
             </div>
           </div>
@@ -418,6 +434,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
   `
 })
 export class MovieDetailComponent {
+  readonly smartlinkUrl = 'https://www.effectivegatecpm.com/qm7irj9i?key=106d46d6ef4f93102f2d54643357b11c';
   slug = input<string>('');
   
   private moviesService = inject(MoviesQueryService);
@@ -606,16 +623,20 @@ export class MovieDetailComponent {
   private isStreamableVideoUrl(url: string): boolean {
     const raw = (url || '').trim();
     if (!raw) return false;
+    if (/^magnet:\?/i.test(raw)) return false;
+    if (/\.torrent(\?|#|$)/i.test(raw)) return false;
 
     const withoutHash = raw.split('#')[0] || raw;
     try {
       const parsed = new URL(withoutHash, 'http://localhost');
       const key = parsed.searchParams.get('key');
       const target = (key || parsed.pathname || '').toLowerCase();
-      return target.endsWith('.mp4') || target.endsWith('.m3u8');
+      if (target.endsWith('.mp4') || target.endsWith('.m3u8')) return true;
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     } catch {
       const clean = (withoutHash.split('?')[0] || '').toLowerCase();
-      return clean.endsWith('.mp4') || clean.endsWith('.m3u8');
+      if (clean.endsWith('.mp4') || clean.endsWith('.m3u8')) return true;
+      return /^https?:\/\//i.test(raw);
     }
   }
 

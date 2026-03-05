@@ -7,6 +7,15 @@ import { interval, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+
+type BookProgressResponse = {
+  status: string;
+  data?: {
+    page?: number;
+  } | null;
+};
 
 type ContentItem = {
   id: string;
@@ -61,22 +70,21 @@ type SourceDiscoverResponse = {
                   <span class="text-xs font-bold tracking-wider text-blue-400 uppercase">📚 Popular Book</span>
                 </div>
                 <div class="p-4 flex gap-4">
-                  @if (featured().book?.coverUrl) {
-                    <div class="w-24 h-36 flex-shrink-0 rounded overflow-hidden">
-                      <img
-                        [src]="featured().book!.coverUrl"
-                        [alt]="featured().book!.title"
-                        loading="lazy"
-                        decoding="async"
-                        referrerpolicy="no-referrer"
-                        class="w-full h-full object-cover"
-                      >
-                    </div>
-                  } @else {
-                    <div class="w-24 h-36 flex-shrink-0 bg-[#dcc4b8] dark:bg-cinema-700 rounded flex items-center justify-center">
-                      <span class="text-2xl">📚</span>
-                    </div>
-                  }
+                  <div class="w-24 h-36 flex-shrink-0 rounded overflow-hidden relative">
+                    <img
+                      [src]="getBookCover(featured().book?.coverUrl)"
+                      [alt]="featured().book?.title || 'Featured book'"
+                      loading="lazy"
+                      decoding="async"
+                      referrerpolicy="no-referrer"
+                      class="w-full h-full object-cover"
+                    >
+                    @if (getBookProgress(featured().book?.slug); as progress) {
+                      <div class="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                        <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                      </div>
+                    }
+                  </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="text-[#24181b] dark:text-white font-medium text-lg line-clamp-2 mb-1">{{ featured().book?.title || 'Loading...' }}</h3>
                     <p class="text-gray-400 text-sm">{{ featured().book?.author || 'Unknown Author' }}</p>
@@ -198,16 +206,17 @@ type SourceDiscoverResponse = {
                 <mat-card class="np-cover-card">
                   <a [routerLink]="['/books/novel', book.slug]" class="np-cover-link">
                     <div class="np-cover-media">
-                      @if (book.coverUrl) {
-                        <img
-                          [src]="book.coverUrl"
-                          [alt]="book.title"
-                          loading="lazy"
-                          decoding="async"
-                          referrerpolicy="no-referrer"
-                        >
-                      } @else {
-                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📚</div>
+                      <img
+                        [src]="getBookCover(book.coverUrl)"
+                        [alt]="book.title"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      >
+                      @if (getBookProgress(book.slug); as progress) {
+                        <div class="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                          <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                        </div>
                       }
                     </div>
                     <div class="np-cover-body">
@@ -366,6 +375,7 @@ export class BookHubComponent implements OnInit, OnDestroy {
   // Featured content
   featured = signal<FeaturedContent>({ book: null, comic: null, manga: null });
   isMangaChanging = signal(false);
+  bookProgressBySlug = signal<Record<string, number>>({});
   
   // Manga rotation
   private mangaRotationIndex = 0;
@@ -388,6 +398,7 @@ export class BookHubComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.books.set(response.data);
+          this.loadBookProgress(response.data.map((book) => book.slug));
           // Set featured book (first one)
           if (response.data.length > 0) {
             const book = response.data[0];
@@ -523,5 +534,46 @@ export class BookHubComponent implements OnInit, OnDestroy {
 
   toRouteParam(value: string) {
     return encodeURIComponent(value);
+  }
+
+  getBookCover(coverUrl?: string | null): string {
+    return coverUrl && coverUrl.trim().length > 0 ? coverUrl : 'assets/images/things-fall-apart.jpg';
+  }
+
+  getBookProgress(slug?: string): number | null {
+    if (!slug) return null;
+    const value = this.bookProgressBySlug()[slug];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  private loadBookProgress(slugs: string[]) {
+    const uniqueSlugs = Array.from(new Set(slugs.filter(Boolean))).slice(0, 24);
+    if (uniqueSlugs.length === 0) {
+      this.bookProgressBySlug.set({});
+      return;
+    }
+
+    const requests = uniqueSlugs.map((slug) =>
+      this.http
+        .get<BookProgressResponse>(`/api/v1/books/progress/${encodeURIComponent(slug)}`)
+        .pipe(
+          map((response) => {
+            const page = response?.data?.page ?? 0;
+            return { slug, percentage: Math.max(0, Math.min(100, page)) };
+          }),
+          catchError(() => of({ slug, percentage: 0 })),
+        ),
+    );
+
+    forkJoin(requests).subscribe((entries) => {
+      const next: Record<string, number> = {};
+      for (const entry of entries) {
+        if (entry.percentage > 0) {
+          next[entry.slug] = entry.percentage;
+        }
+      }
+      this.bookProgressBySlug.set(next);
+    });
   }
 }
