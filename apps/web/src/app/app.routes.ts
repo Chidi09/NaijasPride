@@ -93,17 +93,22 @@ export const routes: Routes = [
     children: [
       // Main reading dashboard (tabs for Novels, Manga, Comics)
       { path: '', loadComponent: () => import('./features/books/pages/book-hub/book-hub.component').then(m => m.BookHubComponent) },
+      // Legacy tabs inside /books namespace
+      { path: 'all', redirectTo: '', pathMatch: 'full' },
+      { path: 'light-novels', redirectTo: '', pathMatch: 'full' },
+      { path: 'comics', redirectTo: '', pathMatch: 'full' },
+      { path: 'manga', redirectTo: '', pathMatch: 'full' },
       // Book detail & reader
       { path: 'novel/:slug', loadComponent: () => import('./features/books/pages/book-detail/book-detail.component').then(m => m.BookDetailComponent) },
       { path: 'novel/:slug/read', loadComponent: () => import('./features/books/pages/book-reader/book-reader.component').then(m => m.BookReaderComponent) },
-      // Legacy short book route
-      { path: ':slug', loadComponent: () => import('./features/books/pages/book-detail/book-detail.component').then(m => m.BookDetailComponent) },
       // Manga detail & reader
       { path: 'manga/:mangaId', loadComponent: () => import('./features/books/pages/manga-detail/manga-detail.component').then(m => m.MangaDetailComponent) },
       { path: 'manga/:mangaId/read/:chapter', loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component').then(m => m.MangaReaderComponent) },
       // Comics detail & reader (same components as manga)
       { path: 'comics/:mangaId', loadComponent: () => import('./features/books/pages/manga-detail/manga-detail.component').then(m => m.MangaDetailComponent) },
-      { path: 'comics/:mangaId/read/:chapter', loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component').then(m => m.MangaReaderComponent) }
+      { path: 'comics/:mangaId/read/:chapter', loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component').then(m => m.MangaReaderComponent) },
+      // Legacy short book route
+      { path: ':slug', loadComponent: () => import('./features/books/pages/book-detail/book-detail.component').then(m => m.BookDetailComponent) }
     ]
   },
   // Legacy book redirects

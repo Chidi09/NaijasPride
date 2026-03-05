@@ -180,7 +180,7 @@ export class WatchRoomComponent {
       const m = this.query.data()?.data;
       if (!m) return;
       this._resolveStreamUrl(m);
-    });
+    }, { allowSignalWrites: true });
   }
 
   private async _resolveStreamUrl(movie: Movie) {

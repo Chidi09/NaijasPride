@@ -46,8 +46,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
     return { success: true, ...result };
   });
 
-  // GET /api/movies/download?key=movies/... - Redirect to a signed/public URL
-  // Keeps movie.fileUrls stable even when storage is private (R2/S3/GCS).
+  // GET /api/movies/download?key=movies/... - force browser download with attachment headers.
   app.get('/download', {
     schema: {
       querystring: z.object({
@@ -63,8 +62,30 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    const url = await storageService.getDownloadUrl(key, { expiresInSeconds: movieSignedUrlTtlSeconds });
-    return reply.redirect(url);
+    try {
+      const response = await StorageService.getClient().send(
+        new GetObjectCommand({
+          Bucket: StorageService.getBucket(),
+          Key: key,
+        }),
+      );
+
+      const fileName = key.split('/').pop() || 'video.mp4';
+      const safeFileName = fileName.replace(/[\r\n\"]/g, '_');
+
+      reply.header('content-type', response.ContentType || 'application/octet-stream');
+      if (typeof response.ContentLength === 'number' && Number.isFinite(response.ContentLength)) {
+        reply.header('content-length', String(response.ContentLength));
+      }
+      reply.header('content-disposition', `attachment; filename="${safeFileName}"`);
+      reply.header('cache-control', 'private, no-store');
+
+      return reply.send(response.Body as any);
+    } catch (error) {
+      fastify.log.warn({ error, key }, '[Movies] Download gateway failed, falling back to signed URL redirect');
+      const url = await storageService.getDownloadUrl(key, { expiresInSeconds: movieSignedUrlTtlSeconds });
+      return reply.redirect(url);
+    }
   });
 
   // GET /api/movies/stream/:movieId/* - public HLS segment gateway.
@@ -132,15 +153,34 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/movies/featured - Most Watched + Coming Soon (public, no auth required)
   app.get('/featured', async (_request, reply) => {
-    const [mostWatched, comingSoon] = await Promise.all([
+    const currentYear = new Date().getFullYear();
+    const recentYearMin = currentYear - 1;
+    const recentYearMax = currentYear;
+
+    const hasDownloadFiles: Prisma.MovieWhereInput = {
+      AND: [
+        { NOT: { fileUrls: { equals: {} } } },
+        { NOT: { fileUrls: { equals: Prisma.JsonNull } } },
+      ],
+    };
+
+    const playableWhere: Prisma.MovieWhereInput = {
+      status: 'active',
+      OR: [
+        { isStreamOnly: true, youtubeId: { not: null } },
+        { isStreamOnly: false, ...hasDownloadFiles },
+      ],
+    };
+
+    const [mostWatched, comingSoon, latestUploads, newReleases] = await Promise.all([
       // Top 12 most-watched active movies
       fastify.prisma.movie.findMany({
-        where: { status: 'active' },
+        where: playableWhere,
         orderBy: { viewCount: 'desc' },
         take: 12,
         select: {
           id: true, title: true, slug: true, year: true, rating: true,
-          thumbnailUrl: true, posterUrl: true, genre: true, viewCount: true,
+          thumbnailUrl: true, posterUrl: true, backdropUrl: true, genre: true, viewCount: true,
           isStreamOnly: true, quality: true,
         },
       }),
@@ -156,7 +196,76 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
           _count: { select: { notifications: true } },
         },
       }),
+      // Newly completed/uploaded download movies in R2
+      fastify.prisma.movie.findMany({
+        where: {
+          status: 'active',
+          isStreamOnly: false,
+          ...hasDownloadFiles,
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 12,
+        select: {
+          id: true, title: true, slug: true, year: true, rating: true,
+          thumbnailUrl: true, posterUrl: true, backdropUrl: true, genre: true, viewCount: true,
+          isStreamOnly: true, quality: true,
+        },
+      }),
+      // Recent years focus row (2025-2026)
+      fastify.prisma.movie.findMany({
+        where: {
+          status: 'active',
+          isStreamOnly: false,
+          ...hasDownloadFiles,
+          year: { gte: recentYearMin, lte: recentYearMax },
+        },
+        orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
+        take: 12,
+        select: {
+          id: true, title: true, slug: true, year: true, rating: true,
+          thumbnailUrl: true, posterUrl: true, backdropUrl: true, genre: true, viewCount: true,
+          isStreamOnly: true, quality: true,
+        },
+      }),
     ]);
+
+    // Trending from recent 7-day watch activity, fallback to mostWatched
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const grouped = await fastify.prisma.watchHistory.groupBy({
+      by: ['movieId'],
+      where: { updatedAt: { gte: sevenDaysAgo } },
+      _count: { movieId: true },
+      orderBy: { _count: { movieId: 'desc' } },
+      take: 30,
+    });
+
+    let trending = mostWatched;
+    if (grouped.length > 0) {
+      const ids = grouped.map((entry) => entry.movieId);
+      const trendMovies = await fastify.prisma.movie.findMany({
+        where: {
+          ...playableWhere,
+          id: { in: ids },
+        },
+        select: {
+          id: true, title: true, slug: true, year: true, rating: true,
+          thumbnailUrl: true, posterUrl: true, backdropUrl: true, genre: true, viewCount: true,
+          isStreamOnly: true, quality: true,
+        },
+      });
+
+      const byId = new Map(trendMovies.map((movie) => [movie.id, movie]));
+      const ordered: typeof trendMovies = [];
+      for (const id of ids) {
+        const movie = byId.get(id);
+        if (movie) ordered.push(movie);
+        if (ordered.length >= 12) break;
+      }
+      trending = ordered;
+      if (trending.length === 0) {
+        trending = mostWatched;
+      }
+    }
 
     // Sort coming-soon by number of notification subscribers (most anticipated first)
     const comingSoonSorted = comingSoon.sort(
@@ -167,6 +276,9 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
       success: true,
       data: {
         mostWatched,
+        trending,
+        latestUploads,
+        newReleases,
         comingSoon: comingSoonSorted,
       },
     });

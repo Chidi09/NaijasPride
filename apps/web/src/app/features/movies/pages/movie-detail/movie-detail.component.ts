@@ -113,8 +113,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
                 } @else if (hasDownloadOption(movie)) {
                   <a
                     [href]="primaryDownloadUrl(movie) || '#'"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    [attr.download]="isMagnetUrl(primaryDownloadUrl(movie) || '') ? null : ''"
                     class="inline-flex items-center gap-2 bg-cinema-500 text-white px-6 py-3 rounded-full font-bold hover:bg-cinema-400 transition-colors"
                   >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -298,8 +297,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
                         @if (qualityAccess.link) {
                           <a
                             [href]="qualityAccess.link"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            [attr.download]="isMagnetUrl(qualityAccess.link) ? null : ''"
                             class="bg-cinema-500 hover:bg-cinema-400 text-white text-xs font-bold px-3 py-2 rounded-sm transition-colors"
                             [title]="qualityAccess.label"
                           >
@@ -662,10 +660,10 @@ export class MovieDetailComponent {
     const qualityFirst = movie.quality
       .map((q) => this.resolveQualityUrl(movie, q))
       .find((value) => !!value);
-    if (qualityFirst) return qualityFirst;
+    if (qualityFirst) return this.toDirectDownloadLink(qualityFirst);
 
     const firstAny = Object.values(urls).find((value) => typeof value === 'string' && value.trim().length > 0);
-    return firstAny ?? null;
+    return typeof firstAny === 'string' ? this.toDirectDownloadLink(firstAny) : null;
   }
 
   resolveQualityUrl(movie: Movie, quality: string): string | null {
@@ -684,7 +682,8 @@ export class MovieDetailComponent {
   }
 
   getQualityAccess(movie: Movie, quality: string): { link: string | null; label: string } {
-    const link = this.resolveQualityUrl(movie, quality);
+    const rawLink = this.resolveQualityUrl(movie, quality);
+    const link = rawLink ? this.toDirectDownloadLink(rawLink) : null;
     if (!link) {
       return { link: null, label: 'Not Ready' };
     }
@@ -694,5 +693,30 @@ export class MovieDetailComponent {
     }
 
     return { link, label: 'Download' };
+  }
+
+  private toDirectDownloadLink(url: string): string {
+    const raw = (url || '').trim();
+    if (!raw) return raw;
+    if (this.isMagnetUrl(raw)) return raw;
+
+    try {
+      const parsed = new URL(raw);
+      const isMediaHost = /(^|\.)media\.naijaspride\.com$/i.test(parsed.hostname);
+      if (isMediaHost) {
+        const key = parsed.pathname.replace(/^\/+/, '');
+        if (key.startsWith('movies/')) {
+          return `/api/v1/movies/download?key=${encodeURIComponent(key)}`;
+        }
+      }
+    } catch {
+      // fall through
+    }
+
+    if (raw.startsWith('movies/')) {
+      return `/api/v1/movies/download?key=${encodeURIComponent(raw)}`;
+    }
+
+    return raw;
   }
 }
