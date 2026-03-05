@@ -78,14 +78,24 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
                   (playerReady)="onPlayerReady()"
                 ></app-video-player>
               } @else {
-                <div class="aspect-video rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center">
-                  <div class="max-w-md">
-                    <h2 class="text-white font-serif text-xl">Stream not available</h2>
-                    <p class="text-[#9a857d] dark:text-gray-500 text-sm mt-2">
-                      This title is currently download-only. Please use the download option on the details page.
-                    </p>
+                @if (primaryStreamUrl(m); as directUrl) {
+                  <app-video-player
+                    [videoUrl]="directUrl"
+                    [movieId]="m.id"
+                    [movie]="m"
+                    [config]="playerConfig"
+                    (playerReady)="onPlayerReady()"
+                  ></app-video-player>
+                } @else {
+                  <div class="aspect-video rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center">
+                    <div class="max-w-md">
+                      <h2 class="text-white font-serif text-xl">Stream not available</h2>
+                      <p class="text-[#9a857d] dark:text-gray-500 text-sm mt-2">
+                        This title is currently download-only. Please use the download option on the details page.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                }
               }
             }
 
@@ -174,6 +184,10 @@ export class WatchRoomComponent {
   }
 
   private async _resolveStreamUrl(movie: Movie) {
+    this.resolvedStreamUrl.set(null);
+    this.streamSource.set(null);
+    this.isOffline.set(false);
+
     // 1. Offline cache (highest priority — works when offline)
     const preferred = ['4K', '1080p', '720p', '480p'];
     for (const q of preferred) {
@@ -191,18 +205,19 @@ export class WatchRoomComponent {
       }
     }
 
-    // 2. Vidking embed (requires tmdbId)
-    if (movie.tmdbId) {
-      this.streamSource.set('vidking');
-      this.isOffline.set(false);
+    // 2. Self-hosted HLS/MP4
+    const hostedUrl = this.primaryStreamUrl(movie);
+    if (hostedUrl) {
+      this.resolvedStreamUrl.set(hostedUrl);
+      this.streamSource.set('hosted');
       return;
     }
 
-    // 3. Self-hosted HLS/MP4
-    const hostedUrl = this.primaryStreamUrl(movie);
-    this.resolvedStreamUrl.set(hostedUrl);
-    this.streamSource.set(hostedUrl ? 'hosted' : null);
-    this.isOffline.set(false);
+    // 3. Vidking embed (fallback when hosted stream is unavailable)
+    if (movie.tmdbId) {
+      this.streamSource.set('vidking');
+      return;
+    }
   }
 
   movie() {
