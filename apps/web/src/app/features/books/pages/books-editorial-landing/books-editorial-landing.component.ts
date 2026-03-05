@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Book, PaginationMeta } from '@naijaspride/types';
-import { interval, Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { forkJoin, interval, of, Subject } from 'rxjs';
+import { catchError, map, takeUntil } from 'rxjs/operators';
 
 // Lucide icons as SVG components
 const ArrowRightIcon = `
@@ -55,6 +55,22 @@ type FeaturedContent = {
   book: ContentItem | null;
   comic: ContentItem | null;
   manga: ContentItem | null;
+};
+
+type BookProgressResponse = {
+  status: string;
+  data?: {
+    page?: number;
+  } | null;
+};
+
+type MangaHistoryResponse = {
+  status: string;
+  data?: Array<{
+    mangaId?: string;
+    pageIndex?: number;
+    totalPages?: number;
+  }>;
 };
 
 @Component({
@@ -229,7 +245,7 @@ type FeaturedContent = {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
             <!-- Featured Book -->
             @if (featured().book) {
-              <a [routerLink]="['/books', featured()!.book!.slug]" class="group cursor-pointer reveal" [style.transition-delay]="'0ms'">
+              <a [routerLink]="['/books/novel', featured()!.book!.slug]" class="group cursor-pointer reveal" [style.transition-delay]="'0ms'">
                 <div class="relative aspect-[3/4] overflow-hidden mb-4 clip-image-diag bg-[var(--books-surface)] hover-lift">
                   <div class="absolute inset-0 bg-[#590d0d] opacity-0 group-hover:opacity-30 transition-opacity duration-500 z-10 mix-blend-multiply"></div>
                   
@@ -237,7 +253,7 @@ type FeaturedContent = {
                     <img 
                       [src]="featured()!.book!.coverUrl" 
                       [alt]="featured()!.book!.title"
-                      class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                      class="w-full h-full object-cover image-zoom"
                       loading="lazy"
                       referrerpolicy="no-referrer"
                     >
@@ -250,6 +266,12 @@ type FeaturedContent = {
                   <div class="absolute top-4 right-4 bg-[var(--books-bg)] px-2 py-1 z-20">
                     <span class="text-[10px] tracking-widest text-[var(--books-text)] uppercase sans-text">BOOK</span>
                   </div>
+
+                  @if (getBookProgress(featured().book?.slug); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/35 z-20">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
+                  }
                 </div>
 
                 <div class="flex justify-between items-start border-t border-[var(--books-border)] pt-3 group-hover:border-[#8a1c1c] transition-colors">
@@ -275,7 +297,7 @@ type FeaturedContent = {
                     <img 
                       [src]="featured()!.comic!.coverUrl" 
                       [alt]="featured()!.comic!.title"
-                      class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                      class="w-full h-full object-cover image-zoom"
                       loading="lazy"
                       referrerpolicy="no-referrer"
                     >
@@ -288,6 +310,12 @@ type FeaturedContent = {
                   <div class="absolute top-4 right-4 bg-[var(--books-bg)] px-2 py-1 z-20">
                     <span class="text-[10px] tracking-widest text-[var(--books-text)] uppercase sans-text">COMIC</span>
                   </div>
+
+                  @if (getMangaProgress(featured().comic?.id); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/35 z-20">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
+                  }
                 </div>
 
                 <div class="flex justify-between items-start border-t border-[var(--books-border)] pt-3 group-hover:border-[#8a1c1c] transition-colors">
@@ -315,7 +343,7 @@ type FeaturedContent = {
                     <img 
                       [src]="featured()!.manga!.coverUrl" 
                       [alt]="featured()!.manga!.title"
-                      class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                      class="w-full h-full object-cover image-zoom"
                       loading="lazy"
                       referrerpolicy="no-referrer"
                       [class.opacity-0]="isMangaChanging()"
@@ -331,6 +359,12 @@ type FeaturedContent = {
                   <div class="absolute top-4 right-4 bg-[var(--books-bg)] px-2 py-1 z-20">
                     <span class="text-[10px] tracking-widest text-[var(--books-text)] uppercase sans-text">MANGA</span>
                   </div>
+
+                  @if (getMangaProgress(featured().manga?.id); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/35 z-20">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
+                  }
                 </div>
 
                 <div class="flex justify-between items-start border-t border-[var(--books-border)] pt-3 group-hover:border-[#8a1c1c] transition-colors">
@@ -379,12 +413,18 @@ type FeaturedContent = {
         } @else if (books().length > 0) {
           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             @for (book of books().slice(0, 6); track book.id; let idx = $index) {
-              <a [routerLink]="['/books', book.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
+              <a [routerLink]="['/books/novel', book.slug]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
                 <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (book.coverUrl) {
-                    <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
+                    <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">📚</div>
+                  }
+
+                  @if (getBookProgress(book.slug); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/35">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
                   }
                 </div>
                 <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ book.title }}</h3>
@@ -412,9 +452,15 @@ type FeaturedContent = {
             <a [routerLink]="['/books/light-novels']" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
               <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                 @if (series.coverUrl) {
-                  <img [src]="series.coverUrl" [alt]="series.seriesTitle" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
+                  <img [src]="series.coverUrl" [alt]="series.seriesTitle" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                 } @else {
                   <div class="w-full h-full flex items-center justify-center text-3xl">📘</div>
+                }
+
+                @if (getSeriesProgress(series.volumes); as progress) {
+                  <div class="absolute inset-x-0 bottom-0 h-1 bg-black/35">
+                    <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                  </div>
                 }
               </div>
               <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ series.seriesTitle }}</h3>
@@ -451,12 +497,17 @@ type FeaturedContent = {
               <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
                 <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (comic.coverUrl) {
-                    <img [src]="comic.coverUrl" [alt]="comic.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
+                    <img [src]="comic.coverUrl" [alt]="comic.title" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">📖</div>
                   }
                   @if (comic.latestChapter) {
                     <div class="absolute bottom-2 left-2 bg-[var(--books-bg)] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ comic.latestChapter }}</div>
+                  }
+                  @if (getMangaProgress(comic.id); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/35">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
                   }
                 </div>
                 <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ comic.title }}</h3>
@@ -493,12 +544,17 @@ type FeaturedContent = {
               <a [routerLink]="['/books/manga', toRouteParam(m.id)]" class="group reveal" [style.transition-delay]="idx * 50 + 'ms'">
                 <div class="relative aspect-[2/3] overflow-hidden mb-3 clip-image-diag bg-[var(--books-surface)]">
                   @if (m.coverUrl) {
-                    <img [src]="m.coverUrl" [alt]="m.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom" loading="lazy" referrerpolicy="no-referrer">
+                    <img [src]="m.coverUrl" [alt]="m.title" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
                     <div class="w-full h-full flex items-center justify-center text-3xl">🎌</div>
                   }
                   @if (m.latestChapter) {
                     <div class="absolute bottom-2 left-2 bg-[var(--books-bg)] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ m.latestChapter }}</div>
+                  }
+                  @if (getMangaProgress(m.id); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/35">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
                   }
                 </div>
                 <h3 class="serif-text text-lg text-[var(--books-text)] truncate">{{ m.title }}</h3>
@@ -530,6 +586,8 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
   
   // Featured content
   featured = signal<FeaturedContent>({ book: null, comic: null, manga: null });
+  bookProgressBySlug = signal<Record<string, number>>({});
+  mangaProgressById = signal<Record<string, number>>({});
   isMangaChanging = signal(false);
   
   // Scroll progress for hero line
@@ -546,6 +604,7 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.loadBooks();
+    this.loadMangaProgressHistory();
     this.loadLightNovelSeries();
     this.loadComics();
     this.loadManga();
@@ -597,6 +656,7 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.books.set(response.data);
+          this.loadBookProgress(response.data.map((book) => book.slug));
           if (response.data.length > 0) {
             const book = response.data[0];
             this.featured.update(f => ({
@@ -627,7 +687,10 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
       .get<{ status: string; data: LightNovelSeries[] }>('/api/v1/books/light-novels?page=1&limit=20')
       .subscribe({
         next: (response) => {
-          this.lightNovelSeries.set(response.data || []);
+          const series = response.data || [];
+          this.lightNovelSeries.set(series);
+          const slugs = series.flatMap((entry) => entry.volumes.map((volume) => volume.slug));
+          this.loadBookProgress(slugs);
           this.observeReveals();
         },
         error: () => {
@@ -720,6 +783,90 @@ export class BooksEditorialLandingComponent implements OnInit, OnDestroy {
           this.isMangaLoading.set(false);
           this.observeReveals();
         }
+      });
+  }
+
+  getBookProgress(slug?: string): number | null {
+    if (!slug) return null;
+    const value = this.bookProgressBySlug()[slug];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  getSeriesProgress(volumes: LightNovelSeriesVolume[]): number | null {
+    let max = 0;
+    for (const volume of volumes) {
+      const progress = this.getBookProgress(volume.slug) ?? 0;
+      if (progress > max) {
+        max = progress;
+      }
+    }
+    return max > 0 ? max : null;
+  }
+
+  getMangaProgress(mangaId?: string): number | null {
+    if (!mangaId) return null;
+    const value = this.mangaProgressById()[mangaId];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  private loadBookProgress(slugs: string[]) {
+    const uniqueSlugs = Array.from(new Set(slugs.filter(Boolean))).slice(0, 16);
+    if (uniqueSlugs.length === 0) return;
+
+    const requests = uniqueSlugs.map((slug) =>
+      this.http
+        .get<BookProgressResponse>(`/api/v1/books/progress/${encodeURIComponent(slug)}`)
+        .pipe(
+          map((response) => {
+            const page = response?.data?.page ?? 0;
+            // UX proxy: map page number to a bounded indicator when total pages are unknown.
+            const percentage = Math.max(0, Math.min(100, page));
+            return { slug, percentage };
+          }),
+          catchError(() => of({ slug, percentage: 0 })),
+        ),
+    );
+
+    forkJoin(requests).subscribe((entries) => {
+      const next: Record<string, number> = { ...this.bookProgressBySlug() };
+      for (const entry of entries) {
+        if (entry.percentage > 0) {
+          next[entry.slug] = entry.percentage;
+        }
+      }
+      this.bookProgressBySlug.set(next);
+    });
+  }
+
+  private loadMangaProgressHistory() {
+    this.http
+      .get<MangaHistoryResponse>('/api/v1/books/manga/history?limit=200')
+      .pipe(catchError(() => of({ status: 'error', data: [] as MangaHistoryResponse['data'] })))
+      .subscribe((response) => {
+        const history = response?.data ?? [];
+        const progressById: Record<string, number> = {};
+
+        for (const item of history) {
+          if (!item?.mangaId) {
+            continue;
+          }
+
+          const totalPages = item.totalPages ?? 0;
+          const pageIndex = item.pageIndex ?? 0;
+          if (totalPages <= 0) {
+            continue;
+          }
+
+          const percentage = Math.max(0, Math.min(100, ((pageIndex + 1) / totalPages) * 100));
+          const existing = progressById[item.mangaId] ?? 0;
+          if (percentage > existing) {
+            progressById[item.mangaId] = percentage;
+          }
+        }
+
+        this.mangaProgressById.set(progressById);
       });
   }
 

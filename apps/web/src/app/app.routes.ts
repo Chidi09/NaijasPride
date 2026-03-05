@@ -96,6 +96,8 @@ export const routes: Routes = [
       // Book detail & reader
       { path: 'novel/:slug', loadComponent: () => import('./features/books/pages/book-detail/book-detail.component').then(m => m.BookDetailComponent) },
       { path: 'novel/:slug/read', loadComponent: () => import('./features/books/pages/book-reader/book-reader.component').then(m => m.BookReaderComponent) },
+      // Legacy short book route
+      { path: ':slug', redirectTo: 'novel/:slug', pathMatch: 'full' },
       // Manga detail & reader
       { path: 'manga/:mangaId', loadComponent: () => import('./features/books/pages/manga-detail/manga-detail.component').then(m => m.MangaDetailComponent) },
       { path: 'manga/:mangaId/read/:chapter', loadComponent: () => import('./features/books/pages/manga-reader/manga-reader.component').then(m => m.MangaReaderComponent) },

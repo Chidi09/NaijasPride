@@ -209,7 +209,7 @@ type LightNovelSeriesDetail = {
                 <div class="mt-4 space-y-2">
                   @for (volume of series.volumes; track volume.id) {
                     <a
-                      [routerLink]="['/books', volume.slug]"
+                      [routerLink]="['/books/novel', volume.slug]"
                       class="flex items-center justify-between gap-3 rounded border px-3 py-2 transition"
                       [class.border-[#800020]]="volume.slug === book.slug"
                       [class.border-[#e4d0c5]]="volume.slug !== book.slug"

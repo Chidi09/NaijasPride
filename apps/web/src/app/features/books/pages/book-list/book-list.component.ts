@@ -6,6 +6,8 @@ import { Book, PaginationMeta } from '@naijaspride/types';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 type MangaPreview = {
   id: string;
@@ -16,6 +18,13 @@ type MangaPreview = {
 
 type MangaDiscoverPayload = {
   trending: MangaPreview[];
+};
+
+type BookProgressResponse = {
+  status: string;
+  data?: {
+    page?: number;
+  } | null;
 };
 
 @Component({
@@ -56,7 +65,7 @@ type MangaDiscoverPayload = {
         <div class="np-cover-grid">
           @for (book of books(); track book.id) {
             <mat-card class="np-cover-card">
-              <a [routerLink]="['/books', book.slug]" class="np-cover-link">
+              <a [routerLink]="['/books/novel', book.slug]" class="np-cover-link">
                 <div class="np-cover-media">
                   @if (book.coverUrl) {
                     <img
@@ -68,6 +77,12 @@ type MangaDiscoverPayload = {
                     >
                   } @else {
                     <div class="absolute inset-0 flex items-center justify-center text-4xl">📚</div>
+                  }
+
+                  @if (getBookProgress(book.slug); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/45">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
                   }
                 </div>
                 <div class="np-cover-body">
@@ -145,6 +160,7 @@ export class BookListComponent {
   currentPage = signal(1);
   trendingManga = signal<MangaPreview[]>([]);
   isTrendingLoading = signal(false);
+  bookProgressBySlug = signal<Record<string, number>>({});
 
   constructor() {
     this.loadTrendingManga();
@@ -183,6 +199,7 @@ export class BookListComponent {
           // in /books/light-novels to avoid scattered volumes.
           const filtered = (response.data || []).filter((book) => !this.isLightNovel(book));
           this.books.set(filtered);
+          this.loadBookProgress(filtered.map((book) => book.slug));
           this.meta.set(response.meta);
           this.isLoading.set(false);
         },
@@ -209,5 +226,42 @@ export class BookListComponent {
 
   toRouteParam(value: string) {
     return encodeURIComponent(value);
+  }
+
+  getBookProgress(slug?: string): number | null {
+    if (!slug) return null;
+    const value = this.bookProgressBySlug()[slug];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  private loadBookProgress(slugs: string[]) {
+    const uniqueSlugs = Array.from(new Set(slugs.filter(Boolean))).slice(0, 20);
+    if (uniqueSlugs.length === 0) {
+      this.bookProgressBySlug.set({});
+      return;
+    }
+
+    const requests = uniqueSlugs.map((slug) =>
+      this.http
+        .get<BookProgressResponse>(`/api/v1/books/progress/${encodeURIComponent(slug)}`)
+        .pipe(
+          map((response) => {
+            const page = response?.data?.page ?? 0;
+            return { slug, percentage: Math.max(0, Math.min(100, page)) };
+          }),
+          catchError(() => of({ slug, percentage: 0 })),
+        ),
+    );
+
+    forkJoin(requests).subscribe((entries) => {
+      const next: Record<string, number> = {};
+      for (const entry of entries) {
+        if (entry.percentage > 0) {
+          next[entry.slug] = entry.percentage;
+        }
+      }
+      this.bookProgressBySlug.set(next);
+    });
   }
 }

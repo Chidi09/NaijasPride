@@ -80,7 +80,7 @@ type MangaResult = {
               @if (books().length > 0) {
                 <div class="space-y-2">
                   @for (book of books(); track book.id) {
-                    <a [routerLink]="['/books', book.slug]" class="flex items-center gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-2">
+                    <a [routerLink]="['/books/novel', book.slug]" class="flex items-center gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-2">
                       <img [src]="book.coverUrl || ''" [alt]="book.title" class="h-14 w-10 rounded object-cover" referrerpolicy="no-referrer" />
                       <div class="min-w-0">
                         <p class="truncate text-sm font-medium">{{ book.title }}</p>

@@ -5,6 +5,15 @@ import { RouterLink } from '@angular/router';
 import { WatchApiService, WatchHistoryItem } from '../watch/services/watch-api.service';
 import { BookSummary, MusicFeaturedSections, MovieSummary } from '@naijaspride/types';
 import { AuthService } from '../../core/auth/auth.service';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+
+type BookProgressResponse = {
+  status: string;
+  data?: {
+    page?: number;
+  } | null;
+};
 
 @Component({
   selector: 'app-home',
@@ -128,6 +137,11 @@ import { AuthService } from '../../core/auth/auth.service';
                       @if (movie.isStreamOnly) {
                         <div class="absolute top-1 right-1 rounded bg-blue-600 px-1.5 py-0.5 text-[8px] font-bold text-white">STREAM</div>
                       }
+                      @if (getMovieProgress(movie.id); as progress) {
+                        <div class="absolute inset-x-0 bottom-0 h-1 bg-black/50">
+                          <div class="h-full bg-[var(--brand)]" [style.width.%]="progress"></div>
+                        </div>
+                      }
                     </div>
                     <p class="mt-2 truncate text-xs font-medium">{{ movie.title }}</p>
                     <p class="text-[10px] text-[var(--text-muted)]">{{ movie.year }}</p>
@@ -146,9 +160,14 @@ import { AuthService } from '../../core/auth/auth.service';
               </div>
               <div class="space-y-3">
                 @for (book of books(); track book.id) {
-                  <a [routerLink]="['/books', book.slug]" class="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-3 transition hover:border-[var(--brand)]">
-                    <div class="h-16 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--bg-elevated)]">
+                  <a [routerLink]="['/books/novel', book.slug]" class="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-3 transition hover:border-[var(--brand)]">
+                    <div class="relative h-16 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--bg-elevated)]">
                       <img [src]="book.coverUrl || ''" [alt]="book.title" class="h-full w-full object-cover" referrerpolicy="no-referrer">
+                      @if (getBookProgress(book.slug); as progress) {
+                        <div class="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                          <div class="h-full bg-[var(--brand)]" [style.width.%]="progress"></div>
+                        </div>
+                      }
                     </div>
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-medium">{{ book.title }}</p>
@@ -244,6 +263,8 @@ export class HomeComponent implements OnInit {
   recentMovies = signal<MovieSummary[]>([]);
   books = signal<BookSummary[]>([]);
   musicTrending = signal<MusicFeaturedSections['trending']>([]);
+  movieProgressById = signal<Record<string, number>>({});
+  bookProgressBySlug = signal<Record<string, number>>({});
 
   userName = signal('Guest');
   userInitials = signal('G');
@@ -259,6 +280,13 @@ export class HomeComponent implements OnInit {
     // Continue watching
     this.watchApi.getWatchHistory({ page: 1, limit: 10 }).subscribe({
       next: (res) => {
+        const progressMap: Record<string, number> = {};
+        for (const item of res.data || []) {
+          if (!item.movie?.id || item.progressPercentage <= 0) continue;
+          progressMap[item.movie.id] = Math.max(0, Math.min(100, item.progressPercentage));
+        }
+        this.movieProgressById.set(progressMap);
+
         const rows = (res.data || []).filter((item) => item.progressPercentage > 0 && item.progressPercentage < 95);
         this.continueWatching.set(rows);
         this.isLoadingContinue.set(false);
@@ -277,7 +305,11 @@ export class HomeComponent implements OnInit {
     this.http.get<{ success?: boolean; data?: BookSummary[] }>('/api/v1/books', {
       params: { page: '1', limit: '4', kind: 'book' },
     }).subscribe({
-      next: (res) => this.books.set((res.data || []).slice(0, 4)),
+      next: (res) => {
+        const nextBooks = (res.data || []).slice(0, 4);
+        this.books.set(nextBooks);
+        this.loadBookProgress(nextBooks.map((book) => book.slug));
+      },
     });
 
     // Music
@@ -291,5 +323,46 @@ export class HomeComponent implements OnInit {
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  getMovieProgress(movieId?: string): number | null {
+    if (!movieId) return null;
+    const value = this.movieProgressById()[movieId];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  getBookProgress(slug?: string): number | null {
+    if (!slug) return null;
+    const value = this.bookProgressBySlug()[slug];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  private loadBookProgress(slugs: string[]) {
+    const uniqueSlugs = Array.from(new Set(slugs.filter(Boolean))).slice(0, 10);
+    if (uniqueSlugs.length === 0) return;
+
+    const requests = uniqueSlugs.map((slug) =>
+      this.http
+        .get<BookProgressResponse>(`/api/v1/books/progress/${encodeURIComponent(slug)}`)
+        .pipe(
+          map((response) => {
+            const page = response?.data?.page ?? 0;
+            return { slug, percentage: Math.max(0, Math.min(100, page)) };
+          }),
+          catchError(() => of({ slug, percentage: 0 })),
+        ),
+    );
+
+    forkJoin(requests).subscribe((entries) => {
+      const next: Record<string, number> = { ...this.bookProgressBySlug() };
+      for (const entry of entries) {
+        if (entry.percentage > 0) {
+          next[entry.slug] = entry.percentage;
+        }
+      }
+      this.bookProgressBySlug.set(next);
+    });
   }
 }

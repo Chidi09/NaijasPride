@@ -6,6 +6,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 type LightNovelVolume = {
   id: string;
@@ -39,6 +41,13 @@ type PaginationMeta = {
   totalPages: number;
   hasNext: boolean;
   hasPrev: boolean;
+};
+
+type BookProgressResponse = {
+  status: string;
+  data?: {
+    page?: number;
+  } | null;
 };
 
 @Component({
@@ -112,6 +121,12 @@ type PaginationMeta = {
                   <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-white/85">
                     Series
                   </div>
+
+                  @if (getSeriesProgress(item.volumes); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/55">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
+                  }
                 </div>
 
                 <div class="p-3 sm:p-4">
@@ -125,8 +140,8 @@ type PaginationMeta = {
                   <div class="mt-3 grid gap-2">
                     @for (volume of item.volumes; track volume.id) {
                       <a
-                        [routerLink]="['/books', volume.slug]"
-                        class="group flex items-center justify-between gap-2 rounded-lg border border-[#e6d7cc] px-3 py-2 transition hover:border-[#800020] hover:bg-[#fff6f2] dark:border-cinema-800 dark:hover:bg-cinema-900"
+                        [routerLink]="['/books/novel', volume.slug]"
+                        class="group relative overflow-hidden flex items-center justify-between gap-2 rounded-lg border border-[#e6d7cc] px-3 py-2 transition hover:border-[#800020] hover:bg-[#fff6f2] dark:border-cinema-800 dark:hover:bg-cinema-900"
                       >
                         <span class="truncate text-sm text-[#24181b] dark:text-white">
                           @if (volume.volumeNumber !== null) {
@@ -135,6 +150,12 @@ type PaginationMeta = {
                           {{ volume.title }}
                         </span>
                         <span class="shrink-0 text-xs text-[#8a756e] dark:text-gray-400">{{ volume.year }}</span>
+
+                        @if (getBookProgress(volume.slug); as progress) {
+                          <div class="absolute inset-x-0 bottom-0 h-1 bg-black/25">
+                            <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                          </div>
+                        }
                       </a>
                     }
                   </div>
@@ -161,6 +182,7 @@ export class LightNovelsLibraryComponent {
   series = signal<LightNovelSeries[]>([]);
   meta = signal<PaginationMeta | null>(null);
   isLoading = signal(true);
+  bookProgressBySlug = signal<Record<string, number>>({});
 
   page = signal(1);
   searchQuery = '';
@@ -200,15 +222,66 @@ export class LightNovelsLibraryComponent {
       .subscribe({
         next: (response) => {
           this.series.set(response.data || []);
+          const slugs = (response.data || []).flatMap((entry) => entry.volumes.map((volume) => volume.slug));
+          this.loadBookProgress(slugs);
           this.meta.set(response.meta || null);
           this.isLoading.set(false);
         },
         error: (error) => {
           console.error('Error loading light novel series:', error);
           this.series.set([]);
+          this.bookProgressBySlug.set({});
           this.meta.set(null);
           this.isLoading.set(false);
         },
       });
+  }
+
+  getBookProgress(slug?: string): number | null {
+    if (!slug) return null;
+    const value = this.bookProgressBySlug()[slug];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  getSeriesProgress(volumes: LightNovelVolume[]): number | null {
+    let max = 0;
+    for (const volume of volumes) {
+      const progress = this.getBookProgress(volume.slug) ?? 0;
+      if (progress > max) {
+        max = progress;
+      }
+    }
+    return max > 0 ? max : null;
+  }
+
+  private loadBookProgress(slugs: string[]) {
+    const uniqueSlugs = Array.from(new Set(slugs.filter(Boolean))).slice(0, 80);
+    if (uniqueSlugs.length === 0) {
+      this.bookProgressBySlug.set({});
+      return;
+    }
+
+    const requests = uniqueSlugs.map((slug) =>
+      this.http
+        .get<BookProgressResponse>(`/api/v1/books/progress/${encodeURIComponent(slug)}`)
+        .pipe(
+          map((response) => {
+            const page = response?.data?.page ?? 0;
+            return { slug, percentage: Math.max(0, Math.min(100, page)) };
+          }),
+          catchError(() => of({ slug, percentage: 0 })),
+        ),
+    );
+
+    forkJoin(requests).subscribe((entries) => {
+      const next: Record<string, number> = {};
+      for (const entry of entries) {
+        if (entry.percentage > 0) {
+          next[entry.slug] = entry.percentage;
+        }
+      }
+      this.bookProgressBySlug.set(next);
+    });
   }
 }

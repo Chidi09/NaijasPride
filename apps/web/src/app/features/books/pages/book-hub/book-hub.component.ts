@@ -55,7 +55,7 @@ type SourceDiscoverResponse = {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
             <!-- Featured Book -->
             <div class="group">
-              <a [routerLink]="featured().book?.slug ? ['/books', featured().book!.slug] : null" class="block">
+              <a [routerLink]="featured().book?.slug ? ['/books/novel', featured().book!.slug] : null" class="block">
                 <mat-card class="np-surface-card overflow-hidden transition-all hover:scale-[1.01]">
                 <div class="p-4 border-b border-cinema-700">
                   <span class="text-xs font-bold tracking-wider text-blue-400 uppercase">📚 Popular Book</span>
@@ -196,7 +196,7 @@ type SourceDiscoverResponse = {
             <div class="np-cover-grid">
               @for (book of books().slice(0, 12); track book.id) {
                 <mat-card class="np-cover-card">
-                  <a [routerLink]="['/books', book.slug]" class="np-cover-link">
+                  <a [routerLink]="['/books/novel', book.slug]" class="np-cover-link">
                     <div class="np-cover-media">
                       @if (book.coverUrl) {
                         <img
