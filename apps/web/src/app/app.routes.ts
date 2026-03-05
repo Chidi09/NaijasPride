@@ -107,6 +107,7 @@ export const routes: Routes = [
     ]
   },
   // Legacy book redirects
+  { path: 'books/:slug', redirectTo: 'books/novel/:slug', pathMatch: 'full' },
   { path: 'books/all', redirectTo: 'books', pathMatch: 'full' },
   { path: 'books/light-novels', redirectTo: 'books', pathMatch: 'full' },
   { path: 'books/comics', redirectTo: 'books', pathMatch: 'full' },
