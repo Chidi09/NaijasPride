@@ -37,7 +37,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
         amountKobo = plan === 'yearly' ? 1_200_000 : 150_000;
       }
 
-      const data = await service.initializeTransaction(user.email, amountKobo);
+      const data = await service.initializeTransaction({ id: user.id, email: user.email }, amountKobo);
       return { success: true, data };
     }
   );
