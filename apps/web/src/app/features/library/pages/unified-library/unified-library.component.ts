@@ -196,10 +196,10 @@ interface LibrarySummary {
               @for (book of continueReadingBooks(); track book.id) {
                 <a [routerLink]="['/books/novel', book.slug]" class="group w-32 flex-shrink-0">
                   <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#e5d2c6] dark:bg-cinema-700">
-                    <img [src]="book.coverUrl || ''" [alt]="book.title" class="h-full w-full object-cover transition group-hover:scale-105" referrerpolicy="no-referrer">
+                    <img [src]="getBookCover(book.slug, book.coverUrl)" [alt]="book.title" class="h-full w-full object-cover transition group-hover:scale-105" referrerpolicy="no-referrer">
                     @if (getBookProgress(book.slug); as progress) {
                       <div class="absolute inset-x-0 bottom-0 h-1 bg-black/55">
-                        <div class="h-full bg-cinema-500" [style.width.%]="progress"></div>
+                        <div class="h-full bg-cinema-500" [style.width.%]="getBookProgressWidth(progress)"></div>
                       </div>
                     }
                   </div>
@@ -254,6 +254,16 @@ export class UnifiedLibraryComponent implements OnInit {
     const value = this.bookProgressBySlug()[slug];
     if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
     return Math.max(0, Math.min(100, value));
+  }
+
+  getBookProgressWidth(value: number): number {
+    return Math.max(4, Math.min(100, value));
+  }
+
+  getBookCover(slug?: string, coverUrl?: string | null): string {
+    if (coverUrl && coverUrl.trim().length > 0) return coverUrl;
+    if (!slug) return '';
+    return `/api/v1/books/cover/${encodeURIComponent(slug)}`;
   }
 
   private loadContinueWatching() {

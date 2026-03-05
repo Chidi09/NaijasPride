@@ -72,7 +72,7 @@ type SourceDiscoverResponse = {
                 <div class="p-4 flex gap-4">
                   <div class="w-24 h-36 flex-shrink-0 rounded overflow-hidden relative">
                     <img
-                      [src]="getBookCover(featured().book?.coverUrl)"
+                      [src]="getBookCover(featured().book?.slug, featured().book?.coverUrl)"
                       [alt]="featured().book?.title || 'Featured book'"
                       loading="lazy"
                       decoding="async"
@@ -81,7 +81,7 @@ type SourceDiscoverResponse = {
                     >
                     @if (getBookProgress(featured().book?.slug); as progress) {
                       <div class="absolute inset-x-0 bottom-0 h-1 bg-black/40">
-                        <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                        <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="getBookProgressWidth(progress)"></div>
                       </div>
                     }
                   </div>
@@ -207,7 +207,7 @@ type SourceDiscoverResponse = {
                   <a [routerLink]="['/books/novel', book.slug]" class="np-cover-link">
                     <div class="np-cover-media">
                       <img
-                        [src]="getBookCover(book.coverUrl)"
+                        [src]="getBookCover(book.slug, book.coverUrl)"
                         [alt]="book.title"
                         loading="lazy"
                         decoding="async"
@@ -215,7 +215,7 @@ type SourceDiscoverResponse = {
                       >
                       @if (getBookProgress(book.slug); as progress) {
                         <div class="absolute inset-x-0 bottom-0 h-1 bg-black/40">
-                          <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                          <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="getBookProgressWidth(progress)"></div>
                         </div>
                       }
                     </div>
@@ -536,8 +536,10 @@ export class BookHubComponent implements OnInit, OnDestroy {
     return encodeURIComponent(value);
   }
 
-  getBookCover(coverUrl?: string | null): string {
-    return coverUrl && coverUrl.trim().length > 0 ? coverUrl : 'assets/images/things-fall-apart.jpg';
+  getBookCover(slug?: string, coverUrl?: string | null): string {
+    if (coverUrl && coverUrl.trim().length > 0) return coverUrl;
+    if (!slug) return '';
+    return `/api/v1/books/cover/${encodeURIComponent(slug)}`;
   }
 
   getBookProgress(slug?: string): number | null {
@@ -545,6 +547,10 @@ export class BookHubComponent implements OnInit, OnDestroy {
     const value = this.bookProgressBySlug()[slug];
     if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
     return Math.max(0, Math.min(100, value));
+  }
+
+  getBookProgressWidth(value: number): number {
+    return Math.max(4, Math.min(100, value));
   }
 
   private loadBookProgress(slugs: string[]) {

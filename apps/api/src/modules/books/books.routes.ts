@@ -20,6 +20,7 @@ import {
 import { importElsciLightNovelsCatalog } from './external/elsci/importer';
 import { QueueService, bookImportQueue } from '../../shared/services/queue.service';
 import { getPushService } from '../../shared/services/push-notification.service';
+import { HeadObjectCommand } from '@aws-sdk/client-s3';
 
 const createBookSchema = z.object({
   title: z.string().trim().min(1),
@@ -1774,6 +1775,66 @@ export const bookRoutes = async (
         return reply.status(404).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Book file not found',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/cover/:slug - Resolve a cover URL from DB or canonical R2 keys
+  app.get('/cover/:slug', {
+    schema: {
+      params: z.object({ slug: z.string().trim().min(1) }),
+    },
+    handler: async (request, reply) => {
+      try {
+        const { slug } = request.params as { slug: string };
+        const book = await app.prisma.book.findUnique({
+          where: { slug },
+          select: { id: true, slug: true, coverUrl: true },
+        });
+
+        if (!book) {
+          return reply.status(404).send({ status: 'error', message: 'Book not found' });
+        }
+
+        if (book.coverUrl && book.coverUrl.trim()) {
+          return reply.redirect(book.coverUrl.trim());
+        }
+
+        const candidateKeys = [
+          `covers/books/${book.slug}.jpg`,
+          `covers/books/${book.slug}.jpeg`,
+          `covers/books/${book.slug}.png`,
+          `covers/books/${book.slug}.webp`,
+        ];
+
+        for (const key of candidateKeys) {
+          try {
+            await StorageService.getClient().send(
+              new HeadObjectCommand({
+                Bucket: StorageService.getBucket(),
+                Key: key,
+              }),
+            );
+
+            const resolvedCoverUrl = await storageService.getDownloadUrl(key, { expiresInSeconds: 60 * 60 });
+
+            await app.prisma.book.update({
+              where: { id: book.id },
+              data: { coverUrl: resolvedCoverUrl },
+            });
+
+            return reply.redirect(resolvedCoverUrl);
+          } catch {
+            // try next extension
+          }
+        }
+
+        return reply.status(404).send({ status: 'error', message: 'Cover not found' });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to resolve cover',
         });
       }
     },
