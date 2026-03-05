@@ -74,14 +74,18 @@ const STORAGE_KEY = 'np_cookie_consent';
 })
 export class CookieConsentComponent implements OnInit {
   visible = signal(false);
+  private revealTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit() {
-    // Show only if user hasn't already accepted/dismissed
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) {
-        // Small delay so it doesn't pop in before the page has painted
-        setTimeout(() => this.visible.set(true), 1200);
+        if (typeof window !== 'undefined') {
+          window.addEventListener('pointerdown', this.revealFromInteraction, { once: true, passive: true });
+          window.addEventListener('keydown', this.revealFromInteraction, { once: true });
+          window.addEventListener('scroll', this.revealFromInteraction, { once: true, passive: true });
+          this.revealTimer = setTimeout(this.revealFromInteraction, 8000);
+        }
       }
     }
   }
@@ -89,10 +93,30 @@ export class CookieConsentComponent implements OnInit {
   accept() {
     localStorage.setItem(STORAGE_KEY, 'accepted');
     this.visible.set(false);
+    this.removeInteractionListeners();
   }
 
   dismiss() {
     localStorage.setItem(STORAGE_KEY, 'dismissed');
     this.visible.set(false);
+    this.removeInteractionListeners();
   }
+
+  private removeInteractionListeners(): void {
+    if (typeof window === 'undefined') return;
+    window.removeEventListener('pointerdown', this.revealFromInteraction);
+    window.removeEventListener('keydown', this.revealFromInteraction);
+    window.removeEventListener('scroll', this.revealFromInteraction);
+  }
+
+  private readonly revealFromInteraction = () => {
+    if (!this.visible()) {
+      this.visible.set(true);
+    }
+    this.removeInteractionListeners();
+    if (this.revealTimer) {
+      clearTimeout(this.revealTimer);
+      this.revealTimer = null;
+    }
+  };
 }

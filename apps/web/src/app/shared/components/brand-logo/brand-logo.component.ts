@@ -10,6 +10,8 @@ import { Component, Input } from '@angular/core';
       [class]="className"
       [attr.loading]="loading"
       [attr.decoding]="decoding"
+      [attr.width]="width"
+      [attr.height]="height"
     >
   `,
 })
@@ -19,6 +21,8 @@ export class BrandLogoComponent {
   @Input() className = '';
   @Input() loading: 'eager' | 'lazy' = 'eager';
   @Input() decoding: 'auto' | 'sync' | 'async' = 'async';
+  @Input() width = 180;
+  @Input() height = 52;
 
   readonly fullSrc = 'assets/images/logo.svg';
   readonly markSrc = 'assets/icons/android-chrome-192x192.png';

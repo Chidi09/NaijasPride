@@ -164,7 +164,16 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.themeService.init();
-    void this.firebaseMessaging.init();
+
+    const initializeMessaging = () => {
+      void this.firebaseMessaging.init();
+    };
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (window as Window & { requestIdleCallback: (cb: () => void, options?: { timeout: number }) => number })
+        .requestIdleCallback(initializeMessaging, { timeout: 4000 });
+    } else {
+      setTimeout(initializeMessaging, 2000);
+    }
 
     if (this.deviceService.isTV()) {
       document.body.classList.add('tv-mode');
