@@ -2,11 +2,13 @@ import axios from 'axios';
 import { PrismaClient } from '@prisma/client';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
+const OMDB_API_KEY = process.env.OMDB_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 export interface TMDBMovieDetails {
   id: number;
   title: string;
+  imdb_id?: string | null;
   overview: string;
   tagline: string;
   runtime: number;
@@ -121,6 +123,11 @@ export class TMDBMetadataService {
     // Update images if available
     if (tmdbData.poster_path) {
       updateData.posterUrl = `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`;
+    } else {
+      const fallbackPoster = await this.getOmdbPoster(tmdbData.imdb_id);
+      if (fallbackPoster) {
+        updateData.posterUrl = fallbackPoster;
+      }
     }
     if (tmdbData.backdrop_path) {
       updateData.backdropUrl = `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
@@ -187,6 +194,32 @@ export class TMDBMetadataService {
     } catch (error) {
       console.error('[TMDB] Related movies error:', error);
       return [];
+    }
+  }
+
+  private async getOmdbPoster(imdbId: string | null | undefined): Promise<string | null> {
+    if (!OMDB_API_KEY || !imdbId) {
+      return null;
+    }
+
+    try {
+      const response = await axios.get<{ Poster?: string }>('https://www.omdbapi.com/', {
+        params: {
+          apikey: OMDB_API_KEY,
+          i: imdbId,
+        },
+        timeout: 10000,
+      });
+
+      const poster = response.data?.Poster;
+      if (!poster || poster === 'N/A') {
+        return null;
+      }
+
+      const parsed = new URL(poster);
+      return parsed.toString();
+    } catch {
+      return null;
     }
   }
 }

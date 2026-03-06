@@ -84,9 +84,6 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
         
         <!-- Meta Row -->
         <div class="flex items-center gap-2 text-xs text-[#7e6a63] dark:text-gray-400">
-          @if (movie.rating) {
-            <span class="text-green-400 font-medium">{{ movie.rating }}% Match</span>
-          }
           <span>{{ movie.year }}</span>
           
           @if (movie.genre?.length > 0) {
@@ -159,7 +156,7 @@ export class MovieCardYoutubeComponent implements OnChanges {
   constructor() {
     effect(() => {
       this.hydrateSavedState();
-    });
+    }, { allowSignalWrites: true });
   }
 
   ngOnChanges(changes: SimpleChanges) {

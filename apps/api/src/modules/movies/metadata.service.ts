@@ -44,6 +44,7 @@ type OmdbRating = {
 
 type OmdbResponse = {
   imdbRating?: string;
+  Poster?: string;
   Ratings?: OmdbRating[];
 };
 
@@ -89,6 +90,7 @@ export class MetadataService {
     const details = detailsRes.data;
     let rottenTomatoes: string | null = null;
     let imdbRating: number | null = null;
+    let omdbPoster: string | null = null;
 
     if (details.imdb_id && omdbKey) {
       const omdbRes = await axios.get<OmdbResponse>('https://www.omdbapi.com/', {
@@ -100,6 +102,7 @@ export class MetadataService {
 
       const rt = omdbRes.data.Ratings?.find((rating) => rating.Source === 'Rotten Tomatoes');
       rottenTomatoes = rt?.Value ?? null;
+      omdbPoster = this.normalizeOmdbPosterUrl(omdbRes.data.Poster);
 
       if (omdbRes.data.imdbRating && omdbRes.data.imdbRating !== 'N/A') {
         const parsedImdbRating = Number.parseFloat(omdbRes.data.imdbRating);
@@ -113,6 +116,9 @@ export class MetadataService {
       (video) => video.type === 'Trailer' && video.site === 'YouTube',
     );
 
+    const posterUrl = this.tmdbImage(details.poster_path, 'w500') || omdbPoster;
+    const backdropUrl = this.tmdbImage(details.backdrop_path, 'original');
+
     await this.prisma.movie.update({
       where: { id: movieId },
       data: {
@@ -120,8 +126,8 @@ export class MetadataService {
         imdbId: details.imdb_id,
         overview: details.overview ?? null,
         tagline: details.tagline ?? null,
-        posterUrl: this.tmdbImage(details.poster_path, 'w500'),
-        backdropUrl: this.tmdbImage(details.backdrop_path, 'original'),
+        ...(posterUrl ? { posterUrl } : {}),
+        ...(backdropUrl ? { backdropUrl } : {}),
         tmdbRating: details.vote_average ?? null,
         imdbRating,
         rottenTomatoes,
@@ -146,5 +152,18 @@ export class MetadataService {
     }
 
     return `${TMDB_IMAGE_BASE}/${size}${path}`;
+  }
+
+  private normalizeOmdbPosterUrl(poster: string | undefined): string | null {
+    if (!poster || poster === 'N/A') {
+      return null;
+    }
+
+    try {
+      const parsed = new URL(poster);
+      return parsed.toString();
+    } catch {
+      return null;
+    }
   }
 }

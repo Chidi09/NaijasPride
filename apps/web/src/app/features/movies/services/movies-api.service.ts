@@ -33,6 +33,15 @@ export class MoviesApiService {
     });
   }
 
+  getMovieSuggestions(query: string, limit = 6) {
+    return this.getMovies({
+      q: query,
+      page: 1,
+      limit,
+      sortBy: 'popular',
+    });
+  }
+
   getMovieBySlug(slug: string) {
     return this.http.get<ApiResponse<Movie>>(`/api/v1/movies/${slug}`);
   }
