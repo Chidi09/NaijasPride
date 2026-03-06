@@ -1315,31 +1315,19 @@ export const bookRoutes = async (
         reply.header('content-disposition', `${disposition}; filename="${filename.replace(/"/g, '')}"`);
         return reply.send(upstream.stream);
       } catch (error) {
-        const blockedByCloudflare =
+        // Do NOT redirect to server.elsci.one — the browser will get CORS-blocked
+        // because that origin has no Access-Control-Allow-Origin header.
+        const isBlocked =
           error instanceof Error && /Elsci file request blocked with status/i.test(error.message);
-
-        if (blockedByCloudflare) {
-          const configuredBase =
-            (process.env.ELSCI_LIGHT_NOVELS_BASE_URL || 'https://server.elsci.one').trim() ||
-            'https://server.elsci.one';
-          const baseUrl = configuredBase.replace(/\/+$/, '');
-          const normalizedHref = requestedHref.startsWith('/')
-            ? requestedHref
-            : `/${requestedHref.replace(/^\/+/, '')}`;
-          const fallbackUrl = new URL(normalizedHref, `${baseUrl}/`).toString();
-
-          request.log.warn(
-            { err: error, fallbackUrl },
-            '[Elsci] Upstream blocked server-side request; redirecting client to source URL',
-          );
-
-          reply.header('cache-control', 'no-store');
-          return reply.redirect(fallbackUrl);
-        }
-
-        return reply.status(500).send({
+        request.log.warn(
+          { err: error, href: requestedHref },
+          '[Elsci] Upstream blocked or failed for external file request',
+        );
+        return reply.status(503).send({
           status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to stream Elsci light novel file',
+          message: isBlocked
+            ? 'This light novel is temporarily unavailable (upstream blocked). Please try again later.'
+            : 'Failed to stream Elsci light novel file.',
         });
       }
     },
@@ -1955,27 +1943,23 @@ export const bookRoutes = async (
             reply.header('content-disposition', `${disposition}; filename="${filename.replace(/\"/g, '')}"`);
             return reply.send(upstream.stream);
           } catch (error) {
-            const blockedByCloudflare =
+            // Do NOT redirect to the Elsci origin URL — that causes CORS errors in the
+            // browser because server.elsci.one has no Access-Control-Allow-Origin header.
+            // Redirecting makes epubjs resolve /META-INF/container.xml against the API
+            // origin, which returns HTML and surfaces as an XML parse error.
+            // Instead, return a 503 so the reader shows a friendly error message.
+            const isBlocked =
               error instanceof Error && /Elsci file request blocked with status/i.test(error.message);
-
-            if (blockedByCloudflare) {
-              const configuredBase =
-                (process.env.ELSCI_LIGHT_NOVELS_BASE_URL || 'https://server.elsci.one').trim() ||
-                'https://server.elsci.one';
-              const baseUrl = configuredBase.replace(/\/+$/, '');
-              const normalizedHref = href.startsWith('/') ? href : `/${href.replace(/^\/+/, '')}`;
-              const fallbackUrl = new URL(normalizedHref, `${baseUrl}/`).toString();
-
-              request.log.warn(
-                { err: error, slug, fallbackUrl },
-                '[Elsci] Upstream blocked server-side slug file request; redirecting client to source URL',
-              );
-
-              reply.header('cache-control', 'no-store');
-              return reply.redirect(fallbackUrl);
-            }
-
-            throw error;
+            request.log.warn(
+              { err: error, slug },
+              '[Elsci] Upstream blocked or failed for slug file request',
+            );
+            return reply.status(503).send({
+              status: 'error',
+              message: isBlocked
+                ? 'This light novel is temporarily unavailable (upstream blocked). Please try again later.'
+                : 'Failed to retrieve file from upstream source.',
+            });
           }
         }
 
