@@ -8,10 +8,10 @@ import { MovieCardYoutubeComponent } from '../../components/movie-card-youtube/m
 import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 import { WatchApiService } from '../../../watch/services/watch-api.service';
 
-// Icons
-const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
-const InfoIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
-const ChevronRightIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>`;
+const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+const InfoIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
+const ArrowRightIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
+const DownloadIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
 
 interface FeaturedResponse {
   success: boolean;
@@ -32,245 +32,310 @@ interface FeaturedResponse {
     :host {
       display: block;
       min-height: 100vh;
-      --movies-bg: #f6f1eb;
-      --movies-surface: #ffffff;
-      --movies-surface-strong: #ece3db;
-      --movies-text: #1f1715;
-      --movies-text-muted: #6c5a50;
-      --movies-border: #d8c9bf;
-      --movies-border-strong: #bca99c;
-      --movies-contrast: #121212;
-      background: var(--movies-bg);
-      color: var(--movies-text);
-      font-family: 'Space Grotesk', system-ui, sans-serif;
+      --c-bg: #f5f0ea;
+      --c-surface: #ffffff;
+      --c-surface2: #ede6de;
+      --c-text: #1a1210;
+      --c-muted: #7a6457;
+      --c-border: #d6c8bc;
+      --c-accent: #8a1c1c;
+      --c-yt: #ff0000;
+      background: var(--c-bg);
+      color: var(--c-text);
+      font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
     }
 
     :host-context(.dark) {
-      --movies-bg: #050505;
-      --movies-surface: #1f1f1f;
-      --movies-surface-strong: #121212;
-      --movies-text: #e6e0d4;
-      --movies-text-muted: #bcae9e;
-      --movies-border: #2a2a2a;
-      --movies-border-strong: #3a3a3a;
-      --movies-contrast: #f4ede4;
+      --c-bg: #0c0b0a;
+      --c-surface: #1a1816;
+      --c-surface2: #111009;
+      --c-text: #ede6dc;
+      --c-muted: #9a8878;
+      --c-border: #2e2822;
+      --c-accent: #b02020;
     }
 
-    .display-text { font-family: 'Cinzel', 'Playfair Display', Georgia, serif; font-weight: 400; letter-spacing: 0.05em; }
-    .serif-text { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; }
-    .sans-text { font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 300; }
-    
-    .grain-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; opacity: 0.04; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); }
-    .glass-panel { background: color-mix(in srgb, var(--movies-surface) 75%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--movies-border) 70%, transparent); }
-    .hero-gradient { background: linear-gradient(to top, var(--movies-bg) 10%, transparent 100%); }
-    .side-gradient { background: linear-gradient(to right, var(--movies-bg) 0%, transparent 100%); }
-    
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: var(--movies-bg); }
-    ::-webkit-scrollbar-thumb { background: #800020; }
-    
+    /* scrollbars */
+    .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    
-    .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
-    .reveal.visible { opacity: 1; transform: translateY(0); }
-    
-    .movie-card { transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), z-index 0s; }
-    .movie-card:hover { transform: scale(1.05); z-index: 20; }
-    .movie-card .poster-overlay { opacity: 0; transition: opacity 0.3s ease; }
-    .movie-card:hover .poster-overlay { opacity: 1; }
-    .movie-card img { transition: opacity 0.5s ease; }
+
+    /* hero */
+    .hero-fade { background: linear-gradient(to top, var(--c-bg) 0%, rgba(0,0,0,0) 60%); }
+    .hero-side { background: linear-gradient(to right, var(--c-bg) 0%, transparent 55%); }
+
+    /* section divider */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 32px;
+      margin: 8px 0;
+    }
+    .section-divider-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, var(--c-border), transparent);
+    }
+    .section-divider-line.reverse {
+      background: linear-gradient(to left, var(--c-border), transparent);
+    }
+
+    /* section header pill */
+    .section-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 2px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .pill-download {
+      background: var(--c-accent);
+      color: #fff;
+    }
+    .pill-yt {
+      background: var(--c-yt);
+      color: #fff;
+    }
+
+    /* "view all" link */
+    .view-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--c-muted);
+      transition: color 0.2s, gap 0.2s;
+      text-decoration: none;
+    }
+    .view-all:hover { color: var(--c-accent); gap: 10px; }
+
+    /* section bg bands */
+    .band-download {
+      background: var(--c-bg);
+    }
+    .band-yt {
+      background: var(--c-surface2);
+      border-top: 1px solid var(--c-border);
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    /* card scale on hover */
+    .card-wrap { transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+    .card-wrap:hover { transform: scale(1.04); z-index: 10; }
+
+    /* hero btn */
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 28px;
+      background: var(--c-text);
+      color: var(--c-bg);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 28px;
+      background: color-mix(in srgb, var(--c-surface) 65%, transparent);
+      border: 1px solid color-mix(in srgb, var(--c-border) 70%, transparent);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: var(--c-text);
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn-ghost:hover { background: var(--c-surface); }
+
+    /* skeleton loader */
+    @keyframes shimmer {
+      0% { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, var(--c-surface2) 25%, var(--c-border) 50%, var(--c-surface2) 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.6s infinite;
+      border-radius: 2px;
+    }
   `],
   template: `
-    <!-- Hero Section -->
-    <section class="relative h-[85vh] w-full overflow-hidden">
+    <!-- ═══════════════════ HERO ═══════════════════ -->
+    <section class="relative overflow-hidden" style="height: 82vh; min-height: 480px;">
       <div class="absolute inset-0 z-0">
         @if (heroMovie()?.backdropUrl || heroMovie()?.posterUrl || heroMovie()?.thumbnailUrl; as img) {
-          <img [src]="img" alt="Hero Background" class="w-full h-full object-cover" referrerpolicy="no-referrer">
+          <img [src]="img" alt="" class="w-full h-full object-cover" referrerpolicy="no-referrer">
         } @else {
-          <div class="w-full h-full bg-gradient-to-br from-[var(--movies-surface)] to-[var(--movies-bg)]"></div>
+          <div class="w-full h-full" style="background: linear-gradient(135deg, var(--c-surface2) 0%, var(--c-bg) 100%);"></div>
         }
-        <div class="absolute inset-0 hero-gradient"></div>
-        <div class="absolute inset-0 side-gradient w-1/2"></div>
+        <div class="hero-fade absolute inset-0"></div>
+        <div class="hero-side absolute inset-0"></div>
       </div>
 
-      <div class="relative z-10 h-full flex flex-col justify-end pb-24 px-8 md:px-16 max-w-5xl">
-        <div class="reveal visible">
-          <div class="flex items-center gap-4 mb-4 text-xs font-bold sans-text tracking-widest text-[var(--movies-text)] opacity-85">
-            @if (heroMovie()?.isStreamOnly) {
-              <span class="bg-[#4a0404] px-2 py-1 text-white rounded-sm">STREAM</span>
-            }
-            <span>{{ heroMovie()?.year }}</span>
-            <span class="border border-[var(--movies-border-strong)] px-2 py-[2px] rounded-sm text-[10px]">{{ heroMovie()?.quality?.[0] || 'HD' }}</span>
-            @if (heroMovie()?.durationMinutes) {
-              <span>{{ formatDuration(heroMovie()!.durationMinutes!) }}</span>
-            }
-          </div>
+      <div class="relative z-10 h-full flex flex-col justify-end pb-20 px-8 md:px-16 max-w-4xl">
+        <!-- meta -->
+        <div class="flex flex-wrap items-center gap-3 mb-4" style="font-size:11px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; opacity:0.9;">
+          @if (heroMovie()?.isStreamOnly) {
+            <span style="background: var(--c-yt); color:#fff; padding: 3px 10px; border-radius:2px;">YouTube</span>
+          } @else {
+            <span style="background: var(--c-accent); color:#fff; padding: 3px 10px; border-radius:2px;">Download</span>
+          }
+          @if (heroMovie()?.year) { <span style="color:var(--c-text)">{{ heroMovie()!.year }}</span> }
+          @if (heroMovie()?.quality?.[0]) {
+            <span style="border:1px solid var(--c-border); padding:2px 8px; border-radius:2px; color:var(--c-text)">{{ heroMovie()!.quality![0] }}</span>
+          }
+          @if (heroMovie()?.durationMinutes) {
+            <span style="color:var(--c-muted)">{{ formatDuration(heroMovie()!.durationMinutes!) }}</span>
+          }
+        </div>
 
-          <h1 class="display-text text-5xl md:text-7xl lg:text-8xl text-[var(--movies-contrast)] mb-6 leading-[0.9]">
-            {{ heroMovie()?.title || 'Featured Movie' }}
-          </h1>
+        <h1 style="font-family:'Playfair Display','Georgia',serif; font-weight:700; line-height:0.92; margin-bottom:20px;"
+            class="text-5xl md:text-7xl" [style.color]="'var(--c-text)'">
+          {{ heroMovie()?.title || 'Featured Movie' }}
+        </h1>
 
-          <p class="sans-text text-lg md:text-xl text-[var(--movies-text)] opacity-90 max-w-2xl mb-8 leading-relaxed">
-            {{ heroMovie()?.description || 'Experience the best of Nollywood and African cinema.' }}
-          </p>
-
-          <div class="flex flex-wrap items-center gap-4">
-            @if (heroMovie()?.isStreamOnly && heroMovie()?.slug) {
-              <a [routerLink]="['/watch', heroMovie()!.slug]" class="flex items-center gap-3 px-8 py-4 bg-[var(--movies-contrast)] text-[var(--movies-bg)] rounded-sm hover:opacity-90 transition-all font-bold tracking-wider">
-                <span [innerHTML]="playIcon"></span>
-                <span>PLAY NOW</span>
-              </a>
-            }
-            
-            @if (heroMovie()?.slug) {
-              <a [routerLink]="['/movies', heroMovie()!.slug]" class="flex items-center gap-3 px-8 py-4 glass-panel text-[var(--movies-text)] rounded-sm hover:bg-[var(--movies-surface)] transition-all tracking-wider">
-                <span [innerHTML]="infoIcon"></span>
-                <span>MORE INFO</span>
-              </a>
-            }
-          </div>
+        <div class="flex flex-wrap gap-3">
+          @if (heroMovie()?.isStreamOnly && heroMovie()?.slug) {
+            <a [routerLink]="['/watch', heroMovie()!.slug]" class="btn-primary">
+              <span [innerHTML]="playIcon"></span> Play Now
+            </a>
+          }
+          @if (heroMovie()?.slug) {
+            <a [routerLink]="['/movies', heroMovie()!.slug]" class="btn-ghost">
+              <span [innerHTML]="infoIcon"></span> More Info
+            </a>
+          }
         </div>
       </div>
     </section>
 
-    <!-- Content Rows -->
-    <div class="relative z-20 -mt-24 md:-mt-32 pb-12">
-      
-      <!-- Download Library -->
-      @if (downloadOnly().length > 0) {
-        <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Download</h2>
-              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
-            </div>
-            <a [routerLink]="['/movies/downloads']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
-          </div>
+    <!-- ═══════════════════ SECTION A — DOWNLOAD MOVIES ═══════════════════ -->
+    <section class="band-download py-10 -mt-16 relative z-10">
+      <!-- Section header -->
+      <div class="flex items-center justify-between px-8 md:px-16 mb-6">
+        <div class="flex items-center gap-3">
+          <span class="section-pill pill-download">
+            <span [innerHTML]="downloadIcon"></span>
+            Download Movies
+          </span>
+          <span style="font-family:'Playfair Display',Georgia,serif; font-size:22px; color:var(--c-text); font-weight:600;">
+            Movies & TV Shows
+          </span>
+        </div>
+        <a routerLink="/movies/downloads" class="view-all">
+          View All <span [innerHTML]="arrowIcon"></span>
+        </a>
+      </div>
 
-          <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of downloadOnly(); track movie.id) {
-              <div class="w-[200px] md:w-[280px] flex-shrink-0">
-                <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
-              </div>
-            }
-          </div>
+      <!-- Cards row -->
+      @if (isLoading() && downloadOnly().length === 0) {
+        <div class="flex gap-4 px-8 md:px-16 overflow-hidden">
+          @for (i of skeletons; track i) {
+            <div class="flex-shrink-0 w-[180px] md:w-[220px]">
+              <div class="skeleton w-full rounded" style="aspect-ratio:2/3;"></div>
+              <div class="skeleton mt-2 h-3 w-3/4 rounded"></div>
+              <div class="skeleton mt-1.5 h-2.5 w-1/2 rounded"></div>
+            </div>
+          }
+        </div>
+      } @else if (downloadOnly().length > 0) {
+        <div class="flex overflow-x-auto no-scrollbar pb-4 gap-4 px-8 md:px-16">
+          @for (movie of downloadOnly(); track movie.id) {
+            <div class="card-wrap flex-shrink-0 w-[180px] md:w-[220px]">
+              <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
+            </div>
+          }
+          <!-- "View All" end cap -->
+          <a routerLink="/movies/downloads"
+             class="flex-shrink-0 w-[180px] md:w-[220px] rounded flex flex-col items-center justify-center gap-2 border border-dashed"
+             style="aspect-ratio:2/3; border-color:var(--c-border); color:var(--c-muted); text-decoration:none; transition:border-color 0.2s, color 0.2s;"
+             onmouseenter="this.style.borderColor='var(--c-accent)';this.style.color='var(--c-accent)'"
+             onmouseleave="this.style.borderColor='var(--c-border)';this.style.color='var(--c-muted)'">
+            <span [innerHTML]="arrowIcon" style="transform:scale(1.4)"></span>
+            <span style="font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;">View All</span>
+          </a>
         </div>
       }
+    </section>
 
-      <!-- Trending Now — Netflix-style wide landscape cards -->
-      @if (trendingDownload().length > 0) {
-        <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Trending Now</h2>
-              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
-            </div>
-            <a [routerLink]="['/movies/downloads']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
-          </div>
-
-          <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of trendingDownload(); track movie.id; let i = $index) {
-              <a [routerLink]="['/movies', movie.slug]" class="flex-shrink-0 w-[300px] md:w-[400px] group/card relative rounded-sm overflow-hidden block">
-                <!-- Landscape thumbnail (16:9) -->
-                <div class="aspect-video w-full relative overflow-hidden bg-[var(--movies-surface)]">
-                  <img
-                    [src]="movie.backdropUrl || movie.thumbnailUrl || movie.coverUrl || ''"
-                    [alt]="movie.title"
-                    class="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
-                    referrerpolicy="no-referrer"
-                  />
-                  <!-- Rank number -->
-                  <div class="absolute bottom-0 left-0 text-[100px] font-black text-white/10 select-none pointer-events-none leading-none" style="font-family: serif; margin-left: -6px; margin-bottom: -12px">{{ i + 1 }}</div>
-                  <!-- Gradient overlay -->
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div>
-                  <!-- Quality badge -->
-                  @if (movie.quality?.[0]) {
-                    <div class="absolute top-2 right-2">
-                      <span class="bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wider">{{ movie.quality[0] }}</span>
-                    </div>
-                  }
-                  @if (getMovieProgress(movie.id); as progress) {
-                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/55">
-                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
-                    </div>
-                  }
-                </div>
-                <!-- Info bar -->
-                <div class="bg-[var(--movies-surface)] px-3 py-2.5">
-                  <p class="text-[var(--movies-text)] text-sm font-semibold truncate">{{ movie.title }}</p>
-                  <p class="text-[var(--movies-text-muted)] text-xs mt-0.5 sans-text">{{ movie.year }}@if (movie.genre?.[0]) { &middot; {{ movie.genre[0] }}}</p>
-                </div>
-              </a>
-            }
-          </div>
-        </div>
-      }
-
-      <!-- New Releases -->
-      @if (newReleasesDownload().length > 0) {
-        <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">New Releases</h2>
-              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
-            </div>
-            <a [routerLink]="['/movies/downloads']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
-          </div>
-          
-          <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of newReleasesDownload(); track movie.id) {
-              <div class="w-[200px] md:w-[280px] flex-shrink-0">
-                <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
-              </div>
-            }
-          </div>
-        </div>
-      }
-
-      <!-- Latest Uploads -->
-      @if (latestUploadsDownload().length > 0) {
-        <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Latest Uploads</h2>
-              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
-            </div>
-            <a [routerLink]="['/movies/downloads']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
-          </div>
-          
-          <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of latestUploadsDownload(); track movie.id) {
-              <div class="w-[200px] md:w-[280px] flex-shrink-0">
-                <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
-              </div>
-            }
-          </div>
-        </div>
-      }
-
-      <!-- Stream Only Movies -->
-      @if (streamOnly().length > 0) {
-        <div class="py-8 pl-8 md:pl-16 relative group/row">
-          <div class="flex items-center justify-between mb-6 pr-8">
-            <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Available to Stream</h2>
-              <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
-            </div>
-            <a [routerLink]="['/movies/stream']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
-          </div>
-          
-          <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of streamOnly(); track movie.id) {
-              <div class="w-[220px] md:w-[320px] flex-shrink-0">
-                <app-movie-card-youtube [movie]="movie" [progress]="getMovieProgress(movie.id)" />
-              </div>
-            }
-          </div>
-        </div>
-      }
+    <!-- ═══════════════════ DIVIDER ═══════════════════ -->
+    <div style="display:flex; align-items:center; padding:0 32px; gap:16px; margin: 4px 0;">
+      <div style="flex:1; height:1px; background:linear-gradient(to right, var(--c-border), transparent);"></div>
+      <span style="font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:var(--c-muted); font-weight:600; white-space:nowrap;">Also on NaijasPride</span>
+      <div style="flex:1; height:1px; background:linear-gradient(to left, var(--c-border), transparent);"></div>
     </div>
 
+    <!-- ═══════════════════ SECTION B — YOUTUBE MOVIES ═══════════════════ -->
+    <section class="band-yt py-10">
+      <!-- Section header -->
+      <div class="flex items-center justify-between px-8 md:px-16 mb-6">
+        <div class="flex items-center gap-3">
+          <!-- YouTube logo SVG -->
+          <span class="section-pill pill-yt" style="padding:4px 10px;">
+            <svg width="18" height="13" viewBox="0 0 90 63" fill="white" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+              <path d="M88.16 9.86A11.26 11.26 0 0 0 80.25 1.9C73.24 0 45 0 45 0S16.76 0 9.75 1.9A11.26 11.26 0 0 0 1.84 9.86 117.88 117.88 0 0 0 0 31.5a117.88 117.88 0 0 0 1.84 21.64 11.26 11.26 0 0 0 7.91 7.96C16.76 63 45 63 45 63s28.24 0 35.25-1.9a11.26 11.26 0 0 0 7.91-7.96A117.88 117.88 0 0 0 90 31.5a117.88 117.88 0 0 0-1.84-21.64z"/>
+              <polygon points="36,45 59,31.5 36,18" fill="#ff0000"/>
+            </svg>
+            YouTube
+          </span>
+          <span style="font-family:'Playfair Display',Georgia,serif; font-size:22px; color:var(--c-text); font-weight:600;">
+            Stream-Only Movies
+          </span>
+        </div>
+        <a routerLink="/movies/stream" class="view-all">
+          View All <span [innerHTML]="arrowIcon"></span>
+        </a>
+      </div>
+
+      <!-- Cards row (16:9 landscape) -->
+      @if (isLoading() && streamOnly().length === 0) {
+        <div class="flex gap-4 px-8 md:px-16 overflow-hidden">
+          @for (i of skeletons; track i) {
+            <div class="flex-shrink-0 w-[260px] md:w-[320px]">
+              <div class="skeleton w-full rounded" style="aspect-ratio:16/9;"></div>
+              <div class="skeleton mt-2 h-3 w-3/4 rounded"></div>
+              <div class="skeleton mt-1.5 h-2.5 w-1/2 rounded"></div>
+            </div>
+          }
+        </div>
+      } @else if (streamOnly().length > 0) {
+        <div class="flex overflow-x-auto no-scrollbar pb-4 gap-4 px-8 md:px-16">
+          @for (movie of streamOnly(); track movie.id) {
+            <div class="card-wrap flex-shrink-0 w-[260px] md:w-[320px]">
+              <app-movie-card-youtube [movie]="movie" [progress]="getMovieProgress(movie.id)" />
+            </div>
+          }
+          <!-- "View All" end cap -->
+          <a routerLink="/movies/stream"
+             class="flex-shrink-0 w-[260px] md:w-[320px] rounded flex flex-col items-center justify-center gap-2 border border-dashed"
+             style="aspect-ratio:16/9; border-color:var(--c-border); color:var(--c-muted); text-decoration:none; transition:border-color 0.2s, color 0.2s;"
+             onmouseenter="this.style.borderColor='var(--c-yt)';this.style.color='var(--c-yt)'"
+             onmouseleave="this.style.borderColor='var(--c-border)';this.style.color='var(--c-muted)'">
+            <span [innerHTML]="arrowIcon" style="transform:scale(1.4)"></span>
+            <span style="font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;">View All</span>
+          </a>
+        </div>
+      }
+
+      <!-- bottom spacer -->
+      <div class="h-10"></div>
+    </section>
   `,
 })
 export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
@@ -278,28 +343,29 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   private watchApi = inject(WatchApiService);
   private destroy$ = new Subject<void>();
 
-  // Data
   heroMovie = signal<MovieSummary | null>(null);
+  streamOnly = signal<MovieSummary[]>([]);
+  downloadOnly = signal<MovieSummary[]>([]);
+  movieProgressById = signal<Record<string, number>>({});
+  isLoading = signal(true);
+
+  // unused signals kept for compat (computed rows were disabled)
   trending = signal<MovieSummary[]>([]);
   latestUploads = signal<MovieSummary[]>([]);
   newReleases = signal<MovieSummary[]>([]);
   mostWatched = signal<MovieSummary[]>([]);
   comingSoon = signal<Array<MovieSummary & { _count?: { notifications: number } }>>([]);
-  streamOnly = signal<MovieSummary[]>([]);
-  downloadOnly = signal<MovieSummary[]>([]);
-  movieProgressById = signal<Record<string, number>>({});
 
-  trendingDownload = computed(() => this.trending().filter((movie) => !movie.isStreamOnly));
-  latestUploadsDownload = computed(() => this.latestUploads().filter((movie) => !movie.isStreamOnly));
-  newReleasesDownload = computed(() => this.newReleases().filter((movie) => !movie.isStreamOnly));
-  
-  // UI State
-  isLoading = signal(true);
-  
-  // Icons
+  trendingDownload = computed(() => this.trending().filter((m) => !m.isStreamOnly));
+  latestUploadsDownload = computed(() => this.latestUploads().filter((m) => !m.isStreamOnly));
+  newReleasesDownload = computed(() => this.newReleases().filter((m) => !m.isStreamOnly));
+
+  skeletons = [1, 2, 3, 4, 5, 6];
+
   playIcon = PlayIcon;
   infoIcon = InfoIcon;
-  chevronIcon = ChevronRightIcon;
+  arrowIcon = ArrowRightIcon;
+  downloadIcon = DownloadIcon;
 
   ngOnInit() {
     this.loadWatchProgress();
@@ -313,82 +379,56 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
 
   private loadMovies() {
     this.isLoading.set(true);
-    
-    // Load featured (most watched + coming soon)
+
     this.http.get<FeaturedResponse>('/api/v1/movies/featured').subscribe({
       next: (res) => {
         this.mostWatched.set(res.data.mostWatched);
         this.comingSoon.set(res.data.comingSoon);
-        this.latestUploads.set(res.data.latestUploads ?? []);
-        this.newReleases.set(res.data.newReleases ?? []);
-        
-        // Prefer download movies for hero, then fallback to stream-only.
-        const preferredHero = res.data.mostWatched.find((movie) => !movie.isStreamOnly) || res.data.mostWatched[0] || null;
-        if (preferredHero) {
-          this.heroMovie.set(preferredHero);
-        }
-        
-        // Prefer backend recent-trending section; fallback to most-watched slice
-        this.trending.set((res.data.trending ?? res.data.mostWatched).slice(0, 10));
-        
+        const preferredHero = res.data.mostWatched.find((m) => !m.isStreamOnly) || res.data.mostWatched[0] || null;
+        if (preferredHero) this.heroMovie.set(preferredHero);
         this.isLoading.set(false);
       },
-      error: () => {
-        this.isLoading.set(false);
-      }
-    });
-    
-    // Load stream-only movies
-    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=true&limit=12').subscribe({
-      next: (res) => {
-        this.streamOnly.set(res.data);
-      }
+      error: () => { this.isLoading.set(false); }
     });
 
-    // Load download-ready (non-stream) movies for dedicated row.
-    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=false&limit=12&sortBy=latest').subscribe({
+    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=true&limit=6').subscribe({
+      next: (res) => { this.streamOnly.set(res.data); }
+    });
+
+    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=false&limit=6&sortBy=latest').subscribe({
       next: (res) => {
         this.downloadOnly.set(res.data);
-        if (!this.heroMovie() && res.data.length > 0) {
-          this.heroMovie.set(res.data[0]);
-        }
+        if (!this.heroMovie() && res.data.length > 0) this.heroMovie.set(res.data[0]);
       },
-      error: () => {
-        this.downloadOnly.set([]);
-      }
+      error: () => { this.downloadOnly.set([]); }
     });
   }
 
   formatDuration(minutes: number): string {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h}h ${m}m`;
   }
 
   getMovieProgress(movieId?: string): number | null {
     if (!movieId) return null;
-    const value = this.movieProgressById()[movieId];
-    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
-    return Math.max(0, Math.min(100, value));
+    const v = this.movieProgressById()[movieId];
+    if (typeof v !== 'number' || Number.isNaN(v) || v <= 0) return null;
+    return Math.max(0, Math.min(100, v));
   }
 
   private loadWatchProgress() {
     this.watchApi.getWatchHistory({ page: 1, limit: 200 }).subscribe({
       next: (res) => {
-        const progressMap: Record<string, number> = {};
+        const map: Record<string, number> = {};
         for (const item of res.data || []) {
           if (!item.movie?.id || item.progressPercentage <= 0) continue;
-          const bounded = Math.max(0, Math.min(100, item.progressPercentage));
-          const existing = progressMap[item.movie.id] ?? 0;
-          if (bounded > existing) {
-            progressMap[item.movie.id] = bounded;
-          }
+          const b = Math.max(0, Math.min(100, item.progressPercentage));
+          if (b > (map[item.movie.id] ?? 0)) map[item.movie.id] = b;
         }
-        this.movieProgressById.set(progressMap);
+        this.movieProgressById.set(map);
       },
-      error: () => {
-        this.movieProgressById.set({});
-      },
+      error: () => { this.movieProgressById.set({}); },
     });
   }
 }
