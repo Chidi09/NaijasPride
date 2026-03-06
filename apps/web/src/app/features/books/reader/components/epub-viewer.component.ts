@@ -309,7 +309,20 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     this.pendingSaveCfi = null;
 
     try {
-      this.epubBook = ePub(url);
+      // Fetch the EPUB bytes first and pass as an ArrayBuffer so that epubjs
+      // never tries to resolve META-INF/container.xml relative to the API URL
+      // (which would produce /api/v1/books/META-INF/container.xml).
+      let epubSource: string | ArrayBuffer = url;
+      try {
+        const resp = await fetch(url);
+        if (resp.ok) {
+          epubSource = await resp.arrayBuffer();
+        }
+      } catch {
+        // Fall back to URL if fetch fails; epubjs will try its own approach.
+      }
+
+      this.epubBook = ePub(epubSource as any);
       const spreadSetting =
         this.flow === 'paginated'
           ? this.spread === 'double'
