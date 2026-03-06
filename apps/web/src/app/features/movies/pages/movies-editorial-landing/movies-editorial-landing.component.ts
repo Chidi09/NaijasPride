@@ -6,6 +6,7 @@ import { Subject } from 'rxjs';
 import { MovieSummary } from '@naijaspride/types';
 import { MovieCardYoutubeComponent } from '../../components/movie-card-youtube/movie-card-youtube.component';
 import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
+import { WatchApiService } from '../../../watch/services/watch-api.service';
 
 // Icons
 const PlayIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
@@ -16,6 +17,9 @@ interface FeaturedResponse {
   success: boolean;
   data: {
     mostWatched: MovieSummary[];
+    trending?: MovieSummary[];
+    latestUploads?: MovieSummary[];
+    newReleases?: MovieSummary[];
     comingSoon: Array<MovieSummary & { _count?: { notifications: number } }>;
   };
 }
@@ -82,7 +86,7 @@ interface FeaturedResponse {
     <section class="relative h-[85vh] w-full overflow-hidden">
       <div class="absolute inset-0 z-0">
         @if (heroMovie()?.backdropUrl || heroMovie()?.posterUrl || heroMovie()?.thumbnailUrl; as img) {
-          <img [src]="img" alt="Hero Background" class="w-full h-full object-cover opacity-60" referrerpolicy="no-referrer">
+          <img [src]="img" alt="Hero Background" class="w-full h-full object-cover" referrerpolicy="no-referrer">
         } @else {
           <div class="w-full h-full bg-gradient-to-br from-[var(--movies-surface)] to-[var(--movies-bg)]"></div>
         }
@@ -147,7 +151,7 @@ interface FeaturedResponse {
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of downloadOnly(); track movie.id) {
               <div class="w-[200px] md:w-[280px] flex-shrink-0">
-                <app-movie-card [movie]="movie" />
+                <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
               </div>
             }
           </div>
@@ -186,6 +190,11 @@ interface FeaturedResponse {
                       <span class="bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wider">{{ movie.quality[0] }}</span>
                     </div>
                   }
+                  @if (getMovieProgress(movie.id); as progress) {
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/55">
+                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                    </div>
+                  }
                 </div>
                 <!-- Info bar -->
                 <div class="bg-[var(--movies-surface)] px-3 py-2.5">
@@ -198,42 +207,42 @@ interface FeaturedResponse {
         </div>
       }
 
-      <!-- Most Watched -->
-      @if (mostWatchedDownload().length > 0) {
+      <!-- New Releases -->
+      @if (newReleasesDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
             <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Most Watched</h2>
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">New Releases</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
             <a [routerLink]="['/movies/downloads']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of mostWatchedDownload(); track movie.id) {
+            @for (movie of newReleasesDownload(); track movie.id) {
               <div class="w-[200px] md:w-[280px] flex-shrink-0">
-                <app-movie-card [movie]="movie" />
+                <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
               </div>
             }
           </div>
         </div>
       }
 
-      <!-- Latest Drops -->
-      @if (comingSoonDownload().length > 0) {
+      <!-- Latest Uploads -->
+      @if (latestUploadsDownload().length > 0) {
         <div class="py-8 pl-8 md:pl-16 relative group/row">
           <div class="flex items-center justify-between mb-6 pr-8">
             <div class="flex items-center gap-2 cursor-pointer w-fit group-hover/row:text-[#800020] transition-colors">
-              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Latest Drops</h2>
+              <h2 class="serif-text text-2xl md:text-3xl text-[var(--movies-text)]">Latest Uploads</h2>
               <span [innerHTML]="chevronIcon" class="opacity-0 group-hover/row:opacity-100 -translate-x-2 group-hover/row:translate-x-0 transition-all"></span>
             </div>
             <a [routerLink]="['/movies/downloads']" class="sans-text text-xs tracking-[0.18em] uppercase text-[var(--movies-text-muted)] hover:text-[#800020] transition-colors">View More</a>
           </div>
           
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
-            @for (movie of comingSoonDownload(); track movie.id) {
+            @for (movie of latestUploadsDownload(); track movie.id) {
               <div class="w-[200px] md:w-[280px] flex-shrink-0">
-                <app-movie-card [movie]="movie" />
+                <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
               </div>
             }
           </div>
@@ -254,7 +263,7 @@ interface FeaturedResponse {
           <div class="flex overflow-x-auto no-scrollbar pb-8 pr-8 gap-4">
             @for (movie of streamOnly(); track movie.id) {
               <div class="w-[220px] md:w-[320px] flex-shrink-0">
-                <app-movie-card-youtube [movie]="movie" />
+                <app-movie-card-youtube [movie]="movie" [progress]="getMovieProgress(movie.id)" />
               </div>
             }
           </div>
@@ -266,19 +275,23 @@ interface FeaturedResponse {
 })
 export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
+  private watchApi = inject(WatchApiService);
   private destroy$ = new Subject<void>();
 
   // Data
   heroMovie = signal<MovieSummary | null>(null);
   trending = signal<MovieSummary[]>([]);
+  latestUploads = signal<MovieSummary[]>([]);
+  newReleases = signal<MovieSummary[]>([]);
   mostWatched = signal<MovieSummary[]>([]);
   comingSoon = signal<Array<MovieSummary & { _count?: { notifications: number } }>>([]);
   streamOnly = signal<MovieSummary[]>([]);
   downloadOnly = signal<MovieSummary[]>([]);
+  movieProgressById = signal<Record<string, number>>({});
 
   trendingDownload = computed(() => this.trending().filter((movie) => !movie.isStreamOnly));
-  mostWatchedDownload = computed(() => this.mostWatched().filter((movie) => !movie.isStreamOnly));
-  comingSoonDownload = computed(() => this.comingSoon().filter((movie) => !movie.isStreamOnly));
+  latestUploadsDownload = computed(() => this.latestUploads().filter((movie) => !movie.isStreamOnly));
+  newReleasesDownload = computed(() => this.newReleases().filter((movie) => !movie.isStreamOnly));
   
   // UI State
   isLoading = signal(true);
@@ -289,6 +302,7 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   chevronIcon = ChevronRightIcon;
 
   ngOnInit() {
+    this.loadWatchProgress();
     this.loadMovies();
   }
 
@@ -305,6 +319,8 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.mostWatched.set(res.data.mostWatched);
         this.comingSoon.set(res.data.comingSoon);
+        this.latestUploads.set(res.data.latestUploads ?? []);
+        this.newReleases.set(res.data.newReleases ?? []);
         
         // Prefer download movies for hero, then fallback to stream-only.
         const preferredHero = res.data.mostWatched.find((movie) => !movie.isStreamOnly) || res.data.mostWatched[0] || null;
@@ -312,8 +328,8 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
           this.heroMovie.set(preferredHero);
         }
         
-        // Set trending as first 10 most watched entries
-        this.trending.set(res.data.mostWatched.slice(0, 10));
+        // Prefer backend recent-trending section; fallback to most-watched slice
+        this.trending.set((res.data.trending ?? res.data.mostWatched).slice(0, 10));
         
         this.isLoading.set(false);
       },
@@ -347,5 +363,32 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
+  }
+
+  getMovieProgress(movieId?: string): number | null {
+    if (!movieId) return null;
+    const value = this.movieProgressById()[movieId];
+    if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return null;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  private loadWatchProgress() {
+    this.watchApi.getWatchHistory({ page: 1, limit: 200 }).subscribe({
+      next: (res) => {
+        const progressMap: Record<string, number> = {};
+        for (const item of res.data || []) {
+          if (!item.movie?.id || item.progressPercentage <= 0) continue;
+          const bounded = Math.max(0, Math.min(100, item.progressPercentage));
+          const existing = progressMap[item.movie.id] ?? 0;
+          if (bounded > existing) {
+            progressMap[item.movie.id] = bounded;
+          }
+        }
+        this.movieProgressById.set(progressMap);
+      },
+      error: () => {
+        this.movieProgressById.set({});
+      },
+    });
   }
 }

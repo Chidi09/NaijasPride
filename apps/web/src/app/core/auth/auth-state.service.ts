@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 
 export interface AuthUser {
   id?: string;
@@ -23,13 +23,16 @@ export class AuthStateService {
   private readonly userKey = 'user';
 
   readonly currentUser = signal<AuthUser | null>(this.getUserFromStorage());
+  readonly isPremium = computed(() => !!this.currentUser()?.isPremium);
 
   getToken() {
-    return localStorage.getItem(this.tokenKey);
+    if (!this.canUseStorage()) return null;
+    return this.safeGet(this.tokenKey);
   }
 
   getRefreshToken() {
-    return localStorage.getItem(this.refreshTokenKey);
+    if (!this.canUseStorage()) return null;
+    return this.safeGet(this.refreshTokenKey);
   }
 
   isAuthenticated() {
@@ -37,37 +40,82 @@ export class AuthStateService {
   }
 
   setSession(data: SessionData) {
-    localStorage.setItem(this.tokenKey, data.token);
-    if (data.refreshToken) {
-      localStorage.setItem(this.refreshTokenKey, data.refreshToken);
-    } else {
-      localStorage.removeItem(this.refreshTokenKey);
+    if (!this.canUseStorage()) {
+      this.currentUser.set(data.user);
+      return;
     }
-    localStorage.setItem(this.userKey, JSON.stringify(data.user));
+
+    this.safeSet(this.tokenKey, data.token);
+    if (data.refreshToken) {
+      this.safeSet(this.refreshTokenKey, data.refreshToken);
+    } else {
+      this.safeRemove(this.refreshTokenKey);
+    }
+    this.safeSet(this.userKey, JSON.stringify(data.user));
     this.currentUser.set(data.user);
   }
 
   clearSession() {
-    localStorage.removeItem(this.tokenKey);
-    localStorage.removeItem(this.refreshTokenKey);
-    localStorage.removeItem(this.userKey);
+    if (!this.canUseStorage()) {
+      this.currentUser.set(null);
+      return;
+    }
+
+    this.safeRemove(this.tokenKey);
+    this.safeRemove(this.refreshTokenKey);
+    this.safeRemove(this.userKey);
     this.currentUser.set(null);
   }
 
   updateUser(user: AuthUser) {
-    localStorage.setItem(this.userKey, JSON.stringify(user));
+    if (!this.canUseStorage()) {
+      this.currentUser.set(user);
+      return;
+    }
+
+    this.safeSet(this.userKey, JSON.stringify(user));
     this.currentUser.set(user);
   }
 
   private getUserFromStorage() {
-    const user = localStorage.getItem(this.userKey);
+    if (!this.canUseStorage()) return null;
+
+    const user = this.safeGet(this.userKey);
     if (!user) return null;
 
     try {
       return JSON.parse(user) as AuthUser;
     } catch {
-      localStorage.removeItem(this.userKey);
+      this.safeRemove(this.userKey);
       return null;
+    }
+  }
+
+  private canUseStorage(): boolean {
+    return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+  }
+
+  private safeGet(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  private safeSet(key: string, value: string): void {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Ignore storage failures and keep in-memory state.
+    }
+  }
+
+  private safeRemove(key: string): void {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Ignore storage failures and keep in-memory state.
     }
   }
 }

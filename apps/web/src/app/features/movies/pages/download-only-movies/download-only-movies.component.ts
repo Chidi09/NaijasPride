@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MovieSummary } from '@naijaspride/types';
 import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
+import { WatchApiService } from '../../../watch/services/watch-api.service';
 
 @Component({
   selector: 'app-download-only-movies',
@@ -54,7 +55,7 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
 
           <div class="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
             @for (movie of movies(); track movie.id) {
-              <app-movie-card [movie]="movie" />
+              <app-movie-card [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
             }
           </div>
 
@@ -81,6 +82,7 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
 })
 export class DownloadOnlyMoviesComponent implements OnInit {
   private http = inject(HttpClient);
+  private watchApi = inject(WatchApiService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
@@ -90,9 +92,12 @@ export class DownloadOnlyMoviesComponent implements OnInit {
   currentPage = signal(1);
   totalPages = signal(1);
   totalMovies = signal(0);
+  watchProgressByMovieId = signal<Record<string, number>>({});
   readonly pageSize = 24;
 
   ngOnInit(): void {
+    this.loadWatchProgress();
+
     this.route.queryParamMap.subscribe((params) => {
       const page = Math.max(1, Number(params.get('page') || 1) || 1);
       const sortBy = (params.get('sortBy') || 'newest') as 'newest' | 'popular' | 'trending';
@@ -158,6 +163,24 @@ export class DownloadOnlyMoviesComponent implements OnInit {
         sortBy: this.sortBy(),
       },
       replaceUrl: true,
+    });
+  }
+
+  private loadWatchProgress(): void {
+    this.watchApi.getWatchHistory({ page: 1, limit: 200 }).subscribe({
+      next: (response) => {
+        const progressMap: Record<string, number> = {};
+        for (const item of response.data || []) {
+          if (!item.movie?.id || item.progressPercentage <= 0) {
+            continue;
+          }
+          progressMap[item.movie.id] = Math.max(0, Math.min(100, item.progressPercentage));
+        }
+        this.watchProgressByMovieId.set(progressMap);
+      },
+      error: () => {
+        this.watchProgressByMovieId.set({});
+      },
     });
   }
 }

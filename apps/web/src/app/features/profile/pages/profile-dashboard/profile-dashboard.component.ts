@@ -244,7 +244,7 @@ import { MovieSummary } from '@naijaspride/types';
                         <img
                           [src]="movie.thumbnailUrl"
                           [alt]="movie.title"
-                          class="w-full aspect-[2/3] object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                          class="w-full aspect-[2/3] object-cover"
                         >
                       } @else {
                         <div class="w-full aspect-[2/3] flex items-center justify-center bg-[#dfc8bb] dark:bg-cinema-700">

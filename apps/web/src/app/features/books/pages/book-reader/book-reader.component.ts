@@ -220,7 +220,7 @@ import type {
             (openPanel)="drawerOpen.set(true)"
           />
 
-          @if (isLoading()) {
+          @if (metaLoading()) {
             <div class="flex h-full items-center justify-center text-sm text-[var(--np-reader-muted)]">
               Loading book...
             </div>
@@ -243,6 +243,12 @@ import type {
             </div>
           } @else {
             <div class="np-reader-viewer" (click)="toggleControls()">
+              @if (viewerLoading()) {
+                <div class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center text-sm text-[var(--np-reader-muted)]">
+                  Loading book...
+                </div>
+              }
+
               <div
                 #viewerWrap
                 class="h-full w-full"
@@ -571,10 +577,8 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         if (data?.id && this.bookOffline.isAvailable(data.id)) {
           this.fileUrl.set(this.bookOffline.getOfflineFileUrl(data.id));
         } else if (hasLocalDownloadKey) {
-          // Prefer key-based endpoint for mirrored books; this avoids slug-specific
-          // proxy branches and keeps LN/EPUB reading stable.
           const delimiter = normalizedDownloadUrl.includes('?') ? '&' : '?';
-          this.fileUrl.set(`${normalizedDownloadUrl}${delimiter}t=${Date.now()}`);
+          this.fileUrl.set(`${normalizedDownloadUrl}${delimiter}disposition=inline&t=${Date.now()}`);
         } else {
           this.fileUrl.set(this.bookFileUrl(slug));
         }

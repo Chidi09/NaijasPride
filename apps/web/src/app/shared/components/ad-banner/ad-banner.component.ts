@@ -1,6 +1,7 @@
-import { Component, OnInit, OnDestroy, ElementRef, inject, PLATFORM_ID, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, ElementRef, inject, PLATFORM_ID, computed, effect } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { AuthStateService } from '../../../core/auth/auth-state.service';
+import { AdPolicyService } from '../../../core/services/ad-policy.service';
+import { AdScriptService } from '../../../core/services/ad-script.service';
 
 /**
  * Adsterra 250x250 display banner.
@@ -28,18 +29,28 @@ import { AuthStateService } from '../../../core/auth/auth-state.service';
   `,
 })
 export class AdBannerComponent implements OnInit, OnDestroy {
+  private readonly slotId = 'watch-room-250x250';
+  private rendered = false;
   private el = inject(ElementRef);
   private platformId = inject(PLATFORM_ID);
-  private auth = inject(AuthStateService);
+  private adPolicy = inject(AdPolicyService);
+  private adScriptService = inject(AdScriptService);
 
-  shouldShowAd = computed(() => {
-    const user = this.auth.currentUser();
-    // Don't show ads for premium users
-    if (user?.isPremium) {
-      return false;
-    }
-    return true;
-  });
+  shouldShowAd = computed(() => this.adPolicy.canShowAds());
+
+  constructor() {
+    effect(() => {
+      if (!isPlatformBrowser(this.platformId)) return;
+
+      const visible = this.shouldShowAd();
+      if (visible) {
+        queueMicrotask(() => this.injectAd());
+        return;
+      }
+
+      this.clearAd();
+    });
+  }
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -49,35 +60,32 @@ export class AdBannerComponent implements OnInit, OnDestroy {
   }
 
   private injectAd(): void {
+    if (this.rendered) return;
     const wrapper = this.el.nativeElement.querySelector('#adsterra-banner-wrapper') as HTMLElement;
     if (!wrapper) return;
 
-    // atOptions config must come before the invoke script
-    const configScript = document.createElement('script');
-    configScript.type = 'text/javascript';
-    configScript.innerHTML = `
-      atOptions = {
-        'key'    : 'de3f243cb85127ed9142c1ba7abf8c27',
-        'format' : 'iframe',
-        'height' : 250,
-        'width'  : 250,
-        'params' : {}
-      };
-    `;
+    this.adScriptService.renderEffectiveGateSlot(wrapper, {
+      slotId: this.slotId,
+      key: 'de3f243cb85127ed9142c1ba7abf8c27',
+      format: 'iframe',
+      height: 250,
+      width: 250,
+      params: {},
+      invokeScriptUrl: '//www.effectivegatecpm.com/y50ep07z5c/invoke.js'
+    });
+    this.rendered = true;
+  }
 
-    const adScript = document.createElement('script');
-    adScript.type = 'text/javascript';
-    adScript.src = '//www.effectivegatecpm.com/y50ep07z5c/invoke.js';
-    adScript.async = true;
-    adScript.setAttribute('data-cfasync', 'false');
-
-    wrapper.appendChild(configScript);
-    wrapper.appendChild(adScript);
+  private clearAd(): void {
+    const wrapper = this.el.nativeElement.querySelector('#adsterra-banner-wrapper') as HTMLElement;
+    if (!wrapper) return;
+    this.adScriptService.clearEffectiveGateSlot(wrapper, this.slotId);
+    wrapper.innerHTML = '';
+    this.rendered = false;
   }
 
   ngOnDestroy(): void {
     if (!isPlatformBrowser(this.platformId)) return;
-    const wrapper = this.el.nativeElement.querySelector('#adsterra-banner-wrapper') as HTMLElement;
-    if (wrapper) wrapper.innerHTML = '';
+    this.clearAd();
   }
 }

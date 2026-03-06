@@ -123,6 +123,7 @@ const bookUploadUrlSchema = z.object({
 
 const bookDownloadSchema = z.object({
   key: z.string().trim().min(1),
+  disposition: z.enum(['inline', 'attachment']).optional().default('attachment'),
 });
 
 const bookFileParamSchema = z.object({
@@ -1751,7 +1752,7 @@ export const bookRoutes = async (
     },
     handler: async (request, reply) => {
       try {
-        const { key } = request.query as z.infer<typeof bookDownloadSchema>;
+        const { key, disposition } = bookDownloadSchema.parse(request.query ?? {});
         if (key.startsWith('http://') || key.startsWith('https://')) {
           return reply.redirect(key);
         }
@@ -1769,7 +1770,7 @@ export const bookRoutes = async (
         }
         reply.header('content-type', contentType);
         reply.header('cache-control', 'private, max-age=3600');
-        reply.header('content-disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+        reply.header('content-disposition', `${disposition}; filename="${filename.replace(/"/g, '')}"`);
         return reply.send(r2Object.stream);
       } catch (error) {
         return reply.status(404).send({

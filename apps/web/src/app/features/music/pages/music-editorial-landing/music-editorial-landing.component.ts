@@ -81,7 +81,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
               <div class="relative w-full aspect-video bg-[var(--music-surface)] overflow-hidden video-mask border border-[var(--music-border)] group">
                 @if (!isPlaying()) {
                   <div class="absolute inset-0 bg-black/40 z-10"></div>
-                  <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/hqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-105 group-hover:scale-100" referrerpolicy="no-referrer">
+                  <img [src]="video.thumbnailUrl || 'https://img.youtube.com/vi/' + video.youtubeId + '/hqdefault.jpg'" [alt]="video.title" class="w-full h-full object-cover transition-all duration-700 scale-105 group-hover:scale-100" referrerpolicy="no-referrer">
                   <button (click)="playHero(video)" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border border-[var(--music-border-strong)] rounded-full flex items-center justify-center z-20 backdrop-blur-sm hover:bg-[#800020] hover:border-[#800020] hover:text-white transition-all duration-300 group-hover:scale-110">
                     <span [innerHTML]="playIcon" class="ml-2 text-[var(--music-text)]"></span>
                   </button>
@@ -146,7 +146,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
                   <img
                     [src]="videoThumbnail(track, 'mq')"
                     [alt]="track.title"
-                    class="object-cover w-full h-full grayscale group-hover:grayscale-0 transition-all"
+                    class="object-cover w-full h-full transition-all"
                     referrerpolicy="no-referrer"
                     loading="lazy"
                     (error)="onThumbnailError($event, track)"
@@ -204,7 +204,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
         <div class="order-1 md:order-2 relative">
           @if (spotlightArtist()?.topVideos[0]; as topVideo) {
             <div class="aspect-[3/4] bg-black video-mask relative group cursor-pointer" (click)="playTrack(topVideo)">
-              <img [src]="topVideo.thumbnailUrl || 'https://img.youtube.com/vi/' + topVideo.youtubeId + '/hqdefault.jpg'" [alt]="topVideo.title" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" referrerpolicy="no-referrer">
+              <img [src]="topVideo.thumbnailUrl || 'https://img.youtube.com/vi/' + topVideo.youtubeId + '/hqdefault.jpg'" [alt]="topVideo.title" class="w-full h-full object-cover transition-all duration-700" referrerpolicy="no-referrer">
               <div class="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors"></div>
                <div class="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-4 border-l-2 border-[#800020]">
                 <p class="serif-text italic text-lg">"{{ topVideo.title }}"</p>
@@ -229,7 +229,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
                 <img
                   [src]="videoThumbnail(video, 'hq')"
                   [alt]="video.title"
-                  class="w-full h-full object-cover grayscale group-hover:grayscale-0 image-zoom"
+                  class="w-full h-full object-cover image-zoom"
                   loading="lazy"
                   referrerpolicy="no-referrer"
                   (error)="onThumbnailError($event, video)"

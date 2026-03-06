@@ -1,14 +1,15 @@
-import { Component, Input, computed, inject, signal } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { MovieSummary } from '@naijaspride/types';
 import { ProfileApiService } from '../../../profile/services/profile-api.service';
 import { AuthStateService } from '../../../../core/auth/auth-state.service';
+import { ProfileQueryService } from '../../../profile/services/profile-query.service';
 
 @Component({
   selector: 'app-movie-card',
   standalone: true,
-  imports: [CommonModule, RouterLink, NgOptimizedImage],
+  imports: [CommonModule, NgOptimizedImage],
   styles: [`
     :host {
       display: block;
@@ -31,8 +32,15 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
   `],
   template: `
     <article
-      [routerLink]="['/movies', movie.slug || movie.id]"
       class="card group relative cursor-pointer"
+      tabindex="0"
+      (click)="onCardClick($event)"
+      (keydown.enter)="openDetails($event)"
+      (touchstart)="onTouchStart($event)"
+      (touchend)="onTouchEnd()"
+      (touchcancel)="onTouchCancel()"
+      (touchmove)="onTouchMove($event)"
+      (contextmenu)="onContextMenu($event)"
     >
       <div class="relative aspect-[2/3]">
         @if (primaryImage(movie); as imageUrl) {
@@ -41,7 +49,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
             [alt]="movie.title"
             fill
             sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
-            class="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity"
+            class="w-full h-full object-cover"
           >
         } @else {
           <div class="w-full h-full flex items-center justify-center bg-[#dfc8bb] dark:bg-cinema-700">
@@ -65,6 +73,22 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
           </div>
         }
 
+        @if (isLoggedIn()) {
+          <button
+            type="button"
+            class="absolute top-2 right-2 z-10 rounded-full bg-black/65 p-2 text-white transition-colors hover:bg-black"
+            (click)="toggleWatchlist($event)"
+            (touchstart)="$event.stopPropagation()"
+            [attr.aria-label]="saved() ? 'Remove from watchlist' : 'Add to watchlist'"
+          >
+            @if (saved()) {
+              <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 016.5 4c1.74 0 3.41.81 4.5 2.09A6 6 0 0115 4a4.5 4.5 0 014.5 4.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            } @else {
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            }
+          </button>
+        }
+
         @if (progressPercent > 0) {
           <div class="absolute inset-x-0 bottom-0 h-1 bg-black/60">
             <div
@@ -82,34 +106,36 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
             @if (movie.isStreamOnly) {
               <span class="rounded-full bg-blue-500/80 px-2 py-0.5 text-white">Watch</span>
             } @else {
-              <span class="rounded-full bg-[#800020]/90 px-2 py-0.5 text-white">Download</span>
+              <span class="rounded-full bg-[#800020]/90 px-2 py-0.5 text-white">Ready</span>
             }
           </div>
         </div>
       </div>
 
-      <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end p-4 pointer-events-none">
+      <div class="absolute inset-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all duration-300 flex items-end p-4 pointer-events-none">
         <div class="w-full rounded-lg bg-black/70 border border-white/10 p-3 pointer-events-auto">
           <div class="flex gap-2">
             <button
+              type="button"
               class="bg-white text-black rounded-full p-1.5 hover:bg-cinema-100 transition-colors"
-              (click)="$event.stopPropagation()"
-             aria-label="Play movie"
-           >
-             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-           </button>
-            @if (isLoggedIn()) {
-            <button
-              class="border border-gray-400 rounded-full p-1.5 hover:border-white transition-colors"
-              (click)="toggleWatchlist($event)"
-             aria-label="Add movie"
+              (click)="runPrimaryAction($event)"
+              aria-label="Open primary action"
             >
-              @if (saved()) {
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 016.5 4c1.74 0 3.41.81 4.5 2.09A6 6 0 0115 4a4.5 4.5 0 014.5 4.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-              } @else {
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-              }
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
+            @if (isLoggedIn()) {
+              <button
+                type="button"
+                class="border border-gray-400 rounded-full p-1.5 hover:border-white transition-colors"
+                (click)="toggleWatchlist($event)"
+                [attr.aria-label]="saved() ? 'Unstar movie' : 'Star movie'"
+              >
+                @if (saved()) {
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 016.5 4c1.74 0 3.41.81 4.5 2.09A6 6 0 0115 4a4.5 4.5 0 014.5 4.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                } @else {
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                }
+              </button>
             }
           </div>
           <div class="mt-2 text-[10px] text-gray-300">
@@ -126,16 +152,77 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
         </div>
       </div>
     </article>
+
+    @if (showQuickActionSheet()) {
+      <div class="fixed inset-0 z-50 flex items-end bg-black/55 p-3" (click)="closeQuickActions($event)">
+        <div class="w-full rounded-2xl border border-white/10 bg-[#1d1a1a] p-3 text-white" (click)="$event.stopPropagation()">
+          @if (isLoggedIn()) {
+            <button
+              type="button"
+              class="w-full rounded-xl border border-white/15 px-4 py-3 text-left text-sm font-semibold hover:bg-white/10"
+              (click)="toggleWatchlistFromSheet($event)"
+            >
+              {{ saved() ? 'Unstar' : 'Star' }}
+            </button>
+          }
+          <button
+            type="button"
+            class="w-full rounded-xl border border-white/15 px-4 py-3 text-left text-sm font-semibold hover:bg-white/10"
+            [class.mt-2]="isLoggedIn()"
+            (click)="runPrimaryAction($event)"
+          >
+            {{ primaryActionLabel() }}
+          </button>
+          <button
+            type="button"
+            class="mt-2 w-full rounded-xl border border-white/15 px-4 py-3 text-left text-sm font-semibold hover:bg-white/10"
+            (click)="openDetails($event)"
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            class="mt-2 w-full rounded-xl bg-white/10 px-4 py-3 text-left text-sm"
+            (click)="closeQuickActions($event)"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    }
   `
 })
-export class MovieCardComponent {
+export class MovieCardComponent implements OnChanges {
   @Input({ required: true }) movie!: MovieSummary;
   @Input() progress: number | null = null;
 
   private profileApi = inject(ProfileApiService);
+  private profileQueryService = inject(ProfileQueryService);
   private authState = inject(AuthStateService);
+  private router = inject(Router);
+
+  private isMutating = signal(false);
+  private pendingSaved = signal<boolean | null>(null);
+  showQuickActionSheet = signal(false);
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private suppressNextCardClick = false;
+  private touchStartPoint: { x: number; y: number } | null = null;
+
   saved = signal(false);
   isLoggedIn = computed(() => !!this.authState.currentUser());
+  profileQuery = this.profileQueryService.getProfileQuery();
+
+  constructor() {
+    effect(() => {
+      this.hydrateSavedState();
+    });
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['movie']) {
+      this.hydrateSavedState();
+    }
+  }
 
   get progressPercent() {
     if (this.progress === null || Number.isNaN(this.progress)) {
@@ -152,11 +239,165 @@ export class MovieCardComponent {
     return !movie.isStreamOnly && Array.isArray(movie.quality) && movie.quality.length > 0;
   }
 
-  toggleWatchlist(event: Event) {
+  shouldWatchMovie() {
+    return !!this.movie?.isStreamOnly || !!this.movie?.canStream;
+  }
+
+  primaryActionLabel() {
+    return this.shouldWatchMovie() ? 'Watch' : 'Download';
+  }
+
+  toggleWatchlist(event?: Event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    if (!this.isLoggedIn() || this.isMutating() || !this.movie?.id) {
+      return;
+    }
+
+    const previous = this.saved();
+    const optimistic = !previous;
+    this.pendingSaved.set(optimistic);
+    this.saved.set(optimistic);
+    this.isMutating.set(true);
+
+    this.profileApi.toggleWatchlist(this.movie.id).subscribe({
+      next: () => {
+        void Promise.resolve(this.profileQuery.refetch()).finally(() => {
+          this.pendingSaved.set(null);
+          this.isMutating.set(false);
+          this.hydrateSavedState();
+        });
+      },
+      error: () => {
+        this.pendingSaved.set(null);
+        this.saved.set(previous);
+        this.isMutating.set(false);
+      },
+    });
+  }
+
+  toggleWatchlistFromSheet(event: Event) {
+    this.toggleWatchlist(event);
+    this.showQuickActionSheet.set(false);
+    this.suppressNextCardClick = false;
+  }
+
+  onCardClick(event: MouseEvent) {
+    if (this.suppressNextCardClick) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.suppressNextCardClick = false;
+      return;
+    }
+
+    this.router.navigate(['/movies', this.movie.slug || this.movie.id]);
+  }
+
+  onTouchStart(event: TouchEvent) {
+    if (!this.isTouchInteraction() || event.touches.length !== 1) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    this.touchStartPoint = { x: touch.clientX, y: touch.clientY };
+    this.clearLongPressTimer();
+    this.longPressTimer = setTimeout(() => {
+      this.openQuickActionSheetFromGesture();
+    }, 420);
+  }
+
+  onTouchMove(event: TouchEvent) {
+    if (!this.touchStartPoint || event.touches.length !== 1) {
+      this.clearLongPressTimer();
+      return;
+    }
+
+    const touch = event.touches[0];
+    const deltaX = Math.abs(touch.clientX - this.touchStartPoint.x);
+    const deltaY = Math.abs(touch.clientY - this.touchStartPoint.y);
+
+    if (deltaX > 12 || deltaY > 12) {
+      this.clearLongPressTimer();
+    }
+  }
+
+  onTouchEnd() {
+    this.clearLongPressTimer();
+    this.touchStartPoint = null;
+  }
+
+  onTouchCancel() {
+    this.clearLongPressTimer();
+    this.touchStartPoint = null;
+  }
+
+  onContextMenu(event: Event) {
+    if (this.isTouchInteraction() && !this.showQuickActionSheet()) {
+      event.preventDefault();
+      this.openQuickActionSheetFromGesture();
+    }
+  }
+
+  closeQuickActions(event?: Event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.showQuickActionSheet.set(false);
+    this.suppressNextCardClick = false;
+  }
+
+  runPrimaryAction(event: Event) {
     event.preventDefault();
     event.stopPropagation();
-    this.profileApi.toggleWatchlist(this.movie.id).subscribe({
-      next: () => this.saved.update((current) => !current),
-    });
+    this.showQuickActionSheet.set(false);
+    this.suppressNextCardClick = false;
+
+    if (this.shouldWatchMovie()) {
+      this.router.navigate(['/watch', this.movie.slug || this.movie.id]);
+      return;
+    }
+
+    this.router.navigate(['/movies', this.movie.slug || this.movie.id]);
+  }
+
+  openDetails(event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.showQuickActionSheet.set(false);
+    this.suppressNextCardClick = false;
+    this.router.navigate(['/movies', this.movie.slug || this.movie.id]);
+  }
+
+  private clearLongPressTimer() {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  private openQuickActionSheetFromGesture() {
+    this.showQuickActionSheet.set(true);
+    this.suppressNextCardClick = true;
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(12);
+    }
+  }
+
+  private hydrateSavedState() {
+    if (!this.movie?.id || this.pendingSaved() !== null) {
+      return;
+    }
+
+    if (!this.isLoggedIn()) {
+      this.saved.set(false);
+      return;
+    }
+
+    const watchlist = this.profileQuery.data()?.data?.watchlist ?? [];
+    this.saved.set(watchlist.some((watchlistMovie) => watchlistMovie.id === this.movie.id));
+  }
+
+  private isTouchInteraction() {
+    return typeof window !== 'undefined' && window.matchMedia('(hover: none), (pointer: coarse)').matches;
   }
 }

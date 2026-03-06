@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MovieCardYoutubeComponent } from '../../../movies/components/movie-card-youtube/movie-card-youtube.component';
 import { MovieSummary } from '@naijaspride/types';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
+import { WatchApiService } from '../../../watch/services/watch-api.service';
 
 /**
  * Stream-only movies page (YouTube Nollywood movies)
@@ -78,7 +79,7 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               @for (movie of movies(); track movie.id) {
-                <app-movie-card-youtube [movie]="movie" />
+                <app-movie-card-youtube [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
               }
             </div>
 
@@ -116,6 +117,7 @@ import { PaginatorComponent } from '../../../../shared/components/paginator/pagi
 })
 export class StreamOnlyMoviesComponent implements OnInit {
   private http = inject(HttpClient);
+  private watchApi = inject(WatchApiService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   
@@ -125,9 +127,12 @@ export class StreamOnlyMoviesComponent implements OnInit {
   currentPage = signal(1);
   totalPages = signal(1);
   totalMovies = signal(0);
+  watchProgressByMovieId = signal<Record<string, number>>({});
   readonly pageSize = 50;
 
   ngOnInit() {
+    this.loadWatchProgress();
+
     // URL -> state sync (fixes pagination back-button issues)
     this.route.queryParamMap.subscribe((params) => {
       const page = Math.max(1, Number(params.get('page') || 1) || 1);
@@ -191,6 +196,24 @@ export class StreamOnlyMoviesComponent implements OnInit {
         sortBy: this.sortBy(),
       },
       replaceUrl: true,
+    });
+  }
+
+  private loadWatchProgress() {
+    this.watchApi.getWatchHistory({ page: 1, limit: 200 }).subscribe({
+      next: (response) => {
+        const progressMap: Record<string, number> = {};
+        for (const item of response.data || []) {
+          if (!item.movie?.id || item.progressPercentage <= 0) {
+            continue;
+          }
+          progressMap[item.movie.id] = Math.max(0, Math.min(100, item.progressPercentage));
+        }
+        this.watchProgressByMovieId.set(progressMap);
+      },
+      error: () => {
+        this.watchProgressByMovieId.set({});
+      },
     });
   }
 }
