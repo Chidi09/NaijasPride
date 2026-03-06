@@ -138,7 +138,7 @@ import type {
         }
       }
 
-      /* Always-visible side nav arrows */
+      /* Always-visible side nav arrows — fixed dark chrome, theme-independent */
       .np-side-nav {
         position: absolute;
         top: 0;
@@ -148,15 +148,15 @@ import type {
         align-items: center;
         justify-content: center;
         width: 48px;
-        opacity: 0.18;
+        opacity: 0.28;
         transition: opacity 300ms ease;
         pointer-events: auto;
       }
       .np-side-nav:hover, .np-side-nav:focus-visible {
-        opacity: 0.75;
+        opacity: 0.85;
       }
       .np-side-nav.controls-visible {
-        opacity: 0.65;
+        opacity: 0.75;
       }
       .np-side-nav-left { left: 0; }
       .np-side-nav-right { right: 0; }
@@ -164,19 +164,28 @@ import type {
         width: 36px;
         height: 36px;
         border-radius: 50%;
-        background: var(--np-reader-surface);
-        border: 1px solid var(--np-reader-border);
-        color: var(--np-reader-fg);
+        /* Always dark so it's visible on white/paper books */
+        background: rgba(10, 10, 10, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        color: #f0ede8;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        backdrop-filter: blur(4px);
+        backdrop-filter: blur(6px);
+      }
+      .np-side-nav-btn:disabled {
+        opacity: 0.35;
+        cursor: default;
       }
 
-      /* Bottom bar: always visible, opacity-based fade */
+      /* Bottom bar: always visible, opacity-based fade — fixed dark chrome */
       .np-bottom-bar {
-        opacity: 0.22;
+        background: rgba(10, 10, 10, 0.82) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+        color: #f0ede8;
+        backdrop-filter: blur(8px);
+        opacity: 0.28;
         transition: opacity 350ms ease;
         pointer-events: none;
       }
@@ -186,6 +195,11 @@ import type {
       }
       .np-bottom-bar > * {
         pointer-events: auto;
+      }
+      /* Force button text/icon colours to be light inside the dark bottom bar */
+      .np-bottom-bar button {
+        color: #f0ede8 !important;
+        border-color: rgba(255, 255, 255, 0.22) !important;
       }
     `,
   ],
@@ -421,11 +435,11 @@ import type {
 
           <!-- Bottom bar: always present, dims when controls hidden -->
           <div
-            class="np-bottom-bar fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--np-reader-border)] bg-[var(--np-reader-surface)]"
+            class="np-bottom-bar fixed bottom-0 left-0 right-0 z-40"
             [class.controls-visible]="showControls()"
           >
             <div class="mx-auto w-full max-w-5xl px-4 py-3">
-              <div class="mb-2 flex items-center justify-between text-[11px] text-[var(--np-reader-muted)]">
+              <div class="mb-2 flex items-center justify-between text-[11px] text-[rgba(240,237,232,0.65)]">
                 <span>Progress</span>
                 <span>{{ (progress() * 100) | number:'1.0-0' }}%</span>
               </div>
