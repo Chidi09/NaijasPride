@@ -86,3 +86,16 @@ Kotatsu/
 
 # Git worktrees
 .worktrees/
+
+# Local debug/test artifacts (never commit)
+/np_*.json
+/np_*.txt
+/check_*.js
+/enqueue_*.js
+/backfill_*.js
+/db_ops_*.js
+/fetch_infohashes.js
+/movie_counts.js
+/recover_torrent_queue.js
+/reset_processing.js
+/test_webhook.js
