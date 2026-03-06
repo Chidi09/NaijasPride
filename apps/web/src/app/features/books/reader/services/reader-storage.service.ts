@@ -38,7 +38,7 @@ export class ReaderStorageService {
   getDefaultSettings(): ReaderSettings {
     return {
       flow: 'paginated',
-      spread: 'auto',
+      spread: 'single',
       theme: 'paper',
       fontFamily: 'serif',
       fontSize: 110,

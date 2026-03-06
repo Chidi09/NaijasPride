@@ -137,6 +137,56 @@ import type {
           filter: brightness(1);
         }
       }
+
+      /* Always-visible side nav arrows */
+      .np-side-nav {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        z-index: 25;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        opacity: 0.18;
+        transition: opacity 300ms ease;
+        pointer-events: auto;
+      }
+      .np-side-nav:hover, .np-side-nav:focus-visible {
+        opacity: 0.75;
+      }
+      .np-side-nav.controls-visible {
+        opacity: 0.65;
+      }
+      .np-side-nav-left { left: 0; }
+      .np-side-nav-right { right: 0; }
+      .np-side-nav-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--np-reader-surface);
+        border: 1px solid var(--np-reader-border);
+        color: var(--np-reader-fg);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      }
+
+      /* Bottom bar: always visible, opacity-based fade */
+      .np-bottom-bar {
+        opacity: 0.22;
+        transition: opacity 350ms ease;
+        pointer-events: none;
+      }
+      .np-bottom-bar.controls-visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .np-bottom-bar > * {
+        pointer-events: auto;
+      }
     `,
   ],
   template: `
@@ -308,41 +358,79 @@ import type {
                   />
                 }
 
-                @if (!highlightMode() && (readerType() === 'pdf' || flow() === 'paginated')) {
+                @if (!highlightMode()) {
+                  <!-- Left tap zone: prev page -->
                   <button
                     type="button"
                     (click)="prev()"
-                    class="absolute inset-y-0 left-0 z-20 w-1/4 bg-transparent"
+                    class="absolute inset-y-0 left-0 z-20 w-[18%] bg-transparent"
                     aria-label="Previous page"
                   ></button>
+                  <!-- Center tap zone: toggle controls -->
                   <button
                     type="button"
                     (click)="toggleControls()"
-                    class="absolute inset-y-0 left-1/4 z-20 w-2/4 bg-transparent"
+                    class="absolute inset-y-0 left-[18%] z-20 w-[64%] bg-transparent"
                     aria-label="Toggle controls"
                   ></button>
+                  <!-- Right tap zone: next page -->
                   <button
                     type="button"
                     (click)="next()"
-                    class="absolute inset-y-0 right-0 z-20 w-1/4 bg-transparent"
+                    class="absolute inset-y-0 right-0 z-20 w-[18%] bg-transparent"
                     aria-label="Next page"
                   ></button>
+
+                  <!-- Always-visible side nav arrows -->
+                  <div
+                    class="np-side-nav np-side-nav-left"
+                    [class.controls-visible]="showControls()"
+                    (click)="$event.stopPropagation(); prev()"
+                  >
+                    <button
+                      class="np-side-nav-btn"
+                      type="button"
+                      [disabled]="!canPrev()"
+                      aria-label="Previous page"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                  <div
+                    class="np-side-nav np-side-nav-right"
+                    [class.controls-visible]="showControls()"
+                    (click)="$event.stopPropagation(); next()"
+                  >
+                    <button
+                      class="np-side-nav-btn"
+                      type="button"
+                      [disabled]="!canNext()"
+                      aria-label="Next page"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </button>
+                  </div>
                 }
               </div>
             </div>
           }
 
+          <!-- Bottom bar: always present, dims when controls hidden -->
           <div
-            class="pointer-events-none fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--np-reader-border)] bg-[var(--np-reader-surface)] transition-transform duration-300"
-            [class.translate-y-full]="!showControls()"
+            class="np-bottom-bar fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--np-reader-border)] bg-[var(--np-reader-surface)]"
+            [class.controls-visible]="showControls()"
           >
-            <div class="pointer-events-auto mx-auto w-full max-w-5xl px-4 py-4">
-              <div class="mb-3 flex items-center justify-between text-[11px] text-[var(--np-reader-muted)]">
+            <div class="mx-auto w-full max-w-5xl px-4 py-3">
+              <div class="mb-2 flex items-center justify-between text-[11px] text-[var(--np-reader-muted)]">
                 <span>Progress</span>
                 <span>{{ (progress() * 100) | number:'1.0-0' }}%</span>
               </div>
 
-              <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div class="grid grid-cols-4 gap-2">
                 <button mat-stroked-button type="button" (click)="prev()" [disabled]="!canPrev()">Prev</button>
                 <button mat-flat-button color="primary" type="button" (click)="next()" [disabled]="!canNext()">Next</button>
                 <button
@@ -353,7 +441,7 @@ import type {
                 >
                   Bookmark
                 </button>
-                <button mat-stroked-button type="button" (click)="drawerOpen.set(true)">TOC</button>
+                <button mat-stroked-button type="button" (click)="drawerOpen.set(true)">Settings</button>
               </div>
             </div>
           </div>
@@ -550,7 +638,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.controlsTimer) {
       clearTimeout(this.controlsTimer);
     }
-    this.controlsTimer = setTimeout(() => this.showControls.set(false), 2200);
+    this.controlsTimer = setTimeout(() => this.showControls.set(false), 4000);
   }
 
   toggleControls(): void {
