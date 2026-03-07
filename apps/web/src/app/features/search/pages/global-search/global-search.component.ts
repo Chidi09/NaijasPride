@@ -1,8 +1,8 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 import { BookSummary, MovieSummary, MusicVideoSummary } from '@naijaspride/types';
 
@@ -35,11 +35,16 @@ type MangaResult = {
             />
             <button
               type="submit"
-              class="h-12 rounded-xl bg-[#800020] px-5 text-sm font-semibold text-white transition hover:bg-[#660019]"
+              [disabled]="loading() || !hasValidQuery()"
+              class="h-12 rounded-xl bg-[#800020] px-5 text-sm font-semibold text-white transition hover:bg-[#660019] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Search
             </button>
           </form>
+
+          @if (searchHint()) {
+            <p class="mt-3 text-xs text-[var(--text-muted)]">{{ searchHint() }}</p>
+          }
         </div>
 
         @if (loading()) {
@@ -147,15 +152,19 @@ type MangaResult = {
 export class GlobalSearchComponent implements OnInit {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   query = '';
   loading = signal(false);
   submitted = signal(false);
+  searchHint = signal('');
 
   movies = signal<MovieSummary[]>([]);
   books = signal<BookSummary[]>([]);
   music = signal<MusicVideoSummary[]>([]);
   manga = signal<MangaResult[]>([]);
+
+  hasValidQuery = computed(() => this.query.trim().length >= 2);
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe((params) => {
@@ -172,14 +181,24 @@ export class GlobalSearchComponent implements OnInit {
     event.preventDefault();
     const q = this.query.trim();
     this.submitted.set(true);
+    this.searchHint.set('');
 
     if (q.length < 2) {
       this.movies.set([]);
       this.books.set([]);
       this.music.set([]);
       this.manga.set([]);
+      this.searchHint.set('Type at least 2 characters to search all catalogs.');
+      this.loading.set(false);
       return;
     }
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { q },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
 
     this.runSearch(q);
   }
@@ -214,6 +233,11 @@ export class GlobalSearchComponent implements OnInit {
         this.books.set(result.books.data || []);
         this.music.set(result.music.videos || []);
         this.manga.set(result.manga.data || []);
+        if ((result.movies.data || []).length + (result.books.data || []).length + (result.music.videos || []).length + (result.manga.data || []).length === 0) {
+          this.searchHint.set('No matches yet. Try a different title, artist, or keyword.');
+        } else {
+          this.searchHint.set('');
+        }
         this.loading.set(false);
       },
       error: () => {
@@ -221,6 +245,7 @@ export class GlobalSearchComponent implements OnInit {
         this.books.set([]);
         this.music.set([]);
         this.manga.set([]);
+        this.searchHint.set('Search is temporarily unavailable. Please try again.');
         this.loading.set(false);
       },
     });
