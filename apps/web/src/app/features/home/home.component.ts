@@ -1,10 +1,11 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { WatchApiService, WatchHistoryItem } from '../watch/services/watch-api.service';
 import { BookSummary, MusicFeaturedSections, MovieSummary } from '@naijaspride/types';
 import { AuthService } from '../../core/auth/auth.service';
+import { ReaderStateService } from '../../core/services/reader-state.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
@@ -19,246 +20,649 @@ type BookProgressResponse = {
   selector: 'app-home',
   standalone: true,
   imports: [CommonModule, RouterLink],
+  styles: [`
+    :host {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background: #0a0a0a;
+      color: #f9f9f2;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────── */
+    .sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: #0f0f0f;
+      border-right: 1px solid #1e1e1e;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      overflow-y: auto;
+    }
+    @media (max-width: 1023px) {
+      .sidebar { display: none; }
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      color: #a88a78;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.18s, color 0.18s;
+      text-decoration: none;
+      margin: 2px 8px;
+    }
+    .nav-link:hover { background: #1a1a1a; color: #f9f9f2; }
+    .nav-link.active { background: rgba(128,0,32,0.18); color: #f9f9f2; }
+    .nav-link.active svg { color: #800020; }
+    .nav-link svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ── Main scrollable area ──────────────────────────────────── */
+    .main-scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-width: 0;
+    }
+    .main-scroll::-webkit-scrollbar { width: 5px; }
+    .main-scroll::-webkit-scrollbar-track { background: transparent; }
+    .main-scroll::-webkit-scrollbar-thumb { background: #2a0a12; border-radius: 4px; }
+    .main-scroll::-webkit-scrollbar-thumb:hover { background: #800020; }
+
+    /* ── Right panel ───────────────────────────────────────────── */
+    .right-panel {
+      width: 300px;
+      flex-shrink: 0;
+      height: 100vh;
+      overflow-y: auto;
+      border-left: 1px solid #1e1e1e;
+      background: #0f0f0f;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    @media (max-width: 1279px) {
+      .right-panel { display: none; }
+    }
+    .right-panel::-webkit-scrollbar { width: 4px; }
+    .right-panel::-webkit-scrollbar-thumb { background: #2a0a12; border-radius: 4px; }
+
+    /* ── Movie cards ────────────────────────────────────────────── */
+    .movie-card:hover .card-img { transform: scale(1.06); }
+    .card-img { transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+    .movie-card:hover .card-overlay { opacity: 1; }
+    .card-overlay { opacity: 0; transition: opacity 0.22s ease; }
+
+    /* ── Horizontal scroll ──────────────────────────────────────── */
+    .hscroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .hscroll::-webkit-scrollbar { height: 4px; }
+    .hscroll::-webkit-scrollbar-track { background: transparent; }
+    .hscroll::-webkit-scrollbar-thumb { background: #2a0a12; border-radius: 4px; }
+
+    /* ── Movies grid ─────────────────────────────────────────────── */
+    .movies-home-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (min-width: 640px) { .movies-home-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 1024px) { .movies-home-grid { grid-template-columns: repeat(5, 1fr); } }
+    @media (min-width: 1280px) { .movies-home-grid { grid-template-columns: repeat(5, 1fr); } }
+
+    /* ── Books grid ─────────────────────────────────────────────── */
+    .books-home-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (min-width: 640px) { .books-home-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 1024px) { .books-home-grid { grid-template-columns: repeat(4, 1fr); } }
+
+    /* ── Activity items ─────────────────────────────────────────── */
+    .activity-item { 
+      display: flex; 
+      align-items: center; 
+      gap: 10px; 
+      padding: 8px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .activity-item:last-child { border-bottom: none; }
+
+    /* ── Mobile bottom padding (for PWA bottom pill) ─────────────── */
+    @media (max-width: 1023px) {
+      .mobile-content-area { padding-bottom: 88px; }
+    }
+  `],
   template: `
-    <div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <!-- Welcome Header -->
-      <div class="bg-gradient-to-br from-[#800020] via-[#69001b] to-[#3f0011] px-4 py-8 text-white md:px-8 md:py-12">
-        <div class="mx-auto max-w-7xl">
-          <div class="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:p-6">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <p class="text-xs uppercase tracking-[0.24em] text-white/70">{{ getGreeting() }}</p>
-                <h1 class="mt-1 text-2xl font-bold md:text-3xl">{{ userName() }}</h1>
-                <p class="mt-1 text-sm text-white/75">Your Nollywood, Bollywood, and Hollywood dashboard.</p>
-              </div>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- LEFT SIDEBAR                                                   -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <aside class="sidebar">
+      <!-- Logo -->
+      <div class="flex items-center gap-3 px-5 py-5 border-b border-[#1e1e1e]">
+        <img src="assets/images/logo.svg" alt="NaijasPride" class="h-8 w-auto">
+        <span class="font-bold text-sm text-[#f9f9f2] tracking-wide">NaijasPride</span>
+      </div>
 
-              <div class="hidden items-center gap-2 rounded-xl bg-white/15 px-3 py-2 md:flex">
-                <img src="assets/images/logo.svg" alt="NaijasPride" class="h-7 w-auto" />
-              </div>
-            </div>
+      <!-- Nav Links -->
+      <nav class="flex-1 py-4">
+        <p class="px-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4a4a4a]">Browse</p>
 
-            <!-- Quick Actions Row -->
-            <div class="mt-5 grid grid-cols-5 gap-2 md:gap-3">
-              <a routerLink="/movies" class="rounded-xl border border-white/20 bg-white/10 px-2 py-3 text-center transition hover:bg-white/20">
-                <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect x="2" y="2" width="20" height="20" rx="2.18" stroke-width="1.7"/>
-                  <line x1="7" y1="2" x2="7" y2="22" stroke-width="1.7"/>
-                  <line x1="17" y1="2" x2="17" y2="22" stroke-width="1.7"/>
-                  <line x1="2" y1="12" x2="22" y2="12" stroke-width="1.7"/>
-                </svg>
-                <span class="text-[11px] font-medium">Movies</span>
-              </a>
-              <a routerLink="/books" class="rounded-xl border border-white/20 bg-white/10 px-2 py-3 text-center transition hover:bg-white/20">
-                <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-width="1.7"/>
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-width="1.7"/>
-                  <line x1="10" y1="2" x2="10" y2="22" stroke-width="1.7"/>
-                </svg>
-                <span class="text-[11px] font-medium">Books</span>
-              </a>
-              <a routerLink="/music" class="rounded-xl border border-white/20 bg-white/10 px-2 py-3 text-center transition hover:bg-white/20">
-                <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" stroke-width="1.7"/>
-                  <circle cx="12" cy="12" r="3" stroke-width="1.7"/>
-                  <path d="M12 2v3" stroke-width="1.7"/>
-                  <path d="M12 19v3" stroke-width="1.7"/>
-                  <path d="M2 12h3" stroke-width="1.7"/>
-                  <path d="M19 12h3" stroke-width="1.7"/>
-                </svg>
-                <span class="text-[11px] font-medium">Music</span>
-              </a>
-              <a routerLink="/search" class="rounded-xl border border-white/20 bg-white/10 px-2 py-3 text-center transition hover:bg-white/20">
-                <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="8" stroke-width="1.7"/>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="1.7"/>
-                </svg>
-                <span class="text-[11px] font-medium">Search</span>
-              </a>
-              <a routerLink="/library" class="rounded-xl border border-white/20 bg-white/10 px-2 py-3 text-center transition hover:bg-white/20">
-                <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke-width="1.7"/>
-                </svg>
-                <span class="text-[11px] font-medium">Library</span>
-              </a>
-            </div>
+        <a routerLink="/home" class="nav-link active">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Home
+        </a>
+
+        <a routerLink="/movies" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <rect x="2" y="2" width="20" height="20" rx="2.18" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="7" y1="2" x2="7" y2="22" stroke-linecap="round"/>
+            <line x1="17" y1="2" x2="17" y2="22" stroke-linecap="round"/>
+            <line x1="2" y1="12" x2="22" y2="12" stroke-linecap="round"/>
+          </svg>
+          Movies
+        </a>
+
+        <a routerLink="/books" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Books
+        </a>
+
+        <a routerLink="/music" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M9 18V5l12-2v13" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="6" cy="18" r="3" stroke-linecap="round"/>
+            <circle cx="18" cy="16" r="3" stroke-linecap="round"/>
+          </svg>
+          Music
+        </a>
+
+        <a routerLink="/library" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Library
+        </a>
+
+        <a routerLink="/search" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <circle cx="11" cy="11" r="8" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65" stroke-linecap="round"/>
+          </svg>
+          Search
+        </a>
+
+        <div class="my-4 mx-4 border-t border-[#1e1e1e]"></div>
+        <p class="px-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4a4a4a]">Account</p>
+
+        <a routerLink="/downloads" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Downloads
+        </a>
+
+        <a routerLink="/profile" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="7" r="4" stroke-linecap="round"/>
+          </svg>
+          Profile
+        </a>
+      </nav>
+
+      <!-- User info at bottom -->
+      <div class="px-4 py-4 border-t border-[#1e1e1e]">
+        <div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-[#1a1a1a] transition cursor-pointer" routerLink="/profile">
+          <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#800020] to-[#5a0017] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            {{ userInitials() }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium truncate text-[#f9f9f2]">{{ userName() }}</p>
+            <p class="text-[11px] text-[#a88a78]">Member</p>
           </div>
         </div>
       </div>
+    </aside>
 
-      <div class="px-4 py-6 md:px-8 md:py-8">
-        <div class="mx-auto max-w-7xl space-y-8">
-          
-          <!-- Continue Watching -->
-          @if (continueWatching().length > 0 || isLoadingContinue()) {
-            <section>
-              <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold">Continue Watching</h2>
-                <a routerLink="/profile" class="text-sm text-[var(--brand)]">View all</a>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- MAIN CONTENT                                                   -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="main-scroll">
+
+      <!-- Top header bar (mobile: shows logo + hamburger; desktop: search + user) -->
+      <header class="sticky top-0 z-20 flex items-center justify-between gap-4 px-4 py-3 border-b border-[#1e1e1e] bg-[#0a0a0a]/90 backdrop-blur-md lg:px-6 lg:py-4">
+        <!-- Mobile: logo -->
+        <div class="flex items-center gap-2 lg:hidden">
+          <img src="assets/images/logo.svg" alt="NaijasPride" class="h-6 w-auto">
+          <span class="font-bold text-sm">NaijasPride</span>
+        </div>
+
+        <!-- Desktop: search bar -->
+        <a routerLink="/search" class="hidden lg:flex items-center gap-2 flex-1 max-w-sm bg-[#181818] hover:bg-[#202020] transition rounded-xl px-4 py-2.5 text-[#a88a78] text-sm cursor-pointer">
+          <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span>Search movies, books, music…</span>
+        </a>
+
+        <!-- Right actions -->
+        <div class="flex items-center gap-2">
+          <!-- Mobile search -->
+          <a routerLink="/search" class="lg:hidden h-9 w-9 rounded-xl bg-[#181818] flex items-center justify-center text-[#a88a78] hover:bg-[#242424] transition">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </a>
+          <!-- Downloads quick link -->
+          <a routerLink="/downloads" class="h-9 w-9 rounded-xl bg-[#181818] flex items-center justify-center text-[#a88a78] hover:bg-[#242424] transition">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+          <!-- User avatar -->
+          <a routerLink="/profile" class="h-9 w-9 rounded-full bg-gradient-to-br from-[#800020] to-[#5a0017] flex items-center justify-center text-white text-xs font-bold">
+            {{ userInitials() }}
+          </a>
+        </div>
+      </header>
+
+      <div class="mobile-content-area px-4 py-6 space-y-8 lg:px-6">
+
+        <!-- ── Hero Greeting ─────────────────────────────────────── -->
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#800020] via-[#69001b] to-[#3f0011] p-6 md:p-8">
+          <!-- Decorative circles -->
+          <div class="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5"></div>
+          <div class="absolute -right-4 bottom-4 h-24 w-24 rounded-full bg-white/5"></div>
+
+          <div class="relative">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">{{ getGreeting() }}</p>
+            <h1 class="mt-1 text-2xl font-bold text-white md:text-3xl">{{ userName() }}</h1>
+            <p class="mt-1 text-sm text-white/70">Your gateway to Nollywood, Bollywood & Hollywood.</p>
+
+            <!-- Quick action pills -->
+            <div class="mt-5 flex flex-wrap gap-2">
+              <a routerLink="/movies" class="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-white/20 transition">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+                Watch Movies
+              </a>
+              <a routerLink="/books" class="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-white/20 transition">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-linecap="round"/>
+                </svg>
+                Read Books
+              </a>
+              <a routerLink="/music" class="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-white/20 transition">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path d="M9 18V5l12-2v13" stroke-linecap="round"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                </svg>
+                Music
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Continue Watching ─────────────────────────────────── -->
+        @if (continueWatching().length > 0 || isLoadingContinue()) {
+          <section>
+            <div class="mb-3 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-[#f9f9f2]">Continue Watching</h2>
+              <a routerLink="/profile" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">View all</a>
+            </div>
+            @if (isLoadingContinue()) {
+              <div class="hscroll">
+                @for (i of [1,2,3,4,5]; track i) {
+                  <div class="flex-shrink-0 w-28">
+                    <div class="aspect-[2/3] animate-pulse rounded-xl bg-[#181818]"></div>
+                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
+                  </div>
+                }
               </div>
-              @if (isLoadingContinue()) {
-                <div class="flex gap-3 overflow-x-auto pb-2">
-                  @for (i of [1,2,3,4]; track i) {
-                    <div class="flex-shrink-0 w-32">
-                      <div class="aspect-[2/3] animate-pulse rounded-lg bg-[var(--bg-elevated)]"></div>
-                    </div>
-                  }
-                </div>
-              } @else {
-                <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                  @for (item of continueWatching(); track item.id) {
-                    <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="flex-shrink-0 w-32 group">
-                      <div class="relative aspect-[2/3] overflow-hidden rounded-lg">
-                        <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title" class="h-full w-full object-cover transition group-hover:scale-105" referrerpolicy="no-referrer">
-                        <div class="absolute inset-x-0 bottom-0 h-1 bg-black/50">
-                          <div class="h-full bg-[var(--brand)]" [style.width.%]="item.progressPercentage"></div>
+            } @else {
+              <div class="hscroll">
+                @for (item of continueWatching(); track item.id) {
+                  <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="movie-card flex-shrink-0 w-28 group">
+                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl">
+                      <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
+                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                      <!-- Progress bar -->
+                      <div class="absolute inset-x-0 bottom-0 h-1 bg-black/50">
+                        <div class="h-full bg-[#800020]" [style.width.%]="item.progressPercentage"></div>
+                      </div>
+                      <!-- Hover overlay -->
+                      <div class="card-overlay absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <div class="h-9 w-9 rounded-full bg-[#800020] flex items-center justify-center">
+                          <svg class="h-4 w-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
                         </div>
                       </div>
-                      <p class="mt-2 truncate text-xs font-medium">{{ item.movie.title }}</p>
-                      <p class="text-[10px] text-[var(--text-muted)]">{{ item.progressPercentage | number:'1.0-0' }}% watched</p>
-                    </a>
-                  }
-                </div>
-              }
-            </section>
-          }
-
-          <!-- Trending Movies -->
-          @if (recentMovies().length > 0) {
-            <section>
-              <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold">Trending Movies</h2>
-                <a routerLink="/movies/downloads" class="text-sm text-[var(--brand)]">See all</a>
+                    </div>
+                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ item.movie.title }}</p>
+                    <p class="text-[10px] text-[#a88a78]">{{ item.progressPercentage | number:'1.0-0' }}%</p>
+                  </a>
+                }
               </div>
-              <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            }
+          </section>
+        }
+
+        <!-- ── Trending Movies ───────────────────────────────────── -->
+        @if (recentMovies().length > 0 || isLoadingMovies()) {
+          <section>
+            <div class="mb-3 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Movies</h2>
+              <a routerLink="/movies" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+            </div>
+            @if (isLoadingMovies()) {
+              <div class="movies-home-grid">
+                @for (i of [1,2,3,4,5]; track i) {
+                  <div>
+                    <div class="aspect-[2/3] animate-pulse rounded-xl bg-[#181818]"></div>
+                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="movies-home-grid">
                 @for (movie of recentMovies(); track movie.id) {
-                  <a [routerLink]="['/movies', movie.slug]" class="flex-shrink-0 w-28 group">
-                    <div class="relative aspect-[2/3] overflow-hidden rounded-lg">
-                      <img [src]="movie.thumbnailUrl || ''" [alt]="movie.title" class="h-full w-full object-cover transition group-hover:scale-105" referrerpolicy="no-referrer">
+                  <a [routerLink]="['/movies', movie.slug]" class="movie-card group">
+                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl">
+                      <img [src]="movie.thumbnailUrl || ''" [alt]="movie.title"
+                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
                       @if (movie.isStreamOnly) {
-                        <div class="absolute top-1 right-1 rounded bg-blue-600 px-1.5 py-0.5 text-[8px] font-bold text-white">STREAM</div>
+                        <div class="absolute top-1.5 left-1.5 rounded-md bg-[#800020] px-1.5 py-0.5 text-[8px] font-bold text-white uppercase tracking-wide">Stream</div>
                       }
                       @if (getMovieProgress(movie.id); as progress) {
                         <div class="absolute inset-x-0 bottom-0 h-1 bg-black/50">
-                          <div class="h-full bg-[var(--brand)]" [style.width.%]="progress"></div>
+                          <div class="h-full bg-[#800020]" [style.width.%]="progress"></div>
                         </div>
                       }
-                    </div>
-                    <p class="mt-2 truncate text-xs font-medium">{{ movie.title }}</p>
-                    <p class="text-[10px] text-[var(--text-muted)]">{{ movie.year }}</p>
-                  </a>
-                }
-              </div>
-            </section>
-          }
-
-          <!-- Featured Books -->
-          <section class="grid gap-6 lg:grid-cols-2">
-            <div>
-              <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold">Trending Books</h2>
-                <a routerLink="/books" class="text-sm text-[var(--brand)]">Browse</a>
-              </div>
-              <div class="space-y-3">
-                @for (book of books(); track book.id) {
-                  <a [routerLink]="['/books/novel', book.slug]" class="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-3 transition hover:border-[var(--brand)]">
-                    <div class="relative h-16 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--bg-elevated)]">
-                      <img [src]="getBookCover(book.slug, book.coverUrl)" [alt]="book.title" class="h-full w-full object-cover" referrerpolicy="no-referrer">
-                      @if (getBookProgress(book.slug); as progress) {
-                        <div class="absolute inset-x-0 bottom-0 h-1 bg-black/40">
-                          <div class="h-full bg-[var(--brand)]" [style.width.%]="getBookProgressWidth(progress)"></div>
+                      <div class="card-overlay absolute inset-0 bg-black/40 flex items-end p-2">
+                        <div class="h-7 w-7 rounded-full bg-[#800020] flex items-center justify-center">
+                          <svg class="h-3.5 w-3.5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
                         </div>
-                      }
-                    </div>
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium">{{ book.title }}</p>
-                      <p class="truncate text-xs text-[var(--text-muted)]">{{ book.author || 'Unknown author' }}</p>
-                    </div>
-                    <svg class="h-5 w-5 flex-shrink-0 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path d="M9 5l7 7-7 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </a>
-                }
-              </div>
-            </div>
-
-            <!-- Trending Music -->
-            <div>
-              <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold">Trending Music</h2>
-                <a routerLink="/music" class="text-sm text-[var(--brand)]">Explore</a>
-              </div>
-              <div class="space-y-2">
-                @for (video of musicTrending(); track video.id) {
-                  <a [routerLink]="['/music', video.slug]" class="flex items-center gap-3 rounded-xl p-2 transition hover:bg-[var(--bg-secondary)]">
-                    <div class="relative h-14 w-20 flex-shrink-0 overflow-hidden rounded-lg">
-                      <img [src]="video.thumbnailUrl || ''" [alt]="video.title" class="h-full w-full object-cover" referrerpolicy="no-referrer">
-                      <div class="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <svg class="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z"/>
-                        </svg>
                       </div>
                     </div>
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium">{{ video.title }}</p>
-                      <p class="truncate text-xs text-[var(--text-muted)]">{{ video.artist }}</p>
-                    </div>
+                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ movie.title }}</p>
+                    <p class="text-[10px] text-[#a88a78]">{{ movie.year }}</p>
                   </a>
                 }
               </div>
-            </div>
+            }
           </section>
+        }
 
-          <!-- Your Lists -->
+        <!-- ── Books + Music (side-by-side on lg) ───────────────── -->
+        <div class="grid gap-8 lg:grid-cols-2">
+
+          <!-- Trending Books -->
           <section>
-            <h2 class="mb-4 text-lg font-semibold">Your Library</h2>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <a routerLink="/library" [queryParams]="{ tab: 'watchlist' }" class="rounded-xl bg-gradient-to-br from-[#800020] to-[#5a0017] p-4 text-white">
-                <svg class="mb-2 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.5"/>
-                </svg>
-                <span class="text-sm font-medium">Watchlist</span>
-              </a>
-              <a routerLink="/library" [queryParams]="{ tab: 'continue' }" class="rounded-xl bg-gradient-to-br from-[#9b203f] to-[#6f1028] p-4 text-white">
-                <svg class="mb-2 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" stroke-width="1.5"/>
-                </svg>
-                <span class="text-sm font-medium">Favorites</span>
-              </a>
-              <a routerLink="/downloads" [queryParams]="{ tab: 'history' }" class="rounded-xl bg-gradient-to-br from-[#651325] to-[#430014] p-4 text-white">
-                <svg class="mb-2 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-width="1.5"/>
-                </svg>
-                <span class="text-sm font-medium">Downloads</span>
-              </a>
-              <a routerLink="/books/light-novels" class="rounded-xl bg-gradient-to-br from-[#7b1a31] to-[#520015] p-4 text-white">
-                <svg class="mb-2 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" stroke-width="1.5"/>
-                </svg>
-                <span class="text-sm font-medium">Reading</span>
-              </a>
+            <div class="mb-3 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Books</h2>
+              <a routerLink="/books" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">Browse</a>
+            </div>
+            <div class="space-y-2">
+              @for (book of books(); track book.id) {
+                <a [routerLink]="['/books/novel', book.slug]"
+                   class="flex items-center gap-3 rounded-xl border border-[#1e1e1e] bg-[#111] p-3 transition hover:border-[#800020]/50 hover:bg-[#141414]">
+                  <div class="relative h-16 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[#1e1e1e]">
+                    <img [src]="getBookCover(book.slug, book.coverUrl)" [alt]="book.title"
+                         class="h-full w-full object-cover" referrerpolicy="no-referrer">
+                    @if (getBookProgress(book.slug); as progress) {
+                      <div class="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                        <div class="h-full bg-[#800020]" [style.width.%]="getBookProgressWidth(progress)"></div>
+                      </div>
+                    }
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium text-[#f9f9f2]">{{ book.title }}</p>
+                    <p class="truncate text-xs text-[#a88a78]">{{ book.author || 'Unknown author' }}</p>
+                    @if (getBookProgress(book.slug); as progress) {
+                      <p class="mt-1 text-[10px] text-[#800020]">{{ progress | number:'1.0-0' }}% read</p>
+                    }
+                  </div>
+                  <svg class="h-4 w-4 flex-shrink-0 text-[#4a4a4a]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </a>
+              }
+              @if (books().length === 0) {
+                @for (i of [1,2,3,4]; track i) {
+                  <div class="flex items-center gap-3 rounded-xl bg-[#111] p-3">
+                    <div class="h-16 w-12 animate-pulse rounded-lg bg-[#1e1e1e] flex-shrink-0"></div>
+                    <div class="flex-1 space-y-2">
+                      <div class="h-3 w-3/4 animate-pulse rounded bg-[#1e1e1e]"></div>
+                      <div class="h-3 w-1/2 animate-pulse rounded bg-[#1e1e1e]"></div>
+                    </div>
+                  </div>
+                }
+              }
             </div>
           </section>
 
+          <!-- Trending Music -->
+          <section>
+            <div class="mb-3 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Music</h2>
+              <a routerLink="/music" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">Explore</a>
+            </div>
+            <div class="space-y-1">
+              @for (video of musicTrending(); track video.id; let idx = $index) {
+                <a [routerLink]="['/music', video.slug]"
+                   class="flex items-center gap-3 rounded-xl p-2.5 transition hover:bg-[#151515] group">
+                  <!-- Track number -->
+                  <span class="w-5 text-center text-xs font-medium text-[#4a4a4a] group-hover:hidden">{{ idx + 1 }}</span>
+                  <div class="w-5 hidden group-hover:flex items-center justify-center">
+                    <svg class="h-3.5 w-3.5 text-[#800020]" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                  <!-- Thumbnail -->
+                  <div class="relative h-12 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+                    <img [src]="video.thumbnailUrl || ''" [alt]="video.title"
+                         class="h-full w-full object-cover" referrerpolicy="no-referrer">
+                    <div class="absolute inset-0 bg-black/20"></div>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium text-[#f9f9f2]">{{ video.title }}</p>
+                    <p class="truncate text-xs text-[#a88a78]">{{ video.artist }}</p>
+                  </div>
+                </a>
+              }
+              @if (musicTrending().length === 0) {
+                @for (i of [1,2,3,4,5]; track i) {
+                  <div class="flex items-center gap-3 rounded-xl p-2.5">
+                    <div class="w-5 h-3 animate-pulse rounded bg-[#1e1e1e]"></div>
+                    <div class="h-12 w-16 animate-pulse rounded-lg bg-[#1e1e1e] flex-shrink-0"></div>
+                    <div class="flex-1 space-y-2">
+                      <div class="h-3 w-3/4 animate-pulse rounded bg-[#1e1e1e]"></div>
+                      <div class="h-3 w-1/2 animate-pulse rounded bg-[#1e1e1e]"></div>
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+          </section>
+        </div>
+
+        <!-- ── Your Library shortcuts ────────────────────────────── -->
+        <section>
+          <h2 class="mb-3 text-base font-semibold text-[#f9f9f2]">Your Library</h2>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <a routerLink="/library" [queryParams]="{ tab: 'watchlist' }"
+               class="group flex items-center gap-3 rounded-xl border border-[#1e1e1e] bg-[#111] px-4 py-4 transition hover:border-[#800020]/50 hover:bg-[#151515]">
+              <div class="h-9 w-9 flex-shrink-0 rounded-xl bg-[#800020]/15 flex items-center justify-center group-hover:bg-[#800020]/25 transition">
+                <svg class="h-5 w-5 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path d="M5 3l14 9-14 9V3z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <span class="text-sm font-medium text-[#f9f9f2]">Watchlist</span>
+            </a>
+            <a routerLink="/library" [queryParams]="{ tab: 'continue' }"
+               class="group flex items-center gap-3 rounded-xl border border-[#1e1e1e] bg-[#111] px-4 py-4 transition hover:border-[#800020]/50 hover:bg-[#151515]">
+              <div class="h-9 w-9 flex-shrink-0 rounded-xl bg-[#800020]/15 flex items-center justify-center group-hover:bg-[#800020]/25 transition">
+                <svg class="h-5 w-5 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <span class="text-sm font-medium text-[#f9f9f2]">Favorites</span>
+            </a>
+            <a routerLink="/downloads"
+               class="group flex items-center gap-3 rounded-xl border border-[#1e1e1e] bg-[#111] px-4 py-4 transition hover:border-[#800020]/50 hover:bg-[#151515]">
+              <div class="h-9 w-9 flex-shrink-0 rounded-xl bg-[#800020]/15 flex items-center justify-center group-hover:bg-[#800020]/25 transition">
+                <svg class="h-5 w-5 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <span class="text-sm font-medium text-[#f9f9f2]">Downloads</span>
+            </a>
+            <a routerLink="/books/light-novels"
+               class="group flex items-center gap-3 rounded-xl border border-[#1e1e1e] bg-[#111] px-4 py-4 transition hover:border-[#800020]/50 hover:bg-[#151515]">
+              <div class="h-9 w-9 flex-shrink-0 rounded-xl bg-[#800020]/15 flex items-center justify-center group-hover:bg-[#800020]/25 transition">
+                <svg class="h-5 w-5 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <span class="text-sm font-medium text-[#f9f9f2]">Reading</span>
+            </a>
+          </div>
+        </section>
+
+      </div><!-- end mobile-content-area -->
+    </div><!-- end main-scroll -->
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- RIGHT PANEL (xl only)                                          -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <aside class="right-panel">
+
+      <!-- Recent Activity -->
+      <div>
+        <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] mb-3">Recent Activity</h3>
+        @if (continueWatching().length > 0) {
+          @for (item of continueWatching().slice(0, 5); track item.id) {
+            <div class="activity-item">
+              <div class="relative h-10 w-8 flex-shrink-0 overflow-hidden rounded-md">
+                <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
+                     class="h-full w-full object-cover" referrerpolicy="no-referrer">
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-xs font-medium text-[#f9f9f2]">{{ item.movie.title }}</p>
+                <div class="mt-1 h-1 rounded-full bg-[#1e1e1e]">
+                  <div class="h-full rounded-full bg-[#800020]" [style.width.%]="item.progressPercentage"></div>
+                </div>
+                <p class="mt-0.5 text-[10px] text-[#a88a78]">{{ item.progressPercentage | number:'1.0-0' }}% watched</p>
+              </div>
+            </div>
+          }
+        } @else if (isLoadingContinue()) {
+          @for (i of [1,2,3]; track i) {
+            <div class="activity-item">
+              <div class="h-10 w-8 animate-pulse rounded-md bg-[#1e1e1e] flex-shrink-0"></div>
+              <div class="flex-1 space-y-1.5">
+                <div class="h-2.5 w-3/4 animate-pulse rounded bg-[#1e1e1e]"></div>
+                <div class="h-1.5 w-full animate-pulse rounded-full bg-[#1e1e1e]"></div>
+              </div>
+            </div>
+          }
+        } @else {
+          <p class="text-xs text-[#4a4a4a] italic">No recent activity yet</p>
+        }
+      </div>
+
+      <!-- Divider -->
+      <div class="border-t border-[#1e1e1e]"></div>
+
+      <!-- Trending Music (right panel list) -->
+      <div>
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a]">Top Music</h3>
+          <a routerLink="/music" class="text-[10px] text-[#800020] hover:text-[#a0002a] transition">All</a>
+        </div>
+        @for (video of musicTrending().slice(0, 4); track video.id; let idx = $index) {
+          <a [routerLink]="['/music', video.slug]" class="flex items-center gap-3 py-2 hover:opacity-80 transition">
+            <span class="w-4 text-[10px] font-bold text-[#800020]">{{ idx + 1 }}</span>
+            <div class="h-9 w-12 flex-shrink-0 overflow-hidden rounded-md">
+              <img [src]="video.thumbnailUrl || ''" [alt]="video.title" class="h-full w-full object-cover" referrerpolicy="no-referrer">
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-xs font-medium text-[#f9f9f2]">{{ video.title }}</p>
+              <p class="truncate text-[10px] text-[#a88a78]">{{ video.artist }}</p>
+            </div>
+          </a>
+        }
+      </div>
+
+      <!-- Divider -->
+      <div class="border-t border-[#1e1e1e]"></div>
+
+      <!-- Quick nav links -->
+      <div>
+        <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] mb-3">Quick Links</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <a routerLink="/movies/downloads" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
+            <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>
+            </svg>
+            <p class="text-[11px] text-[#f9f9f2]">Movies</p>
+          </a>
+          <a routerLink="/books" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
+            <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+            </svg>
+            <p class="text-[11px] text-[#f9f9f2]">Books</p>
+          </a>
+          <a routerLink="/library" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
+            <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            </svg>
+            <p class="text-[11px] text-[#f9f9f2]">Library</p>
+          </a>
+          <a routerLink="/search" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
+            <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <p class="text-[11px] text-[#f9f9f2]">Search</p>
+          </a>
         </div>
       </div>
-    </div>
-  `,
-  styles: [`
-    .scrollbar-hide {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
-    .scrollbar-hide::-webkit-scrollbar {
-      display: none;
-    }
-  `]
+
+    </aside>
+  `
 })
-export class HomeComponent implements OnInit {
+export class HomeComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private watchApi = inject(WatchApiService);
   private authService = inject(AuthService);
+  private readerState = inject(ReaderStateService);
+  private router = inject(Router);
 
   isLoadingContinue = signal(true);
+  isLoadingMovies = signal(true);
   continueWatching = signal<WatchHistoryItem[]>([]);
   recentMovies = signal<MovieSummary[]>([]);
   books = signal<BookSummary[]>([]);
@@ -270,6 +674,9 @@ export class HomeComponent implements OnInit {
   userInitials = signal('G');
 
   ngOnInit(): void {
+    // Activate home layout — hides shell navbar/bottom-nav
+    this.readerState.enterHome();
+
     // Set user info
     const user = this.authService.currentUser();
     if (user) {
@@ -298,7 +705,11 @@ export class HomeComponent implements OnInit {
     this.http.get<{ success?: boolean; data?: MovieSummary[] }>('/api/v1/movies', {
       params: { page: '1', limit: '10', sortBy: 'popular' },
     }).subscribe({
-      next: (res) => this.recentMovies.set((res.data || []).slice(0, 10)),
+      next: (res) => {
+        this.recentMovies.set((res.data || []).slice(0, 10));
+        this.isLoadingMovies.set(false);
+      },
+      error: () => this.isLoadingMovies.set(false),
     });
 
     // Books
@@ -316,6 +727,11 @@ export class HomeComponent implements OnInit {
     this.http.get<{ success: boolean; data: MusicFeaturedSections }>('/api/v1/music/featured').subscribe({
       next: (res) => this.musicTrending.set((res.data?.trending || []).slice(0, 5)),
     });
+  }
+
+  ngOnDestroy(): void {
+    // Restore shell navbar when leaving home
+    this.readerState.exitHome();
   }
 
   getGreeting(): string {

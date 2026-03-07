@@ -43,7 +43,7 @@ import { filter } from 'rxjs/operators';
       <!-- ═══════════════════════════════════════════════════════ -->
       <!-- WEB MODE: Classic Navbar (hidden in PWA/app mode)      -->
       <!-- ═══════════════════════════════════════════════════════ -->
-      @if (!readerState.navbarHidden() && !pwaService.isAppMode()) {
+      @if (!readerState.navbarHidden() && !readerState.homePageActive() && !pwaService.isAppMode()) {
         <app-navbar />
       }
 
@@ -51,7 +51,7 @@ import { filter } from 'rxjs/operators';
       <!-- APP MODE: Compact header (PWA/standalone only)         -->
       <!-- Hidden on md+ where the side rail provides enough nav  -->
       <!-- ═══════════════════════════════════════════════════════ -->
-      @if (pwaService.isAppMode() && !readerState.navbarHidden()) {
+      @if (pwaService.isAppMode() && !readerState.navbarHidden() && !readerState.homePageActive()) {
         <app-app-header (openMenu)="openSidePanel()" />
       }
 
@@ -64,18 +64,18 @@ import { filter } from 'rxjs/operators';
       <!-- ═══════════════════════════════════════════════════════ -->
       <main 
         class="flex-1" 
-        [class.pt-16]="!readerState.navbarHidden() && !pwaService.isAppMode()"
-        [class.pt-14]="pwaService.isAppMode() && !readerState.navbarHidden()"
-        [class.pb-24]="pwaService.isAppMode() && !hideBottomNav"
+        [class.pt-16]="!readerState.navbarHidden() && !readerState.homePageActive() && !pwaService.isAppMode()"
+        [class.pt-14]="pwaService.isAppMode() && !readerState.navbarHidden() && !readerState.homePageActive()"
+        [class.pb-24]="pwaService.isAppMode() && !hideBottomNav && !readerState.homePageActive()"
         [class.md:pb-0]="pwaService.isAppMode()"
-        [class.md:pl-20]="pwaService.isAppMode()"
+        [class.md:pl-20]="pwaService.isAppMode() && !readerState.homePageActive()"
       >
         <router-outlet />
       </main>
 
       <!-- Back Button (PWA/TV mode, non-home pages) -->
       <!-- The back-button component handles its own fixed positioning -->
-      @if (pwaService.isAppMode() && !readerState.navbarHidden()) {
+      @if (pwaService.isAppMode() && !readerState.navbarHidden() && !readerState.homePageActive()) {
         <app-back-button />
       }
 
@@ -91,7 +91,7 @@ import { filter } from 'rxjs/operators';
       <!-- ═══════════════════════════════════════════════════════ -->
       <!-- APP MODE: Bottom Nav (mobile) / Side Rail (tablet+)    -->
       <!-- ═══════════════════════════════════════════════════════ -->
-      @if (pwaService.isAppMode() && !readerState.navbarHidden()) {
+      @if (pwaService.isAppMode() && !readerState.navbarHidden() && !readerState.homePageActive()) {
         <app-bottom-nav #bottomNav />
       }
 

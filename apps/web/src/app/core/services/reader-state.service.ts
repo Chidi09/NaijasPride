@@ -21,6 +21,13 @@ export class ReaderStateService {
   navbarHidden = signal(false);
 
   /**
+   * Signal to indicate the home dashboard page is active.
+   * When true, the top navbar and bottom nav are hidden because
+   * the home page renders its own full-screen 3-column layout with sidebar nav.
+   */
+  homePageActive = signal(false);
+
+  /**
    * Enter reader mode - hide navbar
    */
   enterReader(): void {
@@ -39,5 +46,15 @@ export class ReaderStateService {
    */
   toggleNavbar(): void {
     this.navbarHidden.update(current => !current);
+  }
+
+  /** Called by HomeComponent on init — hides shell nav so home renders its own sidebar */
+  enterHome(): void {
+    this.homePageActive.set(true);
+  }
+
+  /** Called by HomeComponent on destroy — restores shell nav */
+  exitHome(): void {
+    this.homePageActive.set(false);
   }
 }
