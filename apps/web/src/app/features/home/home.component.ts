@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { RouterLink, Router } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { WatchApiService, WatchHistoryItem } from '../watch/services/watch-api.service';
 import { BookSummary, MusicFeaturedSections, MovieSummary } from '@naijaspride/types';
 import { AuthService } from '../../core/auth/auth.service';
@@ -112,7 +112,7 @@ type BookProgressResponse = {
     .hscroll::-webkit-scrollbar-track { background: transparent; }
     .hscroll::-webkit-scrollbar-thumb { background: #2a0a12; border-radius: 4px; }
 
-    /* ── Movies grid ─────────────────────────────────────────────── */
+    /* ── Download Movies grid (portrait 2:3) ────────────────────── */
     .movies-home-grid {
       display: grid;
       gap: 12px;
@@ -121,6 +121,16 @@ type BookProgressResponse = {
     @media (min-width: 640px) { .movies-home-grid { grid-template-columns: repeat(4, 1fr); } }
     @media (min-width: 1024px) { .movies-home-grid { grid-template-columns: repeat(5, 1fr); } }
     @media (min-width: 1280px) { .movies-home-grid { grid-template-columns: repeat(5, 1fr); } }
+
+    /* ── YouTube / Stream-only grid (landscape 16:9) ─────────────── */
+    .youtube-home-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(1, 1fr);
+    }
+    @media (min-width: 480px) { .youtube-home-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 900px) { .youtube-home-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 1280px) { .youtube-home-grid { grid-template-columns: repeat(3, 1fr); } }
 
     /* ── Books grid ─────────────────────────────────────────────── */
     .books-home-grid {
@@ -368,12 +378,12 @@ type BookProgressResponse = {
           </section>
         }
 
-        <!-- ── Trending Movies ───────────────────────────────────── -->
-        @if (recentMovies().length > 0 || isLoadingMovies()) {
+        <!-- ── Trending Download Movies (portrait 2:3) ─────────────── -->
+        @if (downloadMovies().length > 0 || isLoadingMovies()) {
           <section>
             <div class="mb-3 flex items-center justify-between">
               <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Movies</h2>
-              <a routerLink="/movies" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+              <a routerLink="/movies/downloads" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
             </div>
             @if (isLoadingMovies()) {
               <div class="movies-home-grid">
@@ -381,19 +391,17 @@ type BookProgressResponse = {
                   <div>
                     <div class="aspect-[2/3] animate-pulse rounded-xl bg-[#181818]"></div>
                     <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
+                    <div class="mt-1 h-2.5 w-1/2 animate-pulse rounded bg-[#181818]"></div>
                   </div>
                 }
               </div>
             } @else {
               <div class="movies-home-grid">
-                @for (movie of recentMovies(); track movie.id) {
+                @for (movie of downloadMovies(); track movie.id) {
                   <a [routerLink]="['/movies', movie.slug]" class="movie-card group">
-                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl">
+                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#181818]">
                       <img [src]="movie.thumbnailUrl || ''" [alt]="movie.title"
                            class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
-                      @if (movie.isStreamOnly) {
-                        <div class="absolute top-1.5 left-1.5 rounded-md bg-[#800020] px-1.5 py-0.5 text-[8px] font-bold text-white uppercase tracking-wide">Stream</div>
-                      }
                       @if (getMovieProgress(movie.id); as progress) {
                         <div class="absolute inset-x-0 bottom-0 h-1 bg-black/50">
                           <div class="h-full bg-[#800020]" [style.width.%]="progress"></div>
@@ -407,6 +415,57 @@ type BookProgressResponse = {
                         </div>
                       </div>
                     </div>
+                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ movie.title }}</p>
+                    <p class="text-[10px] text-[#a88a78]">{{ movie.year }}</p>
+                  </a>
+                }
+              </div>
+            }
+          </section>
+        }
+
+        <!-- ── Trending YouTube / Stream Movies (landscape 16:9) ──── -->
+        @if (streamMovies().length > 0 || isLoadingStreamMovies()) {
+          <section>
+            <div class="mb-3 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <h2 class="text-base font-semibold text-[#f9f9f2]">YouTube Cinema</h2>
+                <span class="rounded-md bg-[#800020]/20 px-2 py-0.5 text-[10px] font-semibold text-[#800020] uppercase tracking-wide">Stream</span>
+              </div>
+              <a routerLink="/movies" [queryParams]="{type: 'stream'}" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+            </div>
+            @if (isLoadingStreamMovies()) {
+              <div class="youtube-home-grid">
+                @for (i of [1,2,3]; track i) {
+                  <div>
+                    <div class="aspect-video animate-pulse rounded-xl bg-[#181818]"></div>
+                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
+                    <div class="mt-1 h-2.5 w-1/2 animate-pulse rounded bg-[#181818]"></div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="youtube-home-grid">
+                @for (movie of streamMovies(); track movie.id) {
+                  <a [routerLink]="['/movies', movie.slug]" class="movie-card group">
+                    <div class="relative aspect-video overflow-hidden rounded-xl bg-[#181818]">
+                      <img [src]="movie.thumbnailUrl || ''" [alt]="movie.title"
+                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                      <!-- YouTube play button overlay -->
+                      <div class="card-overlay absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div class="h-12 w-12 rounded-full bg-[#800020]/90 flex items-center justify-center shadow-lg">
+                          <svg class="h-5 w-5 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                      </div>
+                      <!-- Bottom title bar on hover -->
+                      <div class="card-overlay absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                        <p class="truncate text-xs font-semibold text-white">{{ movie.title }}</p>
+                        <p class="text-[10px] text-white/60">{{ movie.year }}</p>
+                      </div>
+                    </div>
+                    <!-- Title below card (always visible) -->
                     <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ movie.title }}</p>
                     <p class="text-[10px] text-[#a88a78]">{{ movie.year }}</p>
                   </a>
@@ -659,12 +718,15 @@ export class HomeComponent implements OnInit, OnDestroy {
   private watchApi = inject(WatchApiService);
   private authService = inject(AuthService);
   private readerState = inject(ReaderStateService);
-  private router = inject(Router);
 
   isLoadingContinue = signal(true);
   isLoadingMovies = signal(true);
+  isLoadingStreamMovies = signal(true);
   continueWatching = signal<WatchHistoryItem[]>([]);
-  recentMovies = signal<MovieSummary[]>([]);
+  /** Download movies — portrait 2:3 cards */
+  downloadMovies = signal<MovieSummary[]>([]);
+  /** Stream-only / YouTube movies — landscape 16:9 cards */
+  streamMovies = signal<MovieSummary[]>([]);
   books = signal<BookSummary[]>([]);
   musicTrending = signal<MusicFeaturedSections['trending']>([]);
   movieProgressById = signal<Record<string, number>>({});
@@ -701,15 +763,26 @@ export class HomeComponent implements OnInit, OnDestroy {
       error: () => this.isLoadingContinue.set(false),
     });
 
-    // Recent movies
+    // Download movies (portrait cards — isStreamOnly=false)
     this.http.get<{ success?: boolean; data?: MovieSummary[] }>('/api/v1/movies', {
-      params: { page: '1', limit: '10', sortBy: 'popular' },
+      params: { page: '1', limit: '10', sortBy: 'popular', isStreamOnly: 'false' },
     }).subscribe({
       next: (res) => {
-        this.recentMovies.set((res.data || []).slice(0, 10));
+        this.downloadMovies.set((res.data || []).slice(0, 10));
         this.isLoadingMovies.set(false);
       },
       error: () => this.isLoadingMovies.set(false),
+    });
+
+    // Stream-only / YouTube movies (landscape 16:9 cards — isStreamOnly=true)
+    this.http.get<{ success?: boolean; data?: MovieSummary[] }>('/api/v1/movies', {
+      params: { page: '1', limit: '6', sortBy: 'popular', isStreamOnly: 'true' },
+    }).subscribe({
+      next: (res) => {
+        this.streamMovies.set((res.data || []).slice(0, 6));
+        this.isLoadingStreamMovies.set(false);
+      },
+      error: () => this.isLoadingStreamMovies.set(false),
     });
 
     // Books
