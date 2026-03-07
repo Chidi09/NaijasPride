@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, of } from 'rxjs';
 import { BookSummary, MovieSummary, MusicVideoSummary } from '@naijaspride/types';
 
 type MangaResult = {
@@ -206,34 +205,37 @@ export class GlobalSearchComponent implements OnInit {
   private runSearch(q: string): void {
     this.loading.set(true);
 
-    forkJoin({
-      movies: this.http
-        .get<{ success?: boolean; data?: MovieSummary[] }>('/api/v1/movies', {
-          params: { q, page: '1', limit: '12', sortBy: 'popular' },
-        })
-        .pipe(catchError(() => of({ data: [] }))),
-      books: this.http
-        .get<{ status?: string; data?: BookSummary[] }>('/api/v1/books', {
-          params: { q, page: '1', limit: '8' },
-        })
-        .pipe(catchError(() => of({ data: [] }))),
-      music: this.http
-        .get<{ success?: boolean; videos?: MusicVideoSummary[] }>('/api/v1/music', {
-          params: { q, page: '1', limit: '8' },
-        })
-        .pipe(catchError(() => of({ videos: [] }))),
-      manga: this.http
-        .get<{ status?: string; data?: MangaResult[] }>('/api/v1/books/manga/search', {
-          params: { q, limit: '12' },
-        })
-        .pipe(catchError(() => of({ data: [] }))),
-    }).subscribe({
+    this.http
+      .get<{
+        success?: boolean;
+        data?: {
+          movies?: MovieSummary[];
+          books?: BookSummary[];
+          music?: MusicVideoSummary[];
+          manga?: MangaResult[];
+        };
+      }>('/api/v1/search', {
+        params: {
+          q,
+          movieLimit: '12',
+          bookLimit: '8',
+          musicLimit: '8',
+          mangaLimit: '12',
+        },
+      })
+      .subscribe({
       next: (result) => {
-        this.movies.set(result.movies.data || []);
-        this.books.set(result.books.data || []);
-        this.music.set(result.music.videos || []);
-        this.manga.set(result.manga.data || []);
-        if ((result.movies.data || []).length + (result.books.data || []).length + (result.music.videos || []).length + (result.manga.data || []).length === 0) {
+        const movies = result.data?.movies || [];
+        const books = result.data?.books || [];
+        const music = result.data?.music || [];
+        const manga = result.data?.manga || [];
+
+        this.movies.set(movies);
+        this.books.set(books);
+        this.music.set(music);
+        this.manga.set(manga);
+
+        if (movies.length + books.length + music.length + manga.length === 0) {
           this.searchHint.set('No matches yet. Try a different title, artist, or keyword.');
         } else {
           this.searchHint.set('');

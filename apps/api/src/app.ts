@@ -31,6 +31,7 @@ import { musicRoutes } from "./modules/music/music.routes";
 import { adminMusicRoutes } from "./modules/music/admin-music.routes";
 import { AutoLibraryDiscoveryService } from "./modules/books/auto-library-discovery.service";
 import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
+import { searchRoutes } from "./modules/search/search.routes";
 import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import { YouTubeMusicService } from "./modules/music/youtube-music.service";
@@ -286,6 +287,7 @@ const buildServer = async () => {
   await app.register(watchRoutes, { prefix: `${apiPrefix}/watch` });
   await app.register(plansRoutes, { prefix: `${apiPrefix}/plans` });
   await app.register(musicRoutes, { prefix: `${apiPrefix}/music` });
+  await app.register(searchRoutes, { prefix: `${apiPrefix}/search` });
   await app.register(adminMusicRoutes, { prefix: `${apiPrefix}/admin/music` });
   await app.register(wrappedRoutes, { prefix: `${apiPrefix}/wrapped` });
 
