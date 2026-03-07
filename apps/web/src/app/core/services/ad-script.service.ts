@@ -37,7 +37,6 @@ export class AdScriptService {
       script.src = this.adsenseAutoAdsUrl;
       script.async = true;
       script.crossOrigin = 'anonymous';
-      script.dataset['adManaged'] = 'true';
       document.head.appendChild(script);
     };
 
@@ -150,6 +149,19 @@ export class AdScriptService {
 
     const scripts = document.querySelectorAll(this.managedScriptSelector);
     scripts.forEach(script => script.remove());
+
+    // AdSense warns when custom data-* attributes are attached to its script,
+    // so it is managed via id/src rather than data-ad-managed.
+    const adsenseById = document.getElementById(this.adsenseAutoAdsScriptId);
+    if (adsenseById) {
+      adsenseById.remove();
+      return;
+    }
+
+    const adsenseBySrc = document.querySelector(`script[src="${this.adsenseAutoAdsUrl}"]`);
+    if (adsenseBySrc) {
+      adsenseBySrc.remove();
+    }
   }
 
   private buildEffectiveGateConfig(options: EffectiveGateSlotOptions): string {

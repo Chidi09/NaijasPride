@@ -422,12 +422,22 @@ export class BooksService {
       });
     }
 
-    // Only show books that have an actual downloadable file.
-    // Exclude books whose downloadUrl still points to an external Anna's Archive URL
-    // (not yet mirrored to R2). Mirrored books have downloadUrl starting with /api/v1/.
+    // Only show books that are streamable via our API routes.
+    // This excludes raw magnet links and other external URLs that cannot be
+    // opened by /api/v1/books/:slug/file in production.
     filters.push({
       downloadUrl: { not: null },
-      NOT: { downloadUrl: { startsWith: 'https://annas-archive' } },
+      OR: [
+        // Canonical mirrored storage route
+        { downloadUrl: { contains: '/books/download?key=' } },
+        // Proxied file routes (e.g. /api/v1/books/:slug/file, Elsci proxy)
+        {
+          AND: [
+            { downloadUrl: { contains: '/books/' } },
+            { downloadUrl: { contains: '/file' } },
+          ],
+        },
+      ],
     });
 
     const where: Prisma.BookWhereInput = {

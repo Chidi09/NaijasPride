@@ -406,6 +406,110 @@ export const bookRoutes = async (
     }
   };
 
+  type OpenLibrarySearchDoc = {
+    title?: string;
+    cover_i?: number;
+  };
+
+  type OpenLibrarySearchResponse = {
+    docs?: OpenLibrarySearchDoc[];
+  };
+
+  const OPEN_LIBRARY_MISS_TTL_MS = 15 * 60 * 1000;
+  const openLibraryCoverMissCache = new Map<string, number>();
+
+  const normalizeLoose = (value: string): string =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+
+  const splitSearchTokens = (value: string): string[] =>
+    normalizeLoose(value)
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3);
+
+  const hasTitleSignal = (candidateTitle: string, targetTitle: string): boolean => {
+    const candidateTokens = new Set(splitSearchTokens(candidateTitle));
+    const targetTokens = splitSearchTokens(targetTitle);
+    if (!candidateTokens.size || targetTokens.length === 0) return false;
+    const overlap = targetTokens.filter((token) => candidateTokens.has(token)).length;
+    return overlap >= Math.max(1, Math.floor(targetTokens.length / 2));
+  };
+
+  const resolveOpenLibraryCoverUrl = async (book: {
+    slug: string;
+    title: string;
+    author: string;
+    isbn: string | null;
+  }): Promise<string | null> => {
+    const missUntil = openLibraryCoverMissCache.get(book.slug) || 0;
+    if (missUntil > Date.now()) return null;
+
+    const safeTitle = (book.title || '').trim();
+    if (!safeTitle) return null;
+
+    // First try direct ISBN cover lookup (if present)
+    const isbn = (book.isbn || '').replace(/[^0-9Xx]/g, '');
+    if (isbn.length >= 10) {
+      const isbnCover = `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg`;
+      try {
+        const probe = await axios.head(isbnCover, {
+          timeout: 7_000,
+          validateStatus: () => true,
+        });
+        if (probe.status >= 200 && probe.status < 400) {
+          return isbnCover;
+        }
+      } catch {
+        // Ignore and continue to title/author search.
+      }
+    }
+
+    // Then search Open Library by title (+ optional author).
+    try {
+      const response = await axios.get<OpenLibrarySearchResponse>('https://openlibrary.org/search.json', {
+        params: {
+          title: safeTitle,
+          author: (book.author || '').trim() || undefined,
+          limit: 6,
+        },
+        timeout: 12_000,
+        headers: {
+          'User-Agent': 'NaijasPride/1.0 (contact@naijaspride.com)',
+        },
+      });
+
+      const docs = Array.isArray(response.data?.docs) ? response.data.docs : [];
+      for (const doc of docs) {
+        const coverId = Number(doc.cover_i);
+        if (!Number.isFinite(coverId) || coverId <= 0) continue;
+
+        const docTitle = String(doc.title || '').trim();
+        if (docTitle && !hasTitleSignal(docTitle, safeTitle)) continue;
+
+        const coverUrl = `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`;
+        try {
+          const probe = await axios.head(coverUrl, {
+            timeout: 7_000,
+            validateStatus: () => true,
+          });
+          if (probe.status >= 200 && probe.status < 400) {
+            return coverUrl;
+          }
+        } catch {
+          // Try next candidate.
+        }
+      }
+    } catch {
+      // Ignore and return miss below.
+    }
+
+    openLibraryCoverMissCache.set(book.slug, Date.now() + OPEN_LIBRARY_MISS_TTL_MS);
+    return null;
+  };
+
   const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
   const mapWithConcurrency = async <T, R>(
@@ -1920,7 +2024,7 @@ export const bookRoutes = async (
         const { slug } = request.params as { slug: string };
         const book = await app.prisma.book.findUnique({
           where: { slug },
-          select: { id: true, slug: true, coverUrl: true },
+          select: { id: true, slug: true, title: true, author: true, isbn: true, coverUrl: true },
         });
 
         if (!book) {
@@ -1958,6 +2062,22 @@ export const bookRoutes = async (
           } catch {
             // try next extension
           }
+        }
+
+        // Last attempt: resolve from Open Library and persist.
+        const openLibraryCoverUrl = await resolveOpenLibraryCoverUrl({
+          slug: book.slug,
+          title: book.title,
+          author: book.author || '',
+          isbn: book.isbn,
+        });
+
+        if (openLibraryCoverUrl) {
+          await app.prisma.book.update({
+            where: { id: book.id },
+            data: { coverUrl: openLibraryCoverUrl },
+          });
+          return reply.redirect(openLibraryCoverUrl);
         }
 
         return reply.status(404).send({ status: 'error', message: 'Cover not found' });
