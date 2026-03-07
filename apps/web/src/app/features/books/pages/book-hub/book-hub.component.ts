@@ -499,10 +499,12 @@ export class BookHubComponent implements OnInit, OnDestroy {
       .get<{ status: string; data: LightNovelSeries[]; meta: { total: number } }>('/api/v1/books/light-novels?page=1&limit=12')
       .subscribe({
         next: (response) => {
+          console.log('[BookHub] Light novels loaded:', response.data?.length || 0, 'series');
           this.lightNovelSeries.set(response.data || []);
           this.isLightNovelsLoading.set(false);
         },
-        error: () => {
+        error: (err) => {
+          console.error('[BookHub] Error loading light novels:', err);
           this.isLightNovelsLoading.set(false);
         },
       });
