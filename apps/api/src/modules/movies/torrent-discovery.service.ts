@@ -658,7 +658,12 @@ export class TorrentDiscoveryService {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
     };
 
-    if (this.flaresolverr.canHandle()) {
+    // JSON APIs (YTS/ApiBay) should bypass FlareSolverr.
+    // FlareSolverr can return an HTML challenge page with 200 status,
+    // which makes downstream JSON parsing silently return zero candidates.
+    const shouldUseFlareSolverr = this.config.sourceType === 'html-1337x';
+
+    if (shouldUseFlareSolverr && this.flaresolverr.canHandle()) {
       try {
         const response = await this.flaresolverr.get(url, {
           headers,
