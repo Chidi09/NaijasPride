@@ -40,10 +40,18 @@ export type AnnasMirrorOptions = {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const ANNAS_HOSTS = [
-  'https://annas-archive.li',
-  'https://annas-archive.se',
+const DEFAULT_ANNAS_HOSTS = [
+  'https://annas-archive.gl',
+  'https://annas-archive.pk',
+  'https://annas-archive.vg',
+  'https://annas-archive.gd',
 ];
+
+const ANNAS_HOSTS = ((process.env.ANNAS_ARCHIVE_HOSTS || '').trim()
+  ? (process.env.ANNAS_ARCHIVE_HOSTS || '').split(',')
+  : DEFAULT_ANNAS_HOSTS)
+  .map((host) => host.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 const CHALLENGE_WAIT_MS = 8_000;

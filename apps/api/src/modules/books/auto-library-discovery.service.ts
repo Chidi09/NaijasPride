@@ -305,6 +305,32 @@ const scoreListing = (entry: BookTorrentListingCandidate): number => {
   return score;
 };
 
+const DEFAULT_ANNAS_ARCHIVE_HOSTS = [
+  'https://annas-archive.gl',
+  'https://annas-archive.pk',
+  'https://annas-archive.vg',
+  'https://annas-archive.gd',
+];
+
+const getAnnasArchiveHosts = (): string[] => {
+  const configured = (process.env.ANNAS_ARCHIVE_HOSTS || '').trim();
+  const hosts = (configured ? configured.split(',') : DEFAULT_ANNAS_ARCHIVE_HOSTS)
+    .map((host) => host.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  return hosts.length > 0 ? Array.from(new Set(hosts)) : DEFAULT_ANNAS_ARCHIVE_HOSTS;
+};
+
+const isCloudflareInterstitial = (body: string): boolean => {
+  const normalized = (body || '').toLowerCase();
+  return (
+    normalized.includes('challenge-platform') ||
+    normalized.includes('just a moment') ||
+    normalized.includes('verifying your connection') ||
+    normalized.includes('cf-browser-verification') ||
+    normalized.includes('attention required')
+  );
+};
+
 export class AutoLibraryDiscoveryService {
   private readonly flaresolverr = new FlareSolverrFetcher();
   private readonly sourceBaseUrl: string;
@@ -648,10 +674,7 @@ export class AutoLibraryDiscoveryService {
   // Download URL is constructed as https://annas-archive.li/md5/<hash>.
   //
   // Note: annas-archive.org DNS fails from some VPS IPs. Use .li only.
-  private readonly ANNAS_ARCHIVE_HOSTS = [
-    'https://annas-archive.li',
-    'https://annas-archive.se',
-  ];
+  private readonly ANNAS_ARCHIVE_HOSTS = getAnnasArchiveHosts();
 
   // Rate-limit guard: wait between Anna's Archive requests to avoid 429/403
   private annasLastRequestAt = 0;
@@ -665,32 +688,49 @@ export class AutoLibraryDiscoveryService {
     }
     this.annasLastRequestAt = Date.now();
 
-    const response = await axios.get<string>(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://annas-archive.li/',
-      },
-      timeout: 30_000,
-      responseType: 'text',
-      validateStatus: (s) => s < 500,
-      maxRedirects: 5,
-    });
+    const requestHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+      Referer: `${new URL(url).origin}/`,
+    };
 
-    if (response.status === 403 || response.status === 429) {
-      this.logger.warn(`[AutoLibrary] Anna's Archive rate-limited (HTTP ${response.status}) for ${url}`);
-      // Back off an extra 5 seconds on rate-limit responses
-      this.annasLastRequestAt = Date.now() + 5000;
-      return null;
+    try {
+      const response = await axios.get<string>(url, {
+        headers: requestHeaders,
+        timeout: 30_000,
+        responseType: 'text',
+        validateStatus: (s) => s < 500,
+        maxRedirects: 5,
+      });
+
+      if (response.status === 403 || response.status === 429) {
+        this.logger.warn(`[AutoLibrary] Anna's Archive rate-limited (HTTP ${response.status}) for ${url}`);
+        this.annasLastRequestAt = Date.now() + 5000;
+      } else if (response.status === 200 && response.data && !isCloudflareInterstitial(response.data)) {
+        return response.data as string;
+      } else if (response.status !== 200 || !response.data) {
+        this.logger.warn(`[AutoLibrary] Anna's Archive returned HTTP ${response.status} for ${url}`);
+      }
+    } catch (error) {
+      this.logger.warn(`[AutoLibrary] Anna direct fetch failed for ${url}: ${toErrorMessage(error)}`);
     }
 
-    if (response.status !== 200 || !response.data) {
-      this.logger.warn(`[AutoLibrary] Anna's Archive returned HTTP ${response.status} for ${url}`);
-      return null;
+    try {
+      const solved = await this.flaresolverr.get(url, {
+        sourceId: 'annas-archive',
+        timeoutMs: 60_000,
+        headers: requestHeaders,
+      });
+      if (solved.status === 200 && solved.body && !isCloudflareInterstitial(solved.body)) {
+        return solved.body;
+      }
+      this.logger.warn(`[AutoLibrary] FlareSolverr returned challenge/empty response for ${url}`);
+    } catch (error) {
+      this.logger.warn(`[AutoLibrary] FlareSolverr Anna fetch failed for ${url}: ${toErrorMessage(error)}`);
     }
 
-    return response.data as string;
+    return null;
   }
 
   async searchAnnasArchive(title: string, author: string): Promise<BookTorrentListingCandidate[]> {

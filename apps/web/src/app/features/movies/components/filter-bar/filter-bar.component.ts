@@ -1,4 +1,4 @@
-import { Component, EventEmitter, HostListener, Input, OnDestroy, Output, inject } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, OnDestroy, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -10,146 +10,395 @@ import { MoviesApiService } from '../../services/movies-api.service';
   selector: 'app-filter-bar',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  template: `
-    <div class="sticky top-20 z-30 mb-6 border-b border-[#d8c2b8]/60 bg-[#f9efe8]/95 py-3 backdrop-blur-sm transition-all dark:border-white/5 dark:bg-cinema-900/95">
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="relative min-w-[240px] flex-1 md:max-w-md" data-movie-search>
-          <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <svg class="h-4 w-4 text-[#8a756e] dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-          </div>
+  styles: [`
+    :host { display: block; }
 
+    .filter-bar {
+      background: var(--bg-secondary, #121212);
+      border: 1px solid rgba(128,0,32,0.18);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+    }
+
+    .dark .filter-bar {
+      background: #12080d;
+      border-color: rgba(128,0,32,0.22);
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(128,0,32,0.25);
+      background: rgba(0,0,0,0.3);
+      color: #f9f9f2;
+      padding: 0 14px 0 38px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-input::placeholder { color: #6b5055; }
+    .search-input:focus {
+      border-color: #800020;
+      box-shadow: 0 0 0 3px rgba(128,0,32,0.15);
+    }
+
+    /* Light mode overrides */
+    :host-context(.light) .search-input,
+    :host-context(:not(.dark)) .search-input {
+      background: #fff;
+      color: #1d1416;
+      border-color: #d8c2b8;
+    }
+    :host-context(.light) .search-input::placeholder,
+    :host-context(:not(.dark)) .search-input::placeholder { color: #9a857d; }
+
+    .filter-select {
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(128,0,32,0.25);
+      background: rgba(0,0,0,0.3);
+      color: #f9f9f2;
+      padding: 0 30px 0 12px;
+      font-size: 13px;
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a88a78' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      transition: border-color 0.2s;
+      white-space: nowrap;
+    }
+    .filter-select:focus { border-color: #800020; }
+    .filter-select:hover { border-color: rgba(128,0,32,0.5); }
+
+    :host-context(.light) .filter-select,
+    :host-context(:not(.dark)) .filter-select {
+      background-color: #fff;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a756e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      color: #2a1c1f;
+      border-color: #d8c2b8;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(128,0,32,0.2);
+      color: #e8a0b0;
+      border: 1px solid rgba(128,0,32,0.35);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .chip:hover { background: rgba(128,0,32,0.35); }
+
+    :host-context(.light) .chip,
+    :host-context(:not(.dark)) .chip {
+      background: rgba(128,0,32,0.1);
+      color: #4f0f21;
+      border-color: rgba(128,0,32,0.3);
+    }
+
+    .filters-toggle-btn {
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(128,0,32,0.3);
+      background: rgba(128,0,32,0.1);
+      color: #e8a0b0;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      transition: background 0.2s, border-color 0.2s;
+      white-space: nowrap;
+    }
+    .filters-toggle-btn:hover { background: rgba(128,0,32,0.2); }
+    .filters-toggle-btn.active {
+      background: rgba(128,0,32,0.25);
+      border-color: #800020;
+      color: #f9f9f2;
+    }
+
+    :host-context(.light) .filters-toggle-btn,
+    :host-context(:not(.dark)) .filters-toggle-btn {
+      background: rgba(128,0,32,0.08);
+      color: #4f0f21;
+      border-color: rgba(128,0,32,0.25);
+    }
+
+    .sort-select {
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(128,0,32,0.25);
+      background: rgba(0,0,0,0.3);
+      color: #f9f9f2;
+      padding: 0 30px 0 12px;
+      font-size: 13px;
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a88a78' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      transition: border-color 0.2s;
+      flex-shrink: 0;
+    }
+    .sort-select:focus { border-color: #800020; }
+
+    :host-context(.light) .sort-select,
+    :host-context(:not(.dark)) .sort-select {
+      background-color: #fff;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a756e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      color: #2a1c1f;
+      border-color: #d8c2b8;
+    }
+
+    .suggestions-drop {
+      position: absolute;
+      left: 0; right: 0;
+      top: calc(100% + 6px);
+      z-index: 60;
+      border-radius: 12px;
+      border: 1px solid rgba(128,0,32,0.3);
+      background: #1a0a10;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+    :host-context(.light) .suggestions-drop,
+    :host-context(:not(.dark)) .suggestions-drop {
+      background: #fff;
+      border-color: #d8c2b8;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .suggestion-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .suggestion-row:hover, .suggestion-row.highlighted { background: rgba(128,0,32,0.18); }
+    :host-context(.light) .suggestion-row:hover,
+    :host-context(.light) .suggestion-row.highlighted,
+    :host-context(:not(.dark)) .suggestion-row:hover,
+    :host-context(:not(.dark)) .suggestion-row.highlighted { background: #f5e7df; }
+
+    /* Expand/collapse for filter panel on mobile */
+    .filter-panel {
+      display: grid;
+      grid-template-rows: 1fr;
+      overflow: hidden;
+      transition: grid-template-rows 0.25s cubic-bezier(0.4,0,0.2,1);
+    }
+    .filter-panel.collapsed { grid-template-rows: 0fr; }
+    .filter-panel-inner { min-height: 0; }
+  `],
+  template: `
+    <div class="filter-bar">
+
+      <!-- ── TOP ROW: search + filters toggle + sort ── -->
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:nowrap;">
+
+        <!-- Search -->
+        <div class="search-wrap" data-movie-search>
+          <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#6b5055;pointer-events:none;"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
           <input
             type="text"
+            class="search-input"
             [ngModel]="activeFilters.q || ''"
             (ngModelChange)="onQueryChange($event)"
             (focus)="onSearchFocus()"
             (keydown)="onSearchKeydown($event)"
             aria-label="Search movies"
             placeholder="Search by movie title..."
-            class="h-11 w-full rounded-xl border border-[#d8c2b8] bg-white pl-10 pr-4 text-sm text-[#2a1c1f] outline-none transition placeholder-[#8f7a72] focus:border-cinema-500 focus:ring-2 focus:ring-cinema-500/20 dark:border-white/10 dark:bg-cinema-800 dark:text-white dark:placeholder-gray-600"
           />
 
           @if (showSuggestions()) {
-            <div class="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-xl border border-[#d8c2b8] bg-white shadow-xl dark:border-white/10 dark:bg-cinema-850">
+            <div class="suggestions-drop">
               @if (isSuggestionLoading) {
-                <div class="px-3 py-2 text-xs text-[#7e6a63] dark:text-gray-400">Searching...</div>
+                <div style="padding:10px 12px;font-size:12px;color:#6b5055;">Searching...</div>
               }
-
               @for (movie of suggestions; track movie.id; let i = $index) {
-                <button
-                  type="button"
-                  class="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors"
-                  [class.bg-[#f5e7df]]="i === highlightedIndex"
-                  [class.dark:bg-cinema-700]="i === highlightedIndex"
-                  (mouseenter)="highlightedIndex = i"
-                  (click)="openSuggestion(movie, $event)"
-                >
+                <button type="button" class="suggestion-row" [class.highlighted]="i === highlightedIndex"
+                  (mouseenter)="highlightedIndex = i" (click)="openSuggestion(movie, $event)" style="width:100%;border:none;text-align:left;">
                   @if (suggestionImage(movie); as imageUrl) {
-                    <img
-                      [src]="imageUrl"
-                      [alt]="movie.title"
-                      referrerpolicy="no-referrer"
-                      class="h-12 w-9 shrink-0 rounded object-cover"
-                    />
+                    <img [src]="imageUrl" [alt]="movie.title" referrerpolicy="no-referrer"
+                         style="width:36px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;">
                   } @else {
-                    <div class="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-[#e5d2c6] text-sm dark:bg-cinema-700">🎬</div>
+                    <div style="width:36px;height:48px;border-radius:6px;background:rgba(128,0,32,0.15);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎬</div>
                   }
-
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-medium text-[#2a1c1f] dark:text-white">{{ movie.title }}</p>
-                    <p class="text-xs text-[#7e6a63] dark:text-gray-400">{{ movie.year }}{{ movie.genre?.[0] ? ' • ' + movie.genre[0] : '' }}</p>
+                  <div style="min-width:0;">
+                    <p style="margin:0;font-size:13px;font-weight:600;color:#f9f9f2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ movie.title }}</p>
+                    <p style="margin:2px 0 0;font-size:11px;color:#a88a78;">{{ movie.year }}{{ movie.genre?.[0] ? ' • ' + movie.genre[0] : '' }}</p>
                   </div>
                 </button>
               }
-
               @if (!isSuggestionLoading && suggestions.length === 0) {
-                <div class="px-3 py-2 text-xs text-[#7e6a63] dark:text-gray-400">No quick matches found.</div>
+                <div style="padding:10px 12px;font-size:12px;color:#6b5055;">No quick matches found.</div>
               }
             </div>
           }
         </div>
 
-        <div class="hidden h-6 w-px bg-[#d8c2b8] md:block dark:bg-white/10"></div>
-
-        <select
-          [ngModel]="activeFilters.genre?.[0] || ''"
-          (ngModelChange)="updateFilter('genre', $event ? [$event] : undefined)"
-          aria-label="Filter by genre"
-          class="cursor-pointer appearance-none rounded-lg border border-[#d8c2b8] bg-white px-4 py-2 text-sm text-[#5f4d47] transition-colors hover:border-[#b99f92] focus:border-cinema-500 focus:outline-none focus:ring-2 focus:ring-cinema-500/30 dark:border-white/10 dark:bg-cinema-800 dark:text-gray-300 dark:hover:border-white/20"
+        <!-- Filters toggle button (mobile) — hidden on md+ -->
+        <button type="button"
+          class="filters-toggle-btn md-hide"
+          [class.active]="filtersOpen()"
+          (click)="filtersOpen.set(!filtersOpen())"
+          aria-label="Toggle filters"
         >
-          <option value="">All Genres</option>
-          @for (g of genres; track g) {
-            <option [value]="g">{{ g }}</option>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+            <line x1="10" y1="18" x2="14" y2="18"/>
+          </svg>
+          Filters
+          @if (hasActiveFilters()) {
+            <span style="width:7px;height:7px;border-radius:50%;background:#800020;flex-shrink:0;"></span>
           }
-        </select>
+        </button>
 
-        <select
-          [ngModel]="activeFilters.year || ''"
-          (ngModelChange)="updateFilter('year', $event ? +$event : undefined)"
-          aria-label="Filter by year"
-          class="cursor-pointer appearance-none rounded-lg border border-[#d8c2b8] bg-white px-4 py-2 text-sm text-[#5f4d47] transition-colors hover:border-[#b99f92] focus:border-cinema-500 focus:outline-none focus:ring-2 focus:ring-cinema-500/30 dark:border-white/10 dark:bg-cinema-800 dark:text-gray-300 dark:hover:border-white/20"
-        >
-          <option value="">All Years</option>
-          @for (y of years; track y) {
-            <option [value]="y">{{ y }}</option>
-          }
-        </select>
+        <!-- Desktop filter selects (inline, hidden on mobile) -->
+        <div class="desktop-filters">
+          <select class="filter-select"
+            [ngModel]="activeFilters.genre?.[0] || ''"
+            (ngModelChange)="updateFilter('genre', $event ? [$event] : undefined)"
+            aria-label="Filter by genre">
+            <option value="">All Genres</option>
+            @for (g of genres; track g) { <option [value]="g">{{ g }}</option> }
+          </select>
 
-        <select
-          [ngModel]="activeFilters.quality || ''"
-          (ngModelChange)="updateFilter('quality', $event || undefined)"
-          aria-label="Filter by quality"
-          class="cursor-pointer appearance-none rounded-lg border border-[#d8c2b8] bg-white px-4 py-2 text-sm text-[#5f4d47] transition-colors hover:border-[#b99f92] focus:border-cinema-500 focus:outline-none focus:ring-2 focus:ring-cinema-500/30 dark:border-white/10 dark:bg-cinema-800 dark:text-gray-300 dark:hover:border-white/20"
-        >
-          <option value="">All Qualities</option>
-          @for (q of qualities; track q) {
-            <option [value]="q">{{ q }}</option>
-          }
-        </select>
+          <select class="filter-select"
+            [ngModel]="activeFilters.year || ''"
+            (ngModelChange)="updateFilter('year', $event ? +$event : undefined)"
+            aria-label="Filter by year">
+            <option value="">All Years</option>
+            @for (y of years; track y) { <option [value]="y">{{ y }}</option> }
+          </select>
 
-        <div class="grow"></div>
+          <select class="filter-select"
+            [ngModel]="activeFilters.quality || ''"
+            (ngModelChange)="updateFilter('quality', $event || undefined)"
+            aria-label="Filter by quality">
+            <option value="">All Qualities</option>
+            @for (q of qualities; track q) { <option [value]="q">{{ q }}</option> }
+          </select>
+        </div>
 
-        <select
+        <!-- Spacer -->
+        <div style="flex:1; min-width:0;"></div>
+
+        <!-- Sort -->
+        <select class="sort-select"
           [ngModel]="activeFilters.sortBy || 'latest'"
           (ngModelChange)="updateFilter('sortBy', $event)"
-          aria-label="Sort movies"
-          class="cursor-pointer appearance-none rounded-lg border border-[#d8c2b8] bg-white px-4 py-2 text-sm text-[#6f5b54] transition-colors hover:border-[#b99f92] focus:border-cinema-500 focus:outline-none focus:ring-2 focus:ring-cinema-500/30 dark:border-white/10 dark:bg-cinema-800 dark:text-gray-400 dark:hover:border-white/20"
-        >
+          aria-label="Sort movies">
           <option value="latest">Latest</option>
           <option value="popular">Popular</option>
           <option value="rating">Top Rated</option>
-          <option value="title">A-Z</option>
+          <option value="title">A–Z</option>
         </select>
       </div>
 
-      @if (hasActiveFilters()) {
-        <div class="mt-3 flex flex-wrap gap-2 border-t border-dashed border-[#d8c2b8] pt-2 dark:border-white/10">
-          <span class="mr-1 self-center text-xs font-bold uppercase tracking-wider text-[#8a756e] dark:text-gray-500">Active:</span>
+      <!-- ── MOBILE COLLAPSIBLE FILTER PANEL ── -->
+      <div class="filter-panel mobile-filter-panel" [class.collapsed]="!filtersOpen()">
+        <div class="filter-panel-inner">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;padding-top:12px;border-top:1px solid rgba(128,0,32,0.15);margin-top:12px;">
+            <select class="filter-select" style="flex:1;min-width:130px;"
+              [ngModel]="activeFilters.genre?.[0] || ''"
+              (ngModelChange)="updateFilter('genre', $event ? [$event] : undefined)"
+              aria-label="Filter by genre">
+              <option value="">All Genres</option>
+              @for (g of genres; track g) { <option [value]="g">{{ g }}</option> }
+            </select>
 
+            <select class="filter-select" style="flex:1;min-width:110px;"
+              [ngModel]="activeFilters.year || ''"
+              (ngModelChange)="updateFilter('year', $event ? +$event : undefined)"
+              aria-label="Filter by year">
+              <option value="">All Years</option>
+              @for (y of years; track y) { <option [value]="y">{{ y }}</option> }
+            </select>
+
+            <select class="filter-select" style="flex:1;min-width:120px;"
+              [ngModel]="activeFilters.quality || ''"
+              (ngModelChange)="updateFilter('quality', $event || undefined)"
+              aria-label="Filter by quality">
+              <option value="">All Qualities</option>
+              @for (q of qualities; track q) { <option [value]="q">{{ q }}</option> }
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ACTIVE FILTER CHIPS ── -->
+      @if (hasActiveFilters()) {
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding-top:10px;border-top:1px dashed rgba(128,0,32,0.2);margin-top:10px;">
+          <span style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b5055;margin-right:2px;">Active:</span>
+
+          @if (activeFilters.q) {
+            <button class="chip" (click)="updateFilter('q', undefined)" aria-label="Remove search filter">
+              "{{ activeFilters.q }}" ✕
+            </button>
+          }
           @if (activeFilters.genre) {
-            <button (click)="updateFilter('genre', undefined)" class="inline-flex items-center gap-1 rounded-sm bg-cinema-500/20 px-2 py-1 text-xs text-[#4f0f21] transition-colors hover:bg-cinema-500/30 dark:text-cinema-100" aria-label="Remove genre filter">
+            <button class="chip" (click)="updateFilter('genre', undefined)" aria-label="Remove genre filter">
               {{ activeFilters.genre[0] }} ✕
             </button>
           }
           @if (activeFilters.year) {
-            <button (click)="updateFilter('year', undefined)" class="inline-flex items-center gap-1 rounded-sm bg-cinema-500/20 px-2 py-1 text-xs text-[#4f0f21] transition-colors hover:bg-cinema-500/30 dark:text-cinema-100" aria-label="Remove year filter">
+            <button class="chip" (click)="updateFilter('year', undefined)" aria-label="Remove year filter">
               {{ activeFilters.year }} ✕
             </button>
           }
           @if (activeFilters.quality) {
-            <button (click)="updateFilter('quality', undefined)" class="inline-flex items-center gap-1 rounded-sm bg-cinema-500/20 px-2 py-1 text-xs text-[#4f0f21] transition-colors hover:bg-cinema-500/30 dark:text-cinema-100" aria-label="Remove quality filter">
+            <button class="chip" (click)="updateFilter('quality', undefined)" aria-label="Remove quality filter">
               {{ activeFilters.quality }} ✕
             </button>
           }
 
-          <button (click)="resetAll()" class="ml-auto text-xs font-medium text-cinema-500 transition-colors hover:text-[#4f0f21] dark:hover:text-cinema-100" aria-label="Clear all active filters">
-            Clear All
-          </button>
+          <button
+            (click)="resetAll()"
+            style="margin-left:auto;font-size:11px;font-weight:600;color:#800020;background:none;border:none;cursor:pointer;padding:2px 4px;"
+            aria-label="Clear all active filters"
+          >Clear All</button>
         </div>
       }
     </div>
+
+    <style>
+      /* Responsive: show toggle on mobile, hide desktop filters; reverse on md+ */
+      .md-hide { display: flex; }
+      .desktop-filters { display: none; }
+      .mobile-filter-panel { display: grid; }
+
+      @media (min-width: 768px) {
+        .md-hide { display: none !important; }
+        .desktop-filters { display: flex; gap: 8px; }
+        .mobile-filter-panel { display: none !important; }
+      }
+    </style>
   `,
 })
 export class FilterBarComponent implements OnDestroy {
@@ -169,6 +418,8 @@ export class FilterBarComponent implements OnDestroy {
   isSuggestionLoading = false;
   private searchFocused = false;
 
+  filtersOpen = signal(false);
+
   genres = Object.values(Genre);
   qualities = Object.values(Quality);
 
@@ -180,15 +431,11 @@ export class FilterBarComponent implements OnDestroy {
   }
 
   onQueryChange(nextValue: string) {
-    if (this.queryDebounce) {
-      clearTimeout(this.queryDebounce);
-    }
-
+    if (this.queryDebounce) clearTimeout(this.queryDebounce);
     this.queryDebounce = setTimeout(() => {
       const normalized = (nextValue || '').trim();
       this.updateFilter('q', normalized || undefined);
     }, 250);
-
     this.scheduleSuggestions(nextValue || '');
   }
 
@@ -201,28 +448,23 @@ export class FilterBarComponent implements OnDestroy {
   }
 
   onSearchKeydown(event: KeyboardEvent) {
-    if (!this.showSuggestions()) {
-      return;
-    }
+    if (!this.showSuggestions()) return;
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       this.highlightedIndex = Math.min(this.highlightedIndex + 1, this.suggestions.length - 1);
       return;
     }
-
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       this.highlightedIndex = Math.max(this.highlightedIndex - 1, 0);
       return;
     }
-
     if (event.key === 'Escape') {
       event.preventDefault();
       this.closeSuggestions();
       return;
     }
-
     if (event.key === 'Enter' && this.highlightedIndex >= 0 && this.highlightedIndex < this.suggestions.length) {
       event.preventDefault();
       this.openSuggestion(this.suggestions[this.highlightedIndex], event);
@@ -242,20 +484,12 @@ export class FilterBarComponent implements OnDestroy {
 
   showSuggestions(): boolean {
     const query = (this.activeFilters?.q || '').trim();
-    if (!this.searchFocused || query.length < 2) {
-      return false;
-    }
+    if (!this.searchFocused || query.length < 2) return false;
     return this.isSuggestionLoading || this.suggestions.length > 0;
   }
 
   resetAll() {
-    this.filterChange.emit({
-      q: undefined,
-      genre: undefined,
-      year: undefined,
-      quality: undefined,
-      sortBy: 'latest',
-    });
+    this.filterChange.emit({ q: undefined, genre: undefined, year: undefined, quality: undefined, sortBy: 'latest' });
     this.closeSuggestions();
   }
 
@@ -267,27 +501,18 @@ export class FilterBarComponent implements OnDestroy {
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('[data-movie-search]')) {
-      return;
-    }
+    if (target?.closest('[data-movie-search]')) return;
     this.closeSuggestions();
   }
 
   ngOnDestroy(): void {
-    if (this.queryDebounce) {
-      clearTimeout(this.queryDebounce);
-    }
-    if (this.suggestionDebounce) {
-      clearTimeout(this.suggestionDebounce);
-    }
+    if (this.queryDebounce) clearTimeout(this.queryDebounce);
+    if (this.suggestionDebounce) clearTimeout(this.suggestionDebounce);
     this.cancelSuggestionRequest();
   }
 
   private scheduleSuggestions(rawQuery: string) {
-    if (this.suggestionDebounce) {
-      clearTimeout(this.suggestionDebounce);
-    }
-
+    if (this.suggestionDebounce) clearTimeout(this.suggestionDebounce);
     const query = rawQuery.trim();
     if (query.length < 2) {
       this.cancelSuggestionRequest();
@@ -296,10 +521,7 @@ export class FilterBarComponent implements OnDestroy {
       this.highlightedIndex = -1;
       return;
     }
-
-    this.suggestionDebounce = setTimeout(() => {
-      this.fetchSuggestions(query);
-    }, 180);
+    this.suggestionDebounce = setTimeout(() => { this.fetchSuggestions(query); }, 180);
   }
 
   private fetchSuggestions(query: string) {
@@ -310,16 +532,12 @@ export class FilterBarComponent implements OnDestroy {
 
     this.suggestionSub = this.moviesApi.getMovieSuggestions(query, 6).subscribe({
       next: (response) => {
-        if (token !== this.latestSuggestionToken) {
-          return;
-        }
+        if (token !== this.latestSuggestionToken) return;
         this.suggestions = (response.data || []).slice(0, 6);
         this.isSuggestionLoading = false;
       },
       error: () => {
-        if (token !== this.latestSuggestionToken) {
-          return;
-        }
+        if (token !== this.latestSuggestionToken) return;
         this.suggestions = [];
         this.isSuggestionLoading = false;
       },

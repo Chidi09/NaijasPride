@@ -1,8 +1,16 @@
 import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import dotenv from 'dotenv';
 import { Prisma, PrismaClient } from '@prisma/client';
+import axios from 'axios';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { StorageService } from '../../apps/api/src/shared/services/storage.service';
+import { fetchElsciLightNovelFileStream } from '../../apps/api/src/modules/books/external/elsci/elsci-lightnovels';
+import { extractEpubMetadataFromFile } from '../../apps/api/src/modules/books/external/cover-extractor.service';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../apps/api/.env') });
 
 const parsePositiveInt = (value: string | undefined, fallback: number, min: number, max: number): number => {
   const parsed = Number.parseInt(value || '', 10);
@@ -43,7 +51,12 @@ type Candidate = {
   title: string;
   currentAuthor: string;
   proposedAuthor: string;
-  source: 'description' | 'title';
+  source: 'description' | 'title' | 'epub-metadata' | 'openlibrary';
+};
+
+type OpenLibrarySearchDoc = {
+  title?: string;
+  author_name?: string[];
 };
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
@@ -63,8 +76,10 @@ const isLikelyValidAuthor = (value: string): boolean => {
   const candidate = cleanCandidate(value);
   if (candidate.length < 3 || candidate.length > 80) return false;
   if (!/[a-z]/i.test(candidate)) return false;
+  if (/^[A-Z]{2,5}$/.test(candidate)) return false;
   if (/https?:\/\//i.test(candidate) || /www\./i.test(candidate)) return false;
   if (/\b(pdf|epub|mobi|chapter|volume|vol\.?\s*\d+)\b/i.test(candidate)) return false;
+  if (/\b(the\s+spirits?)\b/i.test(candidate)) return false;
   if (/\d{4,}/.test(candidate)) return false;
   return true;
 };
@@ -100,6 +115,179 @@ const extractAuthorFromTitle = (title: string): string | null => {
 
 const isMissingAuthor = (author: string): boolean => UNKNOWN_AUTHOR_MARKERS.has(normalizeWhitespace(author).toLowerCase());
 
+const stripVolumeNoise = (title: string): string =>
+  normalizeWhitespace(
+    title
+      .replace(/\bvolume\s*\d+\b/gi, ' ')
+      .replace(/\bvol\.?\s*\d+\b/gi, ' ')
+      .replace(/\bpart\s*\d+\b/gi, ' ')
+      .replace(/\[[^\]]+\]/g, ' ')
+      .replace(/\([^\)]*\)/g, ' '),
+  );
+
+const normalizeLoose = (value: string): string =>
+  normalizeWhitespace(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const titleLooksRelated = (queryTitle: string, resultTitle: string): boolean => {
+  const q = normalizeLoose(queryTitle);
+  const r = normalizeLoose(resultTitle);
+  if (!q || !r) return false;
+  if (q === r) return true;
+  return r.includes(q) || q.includes(r);
+};
+
+const resolveAuthorFromOpenLibrary = async (title: string): Promise<string | null> => {
+  const q = stripVolumeNoise(title);
+  if (!q || q.length < 3) return null;
+
+  try {
+    const response = await axios.get<{ docs?: OpenLibrarySearchDoc[] }>('https://openlibrary.org/search.json', {
+      params: {
+        title: q,
+        limit: 5,
+      },
+      timeout: 12000,
+      headers: {
+        'User-Agent': 'NaijasPride/1.0 (contact@naijaspride.com)',
+      },
+    });
+
+    const docs = response.data?.docs || [];
+    for (const doc of docs) {
+      const docTitle = normalizeWhitespace(doc.title || '');
+      const candidateAuthor = cleanCandidate((doc.author_name || [])[0] || '');
+      if (!docTitle || !candidateAuthor) continue;
+      if (!titleLooksRelated(q, docTitle)) continue;
+      if (!isLikelyValidAuthor(candidateAuthor)) continue;
+      return candidateAuthor;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const openLibraryAuthorCache = new Map<string, string | null>();
+let lastOpenLibraryCallAt = 0;
+
+const resolveAuthorFromOpenLibraryWithThrottle = async (title: string): Promise<string | null> => {
+  const cacheKey = normalizeLoose(stripVolumeNoise(title));
+  if (!cacheKey) return null;
+  if (openLibraryAuthorCache.has(cacheKey)) {
+    return openLibraryAuthorCache.get(cacheKey) ?? null;
+  }
+
+  // Respect Open Library identified limit (3 req/sec): keep <= 1 request every 350ms.
+  const now = Date.now();
+  const waitMs = Math.max(0, 350 - (now - lastOpenLibraryCallAt));
+  if (waitMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+
+  lastOpenLibraryCallAt = Date.now();
+  const resolved = await resolveAuthorFromOpenLibrary(title);
+  openLibraryAuthorCache.set(cacheKey, resolved);
+  return resolved;
+};
+
+const extractDownloadKeyFromUrl = (downloadUrl: string | null | undefined): string | null => {
+  if (!downloadUrl) return null;
+  try {
+    const url = new URL(downloadUrl, 'http://localhost');
+    if (!url.pathname.includes('/books/download')) return null;
+    const key = (url.searchParams.get('key') || '').trim();
+    return key || null;
+  } catch {
+    const match = downloadUrl.match(/[?&]key=([^&]+)/i);
+    if (!match?.[1]) return null;
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }
+};
+
+const extractElsciHrefFromUrl = (downloadUrl: string | null | undefined): string | null => {
+  if (!downloadUrl) return null;
+  try {
+    const url = new URL(downloadUrl, 'http://localhost');
+    if (!url.pathname.includes('/books/external/elsci/file')) return null;
+    const href = (url.searchParams.get('href') || '').trim();
+    if (!href) return null;
+    return href.startsWith('/') ? href : `/${href.replace(/^\/+/, '')}`;
+  } catch {
+    const match = downloadUrl.match(/[?&]href=([^&]+)/i);
+    if (!match?.[1]) return null;
+    try {
+      const href = decodeURIComponent(match[1]).trim();
+      return href ? (href.startsWith('/') ? href : `/${href.replace(/^\/+/, '')}`) : null;
+    } catch {
+      return match[1];
+    }
+  }
+};
+
+const withTempFile = async <T>(extension: string, work: (filePath: string) => Promise<T>): Promise<T> => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'book-author-backfill-'));
+  const tempFile = path.join(tempDir, `book.${extension.replace(/^\./, '')}`);
+  try {
+    return await work(tempFile);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+};
+
+const downloadR2BookToFile = async (key: string, destinationPath: string): Promise<void> => {
+  const response = await StorageService.getClient().send(
+    new GetObjectCommand({
+      Bucket: StorageService.getBucket(),
+      Key: key,
+    }),
+  );
+
+  if (!response.Body) {
+    throw new Error(`R2 returned empty body for key: ${key}`);
+  }
+
+  await pipeline(response.Body as NodeJS.ReadableStream, await fs.open(destinationPath, 'w').then((f) => f.createWriteStream()));
+};
+
+const extractAuthorFromBookFile = async (book: {
+  slug: string;
+  publisher: string | null;
+  format: string | null;
+  downloadUrl: string | null;
+}): Promise<string | null> => {
+  const format = (book.format || '').trim().toLowerCase();
+  if (!format.includes('epub')) return null;
+
+  const elsciHref = extractElsciHrefFromUrl(book.downloadUrl);
+  if (elsciHref) {
+    return withTempFile('epub', async (tempFile) => {
+      const upstream = await fetchElsciLightNovelFileStream(elsciHref);
+      await pipeline(upstream.stream as NodeJS.ReadableStream, await fs.open(tempFile, 'w').then((f) => f.createWriteStream()));
+      const metadata = await extractEpubMetadataFromFile(tempFile);
+      return metadata.author ? cleanCandidate(metadata.author) : null;
+    });
+  }
+
+  const key = extractDownloadKeyFromUrl(book.downloadUrl);
+  if (key && key.toLowerCase().endsWith('.epub')) {
+    return withTempFile('epub', async (tempFile) => {
+      await downloadR2BookToFile(key, tempFile);
+      const metadata = await extractEpubMetadataFromFile(tempFile);
+      return metadata.author ? cleanCandidate(metadata.author) : null;
+    });
+  }
+
+  return null;
+};
+
 const run = async () => {
   const where: Prisma.BookWhereInput = {
     status: 'active',
@@ -127,6 +315,9 @@ const run = async () => {
         title: true,
         author: true,
         description: true,
+        publisher: true,
+        format: true,
+        downloadUrl: true,
       },
     });
 
@@ -164,6 +355,37 @@ const run = async () => {
           currentAuthor: book.author,
           proposedAuthor: fromTitle,
           source: 'title',
+        });
+        continue;
+      }
+
+      try {
+        const fromBookFile = await extractAuthorFromBookFile(book);
+        if (fromBookFile && isLikelyValidAuthor(fromBookFile)) {
+          candidates.push({
+            id: book.id,
+            slug: book.slug,
+            title: book.title,
+            currentAuthor: book.author,
+            proposedAuthor: fromBookFile,
+            source: 'epub-metadata',
+          });
+          continue;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[BackfillBookAuthors] Skipping ${book.slug} due to metadata fetch error: ${message}`);
+      }
+
+      const fromOpenLibrary = await resolveAuthorFromOpenLibraryWithThrottle(book.title);
+      if (fromOpenLibrary) {
+        candidates.push({
+          id: book.id,
+          slug: book.slug,
+          title: book.title,
+          currentAuthor: book.author,
+          proposedAuthor: fromOpenLibrary,
+          source: 'openlibrary',
         });
       }
     }

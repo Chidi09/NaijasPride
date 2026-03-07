@@ -7,7 +7,7 @@ import {
   type ElsciLightNovelFile,
   type ElsciRequestedFormat,
 } from './elsci-lightnovels';
-import { extractCoverFromEpub, uploadCoverImage } from '../cover-extractor.service';
+import { extractEpubMetadata, uploadCoverImage } from '../cover-extractor.service';
 import { StorageService } from '../../../../shared/services/storage.service';
 
 export type ElsciLightNovelImportOptions = {
@@ -150,13 +150,14 @@ export const importElsciLightNovelsCatalog = async (
     let fileSize = entry.sizeBytes || null;
 
     let coverUrl: string | null = null;
+    let extractedAuthor: string | null = null;
 
-    // Try to extract cover directly from EPUB (for EPUB format)
+    // Extract cover AND author from EPUB metadata in a single download pass
     if (format === 'EPUB' && !options.dryRun) {
       try {
-        console.log(`[ElsciImporter] Extracting cover from EPUB for "${title}"...`);
+        console.log(`[ElsciImporter] Extracting metadata from EPUB for "${title}"...`);
         const fullUrl = `${sourceBaseUrl}${entry.href}`;
-        const coverBuffer = await extractCoverFromEpub(fullUrl);
+        const { coverBuffer, author } = await extractEpubMetadata(fullUrl);
 
         if (coverBuffer) {
           console.log(`[ElsciImporter] ✓ Extracted cover from EPUB for "${title}"`);
@@ -165,8 +166,15 @@ export const importElsciLightNovelsCatalog = async (
         } else {
           console.log(`[ElsciImporter] ✗ No cover found in EPUB for "${title}"`);
         }
+
+        if (author) {
+          extractedAuthor = author;
+          console.log(`[ElsciImporter] ✓ Extracted author: "${author}" for "${title}"`);
+        } else {
+          console.log(`[ElsciImporter] ✗ No author found in EPUB metadata for "${title}"`);
+        }
       } catch (error) {
-        console.error(`[ElsciImporter] Failed to extract cover for "${title}":`, error);
+        console.error(`[ElsciImporter] Failed to extract metadata for "${title}":`, error);
       }
     }
 
@@ -201,7 +209,7 @@ export const importElsciLightNovelsCatalog = async (
     const payload = {
       title,
       slug,
-      author: 'Unknown',
+      author: extractedAuthor || 'Unknown',
       description: buildElsciDescription(entry),
       year: deriveBookYear(entry),
       coverUrl,

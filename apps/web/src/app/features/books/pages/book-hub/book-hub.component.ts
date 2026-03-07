@@ -28,6 +28,14 @@ type ContentItem = {
   latestChapter?: string | null;
 };
 
+type LightNovelSeries = {
+  seriesKey: string;
+  seriesTitle: string;
+  totalVolumes: number;
+  latestYear: number;
+  coverUrl: string | null;
+};
+
 type FeaturedContent = {
   book: ContentItem | null;
   comic: ContentItem | null;
@@ -235,6 +243,64 @@ type SourceDiscoverResponse = {
           }
         </section>
 
+        <!-- Light Novels Section -->
+        <section>
+          <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">📝</span>
+              <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Light Novels</h2>
+            </div>
+            <a routerLink="/books/light-novels" mat-button color="primary">
+              View All Series →
+            </a>
+          </div>
+
+          @if (isLightNovelsLoading()) {
+            <div class="np-cover-grid">
+              @for (i of [1,2,3,4,5,6]; track i) {
+                <mat-card class="np-cover-card animate-pulse">
+                  <div class="np-cover-media"></div>
+                  <div class="np-cover-body">
+                    <div class="h-4 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                    <div class="mt-2 h-3 w-2/3 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
+                  </div>
+                </mat-card>
+              }
+            </div>
+          } @else if (lightNovelSeries().length > 0) {
+            <div class="np-cover-grid">
+              @for (series of lightNovelSeries().slice(0, 12); track series.seriesKey) {
+                <mat-card class="np-cover-card">
+                  <a [routerLink]="['/books/light-novels']" [queryParams]="{ q: series.seriesTitle }" class="np-cover-link">
+                    <div class="np-cover-media">
+                      @if (series.coverUrl) {
+                        <img
+                          [src]="series.coverUrl"
+                          [alt]="series.seriesTitle"
+                          loading="lazy"
+                          decoding="async"
+                          referrerpolicy="no-referrer"
+                        >
+                      } @else {
+                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📝</div>
+                      }
+                    </div>
+                    <div class="np-cover-body">
+                      <div class="np-cover-title">{{ series.seriesTitle }}</div>
+                      <div class="np-cover-meta">{{ series.totalVolumes }} vol{{ series.totalVolumes !== 1 ? 's' : '' }}</div>
+                    </div>
+                  </a>
+                </mat-card>
+              }
+            </div>
+          } @else {
+            <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
+              <span class="text-4xl">📝</span>
+              <p class="text-[var(--text-muted)] mt-2">No light novels available yet</p>
+            </mat-card>
+          }
+        </section>
+
         <!-- Comics Section -->
         <section>
           <div class="flex items-center justify-between mb-6">
@@ -366,11 +432,13 @@ export class BookHubComponent implements OnInit, OnDestroy {
   books = signal<Book[]>([]);
   comics = signal<ContentItem[]>([]);
   manga = signal<ContentItem[]>([]);
+  lightNovelSeries = signal<LightNovelSeries[]>([]);
   
   // Loading states
   isBooksLoading = signal(true);
   isComicsLoading = signal(true);
   isMangaLoading = signal(true);
+  isLightNovelsLoading = signal(true);
   
   // Featured content
   featured = signal<FeaturedContent>({ book: null, comic: null, manga: null });
@@ -383,6 +451,7 @@ export class BookHubComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.loadBooks();
+    this.loadLightNovels();
     this.loadComics();
     this.loadManga();
   }
@@ -421,6 +490,21 @@ export class BookHubComponent implements OnInit, OnDestroy {
           console.error('Error loading books:', error);
           this.isBooksLoading.set(false);
         }
+      });
+  }
+
+  loadLightNovels() {
+    this.isLightNovelsLoading.set(true);
+    this.http
+      .get<{ status: string; data: LightNovelSeries[]; meta: { total: number } }>('/api/v1/books/light-novels?page=1&limit=12')
+      .subscribe({
+        next: (response) => {
+          this.lightNovelSeries.set(response.data || []);
+          this.isLightNovelsLoading.set(false);
+        },
+        error: () => {
+          this.isLightNovelsLoading.set(false);
+        },
       });
   }
 

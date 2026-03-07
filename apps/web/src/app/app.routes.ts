@@ -60,24 +60,24 @@ export const routes: Routes = [
 
   // ──────────────────────────────────────────────────────────────
   // 4. MOVIES HUB (The Spoke Center for all Video)
-  //    Standard, download-only, and stream-only handled via UI Tabs, NOT routes
   // ──────────────────────────────────────────────────────────────
   {
     path: 'movies',
     canActivate: [authGuard],
     children: [
-      // Main movie dashboard (handles standard/download-only/stream-only via tabs)
-      { path: '', loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component').then(m => m.MovieListComponent) },
+      // Editorial landing — curated rows: download library + stream section
+      { path: '', loadComponent: () => import('./features/movies/pages/movies-editorial-landing/movies-editorial-landing.component').then(m => m.MoviesEditorialLandingComponent) },
+      // Stream-only full library (YouTube / hosted streams)
+      { path: 'stream', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
+      { path: 'youtube', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
+      // Download library full list
+      { path: 'downloads', loadComponent: () => import('./features/movies/pages/download-only-movies/download-only-movies.component').then(m => m.DownloadOnlyMoviesComponent) },
       // Single detail page (synopsis, cast, "Play" or "Download" button)
       { path: ':slug', loadComponent: () => import('./features/movies/pages/movie-detail/movie-detail.component').then(m => m.MovieDetailComponent) },
       // Player (activated from detail page)
       { path: ':slug/watch', loadComponent: () => import('./features/movies/pages/watch-room/watch-room.component').then(m => m.WatchRoomComponent) }
     ]
   },
-  // Legacy movie redirects
-  { path: 'movies/stream', redirectTo: 'movies', pathMatch: 'full' },
-  { path: 'movies/downloads', redirectTo: 'movies', pathMatch: 'full' },
-  { path: 'movies/youtube', redirectTo: 'movies', pathMatch: 'full' },
   { path: 'browse', redirectTo: 'movies', pathMatch: 'full' },
   { path: 'category/:slug', loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component').then(m => m.MovieListComponent) },
   // Legacy watch route redirect

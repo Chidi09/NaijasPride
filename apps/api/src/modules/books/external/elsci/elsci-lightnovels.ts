@@ -153,6 +153,7 @@ const toCookieHeaderFromFlareSolverrCookies = (
 const resolveElsciAccessViaFlareSolverr = async (options: {
   baseUrl: string;
   timeoutMs: number;
+  accessUrl?: string;
 }): Promise<{ cookieHeader: string | null; userAgent: string | null }> => {
   const flaresolverrUrl = getFlareSolverrUrl();
 
@@ -162,7 +163,7 @@ const resolveElsciAccessViaFlareSolverr = async (options: {
       cmd: 'request.get',
       session: ELSCI_FLARESOLVERR_SESSION,
       maxTimeout: options.timeoutMs,
-      url: `${options.baseUrl}/`,
+      url: options.accessUrl || `${options.baseUrl}/`,
     },
     {
       timeout: Math.max(65_000, options.timeoutMs + 5_000),
@@ -759,7 +760,11 @@ export const fetchElsciLightNovelFileStream = async (
 
       // Fallback 2: solve challenge via FlareSolverr and reuse cookies/user-agent
       try {
-        const solvedAccess = await resolveElsciAccessViaFlareSolverr({ baseUrl, timeoutMs });
+        const solvedAccess = await resolveElsciAccessViaFlareSolverr({
+          baseUrl,
+          timeoutMs,
+          accessUrl: url,
+        });
         return await downloadWithHeaders(
           buildElsciFileRequestHeaders(baseUrl, solvedAccess),
         );

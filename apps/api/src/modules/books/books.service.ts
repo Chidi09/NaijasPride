@@ -120,6 +120,24 @@ const parseSeriesFromSlug = (slug: string): string | null => {
   return cleanWhitespace(match[1].replace(/-/g, ' '));
 };
 
+const pickLatestSeriesCover = (volumes: LightNovelVolumeSummary[]): string | null => {
+  if (volumes.length === 0) return null;
+
+  const sorted = [...volumes].sort((a, b) => {
+    const av = a.volumeNumber ?? -1;
+    const bv = b.volumeNumber ?? -1;
+    if (av !== bv) return bv - av;
+    if (a.year !== b.year) return b.year - a.year;
+    return b.updatedAt.localeCompare(a.updatedAt);
+  });
+
+  for (const volume of sorted) {
+    if (volume.coverUrl) return volume.coverUrl;
+  }
+
+  return null;
+};
+
 const isLikelyLightNovel = (book: {
   genre: string[];
   publisher: string | null;
@@ -276,7 +294,7 @@ export class BooksService {
           seriesTitle: entry.seriesTitle,
           totalVolumes: sortedVolumes.length,
           latestYear: entry.latestYear,
-          coverUrl: entry.coverUrl,
+          coverUrl: pickLatestSeriesCover(sortedVolumes) || entry.coverUrl,
           volumes: sortedVolumes,
           latestUpdatedAt: entry.latestUpdatedAt,
         };
@@ -388,7 +406,20 @@ export class BooksService {
     if (kind === 'comic') {
       filters.push({ genre: { has: 'Comic' } });
     } else if (kind === 'book') {
-      filters.push({ NOT: { genre: { has: 'Comic' } } });
+      filters.push({
+        AND: [
+          { NOT: { genre: { has: 'Comic' } } },
+          {
+            NOT: {
+              OR: [
+                { genre: { has: 'Light Novel' } },
+                { publisher: { contains: 'elsci', mode: Prisma.QueryMode.insensitive } },
+                { slug: { startsWith: 'elsci-ln-' } },
+              ],
+            },
+          },
+        ],
+      });
     }
 
     // Only show books that have an actual downloadable file.
@@ -519,4 +550,3 @@ export class BooksService {
     });
   }
 }
-

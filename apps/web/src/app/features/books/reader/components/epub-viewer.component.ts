@@ -26,6 +26,7 @@ import type {
 } from '../models/reader.models';
 import { ReaderProgressService } from '../services/reader-progress.service';
 import { ReaderStorageService } from '../services/reader-storage.service';
+import { AuthStateService } from '../../../../core/auth/auth-state.service';
 
 type ServerProgress = { page: number; updatedAt: number } | null;
 
@@ -72,6 +73,7 @@ type RenditionContent = {
 export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private storage = inject(ReaderStorageService);
   private progressApi = inject(ReaderProgressService);
+  private authState = inject(AuthStateService);
 
   @ViewChild('mount') mount?: ElementRef<HTMLElement>;
 
@@ -309,17 +311,29 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     this.pendingSaveCfi = null;
 
     try {
-      // Fetch the EPUB bytes first and pass as an ArrayBuffer so that epubjs
-      // never tries to resolve META-INF/container.xml relative to the API URL
-      // (which would produce /api/v1/books/META-INF/container.xml).
-      let epubSource: string | ArrayBuffer = url;
-      try {
-        const resp = await fetch(url);
-        if (resp.ok) {
-          epubSource = await resp.arrayBuffer();
-        }
-      } catch {
-        // Fall back to URL if fetch fails; epubjs will try its own approach.
+      // Always load EPUB as bytes first. Falling back to URL causes epubjs to
+      // request /META-INF/container.xml relative to the API URL when a response
+      // is non-OK/HTML, which surfaces as XML parsing errors.
+      const token = this.authState.getToken();
+      const headers: Record<string, string> = {
+        Accept: 'application/epub+zip,application/octet-stream,*/*',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const resp = await fetch(url, {
+        credentials: 'same-origin',
+        headers,
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Failed to fetch EPUB (${resp.status})`);
+      }
+
+      const epubSource = await resp.arrayBuffer();
+      if (!epubSource || epubSource.byteLength === 0) {
+        throw new Error('Received empty EPUB file');
       }
 
       this.epubBook = ePub(epubSource as any);

@@ -189,6 +189,98 @@ function resolvePath(opfPath: string, href: string): string {
   return opfDir + href;
 }
 
+export type EpubMetadata = {
+  coverBuffer: Buffer | null;
+  author: string | null;
+};
+
+export async function extractEpubMetadataFromFile(epubPath: string): Promise<EpubMetadata> {
+  try {
+    const [coverBuffer, author] = await Promise.all([
+      extractCoverFromOpf(epubPath)
+        .then(async (buf) => buf ?? extractCoverByFilename(epubPath)),
+      extractAuthorFromOpf(epubPath),
+    ]);
+
+    return { coverBuffer, author };
+  } catch {
+    return { coverBuffer: null, author: null };
+  }
+}
+
+/**
+ * Extract both cover image and author (<dc:creator>) from an EPUB in a single download.
+ */
+export async function extractEpubMetadata(epubUrl: string): Promise<EpubMetadata> {
+  const tempDir = await fs.mkdtemp(join(tmpdir(), 'epub-meta-'));
+  const tempFile = join(tempDir, 'book.epub');
+
+  try {
+    console.log(`[CoverExtractor] Downloading EPUB for metadata from ${epubUrl}`);
+    const response = await axios.get(epubUrl, {
+      responseType: 'stream',
+      timeout: 30000,
+    });
+
+    const writer = createWriteStream(tempFile);
+    await new Promise<void>((resolve, reject) => {
+      (response.data as Readable).pipe(writer);
+      writer.on('finish', () => resolve());
+      writer.on('error', reject);
+    });
+
+    const { coverBuffer, author } = await extractEpubMetadataFromFile(tempFile);
+
+    if (coverBuffer) {
+      console.log('[CoverExtractor] ✓ Found cover via metadata extraction');
+    }
+    if (author) {
+      console.log(`[CoverExtractor] ✓ Found author: ${author}`);
+    }
+
+    return { coverBuffer, author };
+  } catch (error) {
+    console.error('[CoverExtractor] Error extracting EPUB metadata:', error);
+    return { coverBuffer: null, author: null };
+  } finally {
+    try {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore
+    }
+  }
+}
+
+async function extractAuthorFromOpf(epubPath: string): Promise<string | null> {
+  try {
+    const { default: AdmZip } = await import('adm-zip');
+    const zip = new AdmZip(epubPath);
+
+    const containerEntry = zip.getEntry('META-INF/container.xml');
+    if (!containerEntry) return null;
+
+    const containerXml = containerEntry.getData().toString('utf-8');
+    const opfPathMatch = containerXml.match(/full-path=["']([^"']+)["']/i);
+    if (!opfPathMatch) return null;
+
+    const opfEntry = zip.getEntry(opfPathMatch[1]);
+    if (!opfEntry) return null;
+
+    const opfContent = opfEntry.getData().toString('utf-8');
+
+    // Match <dc:creator ...>Author Name</dc:creator>
+    const creatorMatch = opfContent.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/i);
+    if (creatorMatch) {
+      const author = creatorMatch[1].trim();
+      if (author) return author;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Upload cover to storage and return URL
  */
