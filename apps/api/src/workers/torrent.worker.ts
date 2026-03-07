@@ -125,6 +125,9 @@ const getFreeDiskBytes = (): Promise<number> => {
 const TORRENT_REMUX_MKV = !['0', 'false', 'no', 'off'].includes(
   (process.env.TORRENT_REMUX_MKV || 'true').trim().toLowerCase()
 );
+const TORRENT_TRANSCODE_MKV = !['0', 'false', 'no', 'off'].includes(
+  (process.env.TORRENT_TRANSCODE_MKV || 'true').trim().toLowerCase()
+);
 const TORRENT_PACKAGE_HLS = !['0', 'false', 'no', 'off'].includes(
   (process.env.TORRENT_PACKAGE_HLS || 'true').trim().toLowerCase()
 );
@@ -354,6 +357,39 @@ const remuxMkvToMp4 = async (inputPath: string, outputPath: string, mapArgs: str
     '+faststart',
     '-f',
     'mp4',
+    outputPath,
+  ]);
+};
+
+const transcodeMkvToMp4 = async (inputPath: string, outputPath: string): Promise<void> => {
+  const outDir = path.dirname(outputPath);
+  await fs.promises.mkdir(outDir, { recursive: true });
+
+  await runFfmpeg([
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    inputPath,
+    '-map',
+    '0:v:0',
+    '-map',
+    '0:a?',
+    '-dn',
+    '-sn',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '23',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '128k',
+    '-movflags',
+    '+faststart',
     outputPath,
   ]);
 };
@@ -662,9 +698,16 @@ const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<
             }
 
             if (mp4Path === inputPath) {
-              throw new Error(
-                `Cannot produce browser-safe MP4 from MKV (${remuxPlan?.reason || 'unknown reason'}). Remux-only mode does not transcode.`
-              );
+              if (!TORRENT_TRANSCODE_MKV) {
+                throw new Error(
+                  `Cannot produce browser-safe MP4 from MKV (${remuxPlan?.reason || 'unknown reason'}) and transcode fallback is disabled.`
+                );
+              }
+
+              console.log('[Worker] Transcoding MKV to MP4 (fallback)...');
+              await transcodeMkvToMp4(inputPath, outputPath);
+              mp4Path = outputPath;
+              console.log('[Worker] MKV transcode fallback complete');
             }
           }
 
@@ -825,7 +868,7 @@ console.log(`[Worker] Concurrency: ${TORRENT_WORKER_CONCURRENCY}`);
 console.log(`[Worker] Job timeout: ${TORRENT_JOB_TIMEOUT_MS}ms`);
 console.log(`[Worker] HLS Packaging: ${TORRENT_PACKAGE_HLS ? 'enabled' : 'disabled'}`);
 console.log(`[Worker] MKV Remuxing: ${TORRENT_REMUX_MKV ? 'enabled' : 'disabled'}`);
-console.log('[Worker] MKV Transcode fallback: disabled (remux-only mode)');
+console.log(`[Worker] MKV Transcode fallback: ${TORRENT_TRANSCODE_MKV ? 'enabled' : 'disabled'}`);
 console.log(`[Worker] Download directory: ${TORRENT_DOWNLOAD_DIR}`);
 
 // Pre-create required subdirectories at startup so they are owned by appuser.
