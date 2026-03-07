@@ -89,6 +89,11 @@ const sourcePagesByIdQuerySchema = z.object({
   chapterId: z.string().trim().min(1),
 });
 
+const mangaImageProxyQuerySchema = z.object({
+  source: z.string().trim().min(1),
+  url: z.string().trim().url(),
+});
+
 const SCRAPE_RATE_LIMIT = {
   max: 40,
   timeWindow: '1 minute',
@@ -314,6 +319,39 @@ export const bookRoutes = async (
     if (!value) return undefined;
     return Array.isArray(value) ? value : [value];
   };
+
+  const readerImageHostAllowlist: Record<string, string[]> = {
+    weebcentral: ['weebcentral.com', 'official.lowee.us', 'lowee.us'],
+    readcomicsonline: ['readcomicsonline.ru'],
+  };
+
+  const sourceRefererById: Record<string, string> = {
+    weebcentral: 'https://weebcentral.com/',
+    readcomicsonline: 'https://readcomicsonline.ru/',
+  };
+
+  const shouldProxySourceReaderImages = (sourceId: string) =>
+    sourceId === 'weebcentral' || sourceId === 'readcomicsonline';
+
+  const isAllowedReaderImageUrl = (sourceId: string, rawUrl: string) => {
+    const allowedHosts = readerImageHostAllowlist[sourceId] || [];
+    if (allowedHosts.length === 0) return false;
+
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      return false;
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+
+    const host = parsed.hostname.toLowerCase();
+    return allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+  };
+
+  const toReaderProxyUrl = (sourceId: string, pageUrl: string) =>
+    `/api/v1/books/manga/image?source=${encodeURIComponent(sourceId)}&url=${encodeURIComponent(pageUrl)}`;
 
   const sanitizeStorageFilename = (fileName: string) =>
     fileName
@@ -616,8 +654,17 @@ export const bookRoutes = async (
       try {
         const { source } = request.params as z.infer<typeof sourceParamSchema>;
         const { chapterId } = request.query as z.infer<typeof sourcePagesByIdQuerySchema>;
-        const data = await mangaService.getChapterPagesBySource(source, chapterId);
-        return reply.send({ status: 'success', data });
+        const normalizedSource = source.trim().toLowerCase();
+        const data = await mangaService.getChapterPagesBySource(normalizedSource, chapterId);
+
+        const payload = shouldProxySourceReaderImages(normalizedSource)
+          ? {
+              ...data,
+              pages: (data.pages || []).map((pageUrl) => toReaderProxyUrl(normalizedSource, pageUrl)),
+            }
+          : data;
+
+        return reply.send({ status: 'success', data: payload });
       } catch (error) {
         return reply.status(500).send({
           status: 'error',
@@ -707,8 +754,17 @@ export const bookRoutes = async (
     handler: async (request, reply) => {
       try {
         const { source, chapterId } = request.params as z.infer<typeof sourceChapterParamSchema>;
-        const data = await mangaService.getChapterPagesBySource(source, chapterId);
-        return reply.send({ status: 'success', data });
+        const normalizedSource = source.trim().toLowerCase();
+        const data = await mangaService.getChapterPagesBySource(normalizedSource, chapterId);
+
+        const payload = shouldProxySourceReaderImages(normalizedSource)
+          ? {
+              ...data,
+              pages: (data.pages || []).map((pageUrl) => toReaderProxyUrl(normalizedSource, pageUrl)),
+            }
+          : data;
+
+        return reply.send({ status: 'success', data: payload });
       } catch (error) {
         return reply.status(500).send({
           status: 'error',
@@ -1250,6 +1306,71 @@ export const bookRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to import epubBooks catalog',
+        });
+      }
+    },
+  });
+
+  // GET /api/books/manga/image?source=weebcentral&url=https%3A%2F%2F...
+  // Proxies source chapter images through our origin to avoid browser-side hotlink and reader breakage.
+  app.get('/manga/image', {
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    schema: {
+      querystring: mangaImageProxyQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { source, url } = request.query as z.infer<typeof mangaImageProxyQuerySchema>;
+        const sourceId = source.trim().toLowerCase();
+
+        if (!shouldProxySourceReaderImages(sourceId)) {
+          return reply.status(400).send({
+            status: 'error',
+            message: 'Source image proxy is not enabled for this source',
+          });
+        }
+
+        if (!isAllowedReaderImageUrl(sourceId, url)) {
+          return reply.status(400).send({
+            status: 'error',
+            message: 'Image URL is not allowed for this source',
+          });
+        }
+
+        const response = await axios.get<ArrayBuffer>(url, {
+          responseType: 'arraybuffer',
+          timeout: 20_000,
+          headers: {
+            Referer: sourceRefererById[sourceId],
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+          },
+          validateStatus: () => true,
+        });
+
+        if (response.status < 200 || response.status >= 300) {
+          return reply.status(response.status).send({
+            status: 'error',
+            message: `Upstream image request failed (${response.status})`,
+          });
+        }
+
+        const contentType = response.headers['content-type'] || 'image/jpeg';
+        if (!String(contentType).toLowerCase().startsWith('image/')) {
+          return reply.status(415).send({
+            status: 'error',
+            message: 'Upstream resource is not an image',
+          });
+        }
+
+        reply.header('content-type', String(contentType));
+        reply.header('cache-control', 'public, max-age=86400, s-maxage=86400');
+        return reply.send(Buffer.from(response.data));
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to proxy manga image',
         });
       }
     },
