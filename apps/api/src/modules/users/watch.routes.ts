@@ -12,6 +12,23 @@ export const watchRoutes = async (
   app: FastifyInstance,
   opts: FastifyPluginOptions,
 ) => {
+  const clamp = (value: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, value));
+
+  const toProgressPercentage = (
+    progress: number,
+    duration: number,
+    movieDurationMinutes?: number | null,
+  ) => {
+    const fallbackDuration =
+      typeof movieDurationMinutes === 'number' && movieDurationMinutes > 0
+        ? Math.round(movieDurationMinutes * 60)
+        : 0;
+    const denominator = duration > 0 ? duration : fallbackDuration;
+    if (denominator <= 0) return progress > 0 ? 1 : 0;
+    return clamp(Math.round((progress / denominator) * 100), 0, 100);
+  };
+
   const parsePositiveInt = (value?: string) => {
     if (!value) return undefined;
     const parsed = Number.parseInt(value, 10);
@@ -74,6 +91,13 @@ export const watchRoutes = async (
           where: {
             userId_movieId: { userId, movieId },
           },
+          include: {
+            movie: {
+              select: {
+                durationMinutes: true,
+              },
+            },
+          },
         });
 
         if (!watchHistory) {
@@ -83,10 +107,11 @@ export const watchRoutes = async (
           });
         }
 
-        const progressPercentage =
-          watchHistory.duration > 0
-            ? Math.round((watchHistory.progress / watchHistory.duration) * 100)
-            : 0;
+        const progressPercentage = toProgressPercentage(
+          watchHistory.progress,
+          watchHistory.duration,
+          watchHistory.movie?.durationMinutes ?? null,
+        );
 
         return reply.send({
           status: "success",
@@ -134,10 +159,19 @@ export const watchRoutes = async (
           }),
         ]);
 
+        const rows = watchHistory.map((row) => ({
+          ...row,
+          progressPercentage: toProgressPercentage(
+            row.progress,
+            row.duration,
+            row.movie?.durationMinutes ?? null,
+          ),
+        }));
+
         reply.header("Cache-Control", "private, max-age=300");
         return reply.send({
           status: "success",
-          data: watchHistory,
+          data: rows,
           meta: {
             page: pageNum,
             limit: limitNum,

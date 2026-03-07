@@ -505,7 +505,7 @@ export class UnifiedLibraryComponent implements OnInit {
   private loadContinueWatching() {
     this.watchApi.getWatchHistory({ page: 1, limit: 12 }).subscribe({
       next: (res) => {
-        const items = (res.data || []).filter((item) => item.progressPercentage > 0 && item.progressPercentage < 95);
+        const items = (res.data || []).filter((item) => item.progressPercentage > 0);
         this.continueWatching.set(items);
         this.isLoadingWatchHistory.set(false);
       },
