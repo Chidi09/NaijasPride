@@ -925,7 +925,27 @@ export const bookRoutes = async (
         const userId = request.user.id;
         const { limit } = request.query as { limit?: string };
         const history = await mangaService.getUserReadingHistory(userId, limit ? parseInt(limit) : 20);
-        return reply.send({ status: 'success', data: history });
+
+        const mangaIds = Array.from(new Set(history.map((item) => item.mangaId)));
+        const favorites = mangaIds.length
+          ? await app.prisma.mangaFavorite.findMany({
+              where: { userId, mangaId: { in: mangaIds } },
+              select: { mangaId: true, title: true, coverUrl: true },
+            })
+          : [];
+
+        const favoriteByMangaId = new Map(favorites.map((item) => [item.mangaId, item]));
+
+        const enriched = history.map((item) => {
+          const favorite = favoriteByMangaId.get(item.mangaId);
+          return {
+            ...item,
+            title: favorite?.title ?? null,
+            coverUrl: favorite?.coverUrl ?? null,
+          };
+        });
+
+        return reply.send({ status: 'success', data: enriched });
       } catch (error) {
         return reply.status(500).send({
           status: 'error',

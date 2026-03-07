@@ -26,7 +26,7 @@ interface LibrarySummary {
 
 /** A single row in the Recent Activity table */
 interface ActivityRow {
-  type: 'movie' | 'book';
+  type: 'movie' | 'book' | 'manga';
   title: string;
   thumbnailUrl: string | null;
   meta: string;           // e.g. "Movie" or "Book"
@@ -35,6 +35,16 @@ interface ActivityRow {
   dotColor: string;       // tailwind bg colour class
   progress: number;       // 0–100
   link: string;
+}
+
+interface MangaHistoryRow {
+  mangaId: string;
+  chapterId: string;
+  pageIndex: number;
+  totalPages: number;
+  isCompleted: boolean;
+  title?: string | null;
+  coverUrl?: string | null;
 }
 
 @Component({
@@ -423,6 +433,8 @@ export class UnifiedLibraryComponent implements OnInit {
   isLoadingContinueReading = signal<boolean>(true);
   continueReadingBooks = signal<BookSummary[]>([]);
   bookProgressBySlug = signal<Record<string, number>>({});
+  isLoadingMangaHistory = signal<boolean>(true);
+  mangaHistory = signal<MangaHistoryRow[]>([]);
 
   watchlistCount = computed(() => this.profileQuery.data()?.data?.watchlist?.length || 0);
 
@@ -432,8 +444,10 @@ export class UnifiedLibraryComponent implements OnInit {
   /** First book in continue-reading — thumbnail for the Books card */
   readingPreview = computed(() => this.continueReadingBooks()[0] ?? null);
 
-  /** Combined activity rows from watch history + books in progress, sorted by most-recently-active */
-  isLoadingActivity = computed(() => this.isLoadingWatchHistory() || this.isLoadingContinueReading());
+  /** Combined activity rows from watch + books + manga/comics progress */
+  isLoadingActivity = computed(
+    () => this.isLoadingWatchHistory() || this.isLoadingContinueReading() || this.isLoadingMangaHistory(),
+  );
 
   activityRows = computed((): ActivityRow[] => {
     const rows: ActivityRow[] = [];
@@ -467,12 +481,33 @@ export class UnifiedLibraryComponent implements OnInit {
       });
     }
 
+    for (const item of this.mangaHistory().slice(0, 6)) {
+      const pct = item.totalPages > 0
+        ? Math.max(0, Math.min(100, Math.round(((item.pageIndex + 1) / item.totalPages) * 100)))
+        : item.isCompleted
+          ? 100
+          : 0;
+
+      rows.push({
+        type: 'manga',
+        title: item.title?.trim() || `Manga Chapter ${item.chapterId.slice(0, 8)}`,
+        thumbnailUrl: item.coverUrl || null,
+        meta: 'Manga / Comics',
+        statusLabel: item.isCompleted || pct >= 95 ? 'Finished' : 'Reading',
+        statusColor: item.isCompleted || pct >= 95 ? 'text-emerald-400' : 'text-violet-400',
+        dotColor: item.isCompleted || pct >= 95 ? 'bg-emerald-500' : 'bg-violet-500',
+        progress: pct,
+        link: `/books/manga/${encodeURIComponent(item.mangaId)}/read/${encodeURIComponent(item.chapterId)}`,
+      });
+    }
+
     return rows;
   });
 
   async ngOnInit() {
     this.loadContinueWatching();
     this.loadContinueReading();
+    this.loadMangaHistory();
 
     try {
       this.isLoading.set(true);
@@ -529,6 +564,22 @@ export class UnifiedLibraryComponent implements OnInit {
         });
       },
       error: () => this.isLoadingContinueReading.set(false),
+    });
+  }
+
+  private loadMangaHistory() {
+    this.http.get<{ status?: string; data?: MangaHistoryRow[] }>('/api/v1/books/manga/history', {
+      params: { limit: '12' },
+    }).subscribe({
+      next: (res) => {
+        const rows = (res.data || []).filter((item) => (item.pageIndex >= 0) || item.isCompleted);
+        this.mangaHistory.set(rows);
+        this.isLoadingMangaHistory.set(false);
+      },
+      error: () => {
+        this.mangaHistory.set([]);
+        this.isLoadingMangaHistory.set(false);
+      },
     });
   }
 
