@@ -122,13 +122,14 @@ const getFreeDiskBytes = (): Promise<number> => {
   });
 };
 
-const TORRENT_TRANSCODE_MKV = !['0', 'false', 'no', 'off'].includes(
-  (process.env.TORRENT_TRANSCODE_MKV || '').trim().toLowerCase()
+const TORRENT_REMUX_MKV = !['0', 'false', 'no', 'off'].includes(
+  (process.env.TORRENT_REMUX_MKV || 'true').trim().toLowerCase()
 );
 const TORRENT_PACKAGE_HLS = !['0', 'false', 'no', 'off'].includes(
   (process.env.TORRENT_PACKAGE_HLS || 'true').trim().toLowerCase()
 );
 const FFMPEG_PATH = (process.env.FFMPEG_PATH || 'ffmpeg').trim() || 'ffmpeg';
+const FFPROBE_PATH = (process.env.FFPROBE_PATH || 'ffprobe').trim() || 'ffprobe';
 const STORAGE_PUBLIC_BASE_URL = (process.env.STORAGE_PUBLIC_BASE_URL || process.env.S3_PUBLIC_BASE_URL || '').trim();
 const TORRENT_WORKER_CONCURRENCY = parsePositiveInt(process.env.TORRENT_WORKER_CONCURRENCY, 2, 1, 4);
 const TORRENT_JOB_TIMEOUT_MS = parsePositiveInt(process.env.TORRENT_JOB_TIMEOUT_MS, 60 * 60 * 1000, 5 * 60 * 1000, 4 * 60 * 60 * 1000);
@@ -203,9 +204,140 @@ const runFfmpeg = (args: string[]): Promise<void> => {
   });
 };
 
-const transcodeMkvToMp4 = async (inputPath: string, outputPath: string): Promise<void> => {
+type FfprobeStream = {
+  index?: number;
+  codec_type?: string;
+  codec_name?: string;
+};
+
+type FfprobeResult = {
+  streams?: FfprobeStream[];
+};
+
+type MkvRemuxPlan = {
+  canRemux: boolean;
+  reason: string;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  mapArgs: string[];
+};
+
+const runFfprobe = (inputPath: string): Promise<FfprobeResult> => {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(FFPROBE_PATH, [
+      '-v',
+      'error',
+      '-show_entries',
+      'stream=index,codec_type,codec_name',
+      '-of',
+      'json',
+      inputPath,
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+      if (stdout.length > 128_000) {
+        stdout = stdout.slice(-128_000);
+      }
+    });
+
+    proc.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+      if (stderr.length > 16_000) {
+        stderr = stderr.slice(-16_000);
+      }
+    });
+
+    proc.on('error', (error) => {
+      reject(error);
+    });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`ffprobe exited with code ${code}: ${stderr}`));
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stdout || '{}') as FfprobeResult;
+        resolve(parsed);
+      } catch (error) {
+        reject(new Error(`ffprobe returned invalid JSON: ${getErrorMessage(error)}`));
+      }
+    });
+  });
+};
+
+const chooseMkvRemuxPlan = (probe: FfprobeResult): MkvRemuxPlan => {
+  const streams = Array.isArray(probe.streams) ? probe.streams : [];
+  const video = streams.find((stream) => (stream.codec_type || '').toLowerCase() === 'video');
+  const audioStreams = streams.filter((stream) => (stream.codec_type || '').toLowerCase() === 'audio');
+
+  const videoCodec = (video?.codec_name || '').toLowerCase() || null;
+  if (!video || !Number.isFinite(video.index as number)) {
+    return {
+      canRemux: false,
+      reason: 'missing video stream',
+      videoCodec,
+      audioCodec: null,
+      mapArgs: [],
+    };
+  }
+
+  // Keep remux strict for broad browser support.
+  const browserSafeVideoCodecs = new Set(['h264']);
+  const browserSafeAudioCodecs = new Set(['aac', 'mp3']);
+
+  if (!videoCodec || !browserSafeVideoCodecs.has(videoCodec)) {
+    return {
+      canRemux: false,
+      reason: `unsupported video codec: ${videoCodec || 'unknown'}`,
+      videoCodec,
+      audioCodec: null,
+      mapArgs: [],
+    };
+  }
+
+  const compatibleAudio = audioStreams.find((stream) =>
+    browserSafeAudioCodecs.has((stream.codec_name || '').toLowerCase())
+  );
+
+  if (audioStreams.length > 0 && !compatibleAudio) {
+    return {
+      canRemux: false,
+      reason: `no browser-safe audio stream (found: ${audioStreams
+        .map((stream) => stream.codec_name || 'unknown')
+        .join(', ')})`,
+      videoCodec,
+      audioCodec: null,
+      mapArgs: [],
+    };
+  }
+
+  const mapArgs = ['-map', '0:v:0'];
+  let audioCodec: string | null = null;
+  if (compatibleAudio && Number.isFinite(compatibleAudio.index as number)) {
+    mapArgs.push('-map', `0:${compatibleAudio.index as number}`);
+    audioCodec = (compatibleAudio.codec_name || '').toLowerCase() || null;
+  }
+
+  return {
+    canRemux: true,
+    reason: 'browser-compatible codecs',
+    videoCodec,
+    audioCodec,
+    mapArgs,
+  };
+};
+
+const remuxMkvToMp4 = async (inputPath: string, outputPath: string, mapArgs: string[]): Promise<void> => {
   const outDir = path.dirname(outputPath);
   await fs.promises.mkdir(outDir, { recursive: true });
+
   await runFfmpeg([
     '-hide_banner',
     '-loglevel',
@@ -213,18 +345,15 @@ const transcodeMkvToMp4 = async (inputPath: string, outputPath: string): Promise
     '-y',
     '-i',
     inputPath,
-    '-c:v',
-    'libx264',
-    '-preset',
-    'veryfast',
-    '-crf',
-    '23',
-    '-c:a',
-    'aac',
-    '-b:a',
-    '128k',
+    ...mapArgs,
+    '-dn',
+    '-sn',
+    '-c',
+    'copy',
     '-movflags',
     '+faststart',
+    '-f',
+    'mp4',
     outputPath,
   ]);
 };
@@ -503,16 +632,39 @@ const downloadAndProcess = async (magnetLink: string, movieId: string): Promise<
           let mp4Path = inputPath;
           let mp4Key = `movies/${movieId}/${baseName}.mp4`;
 
-          // Transcode MKV to MP4 if needed
-          if (isMkv && TORRENT_TRANSCODE_MKV) {
+          // For MKV: remux first (fast path), transcode only when required.
+          if (isMkv) {
             const outputPath = path.join(transcodeDir, `${baseName}.mp4`);
-            console.log(`[Worker] Transcoding MKV to MP4...`);
-            try {
-              await transcodeMkvToMp4(inputPath, outputPath);
-              mp4Path = outputPath;
-              console.log(`[Worker] Transcoding complete`);
-            } catch (error) {
-              console.error(`[Worker] Transcode failed, using original: ${getErrorMessage(error)}`);
+            let remuxPlan: MkvRemuxPlan | null = null;
+
+            if (TORRENT_REMUX_MKV) {
+              try {
+                const probe = await runFfprobe(inputPath);
+                remuxPlan = chooseMkvRemuxPlan(probe);
+                console.log(
+                  `[Worker] MKV probe: video=${remuxPlan.videoCodec || 'unknown'}, audio=${remuxPlan.audioCodec || 'none'}, canRemux=${remuxPlan.canRemux} (${remuxPlan.reason})`
+                );
+              } catch (error) {
+                console.warn(`[Worker] ffprobe failed: ${getErrorMessage(error)}`);
+              }
+            }
+
+            if (TORRENT_REMUX_MKV && remuxPlan?.canRemux) {
+              console.log('[Worker] Remuxing MKV to MP4 (stream copy)...');
+              try {
+                await remuxMkvToMp4(inputPath, outputPath, remuxPlan.mapArgs);
+                mp4Path = outputPath;
+                console.log('[Worker] MKV remux complete');
+              } catch (error) {
+                console.warn(`[Worker] MKV remux failed: ${getErrorMessage(error)}`);
+                remuxPlan = { ...remuxPlan, canRemux: false, reason: 'ffmpeg remux failed' };
+              }
+            }
+
+            if (mp4Path === inputPath) {
+              throw new Error(
+                `Cannot produce browser-safe MP4 from MKV (${remuxPlan?.reason || 'unknown reason'}). Remux-only mode does not transcode.`
+              );
             }
           }
 
@@ -672,7 +824,8 @@ console.log('[Worker] Torrent worker started');
 console.log(`[Worker] Concurrency: ${TORRENT_WORKER_CONCURRENCY}`);
 console.log(`[Worker] Job timeout: ${TORRENT_JOB_TIMEOUT_MS}ms`);
 console.log(`[Worker] HLS Packaging: ${TORRENT_PACKAGE_HLS ? 'enabled' : 'disabled'}`);
-console.log(`[Worker] MKV Transcoding: ${TORRENT_TRANSCODE_MKV ? 'enabled' : 'disabled'}`);
+console.log(`[Worker] MKV Remuxing: ${TORRENT_REMUX_MKV ? 'enabled' : 'disabled'}`);
+console.log('[Worker] MKV Transcode fallback: disabled (remux-only mode)');
 console.log(`[Worker] Download directory: ${TORRENT_DOWNLOAD_DIR}`);
 
 // Pre-create required subdirectories at startup so they are owned by appuser.
