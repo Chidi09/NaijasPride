@@ -389,7 +389,7 @@ export class WeebCentralSource extends BaseHtmlSource {
       const detail: MangaDetail = {
         id: seriesId,
         title,
-        description: description || null,
+        description: description || '',
         coverUrl: coverUrl || null,
         status,
         year: null,
