@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq';
+import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 // webtorrent v2+ is ESM-only — loaded via dynamic import() at runtime
@@ -883,5 +883,76 @@ void (async () => {
     console.error('[Worker] FATAL: Cannot create download subdirectories:', (err as Error).message);
     console.error('[Worker] Fix: chown the torrent volume to uid 1001 and restart the worker.');
     process.exit(1);
+  }
+})();
+
+// ── Startup Pending Backfill ────────────────────────────────────────────────
+// On every worker startup, scan for any `pending` downloadable movies in DB
+// that are NOT already in the Redis queue and re-enqueue them.
+// This recovers orphaned records after deploys, crashes, or queue flushes.
+void (async () => {
+  // Wait for directories + short grace period before scanning
+  await new Promise(resolve => setTimeout(resolve, 5000));
+
+  const BACKFILL_BATCH = parsePositiveInt(process.env.TORRENT_BACKFILL_BATCH, 50, 1, 500);
+  const attemptsRaw = Number.parseInt(process.env.TORRENT_JOB_ATTEMPTS || '3', 10);
+  const attempts = Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.min(attemptsRaw, 5) : 3;
+  const backoffMs = 120_000;
+
+  try {
+    const queue = new Queue('torrent-processing', { connection: new IORedis(REDIS_URL!, { maxRetriesPerRequest: null }) });
+
+    // Get all job IDs currently in queue (wait + active) to avoid duplicates
+    const [waitJobs, activeJobs] = await Promise.all([
+      queue.getWaiting(0, 10000),
+      queue.getActive(0, 200),
+    ]);
+    const queuedMovieIds = new Set<string>([
+      ...waitJobs.map(j => (j.data as any).movieId as string),
+      ...activeJobs.map(j => (j.data as any).movieId as string),
+    ].filter(Boolean));
+
+    // Find pending movies not already in queue, ordered oldest-first
+    const pendingMovies = await prisma.movie.findMany({
+      where: {
+        isStreamOnly: false,
+        status: 'pending',
+        id: { notIn: Array.from(queuedMovieIds) },
+        metadata: { path: ['sourceInfoHash'], not: null },
+      },
+      select: { id: true, title: true, metadata: true },
+      orderBy: { createdAt: 'asc' },
+      take: BACKFILL_BATCH,
+    });
+
+    if (pendingMovies.length === 0) {
+      console.log('[Worker] Startup backfill: no orphaned pending movies found');
+      await queue.close();
+      return;
+    }
+
+    console.log(`[Worker] Startup backfill: re-queuing ${pendingMovies.length} orphaned pending movies`);
+    let enqueued = 0;
+    for (const movie of pendingMovies) {
+      const infoHash = (movie.metadata as any)?.sourceInfoHash as string | undefined;
+      const rawTitle = (movie.metadata as any)?.sourceRawTitle ?? movie.title;
+      if (!infoHash) continue;
+      const magnetLink = `magnet:?xt=urn:btih:${infoHash}&dn=${encodeURIComponent(rawTitle)}`;
+      await queue.add('download-torrent', {
+        magnetLink,
+        movieId: movie.id,
+        timestamp: Date.now(),
+      }, {
+        removeOnComplete: true,
+        removeOnFail: false,
+        attempts,
+        backoff: { type: 'exponential', delay: backoffMs },
+      });
+      enqueued++;
+    }
+    console.log(`[Worker] Startup backfill: enqueued ${enqueued} movies`);
+    await queue.close();
+  } catch (err) {
+    console.error('[Worker] Startup backfill failed (non-fatal):', (err as Error).message);
   }
 })();
