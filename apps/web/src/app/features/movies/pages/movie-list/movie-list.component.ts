@@ -333,7 +333,7 @@ export class MovieListComponent {
         return;
       }
       this.loadWatchProgress();
-    });
+    }, { allowSignalWrites: true });
   }
 
   // Merge new filters into existing params

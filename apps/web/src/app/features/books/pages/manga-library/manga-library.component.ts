@@ -571,11 +571,11 @@ export class MangaLibraryComponent implements OnInit {
     // In production builds this page can throw NG0203 without the injector option.
     effect(
       () => {
-      if (this.showHome()) {
-        this.hasSearched.set(false);
-      }
+        if (this.showHome()) {
+          this.hasSearched.set(false);
+        }
       },
-      { injector: this.injector }
+      { injector: this.injector, allowSignalWrites: true }
     );
 
     const savedSource = localStorage.getItem('np_manga_source');
