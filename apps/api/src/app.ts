@@ -520,7 +520,24 @@ const start = async () => {
             queued++;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            if (/job.+exists/i.test(message)) continue;
+            if (/job.+exists/i.test(message)) {
+              try {
+                const existing = await queue.getJob(`book-cover-${book.id}`);
+                if (existing) {
+                  const state = await existing.getState();
+                  if (state === 'failed') {
+                    await existing.retry();
+                    queued++;
+                  }
+                }
+              } catch (retryError) {
+                app.log.warn(
+                  { error: retryError, bookId: book.id },
+                  '[BookCoverUrlFix] Failed to retry existing failed cover extraction job',
+                );
+              }
+              continue;
+            }
             app.log.warn({ error, bookId: book.id }, '[BookCoverUrlFix] Failed to queue cover extraction job');
           }
         }

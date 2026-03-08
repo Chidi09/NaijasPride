@@ -100,11 +100,10 @@ const extractDownloadKeyFromUrl = (downloadUrl: string): string | null => {
     const keyParam = parsed.searchParams.get('key');
     if (keyParam && keyParam.trim()) return keyParam.trim();
 
-    const marker = '/books/';
-    const index = parsed.pathname.indexOf(marker);
-    if (index >= 0) {
-      const keyFromPath = parsed.pathname.slice(index + 1).replace(/^\/+/, '');
-      if (keyFromPath.trim()) return keyFromPath.trim();
+    const normalizedPath = parsed.pathname.replace(/\/+/g, '/');
+    if (normalizedPath.startsWith('/books/')) {
+      const keyFromPath = normalizedPath.slice(1).trim();
+      if (keyFromPath) return keyFromPath;
     }
   } catch {
     const match = raw.match(/[?&]key=([^&]+)/i);
@@ -381,13 +380,16 @@ export class BookCoverService {
       }
 
       const href = extractElsciHrefFromUrl(book.downloadUrl);
-      if (!href) {
-        throw new Error(`Invalid Elsci href for ${book.id}`);
+      if (href) {
+        const upstream = await fetchElsciLightNovelFileStream(href);
+        await streamToFileWithLimit(upstream.stream, destinationPath, BOOK_COVER_MAX_FILE_BYTES);
+        return inferFormatFromFilePath(href);
       }
 
-      const upstream = await fetchElsciLightNovelFileStream(href);
-      await streamToFileWithLimit(upstream.stream, destinationPath, BOOK_COVER_MAX_FILE_BYTES);
-      return inferFormatFromFilePath(href);
+      // Some Elsci records are mirrored to R2 and use
+      // /api/v1/books/download?key=books/elsci/<slug>.epub URLs.
+      // In that case there is no href query param; fall through to the
+      // generic R2 key path below.
     }
 
     // If the book file is already mirrored to R2, stream directly from S3

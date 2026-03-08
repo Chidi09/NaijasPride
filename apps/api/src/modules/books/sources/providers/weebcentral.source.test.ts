@@ -17,7 +17,7 @@ const SERIES_ID = '01JJ2D2B46DZ8QYPVGNVC63V3E';
 const CHAPTER_ID = '01KH3X48WCP664NG6DNS7TQTB8';
 
 const fixture = (name: string) =>
-  readFileSync(resolve(process.cwd(), 'src/modules/books/sources/parsers/__fixtures__', name), 'utf8');
+  readFileSync(resolve(process.cwd(), 'src/modules/books/sources/providers/parsers/__fixtures__', name), 'utf8');
 
 test('WeebCentralSource extracts and coerces series IDs to ULID format', () => {
   const source = new WeebCentralSource() as unknown as WeebCentralTestHarness;

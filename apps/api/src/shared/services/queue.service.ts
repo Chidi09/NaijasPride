@@ -137,6 +137,14 @@ export class QueueService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/job.+exists/i.test(message)) {
+        const existing = await queue.getJob(jobId);
+        if (existing) {
+          const state = await existing.getState();
+          if (state === 'failed') {
+            await existing.retry();
+            console.log(`[Queue] Retried failed book cover job for book ${payload.bookId}`);
+          }
+        }
         return;
       }
       throw error;

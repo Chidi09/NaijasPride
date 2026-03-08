@@ -121,6 +121,14 @@ const enqueueBookCoverJobsBySlugs = async (slugs: string[]): Promise<number> => 
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/job.+exists/i.test(message)) {
+        const existing = await coverQueue.getJob(`book-cover-${book.id}`);
+        if (existing) {
+          const state = await existing.getState();
+          if (state === 'failed') {
+            await existing.retry();
+            enqueued++;
+          }
+        }
         continue;
       }
       console.error(`[BookImportWorker] Failed to enqueue cover job for ${book.slug}: ${message}`);

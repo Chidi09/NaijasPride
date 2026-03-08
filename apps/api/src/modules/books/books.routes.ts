@@ -320,8 +320,10 @@ export const bookRoutes = async (
     return Array.isArray(value) ? value : [value];
   };
 
+  // WeebCentral aggregates chapters from many scanlation groups, each with their
+  // own CDN host. Add known third-party CDN domains here as they are discovered.
   const readerImageHostAllowlist: Record<string, string[]> = {
-    weebcentral: ['weebcentral.com', 'official.lowee.us', 'lowee.us'],
+    weebcentral: ['weebcentral.com', 'official.lowee.us', 'lowee.us', 'lastation.us'],
     readcomicsonline: ['readcomicsonline.ru'],
   };
 
