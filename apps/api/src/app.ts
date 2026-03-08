@@ -731,7 +731,9 @@ const start = async () => {
       const configuredYtsSources = parseCsvList(process.env.TORRENT_YTS_SOURCE_URLS);
       const configuredPirateBaySources = parseCsvList(process.env.TORRENT_PIRATEBAY_SOURCE_URLS);
 
-      const globalSourceUrls = configuredGlobalSources.length > 0
+      // Explicit env var (even empty) = use exactly what's configured, no defaults.
+      // Unset env var = fall back to hardcoded defaults.
+      const globalSourceUrls = process.env.TORRENT_DISCOVERY_SOURCE_URLS !== undefined
         ? configuredGlobalSources
         : mergeUniqueUrls([
             (process.env.TORRENT_SOURCE_URL || '').trim(),
@@ -741,7 +743,7 @@ const start = async () => {
             'https://1337xx.to/popular-movies-week',
           ]);
 
-      const bollywoodSourceUrls = configuredBollywoodSources.length > 0
+      const bollywoodSourceUrls = process.env.TORRENT_BOLLYWOOD_SOURCE_URLS !== undefined
         ? configuredBollywoodSources
         : mergeUniqueUrls([
             (process.env.TORRENT_BOLLYWOOD_SOURCE_URL || '').trim(),
@@ -751,13 +753,15 @@ const start = async () => {
             'https://1337xx.to/search/bollywood/1/',
           ]);
 
-      const ytsSourceUrls = configuredYtsSources.length > 0
+      const ytsSourceUrls = process.env.TORRENT_YTS_SOURCE_URLS !== undefined
         ? configuredYtsSources
         : mergeUniqueUrls([
             'https://yts.mx/api/v2/list_movies.json?limit=50&sort_by=date_added&order_by=desc&page=1',
           ]);
 
-      const pirateBaySourceUrls = configuredPirateBaySources.length > 0
+      // If TORRENT_PIRATEBAY_SOURCE_URLS is explicitly set (even to empty string),
+      // respect that and don't fall back to defaults — an empty value = disabled.
+      const pirateBaySourceUrls = process.env.TORRENT_PIRATEBAY_SOURCE_URLS !== undefined
         ? configuredPirateBaySources
         : mergeUniqueUrls([
             'https://apibay.org/precompiled/data_top100_201.json',
