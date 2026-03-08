@@ -363,7 +363,22 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    const movie = await service.create(request.body);
+    let movie = await service.create(request.body);
+
+    // If no poster/thumbnail was provided, auto-fetch from TMDB immediately so
+    // the cover is present in the response rather than waiting for a manual sync.
+    const body = request.body as { posterUrl?: string; thumbnailUrl?: string; backdropUrl?: string; title: string; year: number };
+    const hasCover = body.posterUrl || body.thumbnailUrl || body.backdropUrl;
+    if (!hasCover) {
+      try {
+        await service.syncMetadata(movie.id);
+        const updated = await service.findBySlug(movie.slug);
+        if (updated) movie = updated;
+      } catch (metaError) {
+        fastify.log.warn({ metaError, movieId: movie.id }, '[MovieCreate] TMDB auto-sync failed, continuing without poster');
+      }
+    }
+
     return reply.status(201).send({ success: true, data: movie });
   });
 

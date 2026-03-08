@@ -21,6 +21,7 @@ import { importElsciLightNovelsCatalog } from './external/elsci/importer';
 import { QueueService, bookImportQueue } from '../../shared/services/queue.service';
 import { getPushService } from '../../shared/services/push-notification.service';
 import { HeadObjectCommand } from '@aws-sdk/client-s3';
+import { BookCoverService } from './book-cover.service';
 
 const createBookSchema = z.object({
   title: z.string().trim().min(1),
@@ -287,6 +288,7 @@ export const bookRoutes = async (
   const mangaService = new MangaService(app.prisma);
   const storageService = new StorageService();
   const queueService = new QueueService();
+  const bookCoverService = new BookCoverService(app.prisma, app.log);
 
   // Lightweight helpers for streaming external files.
   const inferContentTypeFromFilename = (filename: string | null): string | null => {
@@ -2471,17 +2473,42 @@ export const bookRoutes = async (
           }
         }
 
-        const book = await booksService.create({
+        let book = await booksService.create({
           ...basePayload,
           genre: normalizedGenre,
         });
 
-        if (!book.coverUrl && book.status !== 'deleted') {
+        // Attempt to extract and upload the cover synchronously so the response
+        // already includes coverUrl. We race against a 45-second timeout; if
+        // extraction wins we update the local book object. If it times out or
+        // fails we fall back to the async queue (same as before).
+        if (!book.coverUrl && book.status !== 'deleted' && book.downloadUrl) {
+          try {
+            const INLINE_COVER_TIMEOUT_MS = 45_000;
+            const coverResult = await Promise.race([
+              bookCoverService.processBookCover(book.id),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), INLINE_COVER_TIMEOUT_MS)),
+            ]);
+
+            if (coverResult && coverResult.updated && coverResult.coverUrl) {
+              book = { ...book, coverUrl: coverResult.coverUrl };
+            } else if (!coverResult) {
+              // Timed out — hand off to the queue
+              app.log.warn({ bookId: book.id }, '[BookCover] Inline extraction timed out, queuing');
+              queueService.addBookCoverJob({ bookId: book.id, reason: 'manual-create' }).catch((error) => {
+                app.log.error({ error, bookId: book.id }, '[BookCover] Failed to queue cover extraction after timeout');
+              });
+            }
+          } catch (coverError) {
+            app.log.error({ coverError, bookId: book.id }, '[BookCover] Inline extraction failed, queuing');
+            queueService.addBookCoverJob({ bookId: book.id, reason: 'manual-create' }).catch((error) => {
+              app.log.error({ error, bookId: book.id }, '[BookCover] Failed to queue cover extraction after error');
+            });
+          }
+        } else if (!book.coverUrl && book.status !== 'deleted') {
+          // No downloadUrl yet — queue for later
           queueService
-            .addBookCoverJob({
-              bookId: book.id,
-              reason: 'manual-create',
-            })
+            .addBookCoverJob({ bookId: book.id, reason: 'manual-create' })
             .catch((error) => {
               app.log.error({ error, bookId: book.id }, '[BookCover] Failed to queue manual cover extraction');
             });

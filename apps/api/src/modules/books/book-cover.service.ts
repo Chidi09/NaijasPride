@@ -17,7 +17,11 @@ import {
 } from './external/epubbooks/epubbooks';
 import { fetchElsciLightNovelFileStream } from './external/elsci/elsci-lightnovels';
 
-type LoggerLike = Pick<Console, 'info' | 'warn' | 'error'>;
+type LoggerLike = {
+  info(obj: object | string, msg?: string, ...args: any[]): void;
+  warn(obj: object | string, msg?: string, ...args: any[]): void;
+  error(obj: object | string, msg?: string, ...args: any[]): void;
+};
 
 type BookRecord = {
   id: string;
