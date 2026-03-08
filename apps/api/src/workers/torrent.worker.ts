@@ -918,7 +918,8 @@ void (async () => {
         isStreamOnly: false,
         status: 'pending',
         id: { notIn: Array.from(queuedMovieIds) },
-        metadata: { path: ['sourceInfoHash'], not: null },
+        // Only backfill movies that have an infoHash (torrent-discovery origin)
+        NOT: { metadata: { equals: null } },
       },
       select: { id: true, title: true, metadata: true },
       orderBy: { createdAt: 'asc' },
