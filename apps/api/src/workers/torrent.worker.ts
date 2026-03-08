@@ -913,18 +913,20 @@ void (async () => {
     ].filter(Boolean));
 
     // Find pending movies not already in queue, ordered oldest-first
-    const pendingMovies = await prisma.movie.findMany({
+    // Filter in JS for sourceInfoHash to avoid Prisma JSON filter complexity
+    const candidates = await prisma.movie.findMany({
       where: {
         isStreamOnly: false,
         status: 'pending',
         id: { notIn: Array.from(queuedMovieIds) },
-        // Only backfill movies that have an infoHash (torrent-discovery origin)
-        NOT: { metadata: { equals: null } },
       },
       select: { id: true, title: true, metadata: true },
       orderBy: { createdAt: 'asc' },
-      take: BACKFILL_BATCH,
+      take: BACKFILL_BATCH * 3, // over-fetch to allow JS filtering
     });
+    const pendingMovies = candidates
+      .filter(m => !!(m.metadata as any)?.sourceInfoHash)
+      .slice(0, BACKFILL_BATCH);
 
     if (pendingMovies.length === 0) {
       console.log('[Worker] Startup backfill: no orphaned pending movies found');
