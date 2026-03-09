@@ -105,6 +105,13 @@ const SCRAPE_RATE_LIMIT_HEAVY = {
   timeWindow: '1 minute',
 };
 
+// Image proxy serves individual manga page images — a single chapter has 20-50 pages.
+// Use a much higher limit so readers don't get rate-limited mid-chapter.
+const IMAGE_PROXY_RATE_LIMIT = {
+  max: 500,
+  timeWindow: '1 minute',
+};
+
 const bookSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -325,7 +332,7 @@ export const bookRoutes = async (
   // WeebCentral aggregates chapters from many scanlation groups, each with their
   // own CDN host. Add known third-party CDN domains here as they are discovered.
   const readerImageHostAllowlist: Record<string, string[]> = {
-    weebcentral: ['weebcentral.com', 'official.lowee.us', 'lowee.us', 'lastation.us'],
+    weebcentral: ['weebcentral.com', 'official.lowee.us', 'lowee.us', 'lastation.us', 'planeptune.us'],
     readcomicsonline: ['readcomicsonline.ru'],
   };
 
@@ -1422,7 +1429,7 @@ export const bookRoutes = async (
   // GET /api/books/manga/image?source=weebcentral&url=https%3A%2F%2F...
   // Proxies source chapter images through our origin to avoid browser-side hotlink and reader breakage.
   app.get('/manga/image', {
-    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    config: { rateLimit: IMAGE_PROXY_RATE_LIMIT },
     schema: {
       querystring: mangaImageProxyQuerySchema,
     },
