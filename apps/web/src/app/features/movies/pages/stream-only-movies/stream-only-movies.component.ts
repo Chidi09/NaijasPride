@@ -1,6 +1,6 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MovieCardYoutubeComponent } from '../../../movies/components/movie-card-youtube/movie-card-youtube.component';
 import { MovieSummary } from '@naijaspride/types';
@@ -147,19 +147,18 @@ export class StreamOnlyMoviesComponent implements OnInit {
   loadMovies() {
     this.isLoading.set(true);
     
-    // Fetch stream-only movies
+    // Fetch Nollywood stream-only movies
+    const params = new HttpParams()
+      .set('isStreamOnly', 'true')
+      .set('sortBy', this.sortBy())
+      .set('page', String(this.currentPage()))
+      .set('limit', String(this.pageSize))
+      .append('genre', 'Nollywood');
     this.http.get<{ 
       success: boolean;
       data: MovieSummary[];
       meta?: { page: number; total: number; totalPages: number };
-    }>('/api/v1/movies', {
-      params: {
-        isStreamOnly: 'true',
-        sortBy: this.sortBy(),
-        page: String(this.currentPage()),
-        limit: String(this.pageSize),
-      }
-    }).subscribe({
+    }>('/api/v1/movies', { params }).subscribe({
       next: (response) => {
         this.movies.set(response.data || []);
         this.totalMovies.set(response.meta?.total || response.data?.length || 0);

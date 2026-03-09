@@ -43,7 +43,9 @@ interface MangaHistoryRow {
   pageIndex: number;
   totalPages: number;
   isCompleted: boolean;
-  title?: string | null;
+  title?: string | null;        // manga title (from favorite or stored mangaTitle)
+  mangaTitle?: string | null;   // stored at save time
+  chapterTitle?: string | null; // stored at save time
   coverUrl?: string | null;
 }
 
@@ -490,7 +492,10 @@ export class UnifiedLibraryComponent implements OnInit {
 
       rows.push({
         type: 'manga',
-        title: item.title?.trim() || `Manga Chapter ${item.chapterId.slice(0, 8)}`,
+        title: item.title?.trim()
+          || item.mangaTitle?.trim()
+          || (item.chapterTitle?.trim() ? item.chapterTitle.trim() : null)
+          || `Manga Chapter ${item.chapterId.slice(0, 8)}`,
         thumbnailUrl: item.coverUrl || null,
         meta: 'Manga / Comics',
         statusLabel: item.isCompleted || pct >= 95 ? 'Finished' : 'Reading',

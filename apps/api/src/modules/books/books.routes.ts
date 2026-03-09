@@ -275,6 +275,8 @@ const mangaSimilarQuerySchema = z.object({
 const saveProgressSchema = z.object({
   mangaId: z.string().trim().min(1),
   chapterId: z.string().trim().min(1),
+  mangaTitle: z.string().trim().max(512).optional(),
+  chapterTitle: z.string().trim().max(512).optional(),
   pageIndex: z.number().int().min(0),
   totalPages: z.number().int().min(1),
   isCompleted: z.boolean().optional(),
@@ -1096,7 +1098,9 @@ export const bookRoutes = async (
           body.chapterId,
           body.pageIndex,
           body.totalPages,
-          body.isCompleted
+          body.isCompleted,
+          body.mangaTitle,
+          body.chapterTitle
         );
         return reply.send({ status: 'success', data: progress });
       } catch (error) {
@@ -1131,7 +1135,8 @@ export const bookRoutes = async (
           const favorite = favoriteByMangaId.get(item.mangaId);
           return {
             ...item,
-            title: favorite?.title ?? null,
+            // Prefer stored mangaTitle from the progress row; fall back to favorite title
+            title: item.mangaTitle ?? favorite?.title ?? null,
             coverUrl: favorite?.coverUrl ?? null,
           };
         });

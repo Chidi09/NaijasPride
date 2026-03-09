@@ -39,9 +39,9 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
             class="absolute left-2 top-2 z-10 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white hover:bg-black"
           >{{ saved() ? '★' : '☆' }}</button>
         }
-        @if (movie.thumbnailUrl) {
+        @if (movie.thumbnailUrl?.trim()) {
           <img 
-            [ngSrc]="movie.thumbnailUrl" 
+            [ngSrc]="movie.thumbnailUrl!" 
             [alt]="movie.title"
             fill
             sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
@@ -78,7 +78,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
       <!-- Movie Info - Always Visible -->
       <div class="mt-2 space-y-1">
         <!-- Title -->
-        <h3 class="text-[#24181b] dark:text-white text-sm font-medium line-clamp-2 leading-tight group-hover:text-[#5f1327] dark:group-hover:text-[#d6b87a] transition-colors">
+        <h3 class="text-[#24181b] dark:text-white text-sm font-medium line-clamp-2 leading-tight group-hover:text-[#5f1327] dark:group-hover:text-[#d6b87a] transition-colors min-h-[2.5rem]">
           {{ movie.title }}
         </h3>
         

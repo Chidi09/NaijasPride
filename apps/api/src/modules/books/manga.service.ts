@@ -193,7 +193,9 @@ export class MangaService {
     chapterId: string,
     pageIndex: number,
     totalPages: number,
-    isCompleted = false
+    isCompleted = false,
+    mangaTitle?: string,
+    chapterTitle?: string
   ) {
     return this.prisma.mangaReadingProgress.upsert({
       where: { userId_chapterId: { userId, chapterId } },
@@ -202,6 +204,8 @@ export class MangaService {
         totalPages,
         isCompleted,
         lastReadAt: new Date(),
+        ...(mangaTitle !== undefined && { mangaTitle }),
+        ...(chapterTitle !== undefined && { chapterTitle }),
       },
       create: {
         userId,
@@ -210,6 +214,8 @@ export class MangaService {
         pageIndex,
         totalPages,
         isCompleted,
+        mangaTitle: mangaTitle ?? null,
+        chapterTitle: chapterTitle ?? null,
       },
     });
   }

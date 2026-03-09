@@ -608,10 +608,21 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private saveProgress(pageIndex: number) {
     if (this.incognito()) return;
     if (!this.isAuthenticated() || !this.mangaId() || !this.chapterId() || this.pages().length === 0) return;
+    const chapterMeta = this.currentChapterMeta();
+    const chapterTitle = chapterMeta
+      ? [
+          chapterMeta.chapter ? `Chapter ${chapterMeta.chapter}` : null,
+          chapterMeta.title || null,
+        ]
+          .filter(Boolean)
+          .join(' – ') || null
+      : null;
     this.http
       .post('/api/v1/books/manga/progress', {
         mangaId: this.mangaId(),
         chapterId: this.chapterId(),
+        mangaTitle: this.title() || undefined,
+        chapterTitle: chapterTitle || undefined,
         pageIndex,
         totalPages: this.pages().length,
         isCompleted: pageIndex >= this.pages().length - 1,

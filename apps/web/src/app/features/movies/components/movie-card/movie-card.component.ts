@@ -28,6 +28,8 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
       transform: translateY(-4px) scale(1.02);
       border-color: rgba(128, 0, 32, 0.45);
       box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25);
+      z-index: 10;
+      position: relative;
     }
   `],
   template: `

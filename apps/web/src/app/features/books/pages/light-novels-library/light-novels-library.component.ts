@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -107,11 +107,12 @@ type BookProgressResponse = {
       }
 
       @if (!isLoading() && series().length > 0) {
-        <div class="space-y-4 sm:space-y-5">
+        <div class="grid gap-4 sm:gap-5 lg:grid-cols-2">
           @for (item of series(); track item.seriesKey) {
             <mat-card class="overflow-hidden rounded-2xl border border-[#ecdcd3] bg-[var(--bg-card)] shadow-sm dark:border-cinema-800">
-              <div class="grid gap-0 sm:grid-cols-[132px_1fr]">
-                <div class="relative h-full min-h-36 overflow-hidden bg-[#d9c4b7] dark:bg-cinema-900">
+              <div class="flex gap-0">
+                <!-- Fixed-size cover — never stretches with volume list height -->
+                <div class="relative h-48 w-32 flex-shrink-0 overflow-hidden bg-[#d9c4b7] dark:bg-cinema-900">
                   @if (item.coverUrl) {
                     <img [src]="item.coverUrl" [alt]="item.seriesTitle" class="h-full w-full object-cover" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
@@ -129,7 +130,7 @@ type BookProgressResponse = {
                   }
                 </div>
 
-                <div class="p-3 sm:p-4">
+                <div class="min-w-0 flex-1 p-3 sm:p-4">
                   <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <h2 class="text-lg font-serif leading-tight text-[#24181b] dark:text-white sm:text-xl">{{ item.seriesTitle }}</h2>
                     <p class="text-xs uppercase tracking-[0.14em] text-[#8a756e] dark:text-gray-400">
@@ -138,7 +139,7 @@ type BookProgressResponse = {
                   </div>
 
                   <div class="mt-3 grid gap-2">
-                    @for (volume of item.volumes; track volume.id) {
+                    @for (volume of visibleVolumes(item); track volume.id) {
                       <a
                         [routerLink]="['/books/novel', volume.slug]"
                         class="group relative overflow-hidden flex items-center justify-between gap-2 rounded-lg border border-[#e6d7cc] px-3 py-2 transition hover:border-[#800020] hover:bg-[#fff6f2] dark:border-cinema-800 dark:hover:bg-cinema-900"
@@ -157,6 +158,16 @@ type BookProgressResponse = {
                           </div>
                         }
                       </a>
+                    }
+
+                    @if (item.volumes.length > 3) {
+                      <button
+                        type="button"
+                        class="mt-1 rounded-lg border border-dashed border-[#d4bcb1] px-3 py-1.5 text-xs text-[#8a756e] transition hover:border-[#800020] hover:text-[#800020] dark:border-cinema-700 dark:text-gray-400 dark:hover:border-[#800020]"
+                        (click)="toggleExpand(item.seriesKey)"
+                      >
+                        {{ isExpanded(item.seriesKey) ? 'Show less' : 'Show all ' + item.volumes.length + ' volumes' }}
+                      </button>
                     }
                   </div>
                 </div>
@@ -183,6 +194,7 @@ export class LightNovelsLibraryComponent {
   meta = signal<PaginationMeta | null>(null);
   isLoading = signal(true);
   bookProgressBySlug = signal<Record<string, number>>({});
+  expandedSeries = signal<Set<string>>(new Set());
 
   page = signal(1);
   searchQuery = '';
@@ -235,6 +247,27 @@ export class LightNovelsLibraryComponent {
           this.isLoading.set(false);
         },
       });
+  }
+
+  toggleExpand(seriesKey: string) {
+    const current = new Set(this.expandedSeries());
+    if (current.has(seriesKey)) {
+      current.delete(seriesKey);
+    } else {
+      current.add(seriesKey);
+    }
+    this.expandedSeries.set(current);
+  }
+
+  isExpanded(seriesKey: string): boolean {
+    return this.expandedSeries().has(seriesKey);
+  }
+
+  visibleVolumes(item: LightNovelSeries): LightNovelVolume[] {
+    if (this.isExpanded(item.seriesKey) || item.volumes.length <= 3) {
+      return item.volumes;
+    }
+    return item.volumes.slice(0, 3);
   }
 
   getBookProgress(slug?: string): number | null {

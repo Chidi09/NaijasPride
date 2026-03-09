@@ -245,12 +245,11 @@ export class WeebCentralSource extends BaseHtmlSource {
         return results.slice(0, safeLimit);
       };
 
-      // Fetch all three sections in parallel with distinct sort orders (Kotatsu-aligned)
-      const [trending, recentlyUpdated, newTitles] = await Promise.all([
-        parseSection('Popularity', 'Descending'),
-        parseSection('Latest Updates', 'Descending'),
-        parseSection('Recently Added', 'Descending'),
-      ]);
+      // Fetch sections sequentially to reduce anti-bot triggers caused by
+      // bursty parallel requests against Cloudflare-protected endpoints.
+      const trending = await parseSection('Popularity', 'Descending');
+      const recentlyUpdated = await parseSection('Latest Updates', 'Descending');
+      const newTitles = await parseSection('Recently Added', 'Descending');
 
       const payload: MangaDiscoverResult = { trending, recentlyUpdated, newTitles };
 
@@ -419,9 +418,9 @@ export class WeebCentralSource extends BaseHtmlSource {
     const seriesId = this.coerceSeriesId(mangaId);
     if (!seriesId) return [];
 
-    const cacheKey = this.buildCacheKey('chapters', seriesId, limit);
+    const cacheKey = this.buildCacheKey('chapters', seriesId);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
-    if (cached) return cached;
+    if (cached) return cached.slice(0, limit);
 
     try {
       const seriesHtml = await this.fetchHtml(this.toSeriesPath(seriesId));
@@ -464,21 +463,23 @@ export class WeebCentralSource extends BaseHtmlSource {
       const results: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      reversedEls.forEach((el, i) => {
-        if (results.length >= limit) return;
+      for (let i = 0; i < reversedEls.length; i += 1) {
+        if (results.length >= limit) break;
+        const el = reversedEls[i];
 
         const href = $(el).attr('href') || '';
         const chapterId = this.coerceChapterId(href);
-        if (!chapterId || seen.has(chapterId)) return;
+        if (!chapterId || seen.has(chapterId)) continue;
         seen.add(chapterId);
 
         // Kotatsu: span.flex > span (selectFirstOrThrow — the name is always there)
         const nameEl = $(el).find('span.flex > span').first();
         const displayText = this.strip(nameEl.text()) || this.strip($(el).text());
 
-        // Kotatsu chapter number regex: (?<!S)\b(\d+(\.\d+)?)\b
-        // Negative lookbehind on S prevents matching season/series numbers (e.g. "S1 Ch.10" → 10, not 1)
-        const chapterMatch = displayText.match(/(?<!S)\b(\d+(?:\.\d+)?)\b/);
+        // Avoid lookbehind for broader JS engine compatibility.
+        // Strip S<number> tokens first (e.g. "S1 Ch.10") then extract chapter number.
+        const cleanedForChapter = displayText.replace(/\bS\s*\d+(?:\.\d+)?\b/gi, ' ');
+        const chapterMatch = cleanedForChapter.match(/\b(\d+(?:\.\d+)?)\b/);
         const chapterNumber = chapterMatch ? parseFloat(chapterMatch[1]) : i + 1;
 
         // Volume: (?:S|vol(?:ume)?)\s*(\d+) — Kotatsu returns 0 as default
@@ -503,10 +504,10 @@ export class WeebCentralSource extends BaseHtmlSource {
           externalUrl: null,
           isExternal: false,
         });
-      });
+      }
 
       await this.setCache(cacheKey, results);
-      return results;
+      return results.slice(0, limit);
     } catch (error) {
       console.error(`[WeebCentral] chapter fetch failed: ${summarizeSourceError(error)}`);
       return [];

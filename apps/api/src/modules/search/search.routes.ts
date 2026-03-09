@@ -31,24 +31,38 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const query = request.query;
 
+      // Each arm has its own .catch() so a single service failure (e.g. manga
+      // scraper hitting a Cloudflare block) doesn't kill the whole response.
       const [movies, books, music, manga] = await Promise.all([
         moviesService.search({
           q: query.q,
           page: 1,
           limit: query.movieLimit,
           sortBy: 'popular',
+        }).catch((error: unknown) => {
+          fastify.log.error({ error }, 'Movie search failed');
+          return { data: [], total: 0 };
         }),
         booksService.search({
           q: query.q,
           page: 1,
           limit: query.bookLimit,
+        }).catch((error: unknown) => {
+          fastify.log.error({ error }, 'Book search failed');
+          return { data: [], total: 0 };
         }),
         musicService.search({
           q: query.q,
           page: 1,
           limit: query.musicLimit,
+        }).catch((error: unknown) => {
+          fastify.log.error({ error }, 'Music search failed');
+          return { videos: [], total: 0 };
         }),
-        mangaService.searchManga(query.q, query.mangaLimit, {}),
+        mangaService.searchManga(query.q, query.mangaLimit, {}).catch((error: unknown) => {
+          fastify.log.error({ error }, 'Manga search failed');
+          return [] as Awaited<ReturnType<typeof mangaService.searchManga>>;
+        }),
       ]);
 
       return reply.send({
