@@ -189,6 +189,15 @@ type BookProgressResponse = {
           Movies
         </a>
 
+        <a routerLink="/tv-shows" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <rect x="3" y="5" width="18" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 3l4 2 4-2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 12h6" stroke-linecap="round"/>
+          </svg>
+          TV Shows
+        </a>
+
         <a routerLink="/books" class="nav-link">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round" stroke-linejoin="round"/>

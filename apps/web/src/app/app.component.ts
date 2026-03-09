@@ -135,7 +135,7 @@ export class AppComponent implements OnInit {
     'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
 
   // App pages where the footer should be hidden for logged-in users
-  private readonly APP_ROUTES = ['/home', '/movies', '/books', '/music', '/browse', '/watch', '/admin', '/profile', '/account', '/settings', '/search', '/library', '/downloads'];
+  private readonly APP_ROUTES = ['/home', '/movies', '/tv-shows', '/books', '/music', '/browse', '/watch', '/admin', '/profile', '/account', '/settings', '/search', '/library', '/downloads'];
 
   constructor() {
     effect(() => {

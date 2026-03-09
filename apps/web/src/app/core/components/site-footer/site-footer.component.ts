@@ -30,6 +30,7 @@ import { RouterLink } from '@angular/router';
             <h3 class="text-sm font-semibold mb-3">Content</h3>
             <div class="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
               <a routerLink="/movies" class="hover:text-[var(--text-primary)] transition-colors">Movies</a>
+              <a routerLink="/tv-shows" class="hover:text-[var(--text-primary)] transition-colors">TV Shows</a>
               <a routerLink="/books" class="hover:text-[var(--text-primary)] transition-colors">Books & Comics</a>
               <a routerLink="/music" class="hover:text-[var(--text-primary)] transition-colors">Music</a>
               <a routerLink="/movies" class="hover:text-[var(--text-primary)] transition-colors">Browse All</a>

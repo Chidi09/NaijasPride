@@ -43,6 +43,15 @@ import { PwaService } from '../../../core/services/pwa.service';
           <span class="nav-label">Movies</span>
         </a>
 
+        <a routerLink="/tv-shows" routerLinkActive="active-link" class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <rect x="3" y="5" width="18" height="14" rx="2"/>
+            <path d="M8 3l4 2 4-2"/>
+            <path d="M9 12h6"/>
+          </svg>
+          <span class="nav-label">TV</span>
+        </a>
+
         <a routerLink="/music" routerLinkActive="active-link" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"/>
@@ -120,7 +129,8 @@ import { PwaService } from '../../../core/services/pwa.service';
       align-items: center;
       justify-content: center;
       gap: 2px;
-      width: 20%;
+      flex: 1;
+      min-width: 0;
       height: 100%;
       border-radius: 999px;
       color: var(--text-muted, #826f68);
