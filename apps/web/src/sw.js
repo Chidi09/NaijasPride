@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 
 const STATIC_CACHE = `np-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `np-runtime-${CACHE_VERSION}`;
@@ -112,6 +112,60 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => caches.match('/index.html')),
+    );
+    return;
+  }
+
+  // Manga image proxy: intercept /api/v1/books/manga/image and fetch the CDN
+  // directly from the browser (residential IP) instead of routing through the
+  // VPS (datacentre IP blocked by Cloudflare on some scanlation CDNs).
+  // Cache results in MANGA_CACHE so repeat page views are instant.
+  if (
+    sameOrigin &&
+    requestUrl.pathname === '/api/v1/books/manga/image' &&
+    requestUrl.searchParams.has('url')
+  ) {
+    const cdnUrl = requestUrl.searchParams.get('url');
+    const source = requestUrl.searchParams.get('source') || 'weebcentral';
+
+    const refererMap = {
+      weebcentral: 'https://weebcentral.com/',
+      readcomicsonline: 'https://readcomicsonline.ru/',
+    };
+    const referer = refererMap[source] || 'https://weebcentral.com/';
+
+    event.respondWith(
+      caches.open(MANGA_CACHE).then(async (cache) => {
+        const cached = await cache.match(cdnUrl);
+        if (cached) return cached;
+
+        try {
+          const response = await fetch(cdnUrl, {
+            mode: 'cors',
+            credentials: 'omit',
+            headers: {
+              Referer: referer,
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+            },
+          });
+
+          if (response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.startsWith('image/')) {
+              void cache.put(cdnUrl, response.clone());
+            }
+            return response;
+          }
+
+          // CDN fetch failed — fall back to server-side proxy.
+          return fetch(event.request);
+        } catch {
+          // Network error (CORS block etc.) — fall back to server-side proxy.
+          return fetch(event.request);
+        }
+      }),
     );
     return;
   }
