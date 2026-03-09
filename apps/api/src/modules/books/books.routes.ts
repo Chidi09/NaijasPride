@@ -329,25 +329,34 @@ export const bookRoutes = async (
     return Array.isArray(value) ? value : [value];
   };
 
-  // WeebCentral aggregates chapters from many scanlation groups, each with their
-  // own CDN host. Add known third-party CDN domains here as they are discovered.
-  const readerImageHostAllowlist: Record<string, string[]> = {
-    weebcentral: ['weebcentral.com', 'official.lowee.us', 'lowee.us', 'lastation.us', 'planeptune.us'],
-    readcomicsonline: ['readcomicsonline.ru'],
-  };
-
+  // Sources whose chapter images must be proxied (CDNs block direct browser requests).
+  // WeebCentral aggregates from many scanlation CDNs with unpredictable hostnames, so
+  // we allow any external https:// URL for it (SSRF-protected below).
+  // readcomicsonline uses a fixed CDN, so we keep a strict allowlist for it.
   const sourceRefererById: Record<string, string> = {
     weebcentral: 'https://weebcentral.com/',
     readcomicsonline: 'https://readcomicsonline.ru/',
+  };
+
+  // Hosts that must never be proxied — our own infrastructure (SSRF protection).
+  const BLOCKED_PROXY_HOSTS = [
+    'naijaspride.com',
+    'api.naijaspride.com',
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '::1',
+  ];
+
+  // Strict allowlist for sources with a known, fixed CDN.
+  const strictHostAllowlist: Record<string, string[]> = {
+    readcomicsonline: ['readcomicsonline.ru'],
   };
 
   const shouldProxySourceReaderImages = (sourceId: string) =>
     sourceId === 'weebcentral' || sourceId === 'readcomicsonline';
 
   const isAllowedReaderImageUrl = (sourceId: string, rawUrl: string) => {
-    const allowedHosts = readerImageHostAllowlist[sourceId] || [];
-    if (allowedHosts.length === 0) return false;
-
     let parsed: URL;
     try {
       parsed = new URL(rawUrl);
@@ -355,9 +364,20 @@ export const bookRoutes = async (
       return false;
     }
 
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    if (parsed.protocol !== 'https:') return false;
 
     const host = parsed.hostname.toLowerCase();
+
+    // SSRF: never proxy requests to our own infrastructure.
+    if (BLOCKED_PROXY_HOSTS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`))) {
+      return false;
+    }
+
+    // WeebCentral: allow any external https:// host — scanlation CDNs are unpredictable.
+    if (sourceId === 'weebcentral') return true;
+
+    // All other sources: strict host allowlist.
+    const allowedHosts = strictHostAllowlist[sourceId] || [];
     return allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
   };
 
