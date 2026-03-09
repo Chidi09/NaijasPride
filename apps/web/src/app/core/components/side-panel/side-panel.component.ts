@@ -277,13 +277,13 @@ import { ThemeService } from '../../services/theme.service';
             <span class="menu-text">My Library</span>
           </a>
 
-          <a class="menu-item" routerLink="/downloads" [queryParams]="{ tab: 'history' }" (click)="close()">
+          <a class="menu-item" routerLink="/tv-shows" (click)="close()">
             <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
+              <rect x="2" y="6" width="20" height="14" rx="2"></rect>
+              <line x1="8" y1="3" x2="8" y2="6"></line>
+              <line x1="16" y1="3" x2="16" y2="6"></line>
             </svg>
-            <span class="menu-text">Downloads</span>
+            <span class="menu-text">TV Shows</span>
           </a>
         </div>
 

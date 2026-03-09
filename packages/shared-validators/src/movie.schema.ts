@@ -28,6 +28,7 @@ export const movieSearchSchema = z.object({
   sortBy: z.enum(['latest', 'popular', 'rating', 'title', 'trending', 'newest']).default('latest'),
   nollywoodOnly: booleanQueryParam.default(false),
   isStreamOnly: booleanQueryParam,
+  youtubeOnly: booleanQueryParam,
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });

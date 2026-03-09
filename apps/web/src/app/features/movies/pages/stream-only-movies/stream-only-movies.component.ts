@@ -150,6 +150,7 @@ export class StreamOnlyMoviesComponent implements OnInit {
     // Fetch Nollywood stream-only movies
     const params = new HttpParams()
       .set('isStreamOnly', 'true')
+      .set('youtubeOnly', 'true')
       .set('sortBy', this.sortBy())
       .set('page', String(this.currentPage()))
       .set('limit', String(this.pageSize))

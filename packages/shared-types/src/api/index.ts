@@ -16,6 +16,7 @@ export interface MovieSearchParams extends PaginationParams {
   sortBy?: 'latest' | 'popular' | 'rating' | 'title' | 'trending' | 'newest';
   nollywoodOnly?: boolean;
   isStreamOnly?: boolean;
+  youtubeOnly?: boolean;
 }
 
 export interface TvShowSearchParams extends PaginationParams {

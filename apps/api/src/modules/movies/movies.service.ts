@@ -166,12 +166,12 @@ export class MoviesService {
   }
 
   async search(params: MovieSearchParams): Promise<{ data: MovieSummary[]; meta: PaginationMeta }> {
-    const { page = 1, limit = 20, q, genre, year, quality, sortBy, isStreamOnly } =
-      params as MovieSearchParams & { isStreamOnly?: boolean };
+    const { page = 1, limit = 20, q, genre, year, quality, sortBy, isStreamOnly, youtubeOnly } =
+      params as MovieSearchParams & { isStreamOnly?: boolean; youtubeOnly?: boolean };
     const skip = (page - 1) * limit;
 
     // Create cache key from params
-    const paramKey = JSON.stringify({ q, genre, year, quality, sortBy, isStreamOnly, page, limit });
+    const paramKey = JSON.stringify({ q, genre, year, quality, sortBy, isStreamOnly, youtubeOnly, page, limit });
     const cacheKey = `search:${Buffer.from(paramKey).toString('base64')}`;
     const redis = getRedis();
 
@@ -223,6 +223,9 @@ export class MoviesService {
       ...(genre && { genre: { hasSome: genre as unknown as PrismaGenre[] } }),
       ...(quality && { quality: { has: this.toPrismaQuality(quality as unknown as string) } }),
       ...(typeof isStreamOnly === 'boolean' && { isStreamOnly }),
+      ...(typeof youtubeOnly === 'boolean' && {
+        youtubeId: youtubeOnly ? { not: null } : null,
+      }),
     };
 
     const [total, movies] = await Promise.all([

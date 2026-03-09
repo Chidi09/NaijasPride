@@ -86,11 +86,11 @@ interface FeaturedResponse {
   template: `
     <main style="max-width:1600px; margin:0 auto; padding:32px 24px;">
 
-      <!-- ══════════ SECTION — STREAM CINEMA (Embed + YouTube) ══════════ -->
+      <!-- ══════════ SECTION — STREAM CINEMA (Non-YouTube) ══════════ -->
       <section style="margin-bottom:52px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
           <h2 style="font-size:22px; font-weight:700; letter-spacing:-0.01em; margin:0; color:#f9f9f2;">Stream Cinema</h2>
-          <a routerLink="/movies/stream" class="view-all-btn">View All</a>
+          <a routerLink="/movies/youtube" class="view-all-btn">YouTube Only</a>
         </div>
 
         @if (isLoading() && streamOnly().length === 0) {
@@ -168,11 +168,11 @@ interface FeaturedResponse {
 
       <!-- Load More -->
       <div style="display:flex;justify-content:center;padding-bottom:48px;">
-        <a routerLink="/movies/stream"
+        <a routerLink="/movies/youtube"
            style="background:#120a0d;border:1px solid #5f1327;color:#f9f9f2;padding:12px 40px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;transition:background 0.2s,border-color 0.2s;"
            onmouseenter="this.style.background='#1e1014';this.style.borderColor='#800020'"
            onmouseleave="this.style.background='#120a0d';this.style.borderColor='#5f1327'">
-          Browse Stream Library
+          Open YouTube Shelf
         </a>
       </div>
 
@@ -229,7 +229,7 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
       error: () => { this.isLoading.set(false); }
     });
 
-    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=true&limit=6').subscribe({
+    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?youtubeOnly=false&sortBy=popular&limit=6').subscribe({
       next: (res) => { this.streamOnly.set(res.data); }
     });
 
