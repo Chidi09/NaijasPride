@@ -39,7 +39,7 @@ interface VerifyEmailResponse {
             <p class="text-[#7b6660] dark:text-[#d7c4b6] mb-6">
               Your email address has been verified successfully. You can now enjoy all features of NaijasPride.
             </p>
-            <a [routerLink]="['/movies/downloads']" class="inline-flex justify-center rounded-lg border border-[#992143] bg-[#800020] px-6 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#fff5f2] transition hover:bg-[#660019]">
+            <a [routerLink]="['/movies/stream']" class="inline-flex justify-center rounded-lg border border-[#992143] bg-[#800020] px-6 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#fff5f2] transition hover:bg-[#660019]">
               Start Browsing
             </a>
           </div>

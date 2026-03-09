@@ -91,7 +91,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
                     <div class="max-w-md">
                       <h2 class="text-white font-serif text-xl">Stream not available</h2>
                       <p class="text-[#9a857d] dark:text-gray-500 text-sm mt-2">
-                        This title is currently download-only. Please use the download option on the details page.
+                        This title is currently unavailable from active stream providers. Please try another title shortly.
                       </p>
                     </div>
                   </div>
@@ -127,7 +127,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
                 } @else if (resolvedStreamUrl()) {
                   Streaming via NaijasPride • Enjoy the show.
                 } @else {
-                  Download-only right now.
+                  Temporarily unavailable.
                 }
               </p>
 

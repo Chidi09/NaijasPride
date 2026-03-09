@@ -65,14 +65,14 @@ export const routes: Routes = [
     path: 'movies',
     canActivate: [authGuard],
     children: [
-      // Editorial landing — curated rows: download library + stream section
+      // Editorial landing — curated stream-first movie rows
       { path: '', loadComponent: () => import('./features/movies/pages/movies-editorial-landing/movies-editorial-landing.component').then(m => m.MoviesEditorialLandingComponent) },
       // Stream-only full library (YouTube / hosted streams)
       { path: 'stream', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
       { path: 'youtube', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
-      // Download library deprecated (embed-first policy)
+      // Legacy download route redirected (embed-first policy)
       { path: 'downloads', redirectTo: 'stream', pathMatch: 'full' },
-      // Single detail page (synopsis, cast, "Play" or "Download" button)
+      // Single detail page (synopsis, cast, and stream action)
       { path: ':slug', loadComponent: () => import('./features/movies/pages/movie-detail/movie-detail.component').then(m => m.MovieDetailComponent) },
       // Player (activated from detail page)
       { path: ':slug/watch', loadComponent: () => import('./features/movies/pages/watch-room/watch-room.component').then(m => m.WatchRoomComponent) }

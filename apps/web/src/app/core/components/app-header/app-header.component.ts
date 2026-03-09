@@ -272,7 +272,7 @@ export class AppHeaderComponent {
   userInitials = signal('G');
   showNotifications = signal(false);
   notifications = signal([
-    { id: 'n1', title: 'Fresh movies dropped', meta: 'New torrent + Soap2Day titles are now live.', link: '/movies/downloads' },
+    { id: 'n1', title: 'Fresh movies dropped', meta: 'New stream and embed titles are now live.', link: '/movies/stream' },
     { id: 'n2', title: 'Your library is ready', meta: 'Pick up from where you stopped watching.', link: '/library' },
     { id: 'n3', title: 'Discover trending music', meta: 'New charting tracks have landed.', link: '/music' },
   ]);

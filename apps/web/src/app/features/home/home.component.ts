@@ -112,7 +112,7 @@ type BookProgressResponse = {
     .hscroll::-webkit-scrollbar-track { background: transparent; }
     .hscroll::-webkit-scrollbar-thumb { background: #2a0a12; border-radius: 4px; }
 
-    /* ── Download Movies grid (portrait 2:3) ────────────────────── */
+    /* ── Featured Movies grid (portrait 2:3) ────────────────────── */
     .movies-home-grid {
       display: grid;
       gap: 12px;
@@ -292,7 +292,7 @@ type BookProgressResponse = {
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
           </a>
-          <!-- Downloads quick link -->
+          <!-- Library quick link -->
           <a routerLink="/downloads" class="h-9 w-9 rounded-xl bg-[#181818] flex items-center justify-center text-[#a88a78] hover:bg-[#242424] transition">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -387,12 +387,12 @@ type BookProgressResponse = {
           </section>
         }
 
-        <!-- ── Trending Download Movies (portrait 2:3) ─────────────── -->
+        <!-- ── Trending Movies (portrait 2:3) ─────────────────────── -->
         @if (downloadMovies().length > 0 || isLoadingMovies()) {
           <section>
             <div class="mb-3 flex items-center justify-between">
               <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Movies</h2>
-              <a routerLink="/movies/downloads" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+              <a routerLink="/movies/stream" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
             </div>
             @if (isLoadingMovies()) {
               <div class="movies-home-grid">
@@ -692,7 +692,7 @@ type BookProgressResponse = {
       <div>
         <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] mb-3">Quick Links</h3>
         <div class="grid grid-cols-2 gap-2">
-          <a routerLink="/movies/downloads" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
+          <a routerLink="/movies/stream" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
             <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>
             </svg>

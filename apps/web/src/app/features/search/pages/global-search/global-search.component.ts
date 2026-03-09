@@ -55,7 +55,7 @@ type MangaResult = {
             <section>
               <div class="mb-3 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Movies</h2>
-                <a routerLink="/movies/downloads" class="text-sm text-[#800020] hover:underline">Open Downloads</a>
+                <a routerLink="/movies/stream" class="text-sm text-[#800020] hover:underline">Open Movies</a>
               </div>
               @if (movies().length > 0) {
                 <div class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">

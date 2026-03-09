@@ -234,7 +234,7 @@ import { MovieSummary } from '@naijaspride/types';
                     {{ recommendationReason() === 'trending' ? 'Start watching to get personalised picks' : 'Based on what you love' }}
                   </p>
                 </div>
-                <a routerLink="/movies/downloads" class="text-[#800020] text-sm font-medium hover:underline">Browse all →</a>
+                <a routerLink="/movies/stream" class="text-[#800020] text-sm font-medium hover:underline">Browse all →</a>
               </div>
               <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 @for (movie of mlRecommendations(); track movie.id) {

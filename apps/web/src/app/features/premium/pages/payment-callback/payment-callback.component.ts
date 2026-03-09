@@ -26,7 +26,7 @@ import { HttpClient } from '@angular/common/http';
           <p class="text-[#725f58] dark:text-gray-400">
             Your NaijasPride PRO membership is now active. Enjoy unlimited 4K streaming with no ads.
           </p>
-          <a routerLink="/movies/downloads" class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-8 py-3 rounded-full transition-colors">
+          <a routerLink="/movies/stream" class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-8 py-3 rounded-full transition-colors">
             Start Watching
           </a>
         }
@@ -45,7 +45,7 @@ import { HttpClient } from '@angular/common/http';
             <a routerLink="/premium" class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-6 py-3 rounded-full transition-colors">
               Try Again
             </a>
-            <a routerLink="/movies/downloads" class="inline-block border border-cinema-500/60 text-cinema-500 font-bold px-6 py-3 rounded-full hover:bg-cinema-500/10 transition-colors">
+            <a routerLink="/movies/stream" class="inline-block border border-cinema-500/60 text-cinema-500 font-bold px-6 py-3 rounded-full hover:bg-cinema-500/10 transition-colors">
               Go to Browse
             </a>
           </div>
@@ -79,7 +79,7 @@ export class PaymentCallbackComponent implements OnInit {
         if (res?.success) {
           this.status = 'success';
           // Auto-redirect to browse after 3 seconds
-          setTimeout(() => this.router.navigate(['/movies/downloads']), 3000);
+          setTimeout(() => this.router.navigate(['/movies/stream']), 3000);
         } else {
           this.status = 'failed';
           this.errorMessage = res?.message || null;
