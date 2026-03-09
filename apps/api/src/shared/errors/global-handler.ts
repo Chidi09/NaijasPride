@@ -81,7 +81,19 @@ export async function globalErrorHandler(fastify: FastifyInstance) {
       });
     }
 
-    // 5. Unknown Server Errors (Log these! Don't leak info to user)
+    // 5. Fastify/plugin errors that already carry the correct HTTP status
+    //    (e.g. rate-limit 429, not-found 404). Forward them as-is instead of
+    //    masking as 500.
+    const knownStatus = (error as { statusCode?: number }).statusCode;
+    if (knownStatus && knownStatus >= 400 && knownStatus < 500) {
+      return reply.status(knownStatus).send({
+        success: false,
+        code: error.code || "CLIENT_ERROR",
+        message: error.message || "Request error.",
+      });
+    }
+
+    // 6. Unknown Server Errors (Log these! Don't leak info to user)
     fastify.log.error(error); // Logs full stack trace internally
     sentryService.captureException(error, {
       requestId: request.id,

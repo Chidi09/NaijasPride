@@ -176,7 +176,10 @@ const buildServer = async () => {
   });
 
   await app.register(rateLimit, {
-    max: 100,
+    // Library pages fire many parallel requests on load (progress per book,
+    // paginated lists, etc.). 300/min gives ~5 req/s sustained which is
+    // comfortable for normal browsing without enabling abuse.
+    max: 300,
     timeWindow: "1 minute",
     errorResponseBuilder: (req, context) => ({
       statusCode: 429,
