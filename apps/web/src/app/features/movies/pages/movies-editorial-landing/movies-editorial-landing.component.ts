@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { MovieSummary } from '@naijaspride/types';
 import { WatchApiService } from '../../../watch/services/watch-api.service';
+import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 
 interface FeaturedResponse {
   success: boolean;
@@ -20,7 +21,7 @@ interface FeaturedResponse {
 @Component({
   selector: 'app-movies-editorial-landing',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, MovieCardComponent],
   styles: [`
     :host {
       display: block;
@@ -90,7 +91,7 @@ interface FeaturedResponse {
       <section style="margin-bottom:52px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
           <h2 style="font-size:22px; font-weight:700; letter-spacing:-0.01em; margin:0; color:#f9f9f2;">Stream Cinema</h2>
-          <a routerLink="/movies/youtube" class="view-all-btn">YouTube Only</a>
+          <a routerLink="/movies" class="view-all-btn">Browse Movies</a>
         </div>
 
         @if (isLoading() && streamOnly().length === 0) {
@@ -109,58 +110,9 @@ interface FeaturedResponse {
             }
           </div>
         } @else {
-          <div class="youtube-grid">
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             @for (movie of streamOnly(); track movie.id) {
-              <div>
-                <a [routerLink]="['/movies', movie.slug]" style="text-decoration:none;display:block;">
-
-                  <!-- Thumbnail -->
-                  <div class="video-thumb" style="position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:12px;background:#120a0d;box-shadow:0 8px 24px rgba(0,0,0,0.6);">
-                    @if (movie.thumbnailUrl) {
-                      <img [src]="movie.thumbnailUrl" [alt]="movie.title"
-                           style="width:100%;height:100%;object-fit:cover;transition:opacity 0.2s;"
-                           referrerpolicy="no-referrer">
-                    } @else {
-                      <div style="width:100%;height:100%;background:linear-gradient(135deg,#1e1014,#120a0d);display:flex;align-items:center;justify-content:center;font-size:28px;">▶️</div>
-                    }
-
-                    <!-- Play button -->
-                    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
-                      <div class="play-circle" style="width:46px;height:46px;background:rgba(128,0,32,0.75);backdrop-filter:blur(6px);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(128,0,32,0.5);">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="white" style="margin-left:3px;">
-                          <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.333-5.89a1.5 1.5 0 000-2.538L6.3 2.841z"/>
-                        </svg>
-                      </div>
-                    </div>
-
-                    <!-- Quality badge -->
-                    @if (movie.quality?.[0]) {
-                      <div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.85);padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;color:#f9f9f2;letter-spacing:0.05em;">{{ movie.quality[0] }}</div>
-                    }
-
-                    <!-- Progress bar -->
-                    @if (getMovieProgress(movie.id); as pct) {
-                      <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(0,0,0,0.5);">
-                        <div style="height:100%;background:#800020;" [style.width.%]="pct"></div>
-                      </div>
-                    }
-                  </div>
-
-                  <!-- Info row -->
-                  <div style="display:flex;gap:10px;margin-top:10px;align-items:flex-start;">
-                    <div style="width:30px;height:30px;border-radius:50%;background:#1e1014;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1px solid #5f1327;color:#a88a78;">
-                      {{ getInitials(movie.title) }}
-                    </div>
-                    <div style="flex:1;min-width:0;">
-                      <h4 style="font-size:13px;font-weight:700;margin:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;color:#f9f9f2;">{{ movie.title }}</h4>
-                      <p style="font-size:11px;color:#a88a78;margin:4px 0 0;text-transform:uppercase;letter-spacing:0.05em;">
-                        {{ movie.year }}@if (movie.genre?.[0]) { &bull; {{ movie.genre[0] }} }
-                      </p>
-                    </div>
-                  </div>
-
-                </a>
-              </div>
+              <app-movie-card [movie]="movie" [progress]="getMovieProgress(movie.id)" />
             }
           </div>
         }
