@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { MoviesQueryService } from '../../services/movies-query.service';
-import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 import { MovieCardYoutubeComponent } from '../../components/movie-card-youtube/movie-card-youtube.component';
 import { FilterBarComponent } from '../../components/filter-bar/filter-bar.component';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
@@ -14,7 +13,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
 @Component({
   selector: 'app-movie-list',
   standalone: true,
-  imports: [CommonModule, MovieCardComponent, MovieCardYoutubeComponent, FilterBarComponent, PaginatorComponent, RouterLink, RouterLinkActive],
+  imports: [CommonModule, MovieCardYoutubeComponent, FilterBarComponent, PaginatorComponent, RouterLink, RouterLinkActive],
   styles: [`
     :host { display: block; }
 
@@ -185,34 +184,11 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
       <!-- ── RESULTS ── -->
       @if (query.isSuccess()) {
 
-        <!-- DOWNLOAD MOVIES -->
-        @if (regularMovies().length > 0) {
-          <section style="margin-bottom:12px;">
-            <div class="section-header">
-              <h3 class="section-title">Download Movies</h3>
-              <a routerLink="/movies/downloads" class="view-all-link">View All</a>
-            </div>
-            <div class="download-grid">
-              @for (movie of regularMovies(); track movie.id) {
-                <app-movie-card
-                  [movie]="movie"
-                  [progress]="watchProgressByMovieId()[movie.id] ?? null"
-                />
-              }
-            </div>
-          </section>
-        }
-
-        <!-- Divider between sections (only if both have content) -->
-        @if (regularMovies().length > 0 && streamMovies().length > 0) {
-          <div class="section-divider"></div>
-        }
-
-        <!-- STREAM-ONLY MOVIES -->
+        <!-- STREAM MOVIES -->
         @if (streamMovies().length > 0) {
           <section>
             <div class="section-header">
-              <h3 class="section-title">Stream-Only Movies</h3>
+              <h3 class="section-title">Stream Movies</h3>
               <a routerLink="/movies/stream" class="view-all-link">View All</a>
             </div>
             <div class="stream-grid">
@@ -424,11 +400,7 @@ export class MovieListComponent {
     return map[normalized] ?? Genre.Hollywood;
   }
 
-  regularMovies() {
-    return (this.query.data()?.data || []).filter((movie) => !movie.isStreamOnly);
-  }
-
   streamMovies() {
-    return (this.query.data()?.data || []).filter((movie) => movie.isStreamOnly);
+    return (this.query.data()?.data || []).filter((movie) => movie.canStream);
   }
 }

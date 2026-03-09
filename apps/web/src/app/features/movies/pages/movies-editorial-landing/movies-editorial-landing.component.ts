@@ -86,90 +86,10 @@ interface FeaturedResponse {
   template: `
     <main style="max-width:1600px; margin:0 auto; padding:32px 24px;">
 
-      <!-- ══════════ SECTION 1 — DOWNLOAD LIBRARY ══════════ -->
+      <!-- ══════════ SECTION — STREAM CINEMA (Embed + YouTube) ══════════ -->
       <section style="margin-bottom:52px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
-          <h2 style="font-size:22px; font-weight:700; letter-spacing:-0.01em; margin:0; color:#f9f9f2;">Download Library</h2>
-          <a routerLink="/movies/downloads" class="view-all-btn">View All</a>
-        </div>
-
-        @if (isLoading() && downloadOnly().length === 0) {
-          <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:20px;">
-            @for (i of skeletons; track i) {
-              <div>
-                <div class="skeleton" style="aspect-ratio:2/3; width:100%;"></div>
-                <div class="skeleton" style="height:11px; width:70%; margin-top:10px;"></div>
-                <div class="skeleton" style="height:9px; width:45%; margin-top:6px;"></div>
-              </div>
-            }
-          </div>
-        } @else {
-          <div class="movies-grid">
-            @for (movie of downloadOnly(); track movie.id) {
-              <div class="movie-card">
-                <a [routerLink]="['/movies', movie.slug]" style="text-decoration:none; display:block;">
-
-                  <!-- Poster -->
-                  <div style="position:relative; aspect-ratio:2/3; overflow:hidden; border-radius:12px; background:#120a0d; box-shadow:0 16px 40px rgba(0,0,0,0.7);">
-                    @if (getPosterUrl(movie); as img) {
-                      <img [src]="img" [alt]="movie.title" class="card-img"
-                           style="width:100%; height:100%; object-fit:cover;"
-                           referrerpolicy="no-referrer">
-                    } @else {
-                      <div style="width:100%;height:100%;background:linear-gradient(135deg,#1e1014,#120a0d);display:flex;align-items:center;justify-content:center;font-size:36px;">🎬</div>
-                    }
-
-                    <!-- Hover overlay -->
-                    <div class="overlay-actions" style="position:absolute;inset:0;background:rgba(0,0,0,0.65);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;">
-                      <a [routerLink]="['/watch', movie.slug]"
-                         class="slide-btn"
-                         style="background:#800020;color:#fff;padding:8px 22px;border-radius:9999px;font-size:13px;font-weight:700;text-decoration:none;box-shadow:0 4px 14px rgba(128,0,32,0.5);"
-                         onmouseenter="this.style.background='#660019'"
-                         onmouseleave="this.style.background='#800020'"
-                         (click)="$event.stopPropagation()">Watch Now</a>
-                      <a [routerLink]="['/movies', movie.slug]"
-                         class="slide-btn slide-btn-delay"
-                         style="background:rgba(255,255,255,0.1);color:#f9f9f2;padding:8px 22px;border-radius:9999px;font-size:13px;font-weight:700;text-decoration:none;backdrop-filter:blur(8px);"
-                         onmouseenter="this.style.background='rgba(255,255,255,0.2)'"
-                         onmouseleave="this.style.background='rgba(255,255,255,0.1)'"
-                         (click)="$event.stopPropagation()">Details</a>
-                    </div>
-
-                    <!-- Progress bar -->
-                    @if (getMovieProgress(movie.id); as pct) {
-                      <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(0,0,0,0.5);">
-                        <div style="height:100%;background:#800020;transition:width 0.3s;" [style.width.%]="pct"></div>
-                      </div>
-                    }
-                  </div>
-
-                  <!-- Info -->
-                  <div style="margin-top:10px;">
-                    <h3 style="font-weight:700;font-size:13px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f9f9f2;">{{ movie.title }}</h3>
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
-                      <span style="font-size:11px;color:#a88a78;text-transform:uppercase;letter-spacing:0.07em;">
-                        {{ movie.year }}@if (movie.genre?.[0]) { &bull; {{ movie.genre[0] }} }
-                      </span>
-                      @if (movie.rating) {
-                        <span style="font-size:11px;color:#d6b87a;font-weight:700;">&#9733; {{ (movie.rating / 10).toFixed(1) }}</span>
-                      }
-                    </div>
-                  </div>
-
-                </a>
-              </div>
-            }
-          </div>
-        }
-      </section>
-
-      <!-- Divider -->
-      <div style="height:1px;background:linear-gradient(to right,transparent,#5f1327,transparent);margin-bottom:52px;"></div>
-
-      <!-- ══════════ SECTION 2 — YOUTUBE CINEMA (Stream-Only) ══════════ -->
-      <section style="margin-bottom:52px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
-          <h2 style="font-size:22px; font-weight:700; letter-spacing:-0.01em; margin:0; color:#f9f9f2;">YouTube Cinema</h2>
+          <h2 style="font-size:22px; font-weight:700; letter-spacing:-0.01em; margin:0; color:#f9f9f2;">Stream Cinema</h2>
           <a routerLink="/movies/stream" class="view-all-btn">View All</a>
         </div>
 
@@ -248,11 +168,11 @@ interface FeaturedResponse {
 
       <!-- Load More -->
       <div style="display:flex;justify-content:center;padding-bottom:48px;">
-        <a routerLink="/movies/downloads"
+        <a routerLink="/movies/stream"
            style="background:#120a0d;border:1px solid #5f1327;color:#f9f9f2;padding:12px 40px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;transition:background 0.2s,border-color 0.2s;"
            onmouseenter="this.style.background='#1e1014';this.style.borderColor='#800020'"
            onmouseleave="this.style.background='#120a0d';this.style.borderColor='#5f1327'">
-          Browse Download Library
+          Browse Stream Library
         </a>
       </div>
 
@@ -313,13 +233,7 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
       next: (res) => { this.streamOnly.set(res.data); }
     });
 
-    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?isStreamOnly=false&limit=6&sortBy=latest').subscribe({
-      next: (res) => {
-        this.downloadOnly.set(res.data);
-        if (!this.heroMovie() && res.data.length > 0) this.heroMovie.set(res.data[0]);
-      },
-      error: () => { this.downloadOnly.set([]); }
-    });
+    this.downloadOnly.set([]);
   }
 
   getPosterUrl(movie: MovieSummary): string | null {

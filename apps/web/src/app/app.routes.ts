@@ -70,8 +70,8 @@ export const routes: Routes = [
       // Stream-only full library (YouTube / hosted streams)
       { path: 'stream', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
       { path: 'youtube', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
-      // Download library full list
-      { path: 'downloads', loadComponent: () => import('./features/movies/pages/download-only-movies/download-only-movies.component').then(m => m.DownloadOnlyMoviesComponent) },
+      // Download library deprecated (embed-first policy)
+      { path: 'downloads', redirectTo: 'stream', pathMatch: 'full' },
       // Single detail page (synopsis, cast, "Play" or "Download" button)
       { path: ':slug', loadComponent: () => import('./features/movies/pages/movie-detail/movie-detail.component').then(m => m.MovieDetailComponent) },
       // Player (activated from detail page)

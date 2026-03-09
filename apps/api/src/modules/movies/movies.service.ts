@@ -196,13 +196,13 @@ export class MoviesService {
 
     // Build AND conditions array for composable filtering
     const andConditions: Prisma.MovieWhereInput[] = [
-      // Only show movies that have actual playable content:
-      // - Stream-only movies must have a youtubeId
-      // - Non-stream movies must have non-empty fileUrls (HLS/MP4 files in R2)
+      // Embed-first policy: only surface movies that can stream without
+      // depending on hosted R2 file ingestion.
       {
         OR: [
-          { isStreamOnly: true, youtubeId: { not: null } },
-          { isStreamOnly: false, NOT: { fileUrls: { equals: {} } } },
+          { youtubeId: { not: null } },
+          { imdbId: { not: null } },
+          { tmdbId: { not: null } },
         ],
       },
     ];
