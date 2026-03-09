@@ -177,7 +177,7 @@ export class MovieCardYoutubeComponent implements OnChanges {
   }
 
   primaryActionLabel() {
-    return this.shouldWatchMovie() ? 'Watch' : 'Download';
+    return this.shouldWatchMovie() ? 'Watch' : 'Details';
   }
 
   toggleWatchlist(event?: Event) {

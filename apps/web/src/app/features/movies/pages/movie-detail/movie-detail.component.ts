@@ -7,8 +7,6 @@ import { HttpClient } from '@angular/common/http';
 import { MoviesQueryService } from '../../services/movies-query.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
 import { AuthService } from '../../../../core/auth/auth.service';
-import { OfflineStorageService } from '../../../../core/services/offline-storage.service';
-import { EffectivegateBannerComponent } from '../../../../shared/components/effectivegate-banner/effectivegate-banner.component';
 import { CastMember, Quality, Movie } from '@naijaspride/types';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap } from 'rxjs';
@@ -16,7 +14,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
 @Component({
   selector: 'app-movie-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, EffectivegateBannerComponent],
+  imports: [CommonModule, RouterLink],
   template: `
     @if (query.isPending()) {
       <div class="animate-pulse">
@@ -110,17 +108,6 @@ import { catchError, map, of, switchMap } from 'rxjs';
                     </svg>
                      Watch Now
                    </a>
-                } @else if (hasDownloadOption(movie)) {
-                  <a
-                    [href]="primaryDownloadUrl(movie) || '#'"
-                    [attr.download]="isMagnetUrl(primaryDownloadUrl(movie) || '') ? null : ''"
-                    class="inline-flex items-center gap-2 bg-cinema-500 text-white px-6 py-3 rounded-full font-bold hover:bg-cinema-400 transition-colors"
-                  >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    {{ isMagnetUrl(primaryDownloadUrl(movie) || '') ? 'Open Torrent' : 'Download' }}
-                  </a>
                 }
                 @if (movie.trailerUrl) {
                   <a
@@ -220,171 +207,27 @@ import { catchError, map, of, switchMap } from 'rxjs';
 
           <div class="lg:col-span-1">
             <div class="bg-[#f8f0e9] dark:bg-cinema-800/50 backdrop-blur-sm border border-[#d9c4b7] dark:border-white/5 p-6 sticky top-24">
-              @if (movie.isStreamOnly) {
-                <!-- Stream Only Card -->
-                <div class="text-center py-6">
-                  <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                    </svg>
-                  </div>
-                  <h3 class="text-lg font-serif font-bold text-[#24181b] dark:text-white mb-2">Stream Only</h3>
-                  <p class="text-[#725f58] dark:text-gray-400 text-sm mb-4">This movie is available for streaming only.</p>
-                  @if (canWatch(movie)) {
-                    <a 
-                      [routerLink]="['/watch', movie.slug]" 
-                      class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-6 py-3 rounded-full transition-colors w-full"
-                    >
-                      ▶ Watch Now
-                    </a>
-                  }
-                </div>
-              } @else {
-                <!-- Watch Now button for non-stream movies that have playable content -->
-                @if (canWatch(movie)) {
-                  <a 
-                    [routerLink]="['/watch', movie.slug]" 
-                    class="flex items-center justify-center gap-2 bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-6 py-3 rounded-full transition-colors w-full mb-5"
-                  >
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                    </svg>
-                    Watch Now
-                  </a>
-                }
-
-                <!-- Download Options Card -->
-                <h3 class="text-lg font-serif font-bold text-[#24181b] dark:text-white mb-4 flex items-center gap-2">
-                  <svg class="w-5 h-5 text-cinema-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              <div class="text-center py-4">
+                <div class="w-16 h-16 bg-cinema-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg class="w-8 h-8 text-cinema-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                   </svg>
-                  Download Options
-                </h3>
-
-                <div class="space-y-3">
-                  @for (q of movie.quality; track q) {
-                    @if (getQualityAccess(movie, q); as qualityAccess) {
-                    <div class="flex items-center justify-between p-3 rounded-sm border border-[#d9c4b7] dark:border-white/10 hover:border-cinema-500/50 hover:bg-cinema-500/10 transition-colors group">
-                      <div class="min-w-0 flex-1 mr-2">
-                        <div class="font-bold text-[#24181b] dark:text-white">{{ q }}</div>
-                        <div class="text-xs text-[#725f58] dark:text-gray-500">
-                          {{ getFileSize(movie.fileSizes, q) }}
-                        </div>
-                        @if (!qualityAccess.link) {
-                          <div class="text-[11px] text-[#8a756e] dark:text-gray-500 mt-1">
-                            Source is still being prepared for this quality.
-                          </div>
-                        }
-                        <!-- Offline download progress bar -->
-                        @if (getOfflineStatus(movie.id, q) === 'downloading' || getOfflineStatus(movie.id, q) === 'queued') {
-                          <div class="mt-1 h-1 bg-[#d9c4b7] dark:bg-white/10 rounded-full overflow-hidden">
-                            <div
-                              class="h-full bg-cinema-500 transition-all duration-300"
-                              [style.width.%]="getOfflineProgress(movie.id, q) ?? 0"
-                            ></div>
-                          </div>
-                          <div class="text-[10px] text-cinema-500 mt-0.5">
-                            {{ getOfflineStatus(movie.id, q) === 'queued' ? 'Queued…' : '' }} {{ getOfflineProgress(movie.id, q) }}%
-                          </div>
-                        }
-                        @if (getOfflineStatus(movie.id, q) === 'error') {
-                          <div class="text-[10px] text-red-400 mt-0.5">Download failed — tap retry</div>
-                        }
-                      </div>
-
-                      <div class="flex gap-1.5 flex-shrink-0">
-                        <!-- External download link -->
-                        @if (qualityAccess.link) {
-                          <a
-                            [href]="qualityAccess.link"
-                            [attr.download]="isMagnetUrl(qualityAccess.link) ? null : ''"
-                            class="bg-cinema-500 hover:bg-cinema-400 text-white text-xs font-bold px-3 py-2 rounded-sm transition-colors"
-                            [title]="qualityAccess.label"
-                          >
-                            {{ qualityAccess.label }}
-                          </a>
-                        } @else {
-                          <button
-                            type="button"
-                            disabled
-                            class="bg-gray-400/40 text-gray-700 dark:text-gray-300 text-xs font-bold px-3 py-2 rounded-sm cursor-not-allowed"
-                            title="Not available yet"
-                          >
-                            Not Ready
-                          </button>
-                        }
-
-                        <!-- Save for offline (PWA) — only for authenticated premium users -->
-                        @if (auth.currentUser() && offline.isSupported) {
-                          @if (getOfflineStatus(movie.id, q) === 'complete') {
-                            <!-- Saved — tap to remove -->
-                            <button
-                              (click)="removeOffline(movie.id, q)"
-                              class="bg-green-600/20 border border-green-500/40 text-green-400 text-xs font-bold px-3 py-2 rounded-sm transition-colors hover:bg-red-600/20 hover:border-red-500/40 hover:text-red-400"
-                              title="Saved offline — tap to remove"
-                            >
-                              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                              </svg>
-                            </button>
-                          } @else if (getOfflineStatus(movie.id, q) === 'downloading' || getOfflineStatus(movie.id, q) === 'queued') {
-                            <!-- Downloading spinner -->
-                            <button disabled class="border border-cinema-500/40 text-cinema-400 text-xs font-bold px-3 py-2 rounded-sm opacity-60 cursor-not-allowed">
-                              <span class="w-3.5 h-3.5 border-2 border-cinema-400/30 border-t-cinema-400 rounded-full animate-spin inline-block"></span>
-                            </button>
-                          } @else {
-                            <!-- Save for offline button -->
-                            <button
-                              (click)="saveOffline(movie, q)"
-                              class="border border-[#d9c4b7] dark:border-white/20 text-[#725f58] dark:text-gray-400 text-xs font-bold px-3 py-2 rounded-sm transition-colors hover:border-cinema-500/50 hover:text-cinema-500"
-                              title="Save for offline viewing"
-                            >
-                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                              </svg>
-                            </button>
-                          }
-                        }
-                      </div>
-                    </div>
-                    }
-                  }
                 </div>
-
-                <!-- Offline library link -->
-                @if (auth.currentUser() && offline.isSupported && hasOfflineSaves(movie.id)) {
-                  <div class="mt-3 p-3 rounded-sm bg-green-500/10 border border-green-500/20 text-sm text-green-400 flex items-center gap-2">
-                    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M3 12v3c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3H3zm13-9H4C3.45 3 3 3.45 3 4v6h14V4c0-.55-.45-1-1-1z"/>
-                    </svg>
-                    Available offline
+                <h3 class="text-lg font-serif font-bold text-[#24181b] dark:text-white mb-2">Streaming Available</h3>
+                <p class="text-[#725f58] dark:text-gray-400 text-sm mb-4">This title plays instantly via YouTube or multi-provider embeds.</p>
+                @if (canWatch(movie)) {
+                  <a
+                    [routerLink]="['/watch', movie.slug]"
+                    class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-6 py-3 rounded-full transition-colors w-full"
+                  >
+                    ▶ Watch Now
+                  </a>
+                } @else {
+                  <div class="rounded-sm border border-[#d9c4b7] dark:border-white/10 px-4 py-3 text-sm text-[#725f58] dark:text-gray-400">
+                    Stream source still syncing. Please check again shortly.
                   </div>
                 }
-
-                <div class="mt-6 pt-4 border-t border-[#d9c4b7] dark:border-white/5 text-center">
-                   <p class="text-xs text-[#725f58] dark:text-gray-500 mb-2">Premium Quality Downloads</p>
-                   <div class="flex justify-center gap-4 text-[#a08070] dark:text-gray-600 text-xs">
-                      <span>Secure</span>
-                      <span>Fast</span>
-                      <span>4K</span>
-                   </div>
-                </div>
-
-                <app-effectivegate-banner></app-effectivegate-banner>
-
-                @if (!auth.currentUser()?.isPremium) {
-                  <div class="mt-3 text-center">
-                    <a
-                      [href]="smartlinkUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center gap-2 rounded-full border border-[#d9c4b7] px-4 py-2 text-xs font-semibold text-[#725f58] transition-colors hover:border-cinema-500/60 hover:text-cinema-500"
-                    >
-                      Sponsor offers
-                    </a>
-                  </div>
-                }
-              }
+              </div>
             </div>
           </div>
 
@@ -432,7 +275,6 @@ import { catchError, map, of, switchMap } from 'rxjs';
   `
 })
 export class MovieDetailComponent {
-  readonly smartlinkUrl = 'https://www.effectivegatecpm.com/qm7irj9i?key=106d46d6ef4f93102f2d54643357b11c';
   slug = input<string>('');
   
   private moviesService = inject(MoviesQueryService);
@@ -442,7 +284,6 @@ export class MovieDetailComponent {
   private location = inject(Location);
   private http = inject(HttpClient);
   auth = inject(AuthService);
-  offline = inject(OfflineStorageService);
   
   query = this.moviesService.getMovieDetailQuery(this.slug);
   watchlistMutation = this.profileService.toggleWatchlistMutation();
@@ -563,15 +404,6 @@ export class MovieDetailComponent {
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   }
 
-  getFileSize(sizes: Record<string, number>, quality: string) {
-    const size = sizes[quality];
-    if (!size) return 'Unknown size';
-    const gb = size / (1024 * 1024 * 1024);
-    if (gb >= 1) return `${gb.toFixed(2)} GB`;
-    const mb = size / (1024 * 1024);
-    return `${mb.toFixed(0)} MB`;
-  }
-
   getHeroBackdrop(movie: Movie) {
     return movie.backdropUrl || movie.coverUrl || movie.posterUrl || movie.thumbnailUrl || '';
   }
@@ -583,39 +415,6 @@ export class MovieDetailComponent {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('');
-  }
-
-  // ── Offline / Save for offline ────────────────────────────────────────────
-
-  getOfflineStatus(movieId: string, quality: string) {
-    return this.offline.getStatus(movieId, quality);
-  }
-
-  getOfflineProgress(movieId: string, quality: string): number | null {
-    return this.offline.getProgress(movieId, quality);
-  }
-
-  hasOfflineSaves(movieId: string): boolean {
-    return this.offline.downloads().some(d => d.movieId === movieId && d.status === 'complete');
-  }
-
-  saveOffline(movie: Movie, quality: string) {
-    const fileUrl = this.resolveQualityUrl(movie, quality);
-    if (!fileUrl || this.isMagnetUrl(fileUrl)) return;
-    const fileSizeBytes = (movie.fileSizes as Record<string, number>)[quality];
-    this.offline.download({
-      movieId: movie.id,
-      movieTitle: movie.title,
-      movieSlug: movie.slug,
-      quality,
-      fileUrl,
-      fileSizeBytes,
-      thumbnailUrl: movie.thumbnailUrl ?? undefined,
-    }).catch(err => console.error('[Offline] Download failed:', err));
-  }
-
-  removeOffline(movieId: string, quality: string) {
-    this.offline.remove(movieId, quality).catch(console.error);
   }
 
   private isStreamableVideoUrl(url: string): boolean {
@@ -639,84 +438,10 @@ export class MovieDetailComponent {
   }
 
   canWatch(movie: Movie): boolean {
-    if (movie.youtubeId) return true;
+    if (movie.youtubeId || movie.imdbId || !!movie.tmdbId) return true;
     const urls = movie.fileUrls || {};
     return Object.values(urls).some(
       (value) => typeof value === 'string' && value.trim().length > 0 && this.isStreamableVideoUrl(value)
     );
-  }
-
-  isMagnetUrl(url: string): boolean {
-    return /^magnet:\?/i.test((url || '').trim());
-  }
-
-  hasDownloadOption(movie: Movie): boolean {
-    const urls = movie.fileUrls || {};
-    return Object.values(urls).some((value) => typeof value === 'string' && value.trim().length > 0);
-  }
-
-  primaryDownloadUrl(movie: Movie): string | null {
-    const urls = movie.fileUrls || {};
-    const qualityFirst = movie.quality
-      .map((q) => this.resolveQualityUrl(movie, q))
-      .find((value) => !!value);
-    if (qualityFirst) return this.toDirectDownloadLink(qualityFirst);
-
-    const firstAny = Object.values(urls).find((value) => typeof value === 'string' && value.trim().length > 0);
-    return typeof firstAny === 'string' ? this.toDirectDownloadLink(firstAny) : null;
-  }
-
-  resolveQualityUrl(movie: Movie, quality: string): string | null {
-    const urls = movie.fileUrls || {};
-    const exact = urls[quality];
-    if (typeof exact === 'string' && exact.trim().length > 0) {
-      return exact;
-    }
-
-    const hls = urls['hls'];
-    if (typeof hls === 'string' && hls.trim().length > 0) {
-      return hls;
-    }
-
-    return null;
-  }
-
-  getQualityAccess(movie: Movie, quality: string): { link: string | null; label: string } {
-    const rawLink = this.resolveQualityUrl(movie, quality);
-    const link = rawLink ? this.toDirectDownloadLink(rawLink) : null;
-    if (!link) {
-      return { link: null, label: 'Not Ready' };
-    }
-
-    if (this.isMagnetUrl(link)) {
-      return { link, label: 'Open Torrent' };
-    }
-
-    return { link, label: 'Download' };
-  }
-
-  private toDirectDownloadLink(url: string): string {
-    const raw = (url || '').trim();
-    if (!raw) return raw;
-    if (this.isMagnetUrl(raw)) return raw;
-
-    try {
-      const parsed = new URL(raw);
-      const isMediaHost = /(^|\.)media\.naijaspride\.com$/i.test(parsed.hostname);
-      if (isMediaHost) {
-        const key = parsed.pathname.replace(/^\/+/, '');
-        if (key.startsWith('movies/')) {
-          return `/api/v1/movies/download?key=${encodeURIComponent(key)}`;
-        }
-      }
-    } catch {
-      // fall through
-    }
-
-    if (raw.startsWith('movies/')) {
-      return `/api/v1/movies/download?key=${encodeURIComponent(raw)}`;
-    }
-
-    return raw;
   }
 }

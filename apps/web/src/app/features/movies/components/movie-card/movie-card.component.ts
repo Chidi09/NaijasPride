@@ -65,13 +65,13 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
           </div>
         }
 
-        @if (movie.isStreamOnly) {
+        @if (shouldWatchMovie()) {
           <div class="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
-            STREAM
+            WATCH
           </div>
         } @else {
           <div class="absolute top-2 left-2 bg-cinema-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
-            DOWNLOAD
+            DETAILS
           </div>
         }
 
@@ -105,10 +105,10 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
           <p class="mt-1 text-[11px] text-gray-200/90">{{ movie.year }} • {{ movie.genre?.[0] || 'Feature' }}</p>
           <div class="mt-2 flex items-center gap-2 text-[10px]">
             <span class="rounded-full bg-white/20 px-2 py-0.5 text-white">{{ movie.genre?.[0] || 'Movie' }}</span>
-            @if (movie.isStreamOnly) {
+            @if (shouldWatchMovie()) {
               <span class="rounded-full bg-blue-500/80 px-2 py-0.5 text-white">Watch</span>
             } @else {
-              <span class="rounded-full bg-[#800020]/90 px-2 py-0.5 text-white">Ready</span>
+              <span class="rounded-full bg-[#800020]/90 px-2 py-0.5 text-white">Details</span>
             }
           </div>
         </div>
@@ -144,9 +144,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
             @if (movie.isStreamOnly) {
               Instant play available
             } @else if (movie.canStream) {
-              Stream + download ready
-            } @else if (isReadyForDownload(movie)) {
-              Torrent/download ready
+              Streaming available
             } @else {
               Processing source
             }
@@ -237,16 +235,12 @@ export class MovieCardComponent implements OnChanges {
     return movie.thumbnailUrl || movie.posterUrl || movie.coverUrl || movie.backdropUrl || null;
   }
 
-  isReadyForDownload(movie: MovieSummary): boolean {
-    return !movie.isStreamOnly && Array.isArray(movie.quality) && movie.quality.length > 0;
-  }
-
   shouldWatchMovie() {
     return !!this.movie?.isStreamOnly || !!this.movie?.canStream;
   }
 
   primaryActionLabel() {
-    return this.shouldWatchMovie() ? 'Watch' : 'Download';
+    return this.shouldWatchMovie() ? 'Watch' : 'Details';
   }
 
   toggleWatchlist(event?: Event) {
