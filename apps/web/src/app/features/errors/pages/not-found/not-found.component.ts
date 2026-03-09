@@ -28,7 +28,7 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
         
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
           <a 
-            [routerLink]="['/movies/stream']" 
+            [routerLink]="['/movies']" 
             class="inline-flex items-center justify-center gap-2 rounded-lg border border-[#992143] bg-[#800020] px-6 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#fff5f2] transition hover:bg-[#660019]">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />

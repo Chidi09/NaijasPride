@@ -15,7 +15,13 @@ const booleanQueryParam = z
 
 export const movieSearchSchema = z.object({
   q: z.string().max(200).optional(),
-  genre: z.array(z.nativeEnum(Genre)).optional(),
+  genre: z.preprocess(
+    (value) => {
+      if (typeof value === 'string') return [value];
+      return value;
+    },
+    z.array(z.nativeEnum(Genre)).optional(),
+  ),
   year: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 2).optional(),
   quality: z.nativeEnum(Quality).optional(),
   language: z.string().optional(),

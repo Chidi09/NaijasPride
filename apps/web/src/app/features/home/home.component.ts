@@ -392,7 +392,7 @@ type BookProgressResponse = {
           <section>
             <div class="mb-3 flex items-center justify-between">
               <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Movies</h2>
-              <a routerLink="/movies/stream" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+              <a routerLink="/movies" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
             </div>
             @if (isLoadingMovies()) {
               <div class="movies-home-grid">
@@ -692,7 +692,7 @@ type BookProgressResponse = {
       <div>
         <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] mb-3">Quick Links</h3>
         <div class="grid grid-cols-2 gap-2">
-          <a routerLink="/movies/stream" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
+          <a routerLink="/movies" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
             <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>
             </svg>
