@@ -10,6 +10,7 @@ import { QueueService } from '../../shared/services/queue.service';
 import { StorageService } from '../../shared/services/storage.service';
 import { notificationRoutes } from './notification.routes';
 import { RemoteProvider, RemoteStreamResolverService } from './remote-stream-resolver.service';
+import { EmbedResolverService } from './embed-resolver.service';
 
 const toQualityEnum = (value: '480p' | '720p' | '1080p' | '4K'): PrismaQuality => {
   switch (value) {
@@ -30,6 +31,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
   const queueService = new QueueService();
   const storageService = new StorageService();
   const remoteResolver = new RemoteStreamResolverService();
+  const embedResolver = new EmbedResolverService();
   const movieSignedUrlTtlSecondsRaw = Number.parseInt(process.env.MOVIE_DOWNLOAD_URL_TTL_SECONDS || '21600', 10);
   const movieSignedUrlTtlSeconds =
     Number.isFinite(movieSignedUrlTtlSecondsRaw) && movieSignedUrlTtlSecondsRaw >= 3600
@@ -298,6 +300,32 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
     return { success: true, data: movie };
+  });
+
+  // GET /api/movies/:slug/embeds - Get ordered list of embed player URLs
+  app.get('/:slug/embeds', {
+    schema: {
+      params: z.object({ slug: z.string() }),
+    },
+  }, async (request, reply) => {
+    const movie = await service.findBySlug(request.params.slug);
+    if (!movie || movie.status !== 'active') {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Movie not found' },
+      });
+    }
+
+    const embeds = embedResolver.resolve(movie.imdbId, movie.tmdbId);
+    return {
+      success: true,
+      data: {
+        movieId: movie.id,
+        imdbId: movie.imdbId || null,
+        tmdbId: movie.tmdbId || null,
+        providers: embeds,
+      },
+    };
   });
 
   // GET /api/movies/:slug/similar - Get similar/related movies

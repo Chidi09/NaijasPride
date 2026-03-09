@@ -4,7 +4,7 @@ import { MoviesQueryService } from "../../services/movies-query.service";
 import { VideoPlayerComponent } from "../../../../shared/components/video-player/video-player.component";
 import { BrandedIntroComponent } from "../../../../shared/components/branded-intro/branded-intro.component";
 import { EffectivegateBannerComponent } from "../../../../shared/components/effectivegate-banner/effectivegate-banner.component";
-import { VidkingPlayerComponent } from "../../../../shared/components/vidking-player/vidking-player.component";
+import { EmbedPlayerComponent } from "../../../../shared/components/embed-player/embed-player.component";
 import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
 import { OfflineStorageService } from "../../../../core/services/offline-storage.service";
@@ -18,7 +18,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
     VideoPlayerComponent,
     BrandedIntroComponent,
     EffectivegateBannerComponent,
-    VidkingPlayerComponent,
+    EmbedPlayerComponent,
     RouterLink,
   ],
   template: `
@@ -56,11 +56,11 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
               >
               </app-video-player>
             } @else {
-              @if (streamSource() === 'vidking' && m.tmdbId) {
-                <app-vidking-player
+              @if (streamSource() === 'embed') {
+                <app-embed-player
                   [movieId]="m.id"
-                  [tmdbId]="m.tmdbId!"
-                ></app-vidking-player>
+                  [movieSlug]="m.slug"
+                ></app-embed-player>
               } @else if (streamSource() === 'hosted' && resolvedStreamUrl()) {
                 @if (isOffline()) {
                   <div class="mb-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded">
@@ -120,8 +120,8 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
               <p class="text-[#9a857d] dark:text-gray-500 text-sm text-center sm:text-left">
                 @if (m.youtubeId) {
                   Streaming via YouTube • Support the creators by subscribing to their channel.
-                } @else if (streamSource() === 'vidking') {
-                  Streaming via Vidking • Enjoy the show.
+                } @else if (streamSource() === 'embed') {
+                  Streaming via embed provider • Switch servers if playback stalls.
                 } @else if (isOffline()) {
                   Playing from offline storage • No internet required.
                 } @else if (resolvedStreamUrl()) {
@@ -167,7 +167,7 @@ export class WatchRoomComponent {
   showIntro = true;
   isOffline = signal(false);
   resolvedStreamUrl = signal<string | null>(null);
-  streamSource = signal<'vidking' | 'hosted' | null>(null);
+  streamSource = signal<'embed' | 'hosted' | null>(null);
 
   playerConfig = {
     showSkipButtons: true,
@@ -213,9 +213,10 @@ export class WatchRoomComponent {
       return;
     }
 
-    // 3. Vidking embed (fallback when hosted stream is unavailable)
-    if (movie.tmdbId) {
-      this.streamSource.set('vidking');
+    // 3. Multi-provider embed (fallback when hosted stream is unavailable)
+    // Works if the movie has an IMDB ID or TMDB ID
+    if (movie.tmdbId || movie.imdbId) {
+      this.streamSource.set('embed');
       return;
     }
   }

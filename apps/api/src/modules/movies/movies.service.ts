@@ -574,6 +574,8 @@ export class MoviesService {
     viewCount: number;
     isStreamOnly: boolean;
     youtubeId: string | null;
+    imdbId?: string | null;
+    tmdbId?: number | null;
     fileUrls?: Prisma.JsonValue;
   }): MovieSummary {
     const bestThumb =
@@ -583,8 +585,9 @@ export class MoviesService {
       raw.backdropUrl ||
       null;
 
-    // Compute canStream: true if there's a youtubeId or any .mp4/.m3u8 URL in fileUrls
-    let canStream = !!raw.youtubeId;
+    // Compute canStream: true if there's a youtubeId, any .mp4/.m3u8 URL in fileUrls,
+    // or an imdbId/tmdbId (which the multi-provider embed player can resolve)
+    let canStream = !!raw.youtubeId || !!raw.imdbId || !!raw.tmdbId;
     if (!canStream && raw.fileUrls && typeof raw.fileUrls === 'object' && !Array.isArray(raw.fileUrls)) {
       const urls = raw.fileUrls as Record<string, unknown>;
       canStream = Object.values(urls).some((v) => {
