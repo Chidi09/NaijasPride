@@ -32,6 +32,8 @@ import { adminMusicRoutes } from "./modules/music/admin-music.routes";
 import { AutoLibraryDiscoveryService } from "./modules/books/auto-library-discovery.service";
 import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
 import { searchRoutes } from "./modules/search/search.routes";
+import { tvShowRoutes } from "./modules/tv-shows/tv-shows.routes";
+import { TvTmdbSyncService } from "./modules/tv-shows/tv-tmdb-sync.service";
 import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import { YouTubeMusicService } from "./modules/music/youtube-music.service";
@@ -290,6 +292,7 @@ const buildServer = async () => {
   await app.register(watchRoutes, { prefix: `${apiPrefix}/watch` });
   await app.register(plansRoutes, { prefix: `${apiPrefix}/plans` });
   await app.register(musicRoutes, { prefix: `${apiPrefix}/music` });
+  await app.register(tvShowRoutes, { prefix: `${apiPrefix}/tv-shows` });
   await app.register(searchRoutes, { prefix: `${apiPrefix}/search` });
   await app.register(adminMusicRoutes, { prefix: `${apiPrefix}/admin/music` });
   await app.register(wrappedRoutes, { prefix: `${apiPrefix}/wrapped` });
@@ -320,6 +323,28 @@ const start = async () => {
     musicChannelService.monitorAll().catch((error) => {
       app.log.error({ error }, "Initial YouTube music channel monitor run failed");
     });
+
+    const tvTmdbSyncEnabled = parseBooleanFlag(process.env.TV_TMDB_SYNC_ENABLED, true);
+    if (tvTmdbSyncEnabled) {
+      const tvSyncService = new TvTmdbSyncService(app.prisma);
+      const tvSyncIntervalMs = parsePositiveInt(process.env.TV_TMDB_SYNC_INTERVAL_MS, 6 * 60 * 60 * 1000);
+      const tvSyncStartupDelayMs = parsePositiveInt(process.env.TV_TMDB_SYNC_STARTUP_DELAY_MS, 90 * 1000);
+
+      const runTvSync = () => {
+        tvSyncService
+          .syncCatalog()
+          .then((summary) => {
+            app.log.info({ summary }, '[TvTmdbSync] Completed');
+          })
+          .catch((error) => {
+            app.log.error({ error }, '[TvTmdbSync] Failed');
+          });
+      };
+
+      setInterval(runTvSync, tvSyncIntervalMs);
+      setTimeout(runTvSync, tvSyncStartupDelayMs);
+      app.log.info({ tvSyncIntervalMs, tvSyncStartupDelayMs }, '[TvTmdbSync] Scheduler enabled');
+    }
 
     const movieChannelBootstrapEnabled = parseBooleanFlag(process.env.MOVIE_CHANNEL_BOOTSTRAP_ENABLED, true);
     if (movieChannelBootstrapEnabled) {
@@ -692,7 +717,16 @@ const start = async () => {
     }
 
     // Optional torrent discovery scheduler (direct, API, or bakeoff mode).
-    const torrentDiscoveryEnabled = parseBooleanFlag(process.env.TORRENT_DISCOVERY_ENABLED, false);
+    // Hard-gated by MOVIE_FILE_INGEST_ENABLED to prevent new movie downloads/uploads to R2.
+    const movieFileIngestEnabled = parseBooleanFlag(process.env.MOVIE_FILE_INGEST_ENABLED, false);
+    const torrentDiscoveryEnabled = movieFileIngestEnabled
+      ? parseBooleanFlag(process.env.TORRENT_DISCOVERY_ENABLED, false)
+      : false;
+
+    if (!movieFileIngestEnabled) {
+      app.log.info('[MovieIngest] MOVIE_FILE_INGEST_ENABLED=false; torrent discovery and file ingest are disabled');
+    }
+
     if (torrentDiscoveryEnabled) {
       const torrentDiscoveryIntervalMs = parsePositiveInt(
         process.env.TORRENT_DISCOVERY_INTERVAL_MS,

@@ -26,6 +26,20 @@ export class WatchApiService {
     );
   }
 
+  saveTvProgress(payload: {
+    showId: string;
+    episodeId: string;
+    seasonNumber: number;
+    episodeNumber: number;
+    progress: number;
+    duration: number;
+  }) {
+    return this.http.post<{ success: boolean; message: string }>(
+      '/api/v1/tv-shows/progress',
+      payload,
+    );
+  }
+
   getProgress(movieId: string) {
     return this.http.get<{
       status: string;

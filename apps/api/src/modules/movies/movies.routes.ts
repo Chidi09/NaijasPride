@@ -37,6 +37,9 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
     Number.isFinite(movieSignedUrlTtlSecondsRaw) && movieSignedUrlTtlSecondsRaw >= 3600
       ? Math.min(movieSignedUrlTtlSecondsRaw, 7 * 24 * 60 * 60)
       : 6 * 60 * 60;
+  const movieFileIngestEnabled = ['true', '1', 'yes', 'on'].includes(
+    (process.env.MOVIE_FILE_INGEST_ENABLED || 'false').trim().toLowerCase(),
+  );
 
   // GET /api/movies - List & Search
   app.get('/', {
@@ -467,6 +470,16 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
       }),
     },
   }, async (request, reply) => {
+    if (!movieFileIngestEnabled) {
+      return reply.status(410).send({
+        success: false,
+        error: {
+          code: 'INGEST_DISABLED',
+          message: 'Movie file ingest to R2 is disabled. Use embed/YouTube sources instead.',
+        },
+      });
+    }
+
     if (request.user.role !== 'ADMIN') {
       return reply.status(403).send({
         success: false,
@@ -516,6 +529,16 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
         }),
     },
   }, async (request, reply) => {
+    if (!movieFileIngestEnabled) {
+      return reply.status(410).send({
+        success: false,
+        error: {
+          code: 'INGEST_DISABLED',
+          message: 'Movie file ingest to R2 is disabled. Use embed/YouTube sources instead.',
+        },
+      });
+    }
+
     if (request.user.role !== 'ADMIN') {
       return reply.status(403).send({
         success: false,

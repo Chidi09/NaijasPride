@@ -88,25 +88,47 @@ export class MetadataService {
     );
 
     const details = detailsRes.data;
-    let rottenTomatoes: string | null = null;
-    let imdbRating: number | null = null;
+    const existing = await this.prisma.movie.findUnique({
+      where: { id: movieId },
+      select: {
+        imdbRating: true,
+        rottenTomatoes: true,
+        posterUrl: true,
+      },
+    });
+
+    let rottenTomatoes: string | null = existing?.rottenTomatoes ?? null;
+    let imdbRating: number | null = existing?.imdbRating ?? null;
     let omdbPoster: string | null = null;
 
-    if (details.imdb_id && omdbKey) {
-      const omdbRes = await axios.get<OmdbResponse>('https://www.omdbapi.com/', {
-        params: {
-          apikey: omdbKey,
-          i: details.imdb_id,
-        },
-      });
+    const shouldUseOmdb =
+      !!details.imdb_id &&
+      !!omdbKey &&
+      (!existing?.rottenTomatoes || existing.rottenTomatoes === 'N/A' || !existing.imdbRating);
 
-      const rt = omdbRes.data.Ratings?.find((rating) => rating.Source === 'Rotten Tomatoes');
-      rottenTomatoes = rt?.Value ?? null;
-      omdbPoster = this.normalizeOmdbPosterUrl(omdbRes.data.Poster);
+    if (shouldUseOmdb) {
+      try {
+        const omdbRes = await axios.get<OmdbResponse>('https://www.omdbapi.com/', {
+          params: {
+            apikey: omdbKey,
+            i: details.imdb_id,
+          },
+          timeout: 8000,
+        });
 
-      if (omdbRes.data.imdbRating && omdbRes.data.imdbRating !== 'N/A') {
-        const parsedImdbRating = Number.parseFloat(omdbRes.data.imdbRating);
-        imdbRating = Number.isFinite(parsedImdbRating) ? parsedImdbRating : null;
+        const rt = omdbRes.data.Ratings?.find((rating) => rating.Source === 'Rotten Tomatoes');
+        rottenTomatoes = rt?.Value ?? rottenTomatoes;
+        omdbPoster = this.normalizeOmdbPosterUrl(omdbRes.data.Poster);
+
+        if (omdbRes.data.imdbRating && omdbRes.data.imdbRating !== 'N/A') {
+          const parsedImdbRating = Number.parseFloat(omdbRes.data.imdbRating);
+          if (Number.isFinite(parsedImdbRating)) {
+            imdbRating = parsedImdbRating;
+          }
+        }
+      } catch (error) {
+        console.warn('[MetadataService] OMDB enrichment failed, continuing with TMDB only:',
+          error instanceof Error ? error.message : String(error));
       }
     }
 
@@ -116,7 +138,7 @@ export class MetadataService {
       (video) => video.type === 'Trailer' && video.site === 'YouTube',
     );
 
-    const posterUrl = this.tmdbImage(details.poster_path, 'w500') || omdbPoster;
+    const posterUrl = this.tmdbImage(details.poster_path, 'w500') || omdbPoster || existing?.posterUrl || null;
     const backdropUrl = this.tmdbImage(details.backdrop_path, 'original');
 
     await this.prisma.movie.update({

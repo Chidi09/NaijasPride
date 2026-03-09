@@ -30,7 +30,9 @@ interface EmbedProvider {
 interface EmbedResponse {
   success: boolean;
   data: {
-    movieId: string;
+    movieId?: string;
+    showId?: string;
+    episodeId?: string;
     imdbId: string | null;
     tmdbId: number | null;
     providers: EmbedProvider[];
@@ -106,6 +108,11 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   @Input({ required: true }) movieId!: string;
   /** Movie slug -- used to fetch embed providers from API */
   @Input({ required: true }) movieSlug!: string;
+  /** movie (default) or tv */
+  @Input() contentType: 'movie' | 'tv' = 'movie';
+  @Input() seasonNumber: number | null = null;
+  @Input() episodeNumber: number | null = null;
+  @Input() episodeId: string | null = null;
   /** Optional: resume position in seconds */
   @Input() startAt = 0;
 
@@ -149,7 +156,12 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['movieSlug'] && !changes['movieSlug'].firstChange) {
+    if (
+      (changes['movieSlug'] && !changes['movieSlug'].firstChange) ||
+      changes['contentType'] ||
+      changes['seasonNumber'] ||
+      changes['episodeNumber']
+    ) {
       this.fetchProviders();
     }
   }
@@ -176,8 +188,20 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
     this.isLoading.set(true);
     this.hasError.set(false);
 
+    const endpoint =
+      this.contentType === 'tv'
+        ? this.buildTvEmbedEndpoint()
+        : `/api/v1/movies/${encodeURIComponent(this.movieSlug)}/embeds`;
+
+    if (!endpoint) {
+      this.providers.set([]);
+      this.hasError.set(true);
+      this.isLoading.set(false);
+      return;
+    }
+
     this.http
-      .get<EmbedResponse>(`/api/v1/movies/${encodeURIComponent(this.movieSlug)}/embeds`)
+      .get<EmbedResponse>(endpoint)
       .subscribe({
         next: (response) => {
           const list = response?.data?.providers || [];
@@ -222,9 +246,23 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
 
   private persistProgress(currentTime: number, duration: number): void {
     if (this.auth.isAuthenticated()) {
-      this.watchApi.saveProgress(this.movieId, currentTime, duration).subscribe({
-        error: (err) => console.warn('[EmbedPlayer] Progress save failed', err),
-      });
+      if (this.contentType === 'tv') {
+        if (!this.episodeId || !this.seasonNumber || !this.episodeNumber) return;
+        this.watchApi.saveTvProgress({
+          showId: this.movieId,
+          episodeId: this.episodeId,
+          seasonNumber: this.seasonNumber,
+          episodeNumber: this.episodeNumber,
+          progress: currentTime,
+          duration,
+        }).subscribe({
+          error: (err) => console.warn('[EmbedPlayer] TV progress save failed', err),
+        });
+      } else {
+        this.watchApi.saveProgress(this.movieId, currentTime, duration).subscribe({
+          error: (err) => console.warn('[EmbedPlayer] Progress save failed', err),
+        });
+      }
     } else {
       const progressPercentage = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
       this.anonWatch.saveProgress(
@@ -235,5 +273,18 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
         currentTime >= duration,
       );
     }
+  }
+
+  private buildTvEmbedEndpoint(): string | null {
+    if (!this.seasonNumber || !this.episodeNumber || this.seasonNumber < 1 || this.episodeNumber < 1) {
+      return null;
+    }
+
+    const query = new URLSearchParams({
+      season: String(this.seasonNumber),
+      episode: String(this.episodeNumber),
+    });
+
+    return `/api/v1/tv-shows/${encodeURIComponent(this.movieSlug)}/embeds?${query.toString()}`;
   }
 }

@@ -202,6 +202,7 @@ model User {
   watchlist            Movie[]       @relation("UserWatchlist")
   downloadHistory      Download[]
   watchHistory         WatchHistory[]
+  tvWatchHistory       TvWatchHistory[]
   notifications        MovieNotification[]
   pushTokens           PushNotificationToken[]
   offlineSaved         OfflineSavedContent[]
@@ -248,6 +249,82 @@ model WatchHistory {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, movieId])
+}
+
+model TvShow {
+  id              String        @id @default(uuid())
+  title           String
+  slug            String        @unique
+  overview        String?       @db.Text
+  year            Int
+  genre           Genre[]
+  language        String        @default("English")
+  imdbId          String?
+  tmdbId          Int?          @unique
+  thumbnailUrl    String?
+  posterUrl       String?
+  backdropUrl     String?
+  trailerUrl      String?
+  status          ContentStatus @default(active)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  seasons         TvSeason[]
+  watchHistory    TvWatchHistory[]
+
+  @@index([slug])
+  @@index([year])
+  @@index([status])
+}
+
+model TvSeason {
+  id            String      @id @default(uuid())
+  seasonNumber  Int
+  title         String?
+  overview      String?     @db.Text
+  posterUrl     String?
+
+  showId        String
+  show          TvShow      @relation(fields: [showId], references: [id], onDelete: Cascade)
+
+  episodes      TvEpisode[]
+
+  @@unique([showId, seasonNumber])
+  @@index([showId])
+}
+
+model TvEpisode {
+  id              String      @id @default(uuid())
+  episodeNumber   Int
+  title           String
+  overview        String?     @db.Text
+  durationMinutes Int?
+  thumbnailUrl    String?
+
+  seasonId        String
+  season          TvSeason    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime    @default(now())
+
+  @@unique([seasonId, episodeNumber])
+  @@index([seasonId])
+}
+
+model TvWatchHistory {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  showId      String
+  show        TvShow   @relation(fields: [showId], references: [id], onDelete: Cascade)
+
+  episodeId   String
+  progress    Int      @default(0)
+  duration    Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, showId])
+  @@index([showId])
 }
 
 // Notification Logic - "Notify me when available"

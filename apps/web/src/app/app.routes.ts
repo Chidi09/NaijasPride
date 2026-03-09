@@ -83,6 +83,16 @@ export const routes: Routes = [
   // Legacy watch route redirect
   { path: 'watch/:slug', redirectTo: 'movies/:slug/watch', pathMatch: 'full' },
 
+  {
+    path: 'tv-shows',
+    canActivate: [authGuard],
+    children: [
+      { path: '', loadComponent: () => import('./features/tv-shows/pages/tv-shows-list/tv-shows-list.component').then(m => m.TvShowsListComponent) },
+      { path: ':slug/watch', loadComponent: () => import('./features/tv-shows/pages/tv-watch-room/tv-watch-room.component').then(m => m.TvWatchRoomComponent) },
+      { path: ':slug', loadComponent: () => import('./features/tv-shows/pages/tv-show-detail/tv-show-detail.component').then(m => m.TvShowDetailComponent) },
+    ],
+  },
+
   // ──────────────────────────────────────────────────────────────
   // 5. BOOKS & MANGA HUB
   //    Tabs for Novels, Manga, Comics within the hub

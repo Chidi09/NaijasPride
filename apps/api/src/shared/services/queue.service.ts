@@ -43,6 +43,11 @@ export type RemoteIngestJobPayload = {
   headers?: Record<string, string>;
 };
 
+const isMovieFileIngestEnabled = () => {
+  const raw = (process.env.MOVIE_FILE_INGEST_ENABLED || 'false').trim().toLowerCase();
+  return raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on';
+};
+
 export type AnnasMirrorJobPayload = {
   batchSize?: number;
   perFileTimeoutMs?: number;
@@ -60,6 +65,11 @@ export type BookCoverJobPayload = {
 
 export class QueueService {
   async addTorrentJob(magnetLink: string, movieId: string) {
+    if (!isMovieFileIngestEnabled()) {
+      console.warn(`[Queue] MOVIE_FILE_INGEST_ENABLED=false — skipping torrent job for movie ${movieId}`);
+      return;
+    }
+
     const queue = torrentQueue.get();
     if (!queue) {
       console.warn(`[Queue] REDIS_URL not set — skipping torrent job for movie ${movieId}`);
@@ -173,6 +183,11 @@ export class QueueService {
   }
 
   async addRemoteIngestJob(payload: RemoteIngestJobPayload) {
+    if (!isMovieFileIngestEnabled()) {
+      console.warn('[Queue] MOVIE_FILE_INGEST_ENABLED=false — skipping remote ingest job');
+      return;
+    }
+
     const queue = remoteIngestQueue.get();
     if (!queue) {
       console.warn('[Queue] REDIS_URL not set — skipping remote ingest job');

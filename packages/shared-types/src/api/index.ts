@@ -18,6 +18,14 @@ export interface MovieSearchParams extends PaginationParams {
   isStreamOnly?: boolean;
 }
 
+export interface TvShowSearchParams extends PaginationParams {
+  q?: string;
+  genre?: Genre[];
+  year?: number;
+  language?: string;
+  sortBy?: 'latest' | 'popular' | 'title' | 'trending';
+}
+
 export interface CreateMovieRequest {
   title: string;
   description?: string;
