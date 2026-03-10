@@ -257,8 +257,11 @@ type BookProgressResponse = {
           </div>
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium truncate text-[#f9f9f2]">{{ userName() }}</p>
-            <p class="text-[11px] text-[#a88a78]">Member</p>
+            <p class="text-[11px] text-[#a88a78]">{{ membershipLabel() }}</p>
           </div>
+          @if (isPremiumUser()) {
+            <span class="rounded-full border border-[#f4d7b2]/40 bg-[#800020]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#f4d7b2]">PRO</span>
+          }
         </div>
       </div>
     </aside>
@@ -317,6 +320,9 @@ type BookProgressResponse = {
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">{{ getGreeting() }}</p>
             <h1 class="mt-1 text-2xl font-bold text-white md:text-3xl">{{ userName() }}</h1>
             <p class="mt-1 text-sm text-white/70">Your gateway to Nollywood, Bollywood & Hollywood.</p>
+            @if (isPremiumUser()) {
+              <span class="mt-3 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">Premium Member</span>
+            }
 
             <!-- Quick action pills -->
             <div class="mt-5 flex flex-wrap gap-2">
@@ -743,6 +749,8 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   userName = signal('Guest');
   userInitials = signal('G');
+  membershipLabel = signal('Member');
+  isPremiumUser = signal(false);
 
   ngOnInit(): void {
     // Activate home layout — hides shell navbar/bottom-nav
@@ -753,6 +761,9 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (user) {
       this.userName.set(user.name || user.email?.split('@')[0] || 'Guest');
       this.userInitials.set(this.userName().charAt(0).toUpperCase());
+      const isPremium = !!user.isPremium || user.subStatus === 'active';
+      this.isPremiumUser.set(isPremium);
+      this.membershipLabel.set(isPremium ? 'Premium Member' : 'Member');
     }
 
     // Continue watching

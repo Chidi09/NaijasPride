@@ -35,6 +35,13 @@ type TvProviderTemplate = {
 /** Providers ordered by reliability / quality (best first). */
 const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
   {
+    id: 'vidking',
+    name: 'Vidking',
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) =>
+      tmdbId ? `https://www.vidking.net/embed/movie/${tmdbId}?color=800020&autoPlay=true` : null,
+  },
+  {
     id: 'vidsrc-me',
     name: 'VidSrc',
     supportsProgressEvents: false,
@@ -74,16 +81,18 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
     supportsProgressEvents: false,
     buildUrl: (imdbId) => (imdbId ? `https://multiembed.mov/directstream.php?video_id=${imdbId}` : null),
   },
+];
+
+const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
   {
     id: 'vidking',
     name: 'Vidking',
     supportsProgressEvents: true,
-    buildUrl: (_imdbId, tmdbId) =>
-      tmdbId ? `https://www.vidking.net/embed/movie/${tmdbId}?color=800020&autoPlay=true` : null,
+    buildUrl: (_imdbId, tmdbId, season, episode) =>
+      tmdbId
+        ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}?color=800020&autoPlay=true`
+        : null,
   },
-];
-
-const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
   {
     id: 'vidsrc-me',
     name: 'VidSrc',
@@ -128,15 +137,6 @@ const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
     supportsProgressEvents: false,
     buildUrl: (imdbId, _tmdbId, season, episode) =>
       imdbId ? `https://multiembed.mov/directstream.php?video_id=${imdbId}&s=${season}&e=${episode}` : null,
-  },
-  {
-    id: 'vidking',
-    name: 'Vidking',
-    supportsProgressEvents: true,
-    buildUrl: (_imdbId, tmdbId, season, episode) =>
-      tmdbId
-        ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}?color=800020&autoPlay=true`
-        : null,
   },
 ];
 

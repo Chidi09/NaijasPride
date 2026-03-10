@@ -13,7 +13,7 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
       
       <div class="relative text-center max-w-lg">
         <div class="flex justify-center mb-8">
-          <app-brand-logo variant="mark" alt="NaijasPride" className="h-20 w-20 object-contain opacity-50" />
+          <app-brand-logo variant="mark" alt="NaijasPride" className="h-20 w-auto object-contain opacity-50" />
         </div>
         
         <div class="text-[120px] font-bold text-[#800020]/20 leading-none mb-4">404</div>

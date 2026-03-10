@@ -300,7 +300,7 @@ type YouTubeWindow = Window & {
 
       <!-- Brand Watermark -->
       <div class="absolute top-4 right-4 bg-black/45 text-white text-[10px] font-bold px-2 py-1 rounded-md opacity-60 hover:opacity-100 transition-opacity pointer-events-none flex items-center gap-1.5 backdrop-blur-sm border border-white/10">
-        <app-brand-logo variant="mark" alt="NaijasPride" className="h-4 w-4 object-contain" />
+        <app-brand-logo variant="mark" alt="NaijasPride" className="h-4 w-auto object-contain" />
         <span>STREAM</span>
       </div>
     </div>

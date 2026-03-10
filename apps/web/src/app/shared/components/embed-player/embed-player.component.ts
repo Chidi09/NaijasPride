@@ -50,7 +50,7 @@ interface EmbedResponse {
       @if (providers().length > 1) {
         <div class="absolute top-0 inset-x-0 z-20 flex items-center gap-2 bg-gradient-to-b from-black/80 to-transparent px-3 py-2">
           <span class="text-[10px] uppercase tracking-wider text-white/50 mr-1">Server</span>
-          @for (provider of providers(); track provider.id) {
+          @for (provider of providers(); track provider.id; let idx = $index) {
             <button
               type="button"
               class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
@@ -59,7 +59,7 @@ interface EmbedResponse {
                 : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'"
               (click)="switchProvider(provider)"
             >
-              {{ provider.name }}
+              Server {{ idx + 1 }}
             </button>
           }
         </div>
@@ -226,22 +226,44 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
     if (!provider?.supportsProgressEvents) return;
 
     // Handle Vidking-style postMessage events
-    if (provider.id === 'vidking' && event.origin?.includes('vidking.net')) {
+    if (provider.id === 'vidking' && this.isAllowedVidkingOrigin(event.origin || '')) {
       let parsed: any;
       try {
         parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
       } catch {
         return;
       }
-      if (parsed?.type !== 'PLAYER_EVENT' || !parsed.data) return;
-      const { event: evtName, currentTime, duration } = parsed.data;
-      if (evtName === 'timeupdate' && currentTime > 0 && duration > 0) {
+
+      const payload = parsed?.type === 'PLAYER_EVENT' && parsed?.data ? parsed.data : parsed;
+      if (!payload || typeof payload !== 'object') return;
+
+      const evtName = String(payload.event || payload.type || '').toLowerCase();
+      const currentTime = this.toFiniteNumber(payload.currentTime ?? payload.current ?? payload.time ?? payload.position);
+      const duration = this.toFiniteNumber(payload.duration ?? payload.totalDuration ?? payload.length);
+
+      if ((evtName === 'timeupdate' || evtName === 'time_update' || evtName === 'progress') && currentTime > 0 && duration > 0) {
         this.progress$.next({ currentTime: Math.floor(currentTime), duration: Math.floor(duration) });
       }
-      if (evtName === 'ended' && duration > 0) {
+
+      if ((evtName === 'ended' || evtName === 'complete' || evtName === 'finished') && duration > 0) {
         this.persistProgress(Math.floor(duration), Math.floor(duration));
       }
     }
+  }
+
+  private isAllowedVidkingOrigin(origin: string): boolean {
+    if (!origin) return false;
+    try {
+      const host = new URL(origin).hostname.toLowerCase();
+      return host === 'vidking.net' || host === 'www.vidking.net' || host.endsWith('.vidking.net');
+    } catch {
+      return false;
+    }
+  }
+
+  private toFiniteNumber(value: unknown): number {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   private persistProgress(currentTime: number, duration: number): void {

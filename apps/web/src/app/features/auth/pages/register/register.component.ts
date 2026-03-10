@@ -44,7 +44,7 @@ type RegisterWindow = Window & {
       <div class="relative mx-auto w-full max-w-md rounded-2xl border border-[#d8b7a8] dark:border-[#5f1327]/60 bg-white/90 dark:bg-[#120a0d]/90 p-8 shadow-[0_18px_60px_rgba(0,0,0,0.18)] dark:shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur-sm">
         <div>
           <div class="flex justify-center">
-            <app-brand-logo variant="mark" alt="NaijasPride" className="h-16 w-16 object-contain" />
+            <app-brand-logo variant="mark" alt="NaijasPride" className="h-16 w-auto object-contain" />
           </div>
           <p class="mt-4 text-center text-xs uppercase tracking-[0.28em] text-[#8a5f1c] dark:text-[#d6b87a]">Create Account</p>
           <h2 class="mt-3 text-center font-['Cinzel'] text-3xl font-bold text-[#2a1c1f] dark:text-[#f3e5d8]">

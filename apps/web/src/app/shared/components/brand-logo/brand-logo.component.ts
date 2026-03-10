@@ -25,5 +25,5 @@ export class BrandLogoComponent {
   @Input() height = 52;
 
   readonly fullSrc = 'assets/images/logo.svg';
-  readonly markSrc = 'assets/icons/android-chrome-192x192.png';
+  readonly markSrc = 'assets/images/logo-mark.png';
 }
