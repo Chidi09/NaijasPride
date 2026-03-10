@@ -70,6 +70,7 @@ export const routes: Routes = [
       // Stream-only full library (YouTube / hosted streams)
       { path: 'stream', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
       { path: 'youtube', loadComponent: () => import('./features/movies/pages/stream-only-movies/stream-only-movies.component').then(m => m.StreamOnlyMoviesComponent) },
+      { path: 'library', loadComponent: () => import('./features/movies/pages/movie-list/movie-list.component').then(m => m.MovieListComponent) },
       // Legacy download route redirected (embed-first policy)
       { path: 'downloads', redirectTo: 'stream', pathMatch: 'full' },
       // Single detail page (synopsis, cast, and stream action)

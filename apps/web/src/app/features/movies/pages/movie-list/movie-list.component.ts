@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { MoviesQueryService } from '../../services/movies-query.service';
-import { MovieCardYoutubeComponent } from '../../components/movie-card-youtube/movie-card-youtube.component';
+import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 import { FilterBarComponent } from '../../components/filter-bar/filter-bar.component';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
 import { Genre, MovieSearchParams, Quality } from '@naijaspride/types';
@@ -13,7 +13,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
 @Component({
   selector: 'app-movie-list',
   standalone: true,
-  imports: [CommonModule, MovieCardYoutubeComponent, FilterBarComponent, PaginatorComponent, RouterLink, RouterLinkActive],
+  imports: [CommonModule, MovieCardComponent, FilterBarComponent, PaginatorComponent, RouterLink, RouterLinkActive],
   styles: [`
     :host { display: block; }
 
@@ -193,7 +193,7 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
             </div>
             <div class="stream-grid">
               @for (movie of streamMovies(); track movie.id) {
-                <app-movie-card-youtube [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
+                <app-movie-card [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
               }
             </div>
           </section>
@@ -231,7 +231,9 @@ export class MovieListComponent {
   searchParams = signal<MovieSearchParams>({ 
     page: 1, 
     limit: 20,
-    sortBy: 'latest'
+    sortBy: 'latest',
+    isStreamOnly: true,
+    youtubeOnly: false,
   });
 
   private moviesService = inject(MoviesQueryService);
@@ -276,6 +278,8 @@ export class MovieListComponent {
           year: Number.isFinite(year as number) ? (year as number) : undefined,
           genre,
           quality,
+          isStreamOnly: true,
+          youtubeOnly: false,
         });
         this.syncingFromUrl = false;
       });
@@ -349,6 +353,8 @@ export class MovieListComponent {
       year: params.year || undefined,
       genre: params.genre?.[0] || undefined,
       quality: params.quality || undefined,
+      isStreamOnly: true,
+      youtubeOnly: false,
     };
 
     // Remove empty keys to keep URL clean.
