@@ -56,14 +56,14 @@ type TmdbSeasonDetails = {
 export class TvTmdbSyncService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async syncCatalog(): Promise<{ scanned: number; upserted: number; failed: number }> {
+  async syncCatalog(opts: { pagesPerList?: number; maxShows?: number } = {}): Promise<{ scanned: number; upserted: number; failed: number }> {
     const apiKey = process.env.TMDB_API_KEY || process.env.TMDB_KEY;
     if (!apiKey) {
       return { scanned: 0, upserted: 0, failed: 0 };
     }
 
-    const maxShows = this.parsePositiveInt(process.env.TV_TMDB_SYNC_MAX_SHOWS_PER_RUN, 50);
-    const listPages = this.parsePositiveInt(process.env.TV_TMDB_SYNC_PAGES_PER_LIST, 1);
+    const maxShows = opts.maxShows ?? this.parsePositiveInt(process.env.TV_TMDB_SYNC_MAX_SHOWS_PER_RUN, 300);
+    const listPages = opts.pagesPerList ?? this.parsePositiveInt(process.env.TV_TMDB_SYNC_PAGES_PER_LIST, 5);
     const showIds = await this.fetchDiscoveryIds(apiKey, listPages);
     const cappedIds = showIds.slice(0, maxShows);
 

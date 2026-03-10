@@ -34,6 +34,7 @@ import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
 import { searchRoutes } from "./modules/search/search.routes";
 import { tvShowRoutes } from "./modules/tv-shows/tv-shows.routes";
 import { TvTmdbSyncService } from "./modules/tv-shows/tv-tmdb-sync.service";
+import { MovieTmdbSyncService } from "./modules/movies/movie-tmdb-sync.service";
 import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import { YouTubeMusicService } from "./modules/music/youtube-music.service";
@@ -329,10 +330,13 @@ const start = async () => {
       const tvSyncService = new TvTmdbSyncService(app.prisma);
       const tvSyncIntervalMs = parsePositiveInt(process.env.TV_TMDB_SYNC_INTERVAL_MS, 6 * 60 * 60 * 1000);
       const tvSyncStartupDelayMs = parsePositiveInt(process.env.TV_TMDB_SYNC_STARTUP_DELAY_MS, 90 * 1000);
+      // Default to 5 pages per list so each run pulls ~300 unique shows instead of ~60
+      const tvSyncPagesPerList = parsePositiveInt(process.env.TV_TMDB_SYNC_PAGES_PER_LIST, 5);
+      const tvSyncMaxShows = parsePositiveInt(process.env.TV_TMDB_SYNC_MAX_SHOWS_PER_RUN, 300);
 
       const runTvSync = () => {
         tvSyncService
-          .syncCatalog()
+          .syncCatalog({ pagesPerList: tvSyncPagesPerList, maxShows: tvSyncMaxShows })
           .then((summary) => {
             app.log.info({ summary }, '[TvTmdbSync] Completed');
           })
@@ -343,7 +347,32 @@ const start = async () => {
 
       setInterval(runTvSync, tvSyncIntervalMs);
       setTimeout(runTvSync, tvSyncStartupDelayMs);
-      app.log.info({ tvSyncIntervalMs, tvSyncStartupDelayMs }, '[TvTmdbSync] Scheduler enabled');
+      app.log.info({ tvSyncIntervalMs, tvSyncStartupDelayMs, tvSyncPagesPerList, tvSyncMaxShows }, '[TvTmdbSync] Scheduler enabled');
+    }
+
+    // Movie TMDB catalog sync — runs every 12 hours, populates embed-streamable movies
+    const movieTmdbSyncEnabled = parseBooleanFlag(process.env.MOVIE_TMDB_SYNC_ENABLED, true);
+    if (movieTmdbSyncEnabled) {
+      const movieSyncService = new MovieTmdbSyncService(app.prisma);
+      const movieSyncIntervalMs = parsePositiveInt(process.env.MOVIE_TMDB_SYNC_INTERVAL_MS, 12 * 60 * 60 * 1000);
+      const movieSyncStartupDelayMs = parsePositiveInt(process.env.MOVIE_TMDB_SYNC_STARTUP_DELAY_MS, 2 * 60 * 1000);
+      const movieSyncPagesPerList = parsePositiveInt(process.env.MOVIE_TMDB_SYNC_PAGES_PER_LIST, 5);
+      const movieSyncMaxMovies = parsePositiveInt(process.env.MOVIE_TMDB_SYNC_MAX_MOVIES_PER_RUN, 500);
+
+      const runMovieSync = () => {
+        movieSyncService
+          .syncCatalog({ pagesPerList: movieSyncPagesPerList, maxMovies: movieSyncMaxMovies })
+          .then((summary) => {
+            app.log.info({ summary }, '[MovieTmdbSync] Completed');
+          })
+          .catch((error) => {
+            app.log.error({ error }, '[MovieTmdbSync] Failed');
+          });
+      };
+
+      setInterval(runMovieSync, movieSyncIntervalMs);
+      setTimeout(runMovieSync, movieSyncStartupDelayMs);
+      app.log.info({ movieSyncIntervalMs, movieSyncStartupDelayMs, movieSyncPagesPerList, movieSyncMaxMovies }, '[MovieTmdbSync] Scheduler enabled');
     }
 
     const movieChannelBootstrapEnabled = parseBooleanFlag(process.env.MOVIE_CHANNEL_BOOTSTRAP_ENABLED, true);
