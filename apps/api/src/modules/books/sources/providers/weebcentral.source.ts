@@ -66,6 +66,13 @@ export class WeebCentralSource extends BaseHtmlSource {
   private coerceSeriesId(value: string): string | null {
     const trimmed = value.trim();
     if (!trimmed) return null;
+    const prefixedMatch = trimmed.match(/^([a-z0-9_-]+):([A-Z0-9]{26})$/i);
+    if (prefixedMatch) {
+      const sourcePrefix = prefixedMatch[1]?.toLowerCase();
+      if (sourcePrefix === this.id) {
+        return prefixedMatch[2] || null;
+      }
+    }
     if (/^[A-Z0-9]{26}$/i.test(trimmed)) return trimmed;
     return this.extractSeriesId(trimmed);
   }
@@ -73,6 +80,13 @@ export class WeebCentralSource extends BaseHtmlSource {
   private coerceChapterId(value: string): string | null {
     const trimmed = value.trim();
     if (!trimmed) return null;
+    const prefixedMatch = trimmed.match(/^([a-z0-9_-]+):([A-Z0-9]{26})$/i);
+    if (prefixedMatch) {
+      const sourcePrefix = prefixedMatch[1]?.toLowerCase();
+      if (sourcePrefix === this.id) {
+        return prefixedMatch[2] || null;
+      }
+    }
     if (/^[A-Z0-9]{26}$/i.test(trimmed)) return trimmed;
     return this.extractChapterId(trimmed);
   }

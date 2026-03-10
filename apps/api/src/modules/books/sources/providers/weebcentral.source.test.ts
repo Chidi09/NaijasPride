@@ -25,6 +25,7 @@ test('WeebCentralSource extracts and coerces series IDs to ULID format', () => {
   assert.equal(source.extractSeriesId(`/series/${SERIES_ID}/Absolute-Sword-Sense`), SERIES_ID);
   assert.equal(source.extractSeriesId(`https://weebcentral.com/series/${SERIES_ID}`), SERIES_ID);
   assert.equal(source.coerceSeriesId(SERIES_ID), SERIES_ID);
+  assert.equal(source.coerceSeriesId(`weebcentral:${SERIES_ID}`), SERIES_ID);
   assert.equal(source.coerceSeriesId(`/series/${SERIES_ID}/Absolute-Sword-Sense`), SERIES_ID);
   assert.equal(source.toSeriesPath(SERIES_ID), `/series/${SERIES_ID}`);
 });
@@ -35,6 +36,7 @@ test('WeebCentralSource extracts and coerces chapter IDs to ULID format', () => 
   assert.equal(source.extractChapterId(`/chapters/${CHAPTER_ID}`), CHAPTER_ID);
   assert.equal(source.extractChapterId(`https://weebcentral.com/chapters/${CHAPTER_ID}/`), CHAPTER_ID);
   assert.equal(source.coerceChapterId(CHAPTER_ID), CHAPTER_ID);
+  assert.equal(source.coerceChapterId(`weebcentral:${CHAPTER_ID}`), CHAPTER_ID);
   assert.equal(source.coerceChapterId(`/chapters/${CHAPTER_ID}`), CHAPTER_ID);
   assert.equal(source.toChapterPath(CHAPTER_ID), `/chapters/${CHAPTER_ID}`);
 });
