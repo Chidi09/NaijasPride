@@ -91,7 +91,7 @@ interface FeaturedResponse {
       <section style="margin-bottom:52px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
           <h2 style="font-size:22px; font-weight:700; letter-spacing:-0.01em; margin:0; color:#f9f9f2;">Stream Cinema</h2>
-          <a routerLink="/movies" class="view-all-btn">Browse Movies</a>
+          <a routerLink="/category/all" class="view-all-btn">Browse Movies</a>
         </div>
 
         @if (isLoading() && streamOnly().length === 0) {
