@@ -13,6 +13,7 @@ import { adminUserRoutes } from "./admin-user.routes";
 import { z } from "zod";
 import { Genre as PrismaGenre } from "@prisma/client";
 import { QueueService } from "../../shared/services/queue.service";
+import { getPushDiagnostics } from "../../shared/services/push-notification.service";
 
 // Validation schemas
 const RssUrlSchema = z.object({
@@ -88,6 +89,11 @@ const AnnasMirrorRunSchema = z.object({
   dryRun: z.boolean().optional().default(false),
 });
 
+const PushDiagnosticsQuerySchema = z.object({
+  userId: z.string().uuid().optional(),
+  email: z.string().email().optional(),
+});
+
 export const adminRoutes = async (
   app: FastifyInstance,
   _opts: unknown,
@@ -113,6 +119,30 @@ export const adminRoutes = async (
       });
     }
   };
+
+  // GET /api/admin/push/diagnostics - quick push/FCM health + token stats
+  app.get('/push/diagnostics', {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      querystring: PushDiagnosticsQuerySchema,
+    },
+    handler: async (request, reply) => {
+      try {
+        const { userId, email } = request.query as z.infer<typeof PushDiagnosticsQuerySchema>;
+        const diagnostics = await getPushDiagnostics(app.prisma, { userId, email });
+
+        return reply.send({
+          status: 'success',
+          data: diagnostics,
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch push diagnostics',
+        });
+      }
+    },
+  });
 
   // GET /api/admin/discovery/youtube - Scan YouTube for Nollywood movies
   app.get("/discovery/youtube", {

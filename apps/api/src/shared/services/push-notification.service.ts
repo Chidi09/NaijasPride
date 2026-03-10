@@ -605,3 +605,77 @@ export function getPushService(prisma: PrismaClient): PushNotificationService {
   }
   return _instances.get(prisma)!;
 }
+
+export async function getPushDiagnostics(
+  prisma: PrismaClient,
+  opts?: { userId?: string; email?: string }
+): Promise<{
+  firebaseConfigured: boolean;
+  firebaseReady: boolean;
+  tokenStats: {
+    total: number;
+    active: number;
+    forUser?: {
+      userId: string;
+      email: string;
+      total: number;
+      active: number;
+      latestTokenCreatedAt: string | null;
+    };
+  };
+}> {
+  const firebaseConfigured = !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const messaging = await getMessaging();
+  const firebaseReady = !!messaging;
+
+  const [total, active] = await Promise.all([
+    prisma.pushNotificationToken.count(),
+    prisma.pushNotificationToken.count({ where: { isActive: true } }),
+  ]);
+
+  let forUser:
+    | {
+        userId: string;
+        email: string;
+        total: number;
+        active: number;
+        latestTokenCreatedAt: string | null;
+      }
+    | undefined;
+
+  if (opts?.userId || opts?.email) {
+    const user = await prisma.user.findFirst({
+      where: opts.userId ? { id: opts.userId } : { email: opts.email },
+      select: { id: true, email: true },
+    });
+
+    if (user) {
+      const tokens = await prisma.pushNotificationToken.findMany({
+        where: { userId: user.id },
+        select: { isActive: true, createdAt: true },
+      });
+
+      const latest = tokens
+        .map((t) => t.createdAt)
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+
+      forUser = {
+        userId: user.id,
+        email: user.email,
+        total: tokens.length,
+        active: tokens.filter((t) => t.isActive).length,
+        latestTokenCreatedAt: latest ? latest.toISOString() : null,
+      };
+    }
+  }
+
+  return {
+    firebaseConfigured,
+    firebaseReady,
+    tokenStats: {
+      total,
+      active,
+      ...(forUser ? { forUser } : {}),
+    },
+  };
+}
