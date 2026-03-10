@@ -31,9 +31,38 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const query = request.query;
 
+      const uniqueById = <T extends { id: string }>(items: T[]): T[] => {
+        const seen = new Set<string>();
+        const out: T[] = [];
+        for (const item of items) {
+          if (!item?.id || seen.has(item.id)) continue;
+          seen.add(item.id);
+          out.push(item);
+        }
+        return out;
+      };
+
+      const tokenizeFuzzy = (input: string): string[] => {
+        const words = input
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .map((w) => w.trim())
+          .filter((w) => w.length >= 2);
+
+        const variants = new Set<string>();
+        for (const word of words) {
+          variants.add(word);
+          if (word.length >= 4) variants.add(word.slice(0, -1));
+          if (word.length >= 5) variants.add(word.slice(0, 3));
+        }
+
+        return Array.from(variants).slice(0, 3);
+      };
+
       // Each arm has its own .catch() so a single service failure (e.g. manga
       // scraper hitting a Cloudflare block) doesn't kill the whole response.
-      const [movies, books, music, manga] = await Promise.all([
+      const [moviesInitial, booksInitial, musicInitial, mangaInitial] = await Promise.all([
         moviesService.search({
           q: query.q,
           page: 1,
@@ -65,21 +94,65 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
         }),
       ]);
 
+      let movies = moviesInitial.data || [];
+      let books = booksInitial.data || [];
+      let music = musicInitial.videos || [];
+      let manga = mangaInitial || [];
+
+      const totalInitial = movies.length + books.length + music.length + manga.length;
+
+      // Fuzzy fallback when direct query yields little/no results (typos / imperfect input).
+      if (totalInitial < 4) {
+        const fuzzyTerms = tokenizeFuzzy(query.q);
+        if (fuzzyTerms.length > 0) {
+          for (const term of fuzzyTerms) {
+            const [m2, b2, mu2, ma2] = await Promise.all([
+              moviesService.search({
+                q: term,
+                page: 1,
+                limit: query.movieLimit,
+                sortBy: 'popular',
+              }).catch(() => ({ data: [], total: 0 })),
+              booksService.search({
+                q: term,
+                page: 1,
+                limit: query.bookLimit,
+              }).catch(() => ({ data: [], total: 0 })),
+              musicService.search({
+                q: term,
+                page: 1,
+                limit: query.musicLimit,
+              }).catch(() => ({ videos: [], total: 0 })),
+              mangaService.searchManga(term, query.mangaLimit, {}).catch(() => [] as Awaited<ReturnType<typeof mangaService.searchManga>>),
+            ]);
+
+            movies = uniqueById([...movies, ...(m2.data || [])]).slice(0, query.movieLimit);
+            books = uniqueById([...books, ...(b2.data || [])]).slice(0, query.bookLimit);
+            music = uniqueById([...music, ...(mu2.videos || [])]).slice(0, query.musicLimit);
+            manga = uniqueById([...manga, ...(ma2 || [])]).slice(0, query.mangaLimit);
+
+            if (movies.length + books.length + music.length + manga.length >= 8) {
+              break;
+            }
+          }
+        }
+      }
+
       return reply.send({
         success: true,
         data: {
-          movies: movies.data || [],
-          books: books.data || [],
-          music: music.videos || [],
-          manga: manga || [],
+          movies,
+          books,
+          music,
+          manga,
         },
         meta: {
           query: query.q,
           counts: {
-            movies: movies.data?.length || 0,
-            books: books.data?.length || 0,
-            music: music.videos?.length || 0,
-            manga: manga?.length || 0,
+            movies: movies.length,
+            books: books.length,
+            music: music.length,
+            manga: manga.length,
           },
         },
       });

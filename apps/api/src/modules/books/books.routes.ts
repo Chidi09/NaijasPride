@@ -1490,6 +1490,12 @@ export const bookRoutes = async (
         });
 
         if (response.status < 200 || response.status >= 300) {
+          // Some WeebCentral image CDNs intermittently block data-center IPs.
+          // Fall back to direct client fetch so residential/mobile clients can still load pages.
+          if (sourceId === 'weebcentral' && response.status === 403) {
+            return reply.redirect(url);
+          }
+
           return reply.status(response.status).send({
             status: 'error',
             message: `Upstream image request failed (${response.status})`,
