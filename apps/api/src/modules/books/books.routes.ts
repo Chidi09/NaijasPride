@@ -14,7 +14,6 @@ import {
 import { importEpubBooksCatalog } from './external/epubbooks/importer';
 import {
   discoverElsciLightNovelFiles,
-  fetchElsciLightNovelFileStream,
   type ElsciRequestedFormat,
 } from './external/elsci/elsci-lightnovels';
 import { importElsciLightNovelsCatalog } from './external/elsci/importer';
@@ -437,6 +436,15 @@ export const bookRoutes = async (
         return raw.startsWith('/') ? raw : `/${raw.replace(/^\/+/, '')}`;
       }
     }
+  };
+
+  const getElsciMirrorKeyCandidates = (slug: string, format?: string | null): string[] => {
+    const normalized = (format || '').toLowerCase();
+    const extensions = ['epub', 'pdf', 'mobi', 'azw3'];
+    const orderedExt = normalized && extensions.includes(normalized)
+      ? [normalized, ...extensions.filter((entry) => entry !== normalized)]
+      : extensions;
+    return orderedExt.map((ext) => `books/elsci/${slug}.${ext}`);
   };
 
   type OpenLibrarySearchDoc = {
@@ -1564,59 +1572,17 @@ export const bookRoutes = async (
   });
 
   // GET /api/books/external/elsci/file?href=...&disposition=inline|attachment
-  // Streams a specific Elsci file through our API.
+  // DISABLED: Elsci upstream proxy removed — only R2 storage is used.
   app.get('/external/elsci/file', {
-    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    config: { rateLimit: { max: 1, timeWindow: '1 minute' } },
     schema: {
       querystring: elsciFileQuerySchema,
     },
-    handler: async (request, reply) => {
-      let requestedHref = '';
-      try {
-        const { href, disposition } = elsciFileQuerySchema.parse(request.query ?? {});
-        requestedHref = href;
-        const upstream = await fetchElsciLightNovelFileStream(href);
-        const upstreamDisposition = upstream.headers['content-disposition'];
-        const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
-
-        let fallbackFilename = href.split('/').pop() || 'light-novel-file';
-        try {
-          fallbackFilename = decodeURIComponent(fallbackFilename);
-        } catch {
-          // Use raw fallback filename when decode fails.
-        }
-
-        const filename = upstreamFilename || fallbackFilename;
-        const contentType =
-          inferContentTypeFromFilename(filename) ||
-          (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
-          'application/octet-stream';
-
-        const contentLength = upstream.headers['content-length'];
-        if (typeof contentLength === 'string') {
-          reply.header('content-length', contentLength);
-        }
-
-        reply.header('content-type', contentType);
-        reply.header('cache-control', 'private, max-age=0');
-        reply.header('content-disposition', `${disposition}; filename="${filename.replace(/"/g, '')}"`);
-        return reply.send(upstream.stream);
-      } catch (error) {
-        // Do NOT redirect to server.elsci.one — the browser will get CORS-blocked
-        // because that origin has no Access-Control-Allow-Origin header.
-        const isBlocked =
-          error instanceof Error && /Elsci file request blocked with status/i.test(error.message);
-        request.log.warn(
-          { err: error, href: requestedHref },
-          '[Elsci] Upstream blocked or failed for external file request',
-        );
-        return reply.status(503).send({
-          status: 'error',
-          message: isBlocked
-            ? 'This light novel is temporarily unavailable (upstream blocked). Please try again later.'
-            : 'Failed to stream Elsci light novel file.',
-        });
-      }
+    handler: async (_request, reply) => {
+      return reply.status(404).send({
+        status: 'error',
+        message: 'Elsci upstream proxy disabled. Light novels must be mirrored to R2 storage.',
+      });
     },
   });
 
@@ -2203,67 +2169,38 @@ export const bookRoutes = async (
         const r2KeyFromUrl = book.downloadUrl ? extractDownloadKeyFromUrl(book.downloadUrl) : null;
         const isElsci = slug.toLowerCase().startsWith('elsci-ln-') || (book.publisher || '').toLowerCase() === 'elsci';
         if (isElsci && !r2KeyFromUrl) {
-          if (!book.downloadUrl) {
-            return reply.status(404).send({
-              status: 'error',
-              message: 'This Elsci book does not have a source href',
-            });
-          }
+          const mirrorCandidates = getElsciMirrorKeyCandidates(slug, book.format);
 
-          const href = extractElsciHrefFromUrl(book.downloadUrl);
-          if (!href) {
-            return reply.status(400).send({
-              status: 'error',
-              message: 'Invalid Elsci download URL format',
-            });
-          }
-
-          try {
-            const upstream = await fetchElsciLightNovelFileStream(href);
-            const upstreamDisposition = upstream.headers['content-disposition'];
-            const upstreamFilename = extractFilenameFromContentDisposition(upstreamDisposition);
-
-            let fallbackFilename = href.split('/').pop() || `${slug}.epub`;
+          for (const key of mirrorCandidates) {
             try {
-              fallbackFilename = decodeURIComponent(fallbackFilename);
+              const r2Object = await storageService.getObjectStream(key);
+
+              const fallbackExt = key.split('.').pop() || (book.format || '').toLowerCase() || 'bin';
+              const safeTitle = sanitizeStorageFilename(book.title || slug);
+              const effectiveFilename = `${safeTitle}.${fallbackExt}`;
+              const contentType =
+                inferContentTypeFromFilename(effectiveFilename) ||
+                r2Object.contentType ||
+                'application/octet-stream';
+
+              if (r2Object.contentLength) {
+                reply.header('content-length', String(r2Object.contentLength));
+              }
+
+              reply.header('content-type', contentType);
+              reply.header('cache-control', 'private, max-age=0');
+              reply.header('content-disposition', `${disposition}; filename="${effectiveFilename.replace(/"/g, '')}"`);
+              return reply.send(r2Object.stream);
             } catch {
-              // Keep raw fallback filename when decode fails.
+              // Try next candidate key.
             }
-
-            const filename = upstreamFilename || fallbackFilename;
-            const contentType =
-              inferContentTypeFromFilename(filename) ||
-              (typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : null) ||
-              'application/octet-stream';
-
-            const contentLength = upstream.headers['content-length'];
-            if (typeof contentLength === 'string') {
-              reply.header('content-length', contentLength);
-            }
-
-            reply.header('content-type', contentType);
-            reply.header('cache-control', 'private, max-age=0');
-            reply.header('content-disposition', `${disposition}; filename="${filename.replace(/\"/g, '')}"`);
-            return reply.send(upstream.stream);
-          } catch (error) {
-            // Do NOT redirect to the Elsci origin URL — that causes CORS errors in the
-            // browser because server.elsci.one has no Access-Control-Allow-Origin header.
-            // Redirecting makes epubjs resolve /META-INF/container.xml against the API
-            // origin, which returns HTML and surfaces as an XML parse error.
-            // Instead, return a 503 so the reader shows a friendly error message.
-            const isBlocked =
-              error instanceof Error && /Elsci file request blocked with status/i.test(error.message);
-            request.log.warn(
-              { err: error, slug },
-              '[Elsci] Upstream blocked or failed for slug file request',
-            );
-            return reply.status(503).send({
-              status: 'error',
-              message: isBlocked
-                ? 'This light novel is temporarily unavailable (upstream blocked). Please try again later.'
-                : 'Failed to retrieve file from upstream source.',
-            });
           }
+
+          // Elsci upstream proxy disabled — only R2 storage is used.
+          return reply.status(404).send({
+            status: 'error',
+            message: 'Light novel not available in storage.',
+          });
         }
 
         // Otherwise, treat as internally hosted (GCS/S3/CDN) via storageKey.
@@ -2337,16 +2274,41 @@ export const bookRoutes = async (
           });
         }
 
-        // For epubBooks and Elsci books, we can't easily check accessibility without making a request
-        // So we just verify the downloadUrl format is valid
+        // For epubBooks, we can't cheaply preflight upstream without opening a full stream.
         const isEpubBooks = slug.toLowerCase().startsWith('epubbooks-') || (book.publisher || '').toLowerCase() === 'epubbooks';
         const isElsci = slug.toLowerCase().startsWith('elsci-ln-') || (book.publisher || '').toLowerCase() === 'elsci';
 
-        if (isEpubBooks || isElsci) {
-          // These are proxied through our API, so they should be accessible if downloadUrl exists
+        if (isEpubBooks) {
           return reply.status(200).send({
             status: 'success',
             accessible: true,
+          });
+        }
+
+        if (isElsci) {
+          const directKey = extractDownloadKeyFromUrl(book.downloadUrl);
+          const candidates = directKey ? [directKey] : getElsciMirrorKeyCandidates(slug, book.format);
+
+          for (const key of candidates) {
+            try {
+              const probe = await storageService.getObjectStream(key);
+              const stream = probe.stream as NodeJS.ReadableStream & { destroy?: () => void };
+              if (typeof stream.destroy === 'function') {
+                stream.destroy();
+              }
+              return reply.status(200).send({
+                status: 'success',
+                accessible: true,
+              });
+            } catch {
+              // Keep probing candidates.
+            }
+          }
+
+          return reply.status(503).send({
+            status: 'error',
+            accessible: false,
+            message: 'Light novel is not mirrored to storage and upstream may be unavailable.',
           });
         }
 

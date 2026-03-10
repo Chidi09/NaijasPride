@@ -807,7 +807,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
     // Books
     this.http.get<{ success?: boolean; data?: BookSummary[] }>('/api/v1/books', {
-      params: { page: '1', limit: '4', kind: 'book' },
+      params: { page: '1', limit: '4' },
     }).subscribe({
       next: (res) => {
         const nextBooks = (res.data || []).slice(0, 4);

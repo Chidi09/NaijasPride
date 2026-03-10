@@ -1,6 +1,8 @@
 import {
   Component,
   Input,
+  Output,
+  EventEmitter,
   OnInit,
   OnDestroy,
   OnChanges,
@@ -115,6 +117,9 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   @Input() episodeId: string | null = null;
   /** Optional: resume position in seconds */
   @Input() startAt = 0;
+  /** Optional: known media duration in seconds (used for fallback tracking) */
+  @Input() durationHintSeconds = 0;
+  @Output() playbackEnded = new EventEmitter<void>();
 
   private http = inject(HttpClient);
   private sanitizer = inject(DomSanitizer);
@@ -126,6 +131,9 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   private destroy$ = new Subject<void>();
   private progress$ = new Subject<{ currentTime: number; duration: number }>();
   private boundListener?: (event: MessageEvent) => void;
+  private fallbackTimer: ReturnType<typeof setInterval> | null = null;
+  private fallbackCurrentTime = 0;
+  private endedEmitted = false;
 
   providers = signal<EmbedProvider[]>([]);
   activeProvider = signal<EmbedProvider | null>(null);
@@ -167,6 +175,7 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   ngOnDestroy(): void {
+    this.stopFallbackTracking();
     this.destroy$.next();
     this.destroy$.complete();
     if (isPlatformBrowser(this.platformId) && this.boundListener) {
@@ -176,6 +185,8 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
 
   switchProvider(provider: EmbedProvider): void {
     this.activeProvider.set(provider);
+    this.endedEmitted = false;
+    this.configureTrackingForProvider(provider);
   }
 
   private fetchProviders(): void {
@@ -208,8 +219,10 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
           this.providers.set(list);
           if (list.length > 0) {
             this.activeProvider.set(list[0]);
+            this.configureTrackingForProvider(list[0]);
           } else {
             this.hasError.set(true);
+            this.stopFallbackTracking();
           }
           this.isLoading.set(false);
         },
@@ -217,8 +230,42 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
           this.providers.set([]);
           this.hasError.set(true);
           this.isLoading.set(false);
+          this.stopFallbackTracking();
         },
       });
+  }
+
+  private configureTrackingForProvider(provider: EmbedProvider): void {
+    if (provider.supportsProgressEvents) {
+      this.stopFallbackTracking();
+      return;
+    }
+
+    // Fallback tracking for providers that do not emit postMessage progress events.
+    // This is time-based (approximate), but better than dropping progress completely.
+    this.stopFallbackTracking();
+    this.fallbackCurrentTime = Math.max(0, Math.floor(this.startAt || 0));
+    this.fallbackTimer = setInterval(() => {
+      if (!isPlatformBrowser(this.platformId)) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      this.fallbackCurrentTime += 15;
+      const hintedDuration = Math.max(0, Math.floor(this.durationHintSeconds || 0));
+      const duration = hintedDuration > 0 ? hintedDuration : Math.max(this.fallbackCurrentTime + 600, 3600);
+      this.progress$.next({ currentTime: this.fallbackCurrentTime, duration });
+
+      if (hintedDuration > 0 && this.fallbackCurrentTime >= hintedDuration - 5) {
+        this.stopFallbackTracking();
+        this.emitPlaybackEnded();
+      }
+    }, 15000);
+  }
+
+  private stopFallbackTracking(): void {
+    if (this.fallbackTimer) {
+      clearInterval(this.fallbackTimer);
+      this.fallbackTimer = null;
+    }
   }
 
   private onMessage(event: MessageEvent): void {
@@ -247,8 +294,15 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
 
       if ((evtName === 'ended' || evtName === 'complete' || evtName === 'finished') && duration > 0) {
         this.persistProgress(Math.floor(duration), Math.floor(duration));
+        this.emitPlaybackEnded();
       }
     }
+  }
+
+  private emitPlaybackEnded(): void {
+    if (this.endedEmitted) return;
+    this.endedEmitted = true;
+    this.playbackEnded.emit();
   }
 
   private isAllowedVidkingOrigin(origin: string): boolean {

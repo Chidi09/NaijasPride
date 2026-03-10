@@ -60,6 +60,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
                 <app-embed-player
                   [movieId]="m.id"
                   [movieSlug]="m.slug"
+                  [durationHintSeconds]="getDurationHintSeconds(m)"
                 ></app-embed-player>
               } @else if (streamSource() === 'hosted' && resolvedStreamUrl()) {
                 @if (isOffline()) {
@@ -288,5 +289,11 @@ export class WatchRoomComponent {
 
   onPlayerReady() {
     // Player is ready
+  }
+
+  getDurationHintSeconds(movie: Movie): number {
+    const minutes = Number(movie?.durationMinutes || 0);
+    if (!Number.isFinite(minutes) || minutes <= 0) return 0;
+    return Math.floor(minutes * 60);
   }
 }
