@@ -200,10 +200,10 @@ import { AuthStateService } from '../../../../core/auth/auth-state.service';
         }
 
         <!-- EMPTY STATE -->
-        @if (query.data()?.data?.length === 0) {
+        @if (streamMovies().length === 0) {
           <div class="empty-state">
             <span style="font-size:56px;margin-bottom:16px;">🎬</span>
-            <p style="font-size:17px;font-weight:600;margin:0 0 16px;">No movies match your filters.</p>
+            <p style="font-size:17px;font-weight:600;margin:0 0 16px;">No streamable non-YouTube movies match your filters.</p>
             <button
               (click)="onFilterChange({ q: undefined, genre: undefined, year: undefined, quality: undefined })"
               style="padding:9px 24px;background:rgba(128,0,32,0.15);color:#800020;border:1px solid rgba(128,0,32,0.35);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.2s;"
@@ -232,7 +232,6 @@ export class MovieListComponent {
     page: 1, 
     limit: 20,
     sortBy: 'latest',
-    isStreamOnly: true,
     youtubeOnly: false,
   });
 
@@ -278,7 +277,6 @@ export class MovieListComponent {
           year: Number.isFinite(year as number) ? (year as number) : undefined,
           genre,
           quality,
-          isStreamOnly: true,
           youtubeOnly: false,
         });
         this.syncingFromUrl = false;
@@ -353,7 +351,6 @@ export class MovieListComponent {
       year: params.year || undefined,
       genre: params.genre?.[0] || undefined,
       quality: params.quality || undefined,
-      isStreamOnly: true,
       youtubeOnly: false,
     };
 
@@ -407,6 +404,6 @@ export class MovieListComponent {
   }
 
   streamMovies() {
-    return (this.query.data()?.data || []).filter((movie) => movie.canStream);
+    return (this.query.data()?.data || []).filter((movie) => movie.canStream && !movie.youtubeId);
   }
 }
