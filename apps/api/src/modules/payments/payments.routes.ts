@@ -29,15 +29,32 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Look up the plan price from DB by slug, fall back to legacy monthly/yearly amounts
       let amountKobo: number;
+      let durationDays: number | undefined;
+      let planName: string | undefined;
+      let planId: string | undefined;
       const dbPlan = await fastify.prisma.plan.findUnique({ where: { slug: plan } });
       if (dbPlan) {
         amountKobo = dbPlan.price * 100; // price is in Naira, Paystack needs kobo
+        durationDays = dbPlan.durationDays;
+        planName = dbPlan.name;
+        planId = dbPlan.id;
       } else {
         // Legacy fallback: monthly = ₦1,500, yearly = ₦12,000
         amountKobo = plan === 'yearly' ? 1_200_000 : 150_000;
+        durationDays = plan === 'yearly' ? 365 : 30;
+        planName = plan === 'yearly' ? 'Yearly Plan' : 'Monthly Plan';
       }
 
-      const data = await service.initializeTransaction({ id: user.id, email: user.email }, amountKobo);
+      const data = await service.initializeTransaction(
+        { id: user.id, email: user.email },
+        amountKobo,
+        {
+          planSlug: plan,
+          planId,
+          planName,
+          durationDays,
+        }
+      );
       return { success: true, data };
     }
   );
@@ -67,9 +84,12 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(401).send('Invalid signature');
     }
 
-    service.handleWebhook(req.body).catch((err) => {
+    try {
+      await service.handleWebhook(req.body);
+    } catch (err) {
       fastify.log.error({ err }, '[Paystack] webhook handling failed');
-    });
+      return reply.status(500).send('Webhook processing failed');
+    }
 
     return reply.status(200).send('OK');
   });
