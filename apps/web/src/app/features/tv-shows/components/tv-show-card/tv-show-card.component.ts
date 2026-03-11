@@ -40,9 +40,11 @@ import { TvShowFavoritesService } from '../../services/tv-show-favorites.service
       <div class="relative aspect-[2/3] overflow-hidden bg-gradient-to-b from-zinc-800 to-zinc-900">
         <img
           class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-          [src]="show.posterUrl || show.thumbnailUrl || '/assets/images/poster-placeholder.svg'"
+          [src]="imageSrc()"
           [alt]="show.title"
           loading="lazy"
+          (load)="onImageLoad($event)"
+          (error)="onImageError($event)"
         />
         
         <!-- Gradient Overlay -->
@@ -108,6 +110,13 @@ export class TvShowCardComponent {
 
   private favorites = inject(TvShowFavoritesService);
   private refreshTick = signal(0);
+  private placeholder = '/assets/images/poster-placeholder.svg';
+
+  imageSrc = computed(() => {
+    const poster = this.show?.posterUrl?.trim();
+    const thumb = this.show?.thumbnailUrl?.trim();
+    return poster || thumb || this.placeholder;
+  });
 
   isFavorite = computed(() => {
     this.refreshTick();
@@ -120,5 +129,23 @@ export class TvShowCardComponent {
     if (!this.show?.id) return;
     this.favorites.toggle(this.show.id);
     this.refreshTick.update((value) => value + 1);
+  }
+
+  onImageLoad(event: Event): void {
+    const image = event.target as HTMLImageElement | null;
+    image?.classList.add('loaded');
+  }
+
+  onImageError(event: Event): void {
+    const image = event.target as HTMLImageElement | null;
+    if (!image) return;
+
+    if (image.src.includes(this.placeholder)) {
+      image.classList.add('loaded');
+      return;
+    }
+
+    image.src = this.placeholder;
+    image.classList.add('loaded');
   }
 }
