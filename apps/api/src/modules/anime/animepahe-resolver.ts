@@ -34,6 +34,7 @@ const ANIMEPAHE_SITE_ORIGIN = process.env.ANIMEPAHE_SITE_ORIGIN || 'https://anim
 const ANIMEPAHE_API_URL = process.env.ANIMEPAHE_API_URL || `${ANIMEPAHE_SITE_ORIGIN}/api?m=`;
 const ANIMEPAHE_TIMEOUT_MS = Number(process.env.ANIMEPAHE_TIMEOUT_MS || 15000);
 const ANIMEPAHE_BROWSER_WAIT_MS = Number(process.env.ANIMEPAHE_BROWSER_WAIT_MS || 5000);
+const ANIMEPAHE_BROWSER_REFRESH_MS = Number(process.env.ANIMEPAHE_BROWSER_REFRESH_MS || 10 * 60 * 1000);
 
 let browserHandle: {
   browser: Browser;
@@ -48,6 +49,16 @@ type AnimepaheBrowserHandle = {
 
 let browserInitPromise: Promise<AnimepaheBrowserHandle> | null = null;
 let browserQueue: Promise<void> = Promise.resolve();
+let browserHandleCreatedAt = 0;
+
+const animepaheRuntimeStats = {
+  challengeHits: 0,
+  browserFetches: 0,
+  browserReinits: 0,
+  browserRefreshes: 0,
+};
+
+export const getAnimepaheRuntimeStats = () => ({ ...animepaheRuntimeStats });
 
 const withBrowserLock = async <T>(fn: () => Promise<T>): Promise<T> => {
   const run = browserQueue.then(fn, fn);
@@ -77,6 +88,11 @@ const disposeBrowserHandle = async (): Promise<void> => {
 };
 
 const ensureBrowserHandle = async (): Promise<AnimepaheBrowserHandle> => {
+  if (browserHandle && Date.now() - browserHandleCreatedAt > ANIMEPAHE_BROWSER_REFRESH_MS) {
+    animepaheRuntimeStats.browserRefreshes += 1;
+    await disposeBrowserHandle();
+  }
+
   if (browserHandle) return browserHandle;
   if (!browserInitPromise) {
     browserInitPromise = (async () => {
@@ -91,6 +107,8 @@ const ensureBrowserHandle = async (): Promise<AnimepaheBrowserHandle> => {
       });
       await page.waitForTimeout(ANIMEPAHE_BROWSER_WAIT_MS);
       browserHandle = { browser, context, page };
+      browserHandleCreatedAt = Date.now();
+      animepaheRuntimeStats.browserReinits += 1;
       return browserHandle;
     })();
   }
@@ -107,6 +125,7 @@ const ensureBrowserHandle = async (): Promise<AnimepaheBrowserHandle> => {
 };
 
 const browserBackedFetchText = async (url: string): Promise<{ ok: boolean; status: number; contentType: string; text: string }> => {
+  animepaheRuntimeStats.browserFetches += 1;
   const execute = async () => {
     const handle = await ensureBrowserHandle();
     return handle.page.evaluate(async (target) => {
@@ -128,6 +147,8 @@ const browserBackedFetchText = async (url: string): Promise<{ ok: boolean; statu
 
   let result = await withBrowserLock(execute);
   if (!isDdosGuardChallenge(result.text)) return result;
+
+  animepaheRuntimeStats.challengeHits += 1;
 
   await withBrowserLock(async () => {
     await disposeBrowserHandle();
@@ -168,6 +189,7 @@ const animepaheRequest = async <T>(url: string, json = true): Promise<T> => {
     const text = await response.text();
     if (!json) {
       if (isDdosGuardChallenge(text)) {
+        animepaheRuntimeStats.challengeHits += 1;
         const browserResponse = await browserBackedFetchText(url);
         if (!browserResponse.ok) {
           throw new Error(`Animepahe browser request failed with status ${browserResponse.status}`);
@@ -183,6 +205,7 @@ const animepaheRequest = async <T>(url: string, json = true): Promise<T> => {
     }
 
     if (isDdosGuardChallenge(text)) {
+      animepaheRuntimeStats.challengeHits += 1;
       const browserResponse = await browserBackedFetchText(url);
       if (!browserResponse.ok) {
         throw new Error(`Animepahe browser request failed with status ${browserResponse.status}`);

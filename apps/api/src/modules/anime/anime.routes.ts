@@ -1,7 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { resolveAnimepaheEpisodesByTitles, resolveAnimepaheWatchByTitles } from './animepahe-resolver';
+import { getAnimepaheRuntimeStats, resolveAnimepaheEpisodesByTitles, resolveAnimepaheWatchByTitles } from './animepahe-resolver';
+import {
+  createResolutionTrace,
+  pushResolutionEvent,
+  summarizeResolutionTrace,
+  type ResolutionTraceEvent,
+} from './anime-resolution-observability';
 
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 const ANILIST_TIMEOUT_MS = 12_000;
@@ -441,6 +447,10 @@ const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
+  const logResolutionTrace = (request: { log: { info: (payload: unknown, message: string) => void } }, trace: ResolutionTraceEvent[]) => {
+    request.log.info({ traceSummary: summarizeResolutionTrace(trace), trace }, 'Anime resolution trace');
+  };
+
   app.get('/search', {
     schema: {
       querystring: animeSearchQuerySchema,
@@ -522,12 +532,19 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const { id } = request.params;
       const { provider } = request.query;
+      const resolutionTrace = createResolutionTrace();
 
       if (shouldTryAnimepahePrimary(provider)) {
         try {
           const titles = await anilistTitlesForAnime(id);
           const animepahe = await resolveAnimepaheEpisodesByTitles(titles);
           if (animepahe && animepahe.episodes.length > 0) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'animepahe-episodes',
+              provider: 'animepahe',
+              outcome: 'success',
+            });
+            logResolutionTrace(request, resolutionTrace);
             return reply.send({
               success: true,
               data: {
@@ -538,10 +555,27 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 episodes: animepahe.episodes,
                 bridgeAvailable: true,
                 message: null,
+                resolutionTrace,
+                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                animepaheRuntime: getAnimepaheRuntimeStats(),
               },
             });
           }
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'animepahe-episodes',
+            provider: 'animepahe',
+            outcome: 'miss',
+            detail: 'No animepahe episodes resolved',
+          });
+          request.log.warn({ animeId: id, provider }, 'Animepahe episodes primary miss');
         } catch {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'animepahe-episodes',
+            provider: 'animepahe',
+            outcome: 'error',
+            detail: 'Animepahe episodes resolver error',
+          });
+          request.log.warn({ animeId: id, provider, animepaheRuntime: getAnimepaheRuntimeStats() }, 'Animepahe episodes primary error');
           // Fall through to bridge providers
         }
       }
@@ -558,12 +592,29 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             usedProvider = candidate;
             info = attempt;
             episodes = mapped;
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'bridge-episodes',
+              provider: candidate,
+              outcome: 'success',
+            });
             break;
           }
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'bridge-episodes',
+            provider: candidate,
+            outcome: 'miss',
+            detail: 'No bridge episodes from provider',
+          });
           if (!info) {
             info = attempt;
           }
         } catch {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'bridge-episodes',
+            provider: candidate,
+            outcome: 'error',
+            detail: 'Bridge episodes request failed',
+          });
           continue;
         }
       }
@@ -583,6 +634,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           episodes,
           bridgeAvailable,
           message: bridgeAvailable ? null : 'No stream episodes resolved from bridge providers right now.',
+          resolutionTrace,
+          resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+          animepaheRuntime: getAnimepaheRuntimeStats(),
         },
       });
     } catch (error) {
@@ -606,12 +660,19 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const { id, episodeNumber } = request.params;
       const { provider, server } = request.query;
+      const resolutionTrace = createResolutionTrace();
 
       if (shouldTryAnimepahePrimary(provider)) {
         try {
           const titles = await anilistTitlesForAnime(id);
           const animepahe = await resolveAnimepaheWatchByTitles(titles, episodeNumber);
           if (animepahe && animepahe.sources.length > 0) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'animepahe-watch',
+              provider: 'animepahe',
+              outcome: 'success',
+            });
+            logResolutionTrace(request, resolutionTrace);
             return reply.send({
               success: true,
               data: {
@@ -631,10 +692,30 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 subtitles: [],
                 headers: animepahe.headers,
                 download: null,
+                resolutionTrace,
+                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                animepaheRuntime: getAnimepaheRuntimeStats(),
               },
             });
           }
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'animepahe-watch',
+            provider: 'animepahe',
+            outcome: 'miss',
+            detail: 'No animepahe watch sources resolved',
+          });
+          request.log.warn({ animeId: id, episodeNumber, provider }, 'Animepahe watch primary miss');
         } catch {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'animepahe-watch',
+            provider: 'animepahe',
+            outcome: 'error',
+            detail: 'Animepahe watch resolver error',
+          });
+          request.log.warn(
+            { animeId: id, episodeNumber, provider, animepaheRuntime: getAnimepaheRuntimeStats() },
+            'Animepahe watch primary error',
+          );
           // Fall through to bridge providers
         }
       }
@@ -686,8 +767,19 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           episode = targetEpisode;
           watch = watchAttempt;
           sources = mappedSources;
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'bridge-watch',
+            provider: candidate,
+            outcome: 'success',
+          });
           break;
         } catch {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'bridge-watch',
+            provider: candidate,
+            outcome: 'error',
+            detail: 'Bridge watch request failed',
+          });
           continue;
         }
       }
@@ -695,6 +787,12 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       if ((!episode || !watch || !resolvedProvider || sources.length === 0) && fallbackEpisodeId) {
         const fallbackSources = await hianimeEmbedFallback(fallbackEpisodeId);
         if (fallbackSources.length > 0) {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'hianime-fallback',
+            provider: 'hianime',
+            outcome: 'success',
+          });
+          logResolutionTrace(request, resolutionTrace);
           return reply.send({
             success: true,
             data: {
@@ -707,21 +805,37 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               subtitles: [],
               headers: {},
               download: null,
+              resolutionTrace,
+              resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+              animepaheRuntime: getAnimepaheRuntimeStats(),
             },
           });
         }
+        pushResolutionEvent(resolutionTrace, {
+          stage: 'hianime-fallback',
+          provider: 'hianime',
+          outcome: 'miss',
+          detail: 'No hianime fallback embeds resolved',
+        });
       }
 
       if (!episode || !watch || !resolvedProvider) {
+        logResolutionTrace(request, resolutionTrace);
         return reply.status(404).send({
           success: false,
           error: {
             code: 'NOT_FOUND',
             message: `No playable sources found for episode ${episodeNumber}`,
           },
+          data: {
+            resolutionTrace,
+            resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+            animepaheRuntime: getAnimepaheRuntimeStats(),
+          },
         });
       }
 
+      logResolutionTrace(request, resolutionTrace);
       return reply.send({
         success: true,
         data: {
@@ -739,6 +853,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             })),
           headers: watch.headers || {},
           download: watch.download || null,
+          resolutionTrace,
+          resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+          animepaheRuntime: getAnimepaheRuntimeStats(),
         },
       });
     } catch (error) {
