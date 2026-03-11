@@ -350,6 +350,7 @@ type HianimeFallbackSource = {
   quality: string;
   isM3U8: boolean;
   isEmbed: boolean;
+  referer?: string;
 };
 
 type HianimeFallbackResult = {
@@ -437,6 +438,7 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
             quality: direct.isM3U8 ? `hls-${serverId}` : `mp4-${serverId}`,
             isM3U8: direct.isM3U8,
             isEmbed: false,
+            referer: payload.link,
           });
           if (!preferredReferer) {
             preferredReferer = payload.link;
@@ -467,6 +469,101 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
     clearTimeout(timeout);
   }
 }
+
+const extractHianimeAnimeIdsFromSuggestHtml = (html: string): string[] => {
+  const ids = new Set<string>();
+  for (const match of html.matchAll(/href="\/[^"/]+-(\d+)"/gi)) {
+    if (match[1]) ids.add(match[1]);
+  }
+  return Array.from(ids);
+};
+
+const hianimeSearchAnimeIdsByTitles = async (titles: string[]): Promise<string[]> => {
+  const ids = new Set<string>();
+
+  for (const title of titles.slice(0, 4)) {
+    const query = title.trim();
+    if (!query) continue;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
+    try {
+      const response = await fetch(
+        `https://hianime.to/ajax/search/suggest?keyword=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'Mozilla/5.0',
+          },
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok) continue;
+      const payload = (await response.json()) as { html?: string };
+      const html = payload.html || '';
+      for (const id of extractHianimeAnimeIdsFromSuggestHtml(html).slice(0, 5)) {
+        ids.add(id);
+      }
+    } catch {
+      continue;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return Array.from(ids);
+};
+
+const extractAttr = (tag: string, name: string): string | null => {
+  const match = tag.match(new RegExp(`${name}="([^"]+)"`, 'i'));
+  return match?.[1] || null;
+};
+
+const hianimeEpisodeIdByAnimeIdAndNumber = async (animeId: string, episodeNumber: number): Promise<string | null> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://hianime.to/ajax/v2/episode/list/${encodeURIComponent(animeId)}`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0',
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+
+    const payload = (await response.json()) as { html?: string };
+    const html = payload.html || '';
+    for (const tagMatch of html.matchAll(/<a\b[^>]*>/gi)) {
+      const tag = tagMatch[0] || '';
+      const numberAttr = extractAttr(tag, 'data-number');
+      const idAttr = extractAttr(tag, 'data-id');
+      const number = Number(numberAttr || 0);
+      if (idAttr && Number.isFinite(number) && Math.floor(number) === episodeNumber) {
+        return idAttr;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const hianimeEmbedFallbackByTitles = async (titles: string[], episodeNumber: number): Promise<HianimeFallbackResult> => {
+  const animeIds = await hianimeSearchAnimeIdsByTitles(titles);
+  for (const animeId of animeIds.slice(0, 6)) {
+    const episodeId = await hianimeEpisodeIdByAnimeIdAndNumber(animeId, episodeNumber);
+    if (!episodeId) continue;
+
+    const result = await hianimeEmbedFallback(episodeId);
+    if (result.sources.length > 0) return result;
+  }
+
+  return { sources: [], headers: {} };
+};
 
 const providersForRequest = (provider: string): string[] => {
   const normalized = provider.trim().toLowerCase();
@@ -873,10 +970,17 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       const { id, episodeNumber } = request.params;
       const { provider, server } = request.query;
       const resolutionTrace = createResolutionTrace();
+      let anilistTitlesCache: string[] | null = null;
+
+      const getAnilistTitles = async (): Promise<string[]> => {
+        if (anilistTitlesCache) return anilistTitlesCache;
+        anilistTitlesCache = await anilistTitlesForAnime(id);
+        return anilistTitlesCache;
+      };
 
       if (shouldTryAnimepahePrimary(provider)) {
         try {
-          const titles = await anilistTitlesForAnime(id);
+          const titles = await getAnilistTitles();
           const animepahe = await resolveAnimepaheWatchByTitles(titles, episodeNumber);
           if (animepahe && animepahe.sources.length > 0) {
             pushResolutionEvent(resolutionTrace, {
@@ -1017,8 +1121,33 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const hianimeFallbackEpisodeId = fallbackEpisodeIdForHianime || fallbackEpisodeId;
-      if ((!episode || !watch || !resolvedProvider || sources.length === 0) && hianimeFallbackEpisodeId) {
-        const fallback = await hianimeEmbedFallback(hianimeFallbackEpisodeId);
+      if (!episode || !watch || !resolvedProvider || sources.length === 0) {
+        let fallback: HianimeFallbackResult = { sources: [], headers: {} };
+        let fallbackEpisodeRef = hianimeFallbackEpisodeId;
+
+        if (hianimeFallbackEpisodeId) {
+          fallback = await hianimeEmbedFallback(hianimeFallbackEpisodeId);
+        }
+
+        if (fallback.sources.length === 0) {
+          try {
+            const titles = await getAnilistTitles();
+            if (titles.length > 0) {
+              fallback = await hianimeEmbedFallbackByTitles(titles, episodeNumber);
+              if (fallback.sources.length > 0 && !fallbackEpisodeRef) {
+                fallbackEpisodeRef = `hianime-title-${episodeNumber}`;
+              }
+            }
+          } catch {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'hianime-title-fallback',
+              provider: 'hianime',
+              outcome: 'error',
+              detail: 'Title-based hianime fallback failed',
+            });
+          }
+        }
+
         if (fallback.sources.length > 0) {
           pushResolutionEvent(resolutionTrace, {
             stage: 'hianime-fallback',
@@ -1030,7 +1159,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             success: true,
             data: {
               animeId: id,
-              episode: episode || { id: hianimeFallbackEpisodeId, number: episodeNumber, title: null, image: null, url: null, isFiller: false },
+              episode: episode || {
+                id: fallbackEpisodeRef || `hianime-fallback-${episodeNumber}`,
+                number: episodeNumber,
+                title: null,
+                image: null,
+                url: null,
+                isFiller: false,
+              },
               provider: 'hianime-fallback',
               requestedProvider: provider,
               server: server || null,
@@ -1044,6 +1180,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
         }
+
         pushResolutionEvent(resolutionTrace, {
           stage: 'hianime-fallback',
           provider: 'hianime',
