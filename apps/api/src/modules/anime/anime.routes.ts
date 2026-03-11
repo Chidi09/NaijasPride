@@ -3,6 +3,7 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { PassThrough } from 'node:stream';
 import { getAnimepaheRuntimeStats, resolveAnimepaheEpisodesByTitles, resolveAnimepaheWatchByTitles } from './animepahe-resolver';
+import { resolveDirectMediaFromEmbed } from './embed-stream-resolver';
 import {
   createResolutionTrace,
   pushResolutionEvent,
@@ -351,14 +352,19 @@ type HianimeFallbackSource = {
   isEmbed: boolean;
 };
 
+type HianimeFallbackResult = {
+  sources: HianimeFallbackSource[];
+  headers: Record<string, string>;
+};
+
 const hianimeEpisodeIdFromBridgeId = (bridgeEpisodeId: string): string | null => {
   const match = bridgeEpisodeId.match(/\$episode\$(\d+)/);
   return match?.[1] || null;
 };
 
-async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFallbackSource[]> {
+async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFallbackResult> {
   const hianimeEpisodeId = hianimeEpisodeIdFromBridgeId(bridgeEpisodeId);
-  if (!hianimeEpisodeId) return [];
+  if (!hianimeEpisodeId) return { sources: [], headers: {} };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
@@ -375,14 +381,15 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
       },
     );
 
-    if (!serversResponse.ok) return [];
+    if (!serversResponse.ok) return { sources: [], headers: {} };
     const serversPayload = (await serversResponse.json()) as { html?: string };
     const html = serversPayload.html || '';
 
     const serverIds = Array.from(new Set(Array.from(html.matchAll(/data-id="(\d+)"/g)).map((entry) => entry[1])));
-    if (serverIds.length === 0) return [];
+    if (serverIds.length === 0) return { sources: [], headers: {} };
 
     const sources: HianimeFallbackSource[] = [];
+    let preferredReferer: string | null = null;
     for (const serverId of serverIds.slice(0, 4)) {
       const sourceResponse = await fetch(
         `https://hianime.to/ajax/v2/episode/sources?id=${encodeURIComponent(serverId)}`,
@@ -399,6 +406,20 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
       const payload = (await sourceResponse.json()) as { link?: string };
       if (!payload.link) continue;
 
+      const direct = await resolveDirectMediaFromEmbed(payload.link);
+      if (direct) {
+        sources.push({
+          url: direct.url,
+          quality: direct.isM3U8 ? `hls-${serverId}` : `mp4-${serverId}`,
+          isM3U8: direct.isM3U8,
+          isEmbed: false,
+        });
+        if (!preferredReferer) {
+          preferredReferer = payload.link;
+        }
+        continue;
+      }
+
       sources.push({
         url: payload.link,
         quality: `embed-${serverId}`,
@@ -407,9 +428,12 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
       });
     }
 
-    return sources;
+    return {
+      sources,
+      headers: preferredReferer ? { Referer: preferredReferer } : {},
+    };
   } catch {
-    return [];
+    return { sources: [], headers: {} };
   } finally {
     clearTimeout(timeout);
   }
@@ -581,6 +605,12 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const upstreamReferer = referer || `${targetUrl.protocol}//${targetUrl.hostname}/`;
+    let upstreamOrigin: string | undefined;
+    try {
+      upstreamOrigin = new URL(upstreamReferer).origin;
+    } catch {
+      upstreamOrigin = undefined;
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20_000);
@@ -589,6 +619,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         headers: {
           Accept: '*/*',
           Referer: upstreamReferer,
+          ...(upstreamOrigin ? { Origin: upstreamOrigin } : {}),
           'User-Agent': 'Mozilla/5.0',
         },
         signal: controller.signal,
@@ -937,8 +968,8 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if ((!episode || !watch || !resolvedProvider || sources.length === 0) && fallbackEpisodeId) {
-        const fallbackSources = await hianimeEmbedFallback(fallbackEpisodeId);
-        if (fallbackSources.length > 0) {
+        const fallback = await hianimeEmbedFallback(fallbackEpisodeId);
+        if (fallback.sources.length > 0) {
           pushResolutionEvent(resolutionTrace, {
             stage: 'hianime-fallback',
             provider: 'hianime',
@@ -953,9 +984,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               provider: 'hianime-fallback',
               requestedProvider: provider,
               server: server || null,
-              sources: fallbackSources,
+              sources: fallback.sources,
               subtitles: [],
-              headers: {},
+              headers: fallback.headers,
               download: null,
               resolutionTrace,
               resolutionSummary: summarizeResolutionTrace(resolutionTrace),

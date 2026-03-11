@@ -341,6 +341,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
           .filter((entry: any) => !!entry?.url)
           .map((entry: any) => {
             const originalUrl = String(entry.url);
+            const sourceReferer = typeof entry.referer === 'string' && entry.referer.trim() ? entry.referer.trim() : referer;
             if (entry.isEmbed) {
               return {
                 ...entry,
@@ -351,7 +352,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
             return {
               ...entry,
-              url: this.proxyStreamUrl(originalUrl, referer),
+              url: this.proxyStreamUrl(originalUrl, sourceReferer),
               originalUrl,
             };
           });
