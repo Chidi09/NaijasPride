@@ -414,8 +414,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      const bridgeAvailable = episodes.length > 0;
       if (!usedProvider) {
-        usedProvider = providersForRequest(provider)[0] || 'gogoanime';
+        usedProvider = bridgeAvailable ? providersForRequest(provider)[0] || 'gogoanime' : 'auto';
       }
 
       return reply.send({
@@ -426,6 +427,8 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           requestedProvider: provider,
           animeTitle: info?.title || null,
           episodes,
+          bridgeAvailable,
+          message: bridgeAvailable ? null : 'No stream episodes resolved from bridge providers right now.',
         },
       });
     } catch (error) {

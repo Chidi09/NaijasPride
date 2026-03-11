@@ -29,7 +29,7 @@ import { AnimeApiService } from '../../services/anime-api.service';
               <div>
                 <div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
                   <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ anime()!.seasonYear || '-' }}</span>
-                  <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ episodes().length }} episodes</span>
+                  <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ displayEpisodes().length }} episodes</span>
                   @for (tag of (anime()!.genres || []).slice(0, 3); track tag) {
                     <span class="rounded-full border border-white/20 px-2 py-1 text-white/80">{{ tag }}</span>
                   }
@@ -38,9 +38,9 @@ import { AnimeApiService } from '../../services/anime-api.service';
                 <h1 class="text-3xl font-bold text-white md:text-4xl">{{ title() }}</h1>
                 <p class="mt-3 max-w-3xl text-white/70" [innerText]="cleanDescription()"></p>
 
-                @if (episodes().length > 0) {
+                @if (displayEpisodes().length > 0) {
                   <a
-                    [routerLink]="['/anime', anime()!.id, 'watch', episodes()[0].number]"
+                    [routerLink]="['/anime', anime()!.id, 'watch', displayEpisodes()[0].number]"
                     class="mt-4 inline-flex rounded-full bg-[#800020] px-5 py-2 text-sm font-semibold text-white hover:bg-[#9d1930]"
                   >
                     ▶ Watch Now
@@ -56,11 +56,14 @@ import { AnimeApiService } from '../../services/anime-api.service';
               <span class="text-xs text-white/55">Provider: {{ provider }}</span>
             </div>
 
-            @if (episodes().length === 0) {
-              <div class="rounded-lg border border-white/10 bg-black/20 px-4 py-4 text-sm text-white/60">No episodes resolved from bridge API yet.</div>
+            @if (displayEpisodes().length === 0) {
+              <div class="rounded-lg border border-white/10 bg-black/20 px-4 py-4 text-sm text-white/60">No episodes available for this title yet.</div>
             } @else {
+              @if (!bridgeAvailable()) {
+                <div class="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Streams are not resolved right now. Episode list is shown from AniList metadata.</div>
+              }
               <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-                @for (episode of episodes(); track episode.id) {
+                @for (episode of displayEpisodes(); track episode.id) {
                   <a
                     [routerLink]="['/anime', anime()!.id, 'watch', episode.number]"
                     class="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-center text-sm text-white transition hover:border-[#800020]/50 hover:bg-black/35"
@@ -84,11 +87,19 @@ export class AnimeDetailComponent {
   loading = signal(true);
   anime = signal<any | null>(null);
   episodes = signal<any[]>([]);
+  bridgeAvailable = signal(true);
 
   title = computed(() => this.anime()?.title?.english || this.anime()?.title?.romaji || this.anime()?.title?.native || 'Anime');
   poster = computed(() => this.anime()?.coverImage?.extraLarge || this.anime()?.coverImage?.large || '/assets/images/poster-placeholder.svg');
   heroBackground = computed(() => `url('${this.anime()?.bannerImage || this.poster()}')`);
   cleanDescription = computed(() => (this.anime()?.description || 'No description available.').replace(/<[^>]+>/g, ' '));
+  displayEpisodes = computed(() => {
+    const fromBridge = this.episodes();
+    if (fromBridge.length > 0) return fromBridge;
+    const total = Math.max(0, Number(this.anime()?.episodes || 0));
+    if (!total) return [];
+    return Array.from({ length: total }, (_, index) => ({ id: `meta-${index + 1}`, number: index + 1 }));
+  });
 
   constructor() {
     this.route.paramMap.subscribe((params) => {
@@ -108,10 +119,12 @@ export class AnimeDetailComponent {
     this.api.getEpisodes(id, this.provider).subscribe({
       next: (res) => {
         this.provider = res?.data?.provider || this.provider;
+        this.bridgeAvailable.set(res?.data?.bridgeAvailable !== false);
         this.episodes.set(res?.data?.episodes || []);
         this.loading.set(false);
       },
       error: () => {
+        this.bridgeAvailable.set(false);
         this.episodes.set([]);
         this.loading.set(false);
       },
