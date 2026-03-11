@@ -1,6 +1,7 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Hls from 'hls.js';
 import { AnimeApiService } from '../../services/anime-api.service';
 
@@ -58,7 +59,17 @@ import { AnimeApiService } from '../../services/anime-api.service';
         </div>
 
         <div class="overflow-hidden rounded-xl border border-white/10 bg-black">
-          <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
+          @if (selectedSourceIsEmbed()) {
+            <iframe
+              class="aspect-video w-full bg-black"
+              [src]="selectedEmbedUrl()"
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowfullscreen
+              referrerpolicy="no-referrer"
+            ></iframe>
+          } @else {
+            <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
+          }
         </div>
 
         <div class="mt-4">
@@ -87,6 +98,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private api = inject(AnimeApiService);
+  private sanitizer = inject(DomSanitizer);
 
   private hls: Hls | null = null;
 
@@ -96,7 +108,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   loading = signal(true);
   error = signal<string | null>(null);
   episodes = signal<any[]>([]);
-  sources = signal<Array<{ url: string; quality?: string; isM3U8?: boolean }>>([]);
+  sources = signal<Array<{ url: string; quality?: string; isM3U8?: boolean; isEmbed?: boolean }>>([]);
   activeSourceUrl = signal<string | null>(null);
   readonly providers = signal<string[]>(['auto', 'gogoanime', 'zoro', 'animepahe']);
   readonly serverOptions = signal<string[]>(['vidstreaming', 'gogocdn', 'streamsb']);
@@ -104,6 +116,12 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   server = signal('');
 
   selectedSource = computed(() => this.sources().find((entry) => entry.url === this.activeSourceUrl()) || null);
+  selectedSourceIsEmbed = computed(() => !!this.selectedSource()?.isEmbed);
+  selectedEmbedUrl = computed<SafeResourceUrl | null>(() => {
+    const source = this.selectedSource();
+    if (!source?.url || !source.isEmbed) return null;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(source.url);
+  });
 
   constructor() {
     this.route.paramMap.subscribe((params) => {
@@ -127,7 +145,8 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     const source = this.selectedSource();
-    if (source) this.attachSource(source.url, !!source.isM3U8);
+    if (!source || source.isEmbed) return;
+    this.attachSource(source.url, !!source.isM3U8);
   }
 
   ngOnDestroy(): void {
@@ -138,6 +157,10 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.activeSourceUrl.set(url);
     const source = this.selectedSource();
     if (!source) return;
+    if (source.isEmbed) {
+      this.destroyPlayer();
+      return;
+    }
     this.attachSource(source.url, !!source.isM3U8);
   }
 
@@ -177,7 +200,11 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
         this.activeSourceUrl.set(first?.url || null);
         this.loading.set(false);
         if (first) {
-          this.attachSource(first.url, !!first.isM3U8);
+          if (first.isEmbed) {
+            this.destroyPlayer();
+          } else {
+            this.attachSource(first.url, !!first.isM3U8);
+          }
         } else {
           this.error.set('No playable source available for this episode.');
         }

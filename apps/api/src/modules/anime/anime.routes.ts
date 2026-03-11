@@ -233,6 +233,7 @@ type BridgeWatchResponse = {
   sources?: BridgeWatchSource[];
   subtitles?: BridgeWatchSubtitle[];
   download?: string;
+  link?: string;
 };
 
 async function anilistRequest<T>(query: string, variables: Record<string, unknown>): Promise<T> {
@@ -318,6 +319,77 @@ const mapEpisodes = (episodes: BridgeInfoEpisode[] = []) =>
       isFiller: !!entry.isFiller,
     }))
     .sort((a, b) => a.number - b.number);
+
+type HianimeFallbackSource = {
+  url: string;
+  quality: string;
+  isM3U8: boolean;
+  isEmbed: boolean;
+};
+
+const hianimeEpisodeIdFromBridgeId = (bridgeEpisodeId: string): string | null => {
+  const match = bridgeEpisodeId.match(/\$episode\$(\d+)/);
+  return match?.[1] || null;
+};
+
+async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFallbackSource[]> {
+  const hianimeEpisodeId = hianimeEpisodeIdFromBridgeId(bridgeEpisodeId);
+  if (!hianimeEpisodeId) return [];
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
+
+  try {
+    const serversResponse = await fetch(
+      `https://hianime.to/ajax/v2/episode/servers?episodeId=${encodeURIComponent(hianimeEpisodeId)}`,
+      {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        },
+        signal: controller.signal,
+      },
+    );
+
+    if (!serversResponse.ok) return [];
+    const serversPayload = (await serversResponse.json()) as { html?: string };
+    const html = serversPayload.html || '';
+
+    const serverIds = Array.from(new Set(Array.from(html.matchAll(/data-id="(\d+)"/g)).map((entry) => entry[1])));
+    if (serverIds.length === 0) return [];
+
+    const sources: HianimeFallbackSource[] = [];
+    for (const serverId of serverIds.slice(0, 4)) {
+      const sourceResponse = await fetch(
+        `https://hianime.to/ajax/v2/episode/sources?id=${encodeURIComponent(serverId)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'Mozilla/5.0',
+          },
+          signal: controller.signal,
+        },
+      );
+      if (!sourceResponse.ok) continue;
+
+      const payload = (await sourceResponse.json()) as { link?: string };
+      if (!payload.link) continue;
+
+      sources.push({
+        url: payload.link,
+        quality: `embed-${serverId}`,
+        isM3U8: false,
+        isEmbed: true,
+      });
+    }
+
+    return sources;
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 const providersForRequest = (provider: string): string[] => {
   const normalized = provider.trim().toLowerCase();
@@ -476,7 +548,8 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       let resolvedProvider: string | null = null;
       let episode: ReturnType<typeof mapEpisodes>[number] | null = null;
       let watch: BridgeWatchResponse | null = null;
-      let sources: Array<{ url: string; quality: string; isM3U8: boolean }> = [];
+      let sources: Array<{ url: string; quality: string; isM3U8: boolean; isEmbed?: boolean }> = [];
+      let fallbackEpisodeId: string | null = null;
 
       for (const candidate of providersForRequest(provider)) {
         try {
@@ -484,6 +557,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           const episodes = mapEpisodes(info.episodes);
           const targetEpisode = episodes.find((entry) => entry.number === episodeNumber);
           if (!targetEpisode) continue;
+          if (!fallbackEpisodeId) {
+            fallbackEpisodeId = targetEpisode.id;
+          }
 
           const query = new URLSearchParams({ provider: candidate });
           if (server) query.set('server', server);
@@ -498,7 +574,17 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               url: source.url as string,
               quality: source.quality || 'auto',
               isM3U8: !!source.isM3U8,
+              isEmbed: false,
             }));
+
+          if (mappedSources.length === 0 && watchAttempt.link) {
+            mappedSources.push({
+              url: watchAttempt.link,
+              quality: 'embed',
+              isM3U8: false,
+              isEmbed: true,
+            });
+          }
 
           if (mappedSources.length === 0) continue;
 
@@ -509,6 +595,26 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           break;
         } catch {
           continue;
+        }
+      }
+
+      if ((!episode || !watch || !resolvedProvider || sources.length === 0) && fallbackEpisodeId) {
+        const fallbackSources = await hianimeEmbedFallback(fallbackEpisodeId);
+        if (fallbackSources.length > 0) {
+          return reply.send({
+            success: true,
+            data: {
+              animeId: id,
+              episode: episode || { id: fallbackEpisodeId, number: episodeNumber, title: null, image: null, url: null, isFiller: false },
+              provider: 'hianime-fallback',
+              requestedProvider: provider,
+              server: server || null,
+              sources: fallbackSources,
+              subtitles: [],
+              headers: {},
+              download: null,
+            },
+          });
         }
       }
 
