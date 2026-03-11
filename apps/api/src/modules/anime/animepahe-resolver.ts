@@ -324,15 +324,28 @@ export async function resolveAnimepaheWatchByTitles(
     try {
       const html = await fetchKwikHtml(kwikUrl);
       const m3u8 = extractAnimepaheM3u8FromHtml(html);
-      if (!m3u8) continue;
-      sources.push({
-        url: m3u8,
-        quality: qualityKey,
-        isM3U8: true,
-        isEmbed: false,
-      });
+      if (m3u8) {
+        sources.push({
+          url: m3u8,
+          quality: qualityKey,
+          isM3U8: true,
+          isEmbed: false,
+        });
+      } else {
+        sources.push({
+          url: kwikUrl,
+          quality: `${qualityKey}-kwik`,
+          isM3U8: false,
+          isEmbed: true,
+        });
+      }
     } catch {
-      continue;
+      sources.push({
+        url: kwikUrl,
+        quality: `${qualityKey}-kwik`,
+        isM3U8: false,
+        isEmbed: true,
+      });
     }
   }
 
