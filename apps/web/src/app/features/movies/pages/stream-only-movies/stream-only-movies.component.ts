@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -9,49 +9,162 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
 
 /**
  * Stream-only movies page (YouTube Nollywood movies)
- * Dedicated section for YouTube-imported movies
+ * Dedicated section for YouTube-imported movies with cinematic design
  */
 @Component({
   selector: 'app-stream-only-movies',
   standalone: true,
   imports: [CommonModule, RouterLink, MovieCardYoutubeComponent, PaginatorComponent],
+  styles: [`
+    @keyframes fade-in-up {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse-slow {
+      0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.5;
+        transform: scale(1.05);
+      }
+    }
+
+    .animate-fade-in-up {
+      animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      opacity: 0;
+    }
+
+    .animate-pulse-slow {
+      animation: pulse-slow 8s ease-in-out infinite;
+    }
+
+    .animate-pulse-slow-delayed {
+      animation: pulse-slow 10s ease-in-out infinite;
+      animation-delay: -4s;
+    }
+
+    .animation-delay-200 {
+      animation-delay: 0.2s;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(128, 0, 32, 0.5);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(128, 0, 32, 0.7);
+    }
+  `],
   template: `
-    <div class="min-h-screen bg-[var(--bg-primary)] pb-20">
-      <!-- Header -->
-      <div class="bg-gradient-to-b from-[#f1e3d8] to-[#f8f0e9] dark:from-cinema-800 dark:to-cinema-900 py-12 px-6">
-        <div class="max-w-7xl mx-auto">
-          <div class="flex items-center gap-4 mb-4">
+    <section class="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
+      <!-- Animated Background -->
+      <div class="pointer-events-none fixed inset-0 z-0">
+        <div class="absolute inset-0 bg-gradient-to-br from-[#800020]/5 via-transparent to-[#1a0a0a]/50"></div>
+        <div class="absolute -left-1/4 -top-1/4 h-[600px] w-[600px] rounded-full bg-[#800020]/10 blur-[120px] animate-pulse-slow"></div>
+        <div class="absolute -bottom-1/4 -right-1/4 h-[800px] w-[800px] rounded-full bg-[#4a0015]/20 blur-[150px] animate-pulse-slow-delayed"></div>
+        <!-- Grid Pattern -->
+        <div class="absolute inset-0 opacity-[0.02]" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 60px 60px;"></div>
+      </div>
+
+      <!-- Hero Section -->
+      <div class="relative z-10 border-b border-white/5">
+        <div class="mx-auto max-w-7xl px-4 py-12 md:px-6 md:py-16">
+          <div class="animate-fade-in-up">
+            <!-- Back Link -->
             <a 
               routerLink="/movies" 
-              class="text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white text-sm flex items-center gap-2 transition-colors"
+              class="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60 transition-all duration-300 hover:border-[#800020]/50 hover:bg-[#800020]/10 hover:text-white"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
               </svg>
               Back to All Movies
             </a>
+            
+            <div class="mt-4 mb-4 inline-flex items-center gap-2 rounded-full border border-[#800020]/30 bg-[#800020]/10 px-4 py-1.5">
+              <span class="h-2 w-2 animate-pulse rounded-full bg-[#800020]"></span>
+              <span class="text-xs font-medium tracking-wider text-[#800020] uppercase">YouTube Collection</span>
+            </div>
+            
+            <h1 class="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-4xl font-bold text-transparent md:text-5xl lg:text-6xl">
+              Nollywood YouTube Movies
+            </h1>
+            <p class="mt-4 max-w-2xl text-lg text-white/50">
+              Watch the latest Nigerian movies streamed directly from YouTube. 
+              All movies are free to watch with no downloads required.
+            </p>
           </div>
-          
-          <h1 class="text-3xl md:text-4xl font-serif text-[#24181b] dark:text-white mb-3">
-            Nollywood YouTube Movies
-          </h1>
-          <p class="text-[#75635c] dark:text-gray-400 max-w-2xl">
-            Watch the latest Nigerian movies streamed directly from YouTube. 
-            All movies are free to watch with no downloads required.
-          </p>
+        </div>
+      </div>
+
+      <!-- Filters Section -->
+      <div class="animate-fade-in-up animation-delay-200 relative z-10 border-b border-white/5 bg-black/20 backdrop-blur-sm">
+        <div class="mx-auto max-w-7xl px-4 py-4 md:px-6">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <!-- Stats -->
+            <div class="flex items-center gap-4">
+              <div class="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                <svg class="h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span class="text-sm text-white/70"><span class="font-semibold text-white">{{ totalMovies() }}</span> movies available</span>
+              </div>
+            </div>
+            
+            <!-- Sort Options -->
+            <div class="flex items-center gap-3">
+              <span class="text-sm text-white/40">Sort by:</span>
+              <div class="relative">
+                <select 
+                  (change)="changeSort($event)"
+                  class="appearance-none rounded-full border border-white/10 bg-white/5 px-4 py-2 pr-10 text-sm text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-white/10 focus:border-[#800020] focus:outline-none"
+                >
+                  <option value="latest" class="bg-[#0a0a0a]">🆕 Latest Added</option>
+                  <option value="popular" class="bg-[#0a0a0a]">🔥 Most Viewed</option>
+                  <option value="newest" class="bg-[#0a0a0a]">📅 Release Year</option>
+                </select>
+                <svg class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Content -->
-      <div class="max-w-7xl mx-auto px-6 py-8">
+      <div class="relative z-10 mx-auto max-w-7xl px-4 py-10 md:px-6">
+        
         <!-- Loading State -->
         @if (isLoading()) {
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             @for (i of [1,2,3,4,5,6,7,8]; track i) {
               <div class="animate-pulse">
-                <div class="aspect-video bg-[#e5d2c6] dark:bg-cinema-800 rounded-lg"></div>
-                <div class="mt-2 h-4 bg-[#e5d2c6] dark:bg-cinema-800 rounded w-3/4"></div>
-                <div class="mt-1 h-3 bg-[#e5d2c6] dark:bg-cinema-800 rounded w-1/2"></div>
+                <div class="aspect-video rounded-xl bg-white/5"></div>
+                <div class="mt-3 h-4 w-3/4 rounded bg-white/5"></div>
+                <div class="mt-2 h-3 w-1/2 rounded bg-white/5"></div>
               </div>
             }
           </div>
@@ -60,36 +173,52 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
         <!-- Movies Grid -->
         @if (!isLoading() && movies().length > 0) {
           <div class="mb-8">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-xl font-semibold text-[#24181b] dark:text-white">
-                  Latest Additions
-                <span class="text-[#8a756e] dark:text-gray-500 text-sm ml-2">({{ totalMovies() }} movies)</span>
-                </h2>
-              
-              <!-- Sort Options -->
-              <select 
-                (change)="changeSort($event)"
-                class="bg-white dark:bg-cinema-800 text-[#24181b] dark:text-white text-sm rounded px-3 py-2 border border-[#d8c2b8] dark:border-cinema-700 focus:border-[#800020] focus:outline-none"
-              >
-                <option value="latest">Latest Added</option>
-                <option value="popular">Most Viewed</option>
-                <option value="newest">Release Year</option>
-              </select>
+            <div class="mb-6 flex items-center justify-between">
+              <h2 class="text-xl font-semibold text-white">
+                {{ sectionTitle() }}
+                <span class="ml-2 text-sm text-white/40">({{ movies().length }} showing)</span>
+              </h2>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               @for (movie of movies(); track movie.id) {
                 <app-movie-card-youtube [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
               }
             </div>
 
             @if (totalPages() > 1) {
-              <div class="mt-8">
-                <app-paginator
-                  [currentPage]="currentPage()"
-                  [totalPages]="totalPages()"
-                  (pageChange)="onPageChange($event)"
-                />
+              <div class="mt-10 flex items-center justify-center gap-2">
+                <button 
+                  class="group flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-[#800020]/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  [disabled]="currentPage() <= 1" 
+                  (click)="onPageChange(currentPage() - 1)"
+                >
+                  <svg class="h-5 w-5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+
+                @for (pageNum of pageButtons(); track pageNum) {
+                  <button
+                    class="relative h-10 w-10 rounded-full text-sm font-medium transition-all duration-300"
+                    [class]="pageNum === currentPage() 
+                      ? 'bg-[#800020] text-white shadow-lg shadow-[#800020]/30' 
+                      : 'border border-white/10 bg-white/5 text-white/60 hover:border-white/30 hover:bg-white/10 hover:text-white'"
+                    (click)="onPageChange(pageNum)"
+                  >
+                    {{ pageNum }}
+                  </button>
+                }
+
+                <button 
+                  class="group flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-[#800020]/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  [disabled]="currentPage() >= totalPages()" 
+                  (click)="onPageChange(currentPage() + 1)"
+                >
+                  <svg class="h-5 w-5 transition-transform duration-300 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
               </div>
             }
           </div>
@@ -97,22 +226,30 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
 
         <!-- Empty State -->
         @if (!isLoading() && movies().length === 0) {
-          <div class="text-center py-20">
-            <div class="text-6xl mb-4">🎬</div>
-            <h3 class="text-xl text-[#24181b] dark:text-white mb-2">No YouTube movies yet</h3>
-            <p class="text-[#75635c] dark:text-gray-400 mb-6">
+          <div class="flex flex-col items-center justify-center py-20 text-center">
+            <div class="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-white/5">
+              <span class="text-4xl">🎬</span>
+            </div>
+            <h3 class="text-xl font-semibold text-white">No YouTube movies yet</h3>
+            <p class="mt-2 max-w-md text-sm text-white/40">
               New stream-ready titles are being prepared. Explore the full library while this shelf updates.
             </p>
             <a
               routerLink="/movies"
-              class="inline-block bg-[#800020] hover:bg-[#660019] text-white px-6 py-3 rounded font-semibold transition-colors"
+              class="mt-6 inline-flex items-center gap-2 rounded-full bg-[#800020] px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:bg-[#a00030] hover:shadow-lg hover:shadow-[#800020]/25"
             >
               Browse All Movies
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
             </a>
           </div>
         }
       </div>
-    </div>
+
+      <!-- Footer Spacing -->
+      <div class="h-20"></div>
+    </section>
   `
 })
 export class StreamOnlyMoviesComponent implements OnInit {
@@ -129,6 +266,24 @@ export class StreamOnlyMoviesComponent implements OnInit {
   totalMovies = signal(0);
   watchProgressByMovieId = signal<Record<string, number>>({});
   readonly pageSize = 50;
+
+  sectionTitle = computed(() => {
+    switch (this.sortBy()) {
+      case 'popular': return 'Most Viewed';
+      case 'newest': return 'By Release Year';
+      default: return 'Latest Additions';
+    }
+  });
+
+  pageButtons = computed(() => {
+    const total = this.totalPages();
+    const current = this.currentPage();
+    const start = Math.max(1, current - 2);
+    const end = Math.min(total, start + 4);
+    const values: number[] = [];
+    for (let value = start; value <= end; value++) values.push(value);
+    return values;
+  });
 
   ngOnInit() {
     this.loadWatchProgress();
