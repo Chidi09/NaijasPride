@@ -88,52 +88,64 @@ import type { TtsVoice } from '../services/reader-tts.service';
 
         <mat-divider class="my-6"></mat-divider>
 
-        <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-muted)]">Reading</p>
-        <div class="mt-3 grid grid-cols-2 gap-2">
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="setFlow.emit('paginated')"
-            [disabled]="readerType === 'pdf' || flow === 'paginated'"
-          >
-            Pages
-          </button>
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="setFlow.emit('scrolled')"
-            [disabled]="readerType === 'pdf' || flow === 'scrolled'"
-          >
-            Scroll
-          </button>
+        <div class="rounded-lg border border-[var(--np-reader-accent)] bg-[var(--np-reader-surface)] p-4">
+          <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-accent)] font-semibold">Reading Mode</p>
+          <p class="mt-1 text-xs text-[var(--np-reader-muted)]">Choose how to navigate through the book</p>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <button
+              mat-raised-button
+              type="button"
+              (click)="setFlow.emit('paginated')"
+              [disabled]="readerType === 'pdf'"
+              [class.bg-[var(--np-reader-accent)]]="flow === 'paginated'"
+              [class.text-white]="flow === 'paginated'"
+            >
+              <mat-icon class="mr-1 text-[18px]">auto_stories</mat-icon>
+              Pages
+            </button>
+            <button
+              mat-raised-button
+              type="button"
+              (click)="setFlow.emit('scrolled')"
+              [disabled]="readerType === 'pdf'"
+              [class.bg-[var(--np-reader-accent)]]="flow === 'scrolled'"
+              [class.text-white]="flow === 'scrolled'"
+            >
+              <mat-icon class="mr-1 text-[18px]">swap_vert</mat-icon>
+              Scroll
+            </button>
+          </div>
+          @if (readerType === 'pdf') {
+            <p class="mt-2 text-xs text-[var(--np-reader-muted)] italic">PDF files only support page mode</p>
+          }
         </div>
 
         @if (readerType === 'epub') {
-          <div class="mt-6">
-            <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-muted)]">Layout</p>
+          <div class="mt-6 rounded-lg border border-[var(--np-reader-border)] p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-accent)] font-medium">Layout</p>
             <div class="mt-3 grid grid-cols-3 gap-2">
-              <button mat-stroked-button type="button" (click)="setSpread.emit('auto')" [disabled]="spread === 'auto'">
+              <button mat-stroked-button type="button" (click)="setSpread.emit('auto')" [class.mat-accent]="spread === 'auto'">
                 Auto
               </button>
-              <button mat-stroked-button type="button" (click)="setSpread.emit('single')" [disabled]="spread === 'single'">
+              <button mat-stroked-button type="button" (click)="setSpread.emit('single')" [class.mat-accent]="spread === 'single'">
                 Single
               </button>
-              <button mat-stroked-button type="button" (click)="setSpread.emit('double')" [disabled]="spread === 'double'">
+              <button mat-stroked-button type="button" (click)="setSpread.emit('double')" [class.mat-accent]="spread === 'double'">
                 Double
               </button>
             </div>
           </div>
 
-          <div class="mt-6">
-            <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-muted)]">Font</p>
+          <div class="mt-6 rounded-lg border border-[var(--np-reader-border)] p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-accent)] font-medium">Font</p>
             <div class="mt-3 grid grid-cols-3 gap-2">
-              <button mat-stroked-button type="button" (click)="setFontFamily.emit('serif')" [disabled]="fontFamily === 'serif'">
+              <button mat-stroked-button type="button" (click)="setFontFamily.emit('serif')" [class.mat-accent]="fontFamily === 'serif'">
                 Serif
               </button>
-              <button mat-stroked-button type="button" (click)="setFontFamily.emit('sans')" [disabled]="fontFamily === 'sans'">
+              <button mat-stroked-button type="button" (click)="setFontFamily.emit('sans')" [class.mat-accent]="fontFamily === 'sans'">
                 Sans
               </button>
-              <button mat-stroked-button type="button" (click)="setFontFamily.emit('mono')" [disabled]="fontFamily === 'mono'">
+              <button mat-stroked-button type="button" (click)="setFontFamily.emit('mono')" [class.mat-accent]="fontFamily === 'mono'">
                 Mono
               </button>
             </div>
@@ -145,12 +157,12 @@ import type { TtsVoice } from '../services/reader-tts.service';
           </div>
         }
 
-        <div class="mt-6">
-          <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-muted)]">Theme</p>
+        <div class="mt-6 rounded-lg border border-[var(--np-reader-border)] p-3">
+          <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-accent)] font-medium">Theme</p>
           <div class="mt-3 grid grid-cols-3 gap-2">
-            <button mat-stroked-button type="button" (click)="setTheme.emit('paper')" [disabled]="theme === 'paper'">Paper</button>
-            <button mat-stroked-button type="button" (click)="setTheme.emit('sepia')" [disabled]="theme === 'sepia'">Sepia</button>
-            <button mat-stroked-button type="button" (click)="setTheme.emit('night')" [disabled]="theme === 'night'">Night</button>
+            <button mat-stroked-button type="button" (click)="setTheme.emit('paper')" [class.mat-accent]="theme === 'paper'">Paper</button>
+            <button mat-stroked-button type="button" (click)="setTheme.emit('sepia')" [class.mat-accent]="theme === 'sepia'">Sepia</button>
+            <button mat-stroked-button type="button" (click)="setTheme.emit('night')" [class.mat-accent]="theme === 'night'">Night</button>
           </div>
         </div>
 
