@@ -15,8 +15,8 @@ import { TvShowsQueryService } from '../../services/tv-shows-query.service';
         <div class="py-16 text-center text-red-300">TV show not found.</div>
       } @else {
         <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-black/40">
-          <div class="absolute inset-0 bg-cover bg-center opacity-20" [style.backgroundImage]="heroBackground()"></div>
-          <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent"></div>
+          <div class="pointer-events-none absolute inset-0 bg-cover bg-center opacity-20" [style.backgroundImage]="heroBackground()"></div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent"></div>
 
           <div class="relative p-6 md:p-8">
             <a routerLink="/tv-shows" class="text-sm text-white/60 hover:text-white">← Back to TV Shows</a>
@@ -62,7 +62,7 @@ import { TvShowsQueryService } from '../../services/tv-shows-query.service';
             </div>
           </div>
 
-          <div class="border-t border-white/10 p-6 md:p-8">
+          <div class="relative z-10 border-t border-white/10 p-6 md:p-8">
             <div class="mb-3 flex items-center justify-between gap-2">
               <h2 class="text-lg font-semibold text-white">Seasons & Episodes</h2>
               <span class="text-xs text-white/55">Optimized episode browser</span>
