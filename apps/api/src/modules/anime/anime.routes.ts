@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { PassThrough } from 'node:stream';
 import { getAnimepaheRuntimeStats, resolveAnimepaheEpisodesByTitles, resolveAnimepaheWatchByTitles } from './animepahe-resolver';
 import {
   createResolutionTrace,
@@ -473,6 +474,28 @@ const rewritePlaylist = (playlist: string, playlistUrl: URL, referer: string): s
     .join('\n');
 };
 
+const proxyReadableBody = (body: ReadableStream<Uint8Array>): PassThrough => {
+  const stream = new PassThrough();
+
+  void (async () => {
+    const reader = body.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) stream.write(Buffer.from(value));
+      }
+      stream.end();
+    } catch (error) {
+      stream.destroy(error as Error);
+    } finally {
+      reader.releaseLock();
+    }
+  })();
+
+  return stream;
+};
+
 const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
   const data = await anilistRequest<{ Media: AniListMediaWithTitle | null }>(ANIME_DETAIL_QUERY, { id });
   const media = data.Media;
@@ -594,8 +617,15 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send(rewritten);
       }
 
-      const buffer = Buffer.from(await upstream.arrayBuffer());
-      return reply.send(buffer);
+      const contentLength = upstream.headers.get('content-length');
+      if (contentLength) reply.header('Content-Length', contentLength);
+
+      if (!upstream.body) {
+        const buffer = Buffer.from(await upstream.arrayBuffer());
+        return reply.send(buffer);
+      }
+
+      return reply.send(proxyReadableBody(upstream.body as ReadableStream<Uint8Array>));
     } catch (error) {
       request.log.warn({ error, target: targetUrl.toString() }, 'Anime stream proxy failed');
       return reply.status(502).send({
