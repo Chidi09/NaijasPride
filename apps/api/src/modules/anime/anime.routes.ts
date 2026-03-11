@@ -908,6 +908,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       let watch: BridgeWatchResponse | null = null;
       let sources: Array<{ url: string; quality: string; isM3U8: boolean; isEmbed?: boolean }> = [];
       let fallbackEpisodeId: string | null = null;
+      let fallbackEpisodeIdForHianime: string | null = null;
 
       for (const candidate of providersForRequest(provider)) {
         try {
@@ -917,6 +918,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           if (!targetEpisode) continue;
           if (!fallbackEpisodeId) {
             fallbackEpisodeId = targetEpisode.id;
+          }
+          if (!fallbackEpisodeIdForHianime && hianimeEpisodeIdFromBridgeId(targetEpisode.id)) {
+            fallbackEpisodeIdForHianime = targetEpisode.id;
           }
 
           const query = new URLSearchParams({ provider: candidate });
@@ -967,8 +971,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      if ((!episode || !watch || !resolvedProvider || sources.length === 0) && fallbackEpisodeId) {
-        const fallback = await hianimeEmbedFallback(fallbackEpisodeId);
+      const hianimeFallbackEpisodeId = fallbackEpisodeIdForHianime || fallbackEpisodeId;
+      if ((!episode || !watch || !resolvedProvider || sources.length === 0) && hianimeFallbackEpisodeId) {
+        const fallback = await hianimeEmbedFallback(hianimeFallbackEpisodeId);
         if (fallback.sources.length > 0) {
           pushResolutionEvent(resolutionTrace, {
             stage: 'hianime-fallback',
@@ -980,7 +985,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             success: true,
             data: {
               animeId: id,
-              episode: episode || { id: fallbackEpisodeId, number: episodeNumber, title: null, image: null, url: null, isFiller: false },
+              episode: episode || { id: hianimeFallbackEpisodeId, number: episodeNumber, title: null, image: null, url: null, isFiller: false },
               provider: 'hianime-fallback',
               requestedProvider: provider,
               server: server || null,
