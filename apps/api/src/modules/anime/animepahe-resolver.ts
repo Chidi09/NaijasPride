@@ -1,3 +1,5 @@
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+
 type AnimepaheSearchEntry = {
   id?: number;
   title?: string;
@@ -28,8 +30,113 @@ type AnimepaheLinksResponse = {
   data?: AnimepaheLinksEntry[];
 };
 
-const ANIMEPAHE_API_URL = process.env.ANIMEPAHE_API_URL || 'https://animepahe.com/api?m=';
+const ANIMEPAHE_SITE_ORIGIN = process.env.ANIMEPAHE_SITE_ORIGIN || 'https://animepahe.si';
+const ANIMEPAHE_API_URL = process.env.ANIMEPAHE_API_URL || `${ANIMEPAHE_SITE_ORIGIN}/api?m=`;
 const ANIMEPAHE_TIMEOUT_MS = Number(process.env.ANIMEPAHE_TIMEOUT_MS || 15000);
+const ANIMEPAHE_BROWSER_WAIT_MS = Number(process.env.ANIMEPAHE_BROWSER_WAIT_MS || 5000);
+
+let browserHandle: {
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
+} | null = null;
+type AnimepaheBrowserHandle = {
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
+};
+
+let browserInitPromise: Promise<AnimepaheBrowserHandle> | null = null;
+let browserQueue: Promise<void> = Promise.resolve();
+
+const withBrowserLock = async <T>(fn: () => Promise<T>): Promise<T> => {
+  const run = browserQueue.then(fn, fn);
+  browserQueue = run.then(() => undefined, () => undefined);
+  return run;
+};
+
+const isDdosGuardChallenge = (value: string): boolean => {
+  const text = value.toLowerCase();
+  return text.includes('ddos-guard') || text.includes('js-challenge') || text.includes('checking your browser');
+};
+
+const disposeBrowserHandle = async (): Promise<void> => {
+  if (!browserHandle) return;
+  const current = browserHandle;
+  browserHandle = null;
+  try {
+    await current.context.close();
+  } catch {
+    // ignore close errors
+  }
+  try {
+    await current.browser.close();
+  } catch {
+    // ignore close errors
+  }
+};
+
+const ensureBrowserHandle = async (): Promise<AnimepaheBrowserHandle> => {
+  if (browserHandle) return browserHandle;
+  if (!browserInitPromise) {
+    browserInitPromise = (async () => {
+      const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      });
+      const page = await context.newPage();
+      await page.goto(`${ANIMEPAHE_SITE_ORIGIN}/`, {
+        waitUntil: 'domcontentloaded',
+        timeout: ANIMEPAHE_TIMEOUT_MS,
+      });
+      await page.waitForTimeout(ANIMEPAHE_BROWSER_WAIT_MS);
+      browserHandle = { browser, context, page };
+      return browserHandle;
+    })();
+  }
+
+  try {
+    const handle = await browserInitPromise;
+    if (!handle) {
+      throw new Error('Failed to initialize browser handle');
+    }
+    return handle;
+  } finally {
+    browserInitPromise = null;
+  }
+};
+
+const browserBackedFetchText = async (url: string): Promise<{ ok: boolean; status: number; contentType: string; text: string }> => {
+  const execute = async () => {
+    const handle = await ensureBrowserHandle();
+    return handle.page.evaluate(async (target) => {
+      const response = await fetch(target, {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json,text/html,application/xhtml+xml',
+        },
+      });
+      const text = await response.text();
+      return {
+        ok: response.ok,
+        status: response.status,
+        contentType: response.headers.get('content-type') || '',
+        text,
+      };
+    }, url);
+  };
+
+  let result = await withBrowserLock(execute);
+  if (!isDdosGuardChallenge(result.text)) return result;
+
+  await withBrowserLock(async () => {
+    await disposeBrowserHandle();
+    await ensureBrowserHandle();
+  });
+
+  result = await withBrowserLock(execute);
+  return result;
+};
 
 export const computeAnimepaheReleasePage = (episode: number, pages: number, totalEpisodes: number): number => {
   if (episode <= 0 || pages <= 0 || totalEpisodes <= 0) return 1;
@@ -58,10 +165,32 @@ const animepaheRequest = async <T>(url: string, json = true): Promise<T> => {
     if (!response.ok) {
       throw new Error(`Animepahe request failed with status ${response.status}`);
     }
+    const text = await response.text();
     if (!json) {
-      return (await response.text()) as T;
+      if (isDdosGuardChallenge(text)) {
+        const browserResponse = await browserBackedFetchText(url);
+        if (!browserResponse.ok) {
+          throw new Error(`Animepahe browser request failed with status ${browserResponse.status}`);
+        }
+        return browserResponse.text as T;
+      }
+      return text as T;
     }
-    return (await response.json()) as T;
+
+    const isJsonResponse = (response.headers.get('content-type') || '').includes('application/json');
+    if (isJsonResponse) {
+      return JSON.parse(text) as T;
+    }
+
+    if (isDdosGuardChallenge(text)) {
+      const browserResponse = await browserBackedFetchText(url);
+      if (!browserResponse.ok) {
+        throw new Error(`Animepahe browser request failed with status ${browserResponse.status}`);
+      }
+      return JSON.parse(browserResponse.text) as T;
+    }
+
+    throw new Error('Animepahe returned non-JSON response');
   } finally {
     clearTimeout(timeout);
   }
