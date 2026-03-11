@@ -23,7 +23,11 @@ export class AuthStateService {
   private readonly userKey = 'user';
 
   readonly currentUser = signal<AuthUser | null>(this.getUserFromStorage());
-  readonly isPremium = computed(() => !!this.currentUser()?.isPremium);
+  readonly isPremium = computed(() => {
+    const user = this.currentUser();
+    if (!user) return false;
+    return !!user.isPremium || user.subStatus === 'active';
+  });
 
   getToken() {
     if (!this.canUseStorage()) return null;

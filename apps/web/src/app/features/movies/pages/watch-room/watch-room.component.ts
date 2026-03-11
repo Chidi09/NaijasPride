@@ -102,7 +102,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
 
             <app-effectivegate-banner></app-effectivegate-banner>
 
-            @if (!auth.currentUser()?.isPremium) {
+            @if (!auth.isPremium()) {
               <div class="mb-4 flex justify-center">
                 <a
                   [href]="smartlinkUrl"

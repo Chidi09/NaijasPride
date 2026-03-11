@@ -7,6 +7,6 @@ import { AuthStateService } from '../auth/auth-state.service';
 export class AdPolicyService {
   private authState = inject(AuthStateService);
 
-  readonly isPremium = computed(() => !!this.authState.currentUser()?.isPremium);
+  readonly isPremium = computed(() => this.authState.isPremium());
   readonly canShowAds = computed(() => !this.isPremium());
 }

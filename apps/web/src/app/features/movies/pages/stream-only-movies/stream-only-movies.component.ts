@@ -7,6 +7,8 @@ import { MovieSummary } from '@naijaspride/types';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
 import { WatchApiService } from '../../../watch/services/watch-api.service';
 
+type StreamGenre = 'Nollywood' | 'Bollywood' | 'Hollywood';
+
 /**
  * Stream-only movies page (YouTube Nollywood movies)
  * Dedicated section for YouTube-imported movies with cinematic design
@@ -108,12 +110,27 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
             </div>
             
             <h1 class="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-4xl font-bold text-transparent md:text-5xl lg:text-6xl">
-              Nollywood YouTube Movies
+              {{ genreLabel() }} YouTube Movies
             </h1>
             <p class="mt-4 max-w-2xl text-lg text-white/50">
-              Watch the latest Nigerian movies streamed directly from YouTube. 
+              {{ genreDescription() }}
               All movies are free to watch with no downloads required.
             </p>
+
+            <div class="mt-6 flex flex-wrap gap-2">
+              @for (entry of genreOptions; track entry) {
+                <button
+                  type="button"
+                  class="rounded-full border px-4 py-2 text-xs font-medium transition-all duration-300"
+                  [class]="genre() === entry
+                    ? 'border-[#800020] bg-[#800020] text-white shadow-lg shadow-[#800020]/20'
+                    : 'border-white/10 bg-white/5 text-white/60 hover:border-white/30 hover:bg-white/10 hover:text-white'"
+                  (click)="changeGenre(entry)"
+                >
+                  {{ entry }}
+                </button>
+              }
+            </div>
           </div>
         </div>
       </div>
@@ -138,6 +155,7 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
               <span class="text-sm text-white/40">Sort by:</span>
               <div class="relative">
                 <select 
+                  [value]="sortBy()"
                   (change)="changeSort($event)"
                   class="appearance-none rounded-full border border-white/10 bg-white/5 px-4 py-2 pr-10 text-sm text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-white/10 focus:border-[#800020] focus:outline-none"
                 >
@@ -261,11 +279,25 @@ export class StreamOnlyMoviesComponent implements OnInit {
   movies = signal<MovieSummary[]>([]);
   isLoading = signal(true);
   sortBy = signal('latest');
+  genre = signal<StreamGenre>('Nollywood');
   currentPage = signal(1);
   totalPages = signal(1);
   totalMovies = signal(0);
   watchProgressByMovieId = signal<Record<string, number>>({});
   readonly pageSize = 50;
+  readonly genreOptions: StreamGenre[] = ['Nollywood', 'Bollywood', 'Hollywood'];
+
+  genreLabel = computed(() => this.genre());
+
+  genreDescription = computed(() => {
+    if (this.genre() === 'Bollywood') {
+      return 'Watch trending Indian movies streamed directly from YouTube.';
+    }
+    if (this.genre() === 'Hollywood') {
+      return 'Watch trending global movies streamed directly from YouTube.';
+    }
+    return 'Watch the latest Nigerian movies streamed directly from YouTube.';
+  });
 
   sectionTitle = computed(() => {
     switch (this.sortBy()) {
@@ -292,9 +324,12 @@ export class StreamOnlyMoviesComponent implements OnInit {
     this.route.queryParamMap.subscribe((params) => {
       const page = Math.max(1, Number(params.get('page') || 1) || 1);
       const sortBy = (params.get('sortBy') || 'latest').trim();
+      const genreParam = (params.get('genre') || 'Nollywood').trim() as StreamGenre;
+      const genre = this.genreOptions.includes(genreParam) ? genreParam : 'Nollywood';
 
       this.currentPage.set(page);
       this.sortBy.set(sortBy);
+      this.genre.set(genre);
       this.loadMovies();
     });
   }
@@ -302,14 +337,14 @@ export class StreamOnlyMoviesComponent implements OnInit {
   loadMovies() {
     this.isLoading.set(true);
     
-    // Fetch Nollywood stream-only movies
+    // Fetch stream-only movies by selected region
     const params = new HttpParams()
       .set('isStreamOnly', 'true')
       .set('youtubeOnly', 'true')
       .set('sortBy', this.sortBy())
       .set('page', String(this.currentPage()))
       .set('limit', String(this.pageSize))
-      .append('genre', 'Nollywood');
+      .append('genre', this.genre());
     this.http.get<{ 
       success: boolean;
       data: MovieSummary[];
@@ -336,6 +371,14 @@ export class StreamOnlyMoviesComponent implements OnInit {
     this.loadMovies();
   }
 
+  changeGenre(nextGenre: StreamGenre) {
+    if (nextGenre === this.genre()) return;
+    this.genre.set(nextGenre);
+    this.currentPage.set(1);
+    this.syncUrl();
+    this.loadMovies();
+  }
+
   onPageChange(page: number) {
     this.currentPage.set(page);
     this.syncUrl();
@@ -349,6 +392,7 @@ export class StreamOnlyMoviesComponent implements OnInit {
       queryParams: {
         page: this.currentPage(),
         sortBy: this.sortBy(),
+        genre: this.genre(),
       },
       replaceUrl: true,
     });
