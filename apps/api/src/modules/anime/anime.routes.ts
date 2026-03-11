@@ -914,8 +914,24 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         try {
           const info = await bridgeRequest<BridgeInfoResponse>(`/meta/anilist/info/${id}?provider=${encodeURIComponent(candidate)}`);
           const episodes = mapEpisodes(info.episodes);
+          if (!fallbackEpisodeIdForHianime) {
+            const hianimeCompatible = episodes.find(
+              (entry) => entry.number === episodeNumber && !!hianimeEpisodeIdFromBridgeId(entry.id),
+            ) || episodes.find((entry) => !!hianimeEpisodeIdFromBridgeId(entry.id));
+            if (hianimeCompatible) {
+              fallbackEpisodeIdForHianime = hianimeCompatible.id;
+            }
+          }
           const targetEpisode = episodes.find((entry) => entry.number === episodeNumber);
-          if (!targetEpisode) continue;
+          if (!targetEpisode) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'bridge-watch',
+              provider: candidate,
+              outcome: 'miss',
+              detail: `Episode ${episodeNumber} not found in provider episode list`,
+            });
+            continue;
+          }
           if (!fallbackEpisodeId) {
             fallbackEpisodeId = targetEpisode.id;
           }
