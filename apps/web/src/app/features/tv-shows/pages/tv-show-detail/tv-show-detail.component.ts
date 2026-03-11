@@ -8,7 +8,7 @@ import { TvShowsQueryService } from '../../services/tv-shows-query.service';
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <section class="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
+    <section class="mx-auto w-full max-w-7xl px-4 py-6 pb-28 md:px-6 md:pb-10">
       @if (query.isLoading()) {
         <div class="py-16 text-center text-white/70">Loading show...</div>
       } @else if (query.isError() || !show()) {
