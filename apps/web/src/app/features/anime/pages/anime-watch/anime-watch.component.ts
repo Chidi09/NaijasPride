@@ -72,6 +72,18 @@ import { AnimeApiService } from '../../services/anime-api.service';
                   <option [value]="s">{{ s }}</option>
                 }
               </select>
+
+              @if (qualityOptions().length > 1 && !selectedSourceIsEmbed()) {
+                <select
+                  class="rounded-full border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white"
+                  [value]="selectedQualityLevel()"
+                  (change)="onQualityChange($event)"
+                >
+                  @for (quality of qualityOptions(); track quality.value) {
+                    <option [value]="quality.value">{{ quality.label }}</option>
+                  }
+                </select>
+              }
             }
 
             @for (source of sourceButtons(); track source.url) {
@@ -163,6 +175,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   private hls: Hls | null = null;
   private embedLoadTimeout: ReturnType<typeof setTimeout> | null = null;
+  private mediaRecoveryAttempted = false;
 
   animeId = signal(0);
   episodeNumber = signal(1);
@@ -174,6 +187,8 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   episodes = signal<any[]>([]);
   sources = signal<Array<{ url: string; originalUrl?: string; quality?: string; isM3U8?: boolean; isEmbed?: boolean }>>([]);
   watchHeaders = signal<Record<string, string>>({});
+  qualityOptions = signal<Array<{ value: string; label: string }>>([{ value: '-1', label: 'Auto' }]);
+  selectedQualityLevel = signal(-1);
   activeSourceUrl = signal<string | null>(null);
   readonly providers = signal<string[]>(['auto', 'gogoanime', 'zoro', 'animepahe']);
   readonly serverOptions = signal<string[]>(['vidstreaming', 'gogocdn', 'streamsb']);
@@ -290,6 +305,14 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.updateQueryParams({ provider: this.provider(), server: value || null });
   }
 
+  onQualityChange(event: Event): void {
+    const value = Number((event.target as HTMLSelectElement | null)?.value ?? -1);
+    this.selectedQualityLevel.set(Number.isFinite(value) ? value : -1);
+    if (this.hls) {
+      this.hls.currentLevel = this.selectedQualityLevel();
+    }
+  }
+
   private load(): void {
     this.loading.set(true);
     this.error.set(null);
@@ -334,7 +357,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
           });
 
         this.sources.set(sources);
-        const first = sources[0];
+        const first = sources.find((source: any) => !source.isEmbed) || sources[0];
         this.activeSourceUrl.set(first?.url || null);
         this.loading.set(false);
         if (first) {
@@ -416,15 +439,65 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     if (!video) return;
 
     this.destroyPlayer();
+    this.qualityOptions.set([{ value: '-1', label: 'Auto' }]);
+    this.selectedQualityLevel.set(-1);
+    this.mediaRecoveryAttempted = false;
 
     if (isM3U8 && Hls.isSupported()) {
-      this.hls = new Hls();
+      this.hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        manifestLoadingTimeOut: 15000,
+        levelLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 20000,
+      });
+
+      this.hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+        const options = [{ value: '-1', label: 'Auto' }];
+        data.levels.forEach((level, index) => {
+          const height = level.height ? `${level.height}p` : null;
+          const bitrate = level.bitrate ? `${Math.round(level.bitrate / 1000)}kbps` : null;
+          const label = [height, bitrate].filter(Boolean).join(' • ') || `Level ${index + 1}`;
+          options.push({ value: String(index), label });
+        });
+        this.qualityOptions.set(options);
+        this.selectedQualityLevel.set(-1);
+        void video.play().catch(() => undefined);
+      });
+
+      this.hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+        this.selectedQualityLevel.set(data.level);
+      });
+
+      this.hls.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          this.playbackNotice.set('Network hiccup detected. Retrying stream...');
+          this.hls?.startLoad();
+          return;
+        }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !this.mediaRecoveryAttempted) {
+          this.mediaRecoveryAttempted = true;
+          this.playbackNotice.set('Playback error detected. Recovering media...');
+          this.hls?.recoverMediaError();
+          return;
+        }
+
+        this.playbackNotice.set('Playback failed on this source. Trying next source...');
+        this.tryNextSource('Trying next source...');
+      });
+
       this.hls.loadSource(url);
       this.hls.attachMedia(video);
       return;
     }
 
     video.src = url;
+    void video.play().catch(() => undefined);
   }
 
   private destroyPlayer(): void {
