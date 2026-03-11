@@ -285,6 +285,15 @@ import { ThemeService } from '../../services/theme.service';
             </svg>
             <span class="menu-text">TV Shows</span>
           </a>
+
+          <a class="menu-item" routerLink="/anime" (click)="close()">
+            <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 6l8 12 8-12"></path>
+              <path d="M7 6h10"></path>
+              <path d="M9 11h6"></path>
+            </svg>
+            <span class="menu-text">Anime</span>
+          </a>
         </div>
 
         <!-- Preferences -->

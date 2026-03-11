@@ -52,6 +52,15 @@ import { PwaService } from '../../../core/services/pwa.service';
           <span class="nav-label">TV</span>
         </a>
 
+        <a routerLink="/anime" routerLinkActive="active-link" class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M4 6l8 12 8-12"/>
+            <path d="M7 6h10"/>
+            <path d="M9 11h6"/>
+          </svg>
+          <span class="nav-label">Anime</span>
+        </a>
+
         <a routerLink="/music" routerLinkActive="active-link" class="nav-item">
           <svg class="nav-icon" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"/>

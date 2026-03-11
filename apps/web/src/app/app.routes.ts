@@ -94,6 +94,16 @@ export const routes: Routes = [
     ],
   },
 
+  {
+    path: 'anime',
+    canActivate: [authGuard],
+    children: [
+      { path: '', loadComponent: () => import('./features/anime/pages/anime-list/anime-list.component').then(m => m.AnimeListComponent) },
+      { path: ':id/watch/:episodeNumber', loadComponent: () => import('./features/anime/pages/anime-watch/anime-watch.component').then(m => m.AnimeWatchComponent) },
+      { path: ':id', loadComponent: () => import('./features/anime/pages/anime-detail/anime-detail.component').then(m => m.AnimeDetailComponent) },
+    ],
+  },
+
   // ──────────────────────────────────────────────────────────────
   // 5. BOOKS & MANGA HUB
   //    Tabs for Novels, Manga, Comics within the hub

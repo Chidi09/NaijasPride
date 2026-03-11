@@ -33,6 +33,7 @@ import { AutoLibraryDiscoveryService } from "./modules/books/auto-library-discov
 import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
 import { searchRoutes } from "./modules/search/search.routes";
 import { tvShowRoutes } from "./modules/tv-shows/tv-shows.routes";
+import { animeRoutes } from "./modules/anime/anime.routes";
 import { TvTmdbSyncService } from "./modules/tv-shows/tv-tmdb-sync.service";
 import { MovieTmdbSyncService } from "./modules/movies/movie-tmdb-sync.service";
 import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
@@ -294,6 +295,7 @@ const buildServer = async () => {
   await app.register(plansRoutes, { prefix: `${apiPrefix}/plans` });
   await app.register(musicRoutes, { prefix: `${apiPrefix}/music` });
   await app.register(tvShowRoutes, { prefix: `${apiPrefix}/tv-shows` });
+  await app.register(animeRoutes, { prefix: `${apiPrefix}/anime` });
   await app.register(searchRoutes, { prefix: `${apiPrefix}/search` });
   await app.register(adminMusicRoutes, { prefix: `${apiPrefix}/admin/music` });
   await app.register(wrappedRoutes, { prefix: `${apiPrefix}/wrapped` });
