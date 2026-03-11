@@ -80,7 +80,7 @@ export class AnimeDetailComponent {
   private route = inject(ActivatedRoute);
   private api = inject(AnimeApiService);
 
-  provider = 'gogoanime';
+  provider = 'auto';
   loading = signal(true);
   anime = signal<any | null>(null);
   episodes = signal<any[]>([]);
@@ -107,6 +107,7 @@ export class AnimeDetailComponent {
 
     this.api.getEpisodes(id, this.provider).subscribe({
       next: (res) => {
+        this.provider = res?.data?.provider || this.provider;
         this.episodes.set(res?.data?.episodes || []);
         this.loading.set(false);
       },

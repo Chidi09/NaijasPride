@@ -98,9 +98,9 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   episodes = signal<any[]>([]);
   sources = signal<Array<{ url: string; quality?: string; isM3U8?: boolean }>>([]);
   activeSourceUrl = signal<string | null>(null);
-  readonly providers = signal<string[]>(['gogoanime', 'zoro', 'animepahe']);
+  readonly providers = signal<string[]>(['auto', 'gogoanime', 'zoro', 'animepahe']);
   readonly serverOptions = signal<string[]>(['vidstreaming', 'gogocdn', 'streamsb']);
-  provider = signal('gogoanime');
+  provider = signal('auto');
   server = signal('');
 
   selectedSource = computed(() => this.sources().find((entry) => entry.url === this.activeSourceUrl()) || null);
@@ -115,9 +115,9 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     });
 
     this.route.queryParamMap.subscribe((query) => {
-      const provider = (query.get('provider') || 'gogoanime').trim();
+      const provider = (query.get('provider') || 'auto').trim();
       const server = (query.get('server') || '').trim();
-      this.provider.set(provider || 'gogoanime');
+      this.provider.set(provider || 'auto');
       this.server.set(server);
       if (this.animeId() && this.episodeNumber()) {
         this.load();
@@ -142,7 +142,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   }
 
   onProviderChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement | null)?.value?.trim() || 'gogoanime';
+    const value = (event.target as HTMLSelectElement | null)?.value?.trim() || 'auto';
     this.provider.set(value);
     this.updateQueryParams({ provider: value, server: this.server() || null });
   }

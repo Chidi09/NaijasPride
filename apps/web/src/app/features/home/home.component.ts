@@ -198,6 +198,15 @@ type BookProgressResponse = {
           TV Shows
         </a>
 
+        <a routerLink="/anime" class="nav-link">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M4 6l8 12 8-12" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M7 6h10" stroke-linecap="round"/>
+            <path d="M9 11h6" stroke-linecap="round"/>
+          </svg>
+          Anime
+        </a>
+
         <a routerLink="/books" class="nav-link">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-linecap="round" stroke-linejoin="round"/>
@@ -284,7 +293,7 @@ type BookProgressResponse = {
           <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <span>Search movies, books, music…</span>
+          <span>Search movies, anime, books, music…</span>
         </a>
 
         <!-- Right actions -->
@@ -343,6 +352,14 @@ type BookProgressResponse = {
                   <path d="M9 18V5l12-2v13" stroke-linecap="round"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
                 </svg>
                 Music
+              </a>
+              <a routerLink="/anime" class="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-white/20 transition">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path d="M4 6l8 12 8-12" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M7 6h10" stroke-linecap="round"/>
+                  <path d="M9 11h6" stroke-linecap="round"/>
+                </svg>
+                Anime
               </a>
             </div>
           </div>
@@ -432,6 +449,47 @@ type BookProgressResponse = {
                     </div>
                     <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ movie.title }}</p>
                     <p class="text-[10px] text-[#a88a78]">{{ movie.year }}</p>
+                  </a>
+                }
+              </div>
+            }
+          </section>
+        }
+
+        <!-- ── Trending Anime (portrait 2:3) ─────────────────────── -->
+        @if (trendingAnime().length > 0 || isLoadingAnime()) {
+          <section>
+            <div class="mb-3 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Anime</h2>
+              <a routerLink="/anime" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+            </div>
+            @if (isLoadingAnime()) {
+              <div class="movies-home-grid">
+                @for (i of [1,2,3,4,5]; track i) {
+                  <div>
+                    <div class="aspect-[2/3] animate-pulse rounded-xl bg-[#181818]"></div>
+                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
+                    <div class="mt-1 h-2.5 w-1/2 animate-pulse rounded bg-[#181818]"></div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="movies-home-grid">
+                @for (anime of trendingAnime(); track anime.id) {
+                  <a [routerLink]="['/anime', anime.id]" class="movie-card group">
+                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#181818]">
+                      <img [src]="anime.coverImage?.large || anime.coverImage?.medium || '/assets/images/poster-placeholder.svg'" [alt]="anime.title?.english || anime.title?.romaji || anime.title?.native"
+                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                      <div class="card-overlay absolute inset-0 bg-black/40 flex items-end p-2">
+                        <div class="h-7 w-7 rounded-full bg-[#800020] flex items-center justify-center">
+                          <svg class="h-3.5 w-3.5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ anime.title?.english || anime.title?.romaji || anime.title?.native }}</p>
+                    <p class="text-[10px] text-[#a88a78]">{{ anime.seasonYear || '-' }}</p>
                   </a>
                 }
               </div>
@@ -704,6 +762,12 @@ type BookProgressResponse = {
             </svg>
             <p class="text-[11px] text-[#f9f9f2]">Movies</p>
           </a>
+          <a routerLink="/anime" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
+            <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path d="M4 6l8 12 8-12"/><path d="M7 6h10"/><path d="M9 11h6"/>
+            </svg>
+            <p class="text-[11px] text-[#f9f9f2]">Anime</p>
+          </a>
           <a routerLink="/books" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
             <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
@@ -736,12 +800,14 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   isLoadingContinue = signal(true);
   isLoadingMovies = signal(true);
+  isLoadingAnime = signal(true);
   isLoadingStreamMovies = signal(true);
   continueWatching = signal<WatchHistoryItem[]>([]);
   /** Download movies — portrait 2:3 cards */
   downloadMovies = signal<MovieSummary[]>([]);
   /** Stream-only / YouTube movies — landscape 16:9 cards */
   streamMovies = signal<MovieSummary[]>([]);
+  trendingAnime = signal<any[]>([]);
   books = signal<BookSummary[]>([]);
   musicTrending = signal<MusicFeaturedSections['trending']>([]);
   movieProgressById = signal<Record<string, number>>({});
@@ -792,6 +858,17 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.isLoadingMovies.set(false);
       },
       error: () => this.isLoadingMovies.set(false),
+    });
+
+    // Trending Anime
+    this.http.get<{ success?: boolean; data?: { media?: any[] } }>('/api/v1/anime/search', {
+      params: { page: '1', perPage: '10', sort: 'TRENDING_DESC' },
+    }).subscribe({
+      next: (res) => {
+        this.trendingAnime.set((res.data?.media || []).slice(0, 10));
+        this.isLoadingAnime.set(false);
+      },
+      error: () => this.isLoadingAnime.set(false),
     });
 
     // Stream-only / YouTube movies (landscape 16:9 cards — isStreamOnly=true)

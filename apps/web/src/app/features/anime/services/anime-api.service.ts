@@ -28,13 +28,13 @@ export class AnimeApiService {
     return this.http.get<{ success: boolean; data: any }>(`/api/v1/anime/${id}`);
   }
 
-  getEpisodes(id: number, provider = 'gogoanime') {
+  getEpisodes(id: number, provider = 'auto') {
     return this.http.get<{ success: boolean; data: any }>(`/api/v1/anime/${id}/episodes`, {
       params: new HttpParams().set('provider', provider),
     });
   }
 
-  getWatchSources(id: number, episodeNumber: number, provider = 'gogoanime', server?: string) {
+  getWatchSources(id: number, episodeNumber: number, provider = 'auto', server?: string) {
     let params = new HttpParams().set('provider', provider);
     if (server) {
       params = params.set('server', server);

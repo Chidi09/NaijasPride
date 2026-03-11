@@ -5,8 +5,9 @@ import { z } from 'zod';
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 const ANILIST_TIMEOUT_MS = 12_000;
 const ANIME_BRIDGE_BASE_URL = (process.env.ANIME_BRIDGE_BASE_URL || 'https://api.consumet.org').replace(/\/+$/, '');
-const ANIME_BRIDGE_DEFAULT_PROVIDER = process.env.ANIME_BRIDGE_PROVIDER || 'gogoanime';
+const ANIME_BRIDGE_DEFAULT_PROVIDER = process.env.ANIME_BRIDGE_PROVIDER || 'auto';
 const ANIME_BRIDGE_TIMEOUT_MS = 15_000;
+const ANIME_BRIDGE_FALLBACK_PROVIDERS = ['gogoanime', 'zoro', 'animepahe'];
 
 const mediaSeasonSchema = z.enum(['WINTER', 'SPRING', 'SUMMER', 'FALL']);
 const mediaFormatSchema = z.enum(['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC']);
@@ -298,6 +299,14 @@ const mapEpisodes = (episodes: BridgeInfoEpisode[] = []) =>
     }))
     .sort((a, b) => a.number - b.number);
 
+const providersForRequest = (provider: string): string[] => {
+  const normalized = provider.trim().toLowerCase();
+  if (!normalized || normalized === 'auto') {
+    return [...ANIME_BRIDGE_FALLBACK_PROVIDERS];
+  }
+  return [normalized, ...ANIME_BRIDGE_FALLBACK_PROVIDERS.filter((entry) => entry !== normalized)];
+};
+
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
@@ -383,15 +392,39 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params;
       const { provider } = request.query;
 
-      const info = await bridgeRequest<BridgeInfoResponse>(`/meta/anilist/info/${id}?provider=${encodeURIComponent(provider)}`);
-      const episodes = mapEpisodes(info.episodes);
+      let usedProvider: string | null = null;
+      let info: BridgeInfoResponse | null = null;
+      let episodes: ReturnType<typeof mapEpisodes> = [];
+
+      for (const candidate of providersForRequest(provider)) {
+        try {
+          const attempt = await bridgeRequest<BridgeInfoResponse>(`/meta/anilist/info/${id}?provider=${encodeURIComponent(candidate)}`);
+          const mapped = mapEpisodes(attempt.episodes);
+          if (mapped.length > 0) {
+            usedProvider = candidate;
+            info = attempt;
+            episodes = mapped;
+            break;
+          }
+          if (!info) {
+            info = attempt;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (!usedProvider) {
+        usedProvider = providersForRequest(provider)[0] || 'gogoanime';
+      }
 
       return reply.send({
         success: true,
         data: {
           id,
-          provider,
-          animeTitle: info.title || null,
+          provider: usedProvider,
+          requestedProvider: provider,
+          animeTitle: info?.title || null,
           episodes,
         },
       });
@@ -417,41 +450,62 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       const { id, episodeNumber } = request.params;
       const { provider, server } = request.query;
 
-      const info = await bridgeRequest<BridgeInfoResponse>(`/meta/anilist/info/${id}?provider=${encodeURIComponent(provider)}`);
-      const episodes = mapEpisodes(info.episodes);
-      const episode = episodes.find((entry) => entry.number === episodeNumber);
+      let resolvedProvider: string | null = null;
+      let episode: ReturnType<typeof mapEpisodes>[number] | null = null;
+      let watch: BridgeWatchResponse | null = null;
+      let sources: Array<{ url: string; quality: string; isM3U8: boolean }> = [];
 
-      if (!episode) {
+      for (const candidate of providersForRequest(provider)) {
+        try {
+          const info = await bridgeRequest<BridgeInfoResponse>(`/meta/anilist/info/${id}?provider=${encodeURIComponent(candidate)}`);
+          const episodes = mapEpisodes(info.episodes);
+          const targetEpisode = episodes.find((entry) => entry.number === episodeNumber);
+          if (!targetEpisode) continue;
+
+          const query = new URLSearchParams({ provider: candidate });
+          if (server) query.set('server', server);
+
+          const watchAttempt = await bridgeRequest<BridgeWatchResponse>(
+            `/meta/anilist/watch/${encodeURIComponent(targetEpisode.id)}?${query.toString()}`,
+          );
+
+          const mappedSources = (watchAttempt.sources || [])
+            .filter((source) => !!source.url)
+            .map((source) => ({
+              url: source.url as string,
+              quality: source.quality || 'auto',
+              isM3U8: !!source.isM3U8,
+            }));
+
+          if (mappedSources.length === 0) continue;
+
+          resolvedProvider = candidate;
+          episode = targetEpisode;
+          watch = watchAttempt;
+          sources = mappedSources;
+          break;
+        } catch {
+          continue;
+        }
+      }
+
+      if (!episode || !watch || !resolvedProvider) {
         return reply.status(404).send({
           success: false,
           error: {
             code: 'NOT_FOUND',
-            message: `Episode ${episodeNumber} not found for this anime`,
+            message: `No playable sources found for episode ${episodeNumber}`,
           },
         });
       }
-
-      const query = new URLSearchParams({ provider });
-      if (server) query.set('server', server);
-
-      const watch = await bridgeRequest<BridgeWatchResponse>(
-        `/meta/anilist/watch/${encodeURIComponent(episode.id)}?${query.toString()}`,
-      );
-
-      const sources = (watch.sources || [])
-        .filter((source) => !!source.url)
-        .map((source) => ({
-          url: source.url as string,
-          quality: source.quality || 'auto',
-          isM3U8: !!source.isM3U8,
-        }));
 
       return reply.send({
         success: true,
         data: {
           animeId: id,
           episode,
-          provider,
+          provider: resolvedProvider,
+          requestedProvider: provider,
           server: server || null,
           sources,
           subtitles: (watch.subtitles || [])
