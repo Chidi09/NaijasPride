@@ -304,9 +304,8 @@ echo ""
 echo "==> Running database migrations"
 docker run --rm \
   --env-file .env \
-  -e TMPDIR=/app/.tmp \
   "naijaspride-api:$INACTIVE" \
-  sh -lc "mkdir -p /app/.tmp && ./node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma"
+  ./node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma
 
 echo ""
 echo "==> Starting $INACTIVE stack"
