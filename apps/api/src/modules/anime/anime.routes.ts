@@ -357,42 +357,45 @@ type HianimeFallbackResult = {
   headers: Record<string, string>;
 };
 
-const hianimeEpisodeIdFromBridgeId = (bridgeEpisodeId: string): string | null => {
-  const match = bridgeEpisodeId.match(/\$episode\$(\d+)/);
-  return match?.[1] || null;
+const hianimeEpisodeIdsFromBridgeId = (bridgeEpisodeId: string): string[] => {
+  const raw = bridgeEpisodeId.trim();
+  if (!raw) return [];
+
+  const candidates = new Set<string>();
+  if (/^\d+$/.test(raw)) {
+    candidates.add(raw);
+  }
+
+  const patterns = [
+    /\$episode\$(\d+)/i,
+    /[?&]episode(?:Id)?=(\d+)/i,
+    /[?&]ep(?:Id)?=(\d+)/i,
+    /(?:^|[-_/])episode[-_/]?(\d{3,})/i,
+    /(?:^|[-_/])ep[-_/]?(\d{3,})/i,
+    /(\d{5,})$/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) {
+      candidates.add(match[1]);
+    }
+  }
+
+  return Array.from(candidates);
 };
 
 async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFallbackResult> {
-  const hianimeEpisodeId = hianimeEpisodeIdFromBridgeId(bridgeEpisodeId);
-  if (!hianimeEpisodeId) return { sources: [], headers: {} };
+  const hianimeEpisodeIds = hianimeEpisodeIdsFromBridgeId(bridgeEpisodeId);
+  if (hianimeEpisodeIds.length === 0) return { sources: [], headers: {} };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
 
   try {
-    const serversResponse = await fetch(
-      `https://hianime.to/ajax/v2/episode/servers?episodeId=${encodeURIComponent(hianimeEpisodeId)}`,
-      {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'Mozilla/5.0',
-        },
-        signal: controller.signal,
-      },
-    );
-
-    if (!serversResponse.ok) return { sources: [], headers: {} };
-    const serversPayload = (await serversResponse.json()) as { html?: string };
-    const html = serversPayload.html || '';
-
-    const serverIds = Array.from(new Set(Array.from(html.matchAll(/data-id="(\d+)"/g)).map((entry) => entry[1])));
-    if (serverIds.length === 0) return { sources: [], headers: {} };
-
-    const sources: HianimeFallbackSource[] = [];
-    let preferredReferer: string | null = null;
-    for (const serverId of serverIds.slice(0, 4)) {
-      const sourceResponse = await fetch(
-        `https://hianime.to/ajax/v2/episode/sources?id=${encodeURIComponent(serverId)}`,
+    for (const hianimeEpisodeId of hianimeEpisodeIds.slice(0, 3)) {
+      const serversResponse = await fetch(
+        `https://hianime.to/ajax/v2/episode/servers?episodeId=${encodeURIComponent(hianimeEpisodeId)}`,
         {
           headers: {
             Accept: 'application/json',
@@ -401,37 +404,63 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
           signal: controller.signal,
         },
       );
-      if (!sourceResponse.ok) continue;
 
-      const payload = (await sourceResponse.json()) as { link?: string };
-      if (!payload.link) continue;
+      if (!serversResponse.ok) continue;
+      const serversPayload = (await serversResponse.json()) as { html?: string };
+      const html = serversPayload.html || '';
 
-      const direct = await resolveDirectMediaFromEmbed(payload.link);
-      if (direct) {
-        sources.push({
-          url: direct.url,
-          quality: direct.isM3U8 ? `hls-${serverId}` : `mp4-${serverId}`,
-          isM3U8: direct.isM3U8,
-          isEmbed: false,
-        });
-        if (!preferredReferer) {
-          preferredReferer = payload.link;
+      const serverIds = Array.from(new Set(Array.from(html.matchAll(/data-id="(\d+)"/g)).map((entry) => entry[1])));
+      if (serverIds.length === 0) continue;
+
+      const sources: HianimeFallbackSource[] = [];
+      let preferredReferer: string | null = null;
+      for (const serverId of serverIds.slice(0, 4)) {
+        const sourceResponse = await fetch(
+          `https://hianime.to/ajax/v2/episode/sources?id=${encodeURIComponent(serverId)}`,
+          {
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'Mozilla/5.0',
+            },
+            signal: controller.signal,
+          },
+        );
+        if (!sourceResponse.ok) continue;
+
+        const payload = (await sourceResponse.json()) as { link?: string };
+        if (!payload.link) continue;
+
+        const direct = await resolveDirectMediaFromEmbed(payload.link);
+        if (direct) {
+          sources.push({
+            url: direct.url,
+            quality: direct.isM3U8 ? `hls-${serverId}` : `mp4-${serverId}`,
+            isM3U8: direct.isM3U8,
+            isEmbed: false,
+          });
+          if (!preferredReferer) {
+            preferredReferer = payload.link;
+          }
+          continue;
         }
-        continue;
+
+        sources.push({
+          url: payload.link,
+          quality: `embed-${serverId}`,
+          isM3U8: false,
+          isEmbed: true,
+        });
       }
 
-      sources.push({
-        url: payload.link,
-        quality: `embed-${serverId}`,
-        isM3U8: false,
-        isEmbed: true,
-      });
+      if (sources.length > 0) {
+        return {
+          sources,
+          headers: preferredReferer ? { Referer: preferredReferer } : {},
+        };
+      }
     }
 
-    return {
-      sources,
-      headers: preferredReferer ? { Referer: preferredReferer } : {},
-    };
+    return { sources: [], headers: {} };
   } catch {
     return { sources: [], headers: {} };
   } finally {
@@ -916,8 +945,8 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           const episodes = mapEpisodes(info.episodes);
           if (!fallbackEpisodeIdForHianime) {
             const hianimeCompatible = episodes.find(
-              (entry) => entry.number === episodeNumber && !!hianimeEpisodeIdFromBridgeId(entry.id),
-            ) || episodes.find((entry) => !!hianimeEpisodeIdFromBridgeId(entry.id));
+              (entry) => entry.number === episodeNumber && hianimeEpisodeIdsFromBridgeId(entry.id).length > 0,
+            ) || episodes.find((entry) => hianimeEpisodeIdsFromBridgeId(entry.id).length > 0);
             if (hianimeCompatible) {
               fallbackEpisodeIdForHianime = hianimeCompatible.id;
             }
@@ -935,7 +964,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           if (!fallbackEpisodeId) {
             fallbackEpisodeId = targetEpisode.id;
           }
-          if (!fallbackEpisodeIdForHianime && hianimeEpisodeIdFromBridgeId(targetEpisode.id)) {
+          if (!fallbackEpisodeIdForHianime && hianimeEpisodeIdsFromBridgeId(targetEpisode.id).length > 0) {
             fallbackEpisodeIdForHianime = targetEpisode.id;
           }
 
