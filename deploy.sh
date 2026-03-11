@@ -102,6 +102,14 @@ services:
         aliases:
           - flaresolverr
 
+  anime-bridge-a-$stack:
+    image: vishwaj33t/consumet:latest
+    restart: unless-stopped
+
+  anime-bridge-b-$stack:
+    image: vishwaj33t/consumet:latest
+    restart: unless-stopped
+
   api-$stack:
     image: naijaspride-api:$stack
     restart: unless-stopped
@@ -115,6 +123,8 @@ services:
       PORT: "3000"
       REDIS_URL: redis://redis-$stack:6379
       FLARESOLVERR_URL: ""
+      ANIME_BRIDGE_BASE_URLS: "http://anime-bridge-a-$stack:3000,http://anime-bridge-b-$stack:3000"
+      ANIME_BRIDGE_PROVIDER: "auto"
       TORRENT_DOWNLOAD_DIR: /tmp/naijaspride/torrent-downloads
       FFMPEG_PATH: /usr/bin/ffmpeg
 

@@ -4,7 +4,12 @@ import { z } from 'zod';
 
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 const ANILIST_TIMEOUT_MS = 12_000;
-const ANIME_BRIDGE_BASE_URL = (process.env.ANIME_BRIDGE_BASE_URL || 'https://api.consumet.org').replace(/\/+$/, '');
+const ANIME_BRIDGE_BASE_URLS = (
+  process.env.ANIME_BRIDGE_BASE_URLS || process.env.ANIME_BRIDGE_BASE_URL || 'https://api.consumet.org'
+)
+  .split(',')
+  .map((entry) => entry.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 const ANIME_BRIDGE_DEFAULT_PROVIDER = process.env.ANIME_BRIDGE_PROVIDER || 'auto';
 const ANIME_BRIDGE_TIMEOUT_MS = 15_000;
 const ANIME_BRIDGE_FALLBACK_PROVIDERS = ['gogoanime', 'zoro', 'animepahe'];
@@ -264,26 +269,41 @@ async function anilistRequest<T>(query: string, variables: Record<string, unknow
 }
 
 async function bridgeRequest<T>(path: string): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
+  const candidates = ANIME_BRIDGE_BASE_URLS.length > 0 ? ANIME_BRIDGE_BASE_URLS : ['https://api.consumet.org'];
+  let lastError: Error | null = null;
 
-  try {
-    const response = await fetch(`${ANIME_BRIDGE_BASE_URL}${path}`, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
+  for (const baseUrl of candidates) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
 
-    if (!response.ok) {
-      throw new Error(`Anime bridge request failed with status ${response.status}`);
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Anime bridge request failed with status ${response.status} (${baseUrl})`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Anime bridge returned non-JSON response (${baseUrl})`);
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      continue;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return (await response.json()) as T;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw lastError || new Error('All anime bridge endpoints failed');
 }
 
 const mapEpisodes = (episodes: BridgeInfoEpisode[] = []) =>
