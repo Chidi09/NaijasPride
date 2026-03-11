@@ -286,6 +286,10 @@ generate_compose blue
 generate_compose green
 
 echo ""
+echo "==> Cleaning previous $INACTIVE stack artifacts"
+docker compose -f "$(compose_file "$INACTIVE")" down -v --remove-orphans 2>/dev/null || true
+
+echo ""
 echo "==> Removing stale image from previous cycle (naijaspride-api:$INACTIVE)"
 # The $INACTIVE stack has been stopped since last deploy. Its image is now
 # two cycles old — we're about to overwrite it anyway, so remove it first
@@ -300,8 +304,9 @@ echo ""
 echo "==> Running database migrations"
 docker run --rm \
   --env-file .env \
+  -e TMPDIR=/app/.tmp \
   "naijaspride-api:$INACTIVE" \
-  npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+  sh -lc "mkdir -p /app/.tmp && ./node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma"
 
 echo ""
 echo "==> Starting $INACTIVE stack"
