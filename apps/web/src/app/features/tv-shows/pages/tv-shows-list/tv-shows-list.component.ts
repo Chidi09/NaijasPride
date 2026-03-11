@@ -22,166 +22,467 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, TvShowCardComponent],
   template: `
-    <section class="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
-      <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-white">TV Shows</h1>
-          <p class="text-sm text-white/60">TMDB-style browse with sections, filters, favorites, and pagination.</p>
-        </div>
+    <section class="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
+      <!-- Animated Background -->
+      <div class="pointer-events-none fixed inset-0 z-0">
+        <div class="absolute inset-0 bg-gradient-to-br from-[#800020]/5 via-transparent to-[#1a0a0a]/50"></div>
+        <div class="absolute -left-1/4 -top-1/4 h-[600px] w-[600px] rounded-full bg-[#800020]/10 blur-[120px] animate-pulse-slow"></div>
+        <div class="absolute -bottom-1/4 -right-1/4 h-[800px] w-[800px] rounded-full bg-[#4a0015]/20 blur-[150px] animate-pulse-slow-delayed"></div>
+        <!-- Grid Pattern -->
+        <div class="absolute inset-0 opacity-[0.02]" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 60px 60px;"></div>
+      </div>
 
-        <div class="relative w-full max-w-sm">
-          <label>
-            <span class="mb-1 block text-xs text-white/60">Search</span>
-            <input
-              type="text"
-              class="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none ring-[#800020]/40 focus:ring"
-              placeholder="Search shows..."
-              [ngModel]="q()"
-              (ngModelChange)="onSearchInput($event || '')"
-              (focus)="searchFocused.set(true)"
-              (blur)="onSearchBlur()"
-            />
-          </label>
+      <!-- Hero Section -->
+      <div class="relative z-10 border-b border-white/5">
+        <div class="mx-auto max-w-7xl px-4 py-12 md:px-6 md:py-16">
+          <div class="animate-fade-in-up">
+            <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-[#800020]/30 bg-[#800020]/10 px-4 py-1.5">
+              <span class="h-2 w-2 animate-pulse rounded-full bg-[#800020]"></span>
+              <span class="text-xs font-medium tracking-wider text-[#800020] uppercase">TV Series Collection</span>
+            </div>
+            <h1 class="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-4xl font-bold text-transparent md:text-5xl lg:text-6xl">
+              TV Shows
+            </h1>
+            <p class="mt-4 max-w-2xl text-lg text-white/50">
+              Discover trending series, latest releases, and award-winning television from around the world.
+            </p>
+          </div>
 
-          @if (showSuggestions()) {
-            <div class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-white/15 bg-[#111] p-1 shadow-lg">
-              @if (suggestionLoading()) {
-                <div class="px-2 py-2 text-xs text-white/70">Searching...</div>
-              }
+          <!-- Search Bar -->
+          <div class="animate-fade-in-up animation-delay-200 mt-8">
+            <div class="relative mx-auto max-w-xl">
+              <div class="group relative">
+                <div class="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-[#800020]/50 to-[#a00030]/50 opacity-0 blur transition duration-500 group-focus-within:opacity-100"></div>
+                <div class="relative flex items-center">
+                  <svg class="pointer-events-none absolute left-4 h-5 w-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  </svg>
+                  <input
+                    type="text"
+                    class="w-full rounded-xl border border-white/10 bg-black/60 px-12 py-4 text-white backdrop-blur-sm transition-all duration-300 placeholder:text-white/30 focus:border-[#800020]/50 focus:bg-black/80 focus:outline-none focus:ring-2 focus:ring-[#800020]/20"
+                    placeholder="Search shows, genres, or actors..."
+                    [ngModel]="q()"
+                    (ngModelChange)="onSearchInput($event || '')"
+                    (focus)="searchFocused.set(true)"
+                    (blur)="onSearchBlur()"
+                  />
+                  @if (q()) {
+                    <button 
+                      class="absolute right-4 rounded-full p-1 text-white/40 transition hover:bg-white/10 hover:text-white"
+                      (click)="q.set(''); onSearchInput('')"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  }
+                </div>
+              </div>
 
-              @if (!suggestionLoading() && suggestions().length === 0) {
-                <div class="px-2 py-2 text-xs text-white/70">No quick matches.</div>
-              }
+              @if (showSuggestions()) {
+                <div class="animate-scale-in absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-white/10 bg-[#0f0f0f]/95 shadow-2xl shadow-black/50 backdrop-blur-xl">
+                  @if (suggestionLoading()) {
+                    <div class="flex items-center gap-3 px-4 py-4">
+                      <div class="h-4 w-4 animate-spin rounded-full border-2 border-[#800020] border-t-transparent"></div>
+                      <span class="text-sm text-white/50">Searching...</span>
+                    </div>
+                  }
 
-              @for (item of suggestions(); track item.id) {
-                <a
-                  class="flex items-center gap-2 rounded-md px-2 py-2 text-xs text-white/90 transition hover:bg-white/10"
-                  [routerLink]="['/tv-shows', item.slug]"
-                  (mousedown)="onSuggestionSelect()"
-                >
-                  <div class="h-8 w-6 overflow-hidden rounded bg-white/10">
-                    @if (item.posterUrl || item.thumbnailUrl) {
-                      <img [src]="item.posterUrl || item.thumbnailUrl || ''" [alt]="item.title" class="h-full w-full object-cover" referrerpolicy="no-referrer" />
-                    }
-                  </div>
-                  <div class="min-w-0">
-                    <p class="truncate">{{ item.title }}</p>
-                    <p class="truncate text-[10px] text-white/60">{{ item.year }} • {{ item.seasonCount }} seasons</p>
-                  </div>
-                </a>
+                  @if (!suggestionLoading() && suggestions().length === 0) {
+                    <div class="px-4 py-4 text-sm text-white/50">No matches found</div>
+                  }
+
+                  @for (item of suggestions(); track item.id) {
+                    <a
+                      class="group flex items-center gap-3 border-b border-white/5 px-4 py-3 transition-all duration-200 last:border-0 hover:bg-white/5"
+                      [routerLink]="['/tv-shows', item.slug]"
+                      (mousedown)="onSuggestionSelect()"
+                    >
+                      <div class="relative h-12 w-9 overflow-hidden rounded-md bg-white/5">
+                        <img 
+                          [src]="item.posterUrl || item.thumbnailUrl || '/assets/images/poster-placeholder.svg'" 
+                          [alt]="item.title" 
+                          class="h-full w-full object-cover transition duration-300 group-hover:scale-110"
+                        />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-medium text-white transition group-hover:text-[#800020]">{{ item.title }}</p>
+                        <p class="truncate text-xs text-white/40">{{ item.year }} • {{ item.seasonCount }} seasons</p>
+                      </div>
+                      <svg class="h-4 w-4 text-white/20 transition group-hover:translate-x-1 group-hover:text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </a>
+                  }
+                </div>
               }
             </div>
-          }
+          </div>
         </div>
       </div>
 
-      <div class="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-black/20 p-3 md:grid-cols-5">
-        <label>
-          <span class="mb-1 block text-[11px] text-white/60">Sort</span>
-          <select class="w-full rounded-md border border-white/15 bg-black/40 px-2 py-2 text-sm text-white" [ngModel]="sortBy()" (ngModelChange)="onSortChange($event)">
-            <option value="trending">Trending</option>
-            <option value="latest">Latest</option>
-            <option value="popular">Popular</option>
-            <option value="title">Title (A-Z)</option>
-          </select>
-        </label>
+      <!-- Filters Section -->
+      <div class="animate-fade-in-up animation-delay-300 relative z-10 border-b border-white/5 bg-black/20 backdrop-blur-sm">
+        <div class="mx-auto max-w-7xl px-4 py-4 md:px-6">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <!-- Filter Pills -->
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- Sort -->
+              <div class="group relative">
+                <select 
+                  class="appearance-none rounded-full border border-white/10 bg-white/5 px-4 py-2 pr-10 text-sm text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-white/10 focus:border-[#800020] focus:outline-none"
+                  [ngModel]="sortBy()" 
+                  (ngModelChange)="onSortChange($event)"
+                >
+                  <option value="trending">🔥 Trending</option>
+                  <option value="latest">🆕 Latest</option>
+                  <option value="popular">⭐ Popular</option>
+                  <option value="title">🔤 A-Z</option>
+                </select>
+                <svg class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
 
-        <label>
-          <span class="mb-1 block text-[11px] text-white/60">Genre</span>
-          <select class="w-full rounded-md border border-white/15 bg-black/40 px-2 py-2 text-sm text-white" [ngModel]="genre()" (ngModelChange)="onGenreChange($event)">
-            <option value="">All genres</option>
-            @for (entry of genreOptions; track entry) {
-              <option [value]="entry">{{ entry }}</option>
-            }
-          </select>
-        </label>
+              <!-- Genre -->
+              <div class="group relative">
+                <select 
+                  class="appearance-none rounded-full border border-white/10 bg-white/5 px-4 py-2 pr-10 text-sm text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-white/10 focus:border-[#800020] focus:outline-none"
+                  [ngModel]="genre()" 
+                  (ngModelChange)="onGenreChange($event)"
+                >
+                  <option value="">🎭 All Genres</option>
+                  @for (entry of genreOptions; track entry) {
+                    <option [value]="entry">{{ entry }}</option>
+                  }
+                </select>
+                <svg class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
 
-        <label>
-          <span class="mb-1 block text-[11px] text-white/60">Year</span>
-          <input type="number" class="w-full rounded-md border border-white/15 bg-black/40 px-2 py-2 text-sm text-white" [ngModel]="year()" (ngModelChange)="onYearChange($event)" placeholder="e.g. 2026" />
-        </label>
+              <!-- Year -->
+              <div class="relative">
+                <input 
+                  type="number" 
+                  class="w-28 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition-all duration-300 placeholder:text-white/30 hover:border-[#800020]/50 focus:border-[#800020] focus:outline-none focus:ring-2 focus:ring-[#800020]/20"
+                  [ngModel]="year()" 
+                  (ngModelChange)="onYearChange($event)" 
+                  placeholder="Year"
+                />
+              </div>
 
-        <label>
-          <span class="mb-1 block text-[11px] text-white/60">Language</span>
-          <input type="text" class="w-full rounded-md border border-white/15 bg-black/40 px-2 py-2 text-sm text-white" [ngModel]="language()" (ngModelChange)="onLanguageChange($event || '')" placeholder="e.g. EN" />
-        </label>
+              <!-- Language -->
+              <div class="relative">
+                <input 
+                  type="text" 
+                  class="w-28 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition-all duration-300 placeholder:text-white/30 hover:border-[#800020]/50 focus:border-[#800020] focus:outline-none focus:ring-2 focus:ring-[#800020]/20"
+                  [ngModel]="language()" 
+                  (ngModelChange)="onLanguageChange($event || '')" 
+                  placeholder="Lang"
+                />
+              </div>
+            </div>
 
-        <button class="mt-[18px] rounded-md border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20" (click)="resetFilters()">
-          Reset Filters
-        </button>
+            <!-- Reset Button -->
+            <button 
+              class="group flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition-all duration-300 hover:border-[#800020]/50 hover:bg-[#800020]/10 hover:text-white"
+              (click)="resetFilters()"
+            >
+              <svg class="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              Reset
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div class="mb-8">
-        <p class="mb-2 text-xs uppercase tracking-[0.2em] text-white/50">Curated Sections</p>
-        <div class="flex flex-wrap gap-2">
+      <!-- Curated Sections -->
+      <div class="relative z-10 mx-auto max-w-7xl px-4 py-10 md:px-6">
+        <div class="mb-8 flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl font-bold text-white">Curated For You</h2>
+            <p class="mt-1 text-sm text-white/40">Handpicked collections updated daily</p>
+          </div>
+          <div class="hidden md:flex items-center gap-2">
+            @for (key of sectionKeys; track key) {
+              <button
+                class="group relative overflow-hidden rounded-full border px-4 py-2 text-xs font-medium transition-all duration-300"
+                [class]="activeSection() === key 
+                  ? 'border-[#800020] bg-[#800020] text-white shadow-lg shadow-[#800020]/25' 
+                  : 'border-white/10 bg-white/5 text-white/60 hover:border-white/30 hover:bg-white/10 hover:text-white'"
+                (click)="applySection(key)"
+              >
+                <span class="relative z-10">{{ sectionLabel(key) }}</span>
+                @if (activeSection() === key) {
+                  <div class="absolute inset-0 bg-gradient-to-r from-[#800020] to-[#a00030]"></div>
+                }
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Mobile Section Tabs -->
+        <div class="mb-8 flex flex-wrap gap-2 md:hidden">
           @for (key of sectionKeys; track key) {
             <button
-              class="rounded-full border px-3 py-1 text-xs transition"
-              [ngClass]="activeSection() === key ? 'border-[#800020] bg-[#800020] text-white' : 'border-white/20 text-white/80'"
+              class="rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-300"
+              [class]="activeSection() === key 
+                ? 'border-[#800020] bg-[#800020] text-white' 
+                : 'border-white/10 bg-white/5 text-white/60'"
               (click)="applySection(key)"
             >
               {{ sectionLabel(key) }}
             </button>
           }
         </div>
-      </div>
 
-      <div class="mb-10 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-        @for (key of sectionKeys; track key) {
-          <div class="rounded-xl border border-white/10 bg-black/20 p-3">
-            <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-sm font-semibold text-white">{{ sectionLabel(key) }}</h2>
-              <button class="text-xs text-[#d79] hover:underline" (click)="applySection(key)">View all</button>
-            </div>
-            @if (sectionQuery(key).isLoading()) {
-              <div class="py-8 text-center text-xs text-white/60">Loading...</div>
-            } @else {
-              <div class="grid grid-cols-3 gap-2">
-                @for (show of sectionQuery(key).data()?.data || []; track show.id) {
-                  <app-tv-show-card [show]="show"></app-tv-show-card>
+        <!-- Section Cards Grid -->
+        <div class="mb-16 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          @for (key of sectionKeys; track key) {
+            <div class="animate-fade-in-up group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-1 transition-all duration-500 hover:border-[#800020]/30 hover:shadow-2xl hover:shadow-[#800020]/10">
+              <div class="relative overflow-hidden rounded-xl bg-black/40 p-4">
+                <!-- Section Header -->
+                <div class="mb-4 flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#800020] to-[#600018] text-lg shadow-lg shadow-[#800020]/30">
+                      @switch (key) {
+                        @case ('trending') { 🔥 }
+                        @case ('latest-2026') { 🆕 }
+                        @case ('latest-2025') { 📺 }
+                        @case ('highest-rated') { ⭐ }
+                        @case ('award-winning') { 🏆 }
+                      }
+                    </div>
+                    <div>
+                      <h3 class="text-base font-semibold text-white">{{ sectionLabel(key) }}</h3>
+                      <p class="text-xs text-white/40">{{ sectionQuery(key).data()?.data?.length || 0 }} shows</p>
+                    </div>
+                  </div>
+                  <button 
+                    class="group/btn flex items-center gap-1 rounded-full bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition-all duration-300 hover:bg-[#800020] hover:text-white"
+                    (click)="applySection(key)"
+                  >
+                    View all
+                    <svg class="h-3 w-3 transition-transform duration-300 group-hover/btn:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Mini Cards Grid -->
+                @if (sectionQuery(key).isLoading()) {
+                  <div class="grid grid-cols-3 gap-2">
+                    @for (i of [1,2,3,4,5,6]; track i) {
+                      <div class="animate-pulse aspect-[2/3] rounded-lg bg-white/5"></div>
+                    }
+                  </div>
+                } @else {
+                  <div class="grid grid-cols-3 gap-2">
+                    @for (show of (sectionQuery(key).data()?.data || []).slice(0, 6); track show.id) {
+                      <a 
+                        [routerLink]="['/tv-shows', show.slug]"
+                        class="group/card relative aspect-[2/3] overflow-hidden rounded-lg transition-all duration-300 hover:z-10 hover:scale-105 hover:shadow-xl"
+                      >
+                        <img 
+                          [src]="show.posterUrl || show.thumbnailUrl || '/assets/images/poster-placeholder.svg'"
+                          [alt]="show.title"
+                          class="h-full w-full object-cover transition duration-500 group-hover/card:scale-110"
+                          loading="lazy"
+                        />
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 transition duration-300 group-hover/card:opacity-100"></div>
+                        <div class="absolute bottom-0 left-0 right-0 p-2 opacity-0 transition duration-300 group-hover/card:opacity-100">
+                          <p class="line-clamp-2 text-[10px] font-medium text-white">{{ show.title }}</p>
+                        </div>
+                      </a>
+                    }
+                  </div>
                 }
               </div>
-            }
-          </div>
-        }
-      </div>
-
-      <div id="tv-full-list" class="scroll-mt-24">
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-white">{{ fullListTitle() }}</h2>
-          @if (query.isFetching()) {
-            <span class="text-xs text-white/60">Updating...</span>
+            </div>
           }
         </div>
 
-        @if (query.isLoading()) {
-          <div class="py-16 text-center text-white/70">Loading TV shows...</div>
-        } @else if (query.isError()) {
-          <div class="py-16 text-center text-red-300">Failed to load TV shows.</div>
-        } @else {
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            @for (show of query.data()?.data || []; track show.id) {
-              <app-tv-show-card [show]="show"></app-tv-show-card>
-            }
+        <!-- Full Catalog Section -->
+        <div id="tv-full-list" class="scroll-mt-24">
+          <div class="mb-6 flex items-center justify-between">
+            <div>
+              <h2 class="flex items-center gap-3 text-2xl font-bold text-white">
+                {{ fullListTitle() }}
+                @if (query.isFetching()) {
+                  <span class="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-[#800020] border-t-transparent"></span>
+                }
+              </h2>
+              <p class="mt-1 text-sm text-white/40">
+                {{ query.data()?.meta?.total || 0 }} shows found
+              </p>
+            </div>
           </div>
 
-          <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <button class="rounded-md border border-white/20 px-3 py-1.5 text-xs text-white disabled:opacity-40" [disabled]="!meta()?.hasPrev" (click)="goPrev()">Prev</button>
-            @for (value of pageButtons(); track value) {
-              <button
-                class="rounded-md border px-3 py-1.5 text-xs"
-                [ngClass]="value === page() ? 'border-[#800020] bg-[#800020] text-white' : 'border-white/20 text-white/85'"
-                (click)="goToPage(value)"
+          @if (query.isLoading()) {
+            <!-- Skeleton Loading -->
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              @for (i of [1,2,3,4,5,6,7,8,9,10]; track i) {
+                <div class="animate-pulse">
+                  <div class="aspect-[2/3] rounded-xl bg-white/5"></div>
+                  <div class="mt-3 h-4 w-3/4 rounded bg-white/5"></div>
+                  <div class="mt-2 h-3 w-1/2 rounded bg-white/5"></div>
+                </div>
+              }
+            </div>
+          } @else if (query.isError()) {
+            <div class="flex flex-col items-center justify-center py-20 text-center">
+              <div class="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-500/10">
+                <svg class="h-10 w-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+              </div>
+              <h3 class="text-lg font-semibold text-white">Failed to load TV shows</h3>
+              <p class="mt-2 text-sm text-white/40">Please try again later</p>
+              <button 
+                class="mt-4 rounded-full bg-[#800020] px-6 py-2 text-sm font-medium text-white transition hover:bg-[#a00030]"
+                (click)="query.refetch()"
               >
-                {{ value }}
+                Retry
               </button>
+            </div>
+          } @else {
+            <!-- Results Grid -->
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              @for (show of query.data()?.data || []; track show.id) {
+                <app-tv-show-card [show]="show"></app-tv-show-card>
+              }
+            </div>
+
+            <!-- Pagination -->
+            @if ((query.data()?.meta?.totalPages || 0) > 1) {
+              <div class="mt-10 flex items-center justify-center gap-2">
+                <button 
+                  class="group flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-[#800020]/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  [disabled]="!meta()?.hasPrev" 
+                  (click)="goPrev()"
+                >
+                  <svg class="h-5 w-5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+
+                @for (value of pageButtons(); track value) {
+                  <button
+                    class="relative h-10 w-10 rounded-full text-sm font-medium transition-all duration-300"
+                    [class]="value === page() 
+                      ? 'bg-[#800020] text-white shadow-lg shadow-[#800020]/30' 
+                      : 'border border-white/10 bg-white/5 text-white/60 hover:border-white/30 hover:bg-white/10 hover:text-white'"
+                    (click)="goToPage(value)"
+                  >
+                    {{ value }}
+                  </button>
+                }
+
+                <button 
+                  class="group flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-[#800020]/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  [disabled]="!meta()?.hasNext" 
+                  (click)="goNext()"
+                >
+                  <svg class="h-5 w-5 transition-transform duration-300 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
+              </div>
             }
-            <button class="rounded-md border border-white/20 px-3 py-1.5 text-xs text-white disabled:opacity-40" [disabled]="!meta()?.hasNext" (click)="goNext()">Next</button>
-          </div>
-        }
+          }
+        </div>
       </div>
+
+      <!-- Footer Spacing -->
+      <div class="h-20"></div>
     </section>
   `,
+  styles: [`
+    @keyframes fade-in-up {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes scale-in {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes pulse-slow {
+      0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.5;
+        transform: scale(1.05);
+      }
+    }
+
+    .animate-fade-in-up {
+      animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      opacity: 0;
+    }
+
+    .animate-scale-in {
+      animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .animate-pulse-slow {
+      animation: pulse-slow 8s ease-in-out infinite;
+    }
+
+    .animate-pulse-slow-delayed {
+      animation: pulse-slow 10s ease-in-out infinite;
+      animation-delay: -4s;
+    }
+
+    .animation-delay-200 {
+      animation-delay: 0.2s;
+    }
+
+    .animation-delay-300 {
+      animation-delay: 0.3s;
+    }
+
+    .animation-delay-400 {
+      animation-delay: 0.4s;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(128, 0, 32, 0.5);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(128, 0, 32, 0.7);
+    }
+  `]
 })
 export class TvShowsListComponent implements OnInit {
   private tvQuery = inject(TvShowsQueryService);
