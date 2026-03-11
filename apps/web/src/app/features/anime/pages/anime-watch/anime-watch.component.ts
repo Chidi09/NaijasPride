@@ -50,7 +50,7 @@ import { AnimeApiService } from '../../services/anime-api.service';
 
             @if (selectedSource()?.url) {
               <a
-                [href]="selectedSource()?.url"
+                [href]="selectedSource()?.originalUrl || selectedSource()?.url"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="rounded-full border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white hover:bg-white/10"
@@ -173,7 +173,8 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   error = signal<string | null>(null);
   playbackNotice = signal<string | null>(null);
   episodes = signal<any[]>([]);
-  sources = signal<Array<{ url: string; quality?: string; isM3U8?: boolean; isEmbed?: boolean }>>([]);
+  sources = signal<Array<{ url: string; originalUrl?: string; quality?: string; isM3U8?: boolean; isEmbed?: boolean }>>([]);
+  watchHeaders = signal<Record<string, string>>({});
   activeSourceUrl = signal<string | null>(null);
   readonly providers = signal<string[]>(['auto', 'gogoanime', 'zoro', 'animepahe']);
   readonly serverOptions = signal<string[]>(['vidstreaming', 'gogocdn', 'streamsb']);
@@ -310,7 +311,29 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
     this.api.getWatchSources(this.animeId(), this.episodeNumber(), this.provider(), this.server() || undefined).subscribe({
       next: (res) => {
-        const sources = (res?.data?.sources || []).filter((entry: any) => !!entry?.url);
+        const headers = (res?.data?.headers || {}) as Record<string, string>;
+        this.watchHeaders.set(headers);
+        const referer = this.pickReferer(headers);
+
+        const sources = (res?.data?.sources || [])
+          .filter((entry: any) => !!entry?.url)
+          .map((entry: any) => {
+            const originalUrl = String(entry.url);
+            if (entry.isEmbed) {
+              return {
+                ...entry,
+                url: originalUrl,
+                originalUrl,
+              };
+            }
+
+            return {
+              ...entry,
+              url: this.proxyStreamUrl(originalUrl, referer),
+              originalUrl,
+            };
+          });
+
         this.sources.set(sources);
         const first = sources[0];
         this.activeSourceUrl.set(first?.url || null);
@@ -336,6 +359,19 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
+  }
+
+  private proxyStreamUrl(targetUrl: string, referer?: string): string {
+    const params = new URLSearchParams({ url: targetUrl });
+    if (referer) params.set('referer', referer);
+    return `/api/v1/anime/proxy/stream?${params.toString()}`;
+  }
+
+  private pickReferer(headers: Record<string, string>): string | undefined {
+    const refererEntry = Object.entries(headers).find(([key]) => key.toLowerCase() === 'referer');
+    const referer = refererEntry?.[1]?.trim();
+    if (referer) return referer;
+    return undefined;
   }
 
   private armEmbedTimeout(index: number): void {

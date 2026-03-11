@@ -68,6 +68,11 @@ const animeWatchQuerySchema = z.object({
   server: z.string().trim().min(2).max(64).optional(),
 });
 
+const animeProxyQuerySchema = z.object({
+  url: z.string().url(),
+  referer: z.string().trim().url().optional(),
+});
+
 const SEARCH_ANIME_QUERY = `
 query SearchAnime(
   $page: Int
@@ -422,6 +427,52 @@ const shouldTryAnimepahePrimary = (provider: string): boolean => {
   return !normalized || normalized === 'auto' || normalized === 'animepahe';
 };
 
+const isPrivateHost = (hostname: string): boolean => {
+  const host = hostname.toLowerCase();
+  if (host === 'localhost' || host === '0.0.0.0' || host === '::1' || host.endsWith('.local')) return true;
+  if (/^127\./.test(host)) return true;
+  if (/^10\./.test(host)) return true;
+  if (/^192\.168\./.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
+  return false;
+};
+
+const proxifyUrl = (target: string, referer: string): string => {
+  const params = new URLSearchParams({ url: target, referer });
+  return `/api/v1/anime/proxy/stream?${params.toString()}`;
+};
+
+const rewritePlaylist = (playlist: string, playlistUrl: URL, referer: string): string => {
+  const lines = playlist.split('\n');
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return line;
+
+      if (trimmed.startsWith('#')) {
+        if (trimmed.includes('URI="')) {
+          return line.replace(/URI="([^"]+)"/g, (_, uri) => {
+            try {
+              const resolved = new URL(uri, playlistUrl).toString();
+              return `URI="${proxifyUrl(resolved, referer)}"`;
+            } catch {
+              return `URI="${uri}"`;
+            }
+          });
+        }
+        return line;
+      }
+
+      try {
+        const resolved = new URL(trimmed, playlistUrl).toString();
+        return proxifyUrl(resolved, referer);
+      } catch {
+        return line;
+      }
+    })
+    .join('\n');
+};
+
 const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
   const data = await anilistRequest<{ Media: AniListMediaWithTitle | null }>(ANIME_DETAIL_QUERY, { id });
   const media = data.Media;
@@ -485,6 +536,77 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           message: error instanceof Error ? error.message : 'AniList anime search failed',
         },
       });
+    }
+  });
+
+  app.get('/proxy/stream', {
+    schema: {
+      querystring: animeProxyQuerySchema,
+    },
+  }, async (request, reply) => {
+    const { url, referer } = request.query;
+
+    let targetUrl: URL;
+    try {
+      targetUrl = new URL(url);
+    } catch {
+      return reply.status(400).send({ success: false, error: { code: 'INVALID_URL', message: 'Invalid target URL' } });
+    }
+
+    if (!['http:', 'https:'].includes(targetUrl.protocol) || isPrivateHost(targetUrl.hostname)) {
+      return reply.status(400).send({ success: false, error: { code: 'DISALLOWED_URL', message: 'Target URL is not allowed' } });
+    }
+
+    const upstreamReferer = referer || `${targetUrl.protocol}//${targetUrl.hostname}/`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const upstream = await fetch(targetUrl.toString(), {
+        headers: {
+          Accept: '*/*',
+          Referer: upstreamReferer,
+          'User-Agent': 'Mozilla/5.0',
+        },
+        signal: controller.signal,
+      });
+
+      if (!upstream.ok) {
+        return reply.status(upstream.status).send({
+          success: false,
+          error: {
+            code: 'UPSTREAM_FAILED',
+            message: `Proxy upstream failed with status ${upstream.status}`,
+          },
+        });
+      }
+
+      const contentType = upstream.headers.get('content-type') || '';
+      const cacheControl = upstream.headers.get('cache-control') || 'no-store';
+      reply.header('Cache-Control', cacheControl);
+      if (contentType) reply.header('Content-Type', contentType);
+      reply.header('Access-Control-Allow-Origin', '*');
+
+      if (contentType.includes('application/vnd.apple.mpegurl') || contentType.includes('application/x-mpegURL') || targetUrl.pathname.endsWith('.m3u8')) {
+        const rawPlaylist = await upstream.text();
+        const rewritten = rewritePlaylist(rawPlaylist, targetUrl, upstreamReferer);
+        reply.header('Content-Type', 'application/vnd.apple.mpegurl');
+        return reply.send(rewritten);
+      }
+
+      const buffer = Buffer.from(await upstream.arrayBuffer());
+      return reply.send(buffer);
+    } catch (error) {
+      request.log.warn({ error, target: targetUrl.toString() }, 'Anime stream proxy failed');
+      return reply.status(502).send({
+        success: false,
+        error: {
+          code: 'PROXY_FAILED',
+          message: 'Failed to proxy stream URL',
+        },
+      });
+    } finally {
+      clearTimeout(timeout);
     }
   });
 
