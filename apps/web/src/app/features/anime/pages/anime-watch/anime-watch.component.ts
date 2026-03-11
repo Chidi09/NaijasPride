@@ -96,7 +96,6 @@ import { AnimeApiService } from '../../services/anime-api.service';
                 (error)="onEmbedError()"
                 allow="autoplay; fullscreen; picture-in-picture"
                 allowfullscreen
-                referrerpolicy="no-referrer"
               ></iframe>
             } @else {
               <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
