@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { resolveAnimepaheEpisodesByTitles, resolveAnimepaheWatchByTitles } from './animepahe-resolver';
 
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 const ANILIST_TIMEOUT_MS = 12_000;
@@ -202,6 +203,17 @@ type AniListResponse<T> = {
   errors?: Array<{ message?: string }>;
 };
 
+type AniListTitle = {
+  english?: string | null;
+  romaji?: string | null;
+  native?: string | null;
+};
+
+type AniListMediaWithTitle = {
+  title?: AniListTitle | null;
+  synonyms?: string[] | null;
+};
+
 type BridgeInfoEpisode = {
   id?: string;
   number?: number;
@@ -399,6 +411,33 @@ const providersForRequest = (provider: string): string[] => {
   return [normalized, ...ANIME_BRIDGE_FALLBACK_PROVIDERS.filter((entry) => entry !== normalized)];
 };
 
+const shouldTryAnimepahePrimary = (provider: string): boolean => {
+  const normalized = provider.trim().toLowerCase();
+  return !normalized || normalized === 'auto' || normalized === 'animepahe';
+};
+
+const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
+  const data = await anilistRequest<{ Media: AniListMediaWithTitle | null }>(ANIME_DETAIL_QUERY, { id });
+  const media = data.Media;
+  if (!media) return [];
+
+  const values = [
+    media.title?.english,
+    media.title?.romaji,
+    media.title?.native,
+    ...(media.synonyms || []),
+  ];
+
+  return Array.from(
+    new Set(
+      values
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  );
+};
+
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
@@ -484,6 +523,29 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params;
       const { provider } = request.query;
 
+      if (shouldTryAnimepahePrimary(provider)) {
+        try {
+          const titles = await anilistTitlesForAnime(id);
+          const animepahe = await resolveAnimepaheEpisodesByTitles(titles);
+          if (animepahe && animepahe.episodes.length > 0) {
+            return reply.send({
+              success: true,
+              data: {
+                id,
+                provider: 'animepahe',
+                requestedProvider: provider,
+                animeTitle: animepahe.animeTitle,
+                episodes: animepahe.episodes,
+                bridgeAvailable: true,
+                message: null,
+              },
+            });
+          }
+        } catch {
+          // Fall through to bridge providers
+        }
+      }
+
       let usedProvider: string | null = null;
       let info: BridgeInfoResponse | null = null;
       let episodes: ReturnType<typeof mapEpisodes> = [];
@@ -544,6 +606,38 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const { id, episodeNumber } = request.params;
       const { provider, server } = request.query;
+
+      if (shouldTryAnimepahePrimary(provider)) {
+        try {
+          const titles = await anilistTitlesForAnime(id);
+          const animepahe = await resolveAnimepaheWatchByTitles(titles, episodeNumber);
+          if (animepahe && animepahe.sources.length > 0) {
+            return reply.send({
+              success: true,
+              data: {
+                animeId: id,
+                episode: {
+                  id: animepahe.releaseSession || `animepahe-ep-${episodeNumber}`,
+                  number: episodeNumber,
+                  title: null,
+                  image: null,
+                  url: null,
+                  isFiller: false,
+                },
+                provider: 'animepahe',
+                requestedProvider: provider,
+                server: server || null,
+                sources: animepahe.sources,
+                subtitles: [],
+                headers: animepahe.headers,
+                download: null,
+              },
+            });
+          }
+        } catch {
+          // Fall through to bridge providers
+        }
+      }
 
       let resolvedProvider: string | null = null;
       let episode: ReturnType<typeof mapEpisodes>[number] | null = null;
