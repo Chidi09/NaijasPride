@@ -4,12 +4,81 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TvShowsQueryService } from '../../services/tv-shows-query.service';
 import { EmbedPlayerComponent } from '../../../../shared/components/embed-player/embed-player.component';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 @Component({
   selector: 'app-tv-watch-room',
   standalone: true,
-  imports: [CommonModule, RouterLink, EmbedPlayerComponent],
+  imports: [CommonModule, RouterLink, EmbedPlayerComponent, SymbolIconComponent, TvFocusGroupDirective],
   template: `
+    @if (useCinemaShell()) {
+      <div appTvFocusGroup [tvAutoFocus]="true" class="min-h-screen bg-[#090609] px-6 py-6 text-[#f6efe8] md:px-10 xl:px-14">
+        <a [routerLink]="['/tv-shows', slug()]" class="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white">
+          <app-symbol-icon name="arrow_back" [size]="22"></app-symbol-icon>
+          Back to Show
+        </a>
+
+        @if (query.isLoading()) {
+          <div class="py-16 text-center text-white/70">Loading episode...</div>
+        } @else if (!show() || !currentEpisode()) {
+          <div class="py-16 text-center text-red-300">Episode not found.</div>
+        } @else {
+          <div class="mt-6 grid gap-6 xl:grid-cols-[1.2fr,0.8fr] xl:items-start">
+            <div class="space-y-4">
+              <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Now Watching</p>
+                <h1 class="mt-3 text-3xl font-black text-white">{{ show()!.title }}</h1>
+                <p class="mt-2 text-sm text-white/55">Season {{ seasonNumber() }}, Episode {{ episodeNumber() }} - {{ currentEpisode()!.title }}</p>
+              </div>
+
+              <app-embed-player
+                [contentType]="'tv'"
+                [movieId]="show()!.id"
+                [movieSlug]="show()!.slug"
+                [seasonNumber]="seasonNumber()"
+                [episodeNumber]="episodeNumber()"
+                [episodeId]="currentEpisode()!.id"
+                [durationHintSeconds]="getDurationHintSeconds()"
+                (playbackEnded)="onPlaybackEnded()"
+              ></app-embed-player>
+            </div>
+
+            <aside class="space-y-4">
+              <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Playback</p>
+                <p class="mt-3 text-lg font-semibold text-white">Auto-next is {{ autoNext() ? 'on' : 'off' }} for this series.</p>
+                <label class="mt-5 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/90">
+                  <input type="checkbox" class="h-4 w-4" [checked]="autoNext()" (change)="toggleAutoNext($event)" />
+                  Auto next episode
+                </label>
+              </div>
+
+              <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Episode Actions</p>
+                <div class="mt-4 flex flex-col gap-3">
+                  @if (nextEpisodeTarget(); as next) {
+                    <button
+                      type="button"
+                      class="inline-flex items-center justify-center gap-3 rounded-[1.5rem] bg-[#800020] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#95002a]"
+                      (click)="goToEpisode(next.seasonNumber, next.episodeNumber)"
+                    >
+                      <app-symbol-icon name="skip_next" [size]="24"></app-symbol-icon>
+                      Next: S{{ next.seasonNumber }}E{{ next.episodeNumber }}
+                    </button>
+                  }
+                  <a [routerLink]="['/tv-shows', slug()]" class="inline-flex items-center justify-center gap-3 rounded-[1.5rem] border border-white/10 bg-black/20 px-5 py-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] hover:text-white">
+                    <app-symbol-icon name="list" [size]="24"></app-symbol-icon>
+                    Episode List
+                  </a>
+                </div>
+              </div>
+            </aside>
+          </div>
+        }
+      </div>
+    } @else {
     <div class="min-h-screen bg-[#0a0a0a] px-4 py-4 md:px-8">
       <a [routerLink]="['/tv-shows', slug()]" class="text-sm text-white/60 hover:text-white">← Back to Show</a>
 
@@ -54,6 +123,7 @@ import { EmbedPlayerComponent } from '../../../../shared/components/embed-player
         </div>
       }
     </div>
+    }
   `,
 })
 export class TvWatchRoomComponent {
@@ -61,6 +131,7 @@ export class TvWatchRoomComponent {
   private tvQuery = inject(TvShowsQueryService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  protected pwaService = inject(PwaService);
 
   seasonNumber = signal(1);
   episodeNumber = signal(1);
@@ -147,6 +218,12 @@ export class TvWatchRoomComponent {
     this.seasonNumber.set(seasonNumber);
     this.episodeNumber.set(episodeNumber);
     this.updateQueryParams(seasonNumber, episodeNumber, this.autoNext());
+  }
+
+  useCinemaShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return this.pwaService.isAppMode() && window.innerWidth >= 1100;
   }
 
   private updateQueryParams(seasonNumber: number, episodeNumber: number, autoNext: boolean): void {

@@ -9,6 +9,9 @@ import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
 import { OfflineStorageService } from "../../../../core/services/offline-storage.service";
 import { AuthStateService } from "../../../../core/auth/auth-state.service";
+import { PwaService } from "../../../../core/services/pwa.service";
+import { SymbolIconComponent } from "../../../../shared/components/symbol-icon/symbol-icon.component";
+import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-group.directive";
 
 @Component({
   selector: "app-watch-room",
@@ -20,8 +23,121 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
     EffectivegateBannerComponent,
     EmbedPlayerComponent,
     RouterLink,
+    SymbolIconComponent,
+    TvFocusGroupDirective,
   ],
   template: `
+    @if (useCinemaShell()) {
+      <div appTvFocusGroup [tvAutoFocus]="true" class="min-h-screen bg-[#090609] text-[#f6efe8]">
+        @if (showIntro) {
+          <app-branded-intro (introFinished)="onIntroFinished()"></app-branded-intro>
+        }
+
+        <div class="mx-auto max-w-[1500px] px-6 py-6 md:px-10 xl:px-14">
+          <header class="mb-6 flex items-center justify-between gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
+            <a [routerLink]="['/movies', movie()?.slug || slug()]" class="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white">
+              <app-symbol-icon name="arrow_back" [size]="22"></app-symbol-icon>
+              Back to Details
+            </a>
+            @if (movie(); as m) {
+              <div class="min-w-0 text-right">
+                <p class="truncate text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Movie Night</p>
+                <h1 class="truncate text-2xl font-black text-white">{{ m.title }}</h1>
+              </div>
+            }
+          </header>
+
+          @if (movie(); as m) {
+            <div class="grid gap-6 xl:grid-cols-[1.2fr,0.8fr] xl:items-start">
+              <div class="space-y-4">
+                @if (m.youtubeId) {
+                  <app-video-player
+                    [youtubeId]="m.youtubeId"
+                    [movieId]="m.id"
+                    [movie]="m"
+                    [config]="playerConfig"
+                    (playerReady)="onPlayerReady()"
+                  ></app-video-player>
+                } @else {
+                  @if (streamSource() === 'embed') {
+                    <app-embed-player [movieId]="m.id" [movieSlug]="m.slug" [durationHintSeconds]="getDurationHintSeconds(m)"></app-embed-player>
+                  } @else if (streamSource() === 'hosted' && resolvedStreamUrl()) {
+                    <app-video-player
+                      [videoUrl]="resolvedStreamUrl()!"
+                      [movieId]="m.id"
+                      [movie]="m"
+                      [config]="playerConfig"
+                      (playerReady)="onPlayerReady()"
+                    ></app-video-player>
+                  } @else {
+                    @if (primaryStreamUrl(m); as directUrl) {
+                      <app-video-player
+                        [videoUrl]="directUrl"
+                        [movieId]="m.id"
+                        [movie]="m"
+                        [config]="playerConfig"
+                        (playerReady)="onPlayerReady()"
+                      ></app-video-player>
+                    } @else {
+                      <div class="aspect-video rounded-[2rem] border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center">
+                        <div class="max-w-md">
+                          <h2 class="text-white text-2xl font-black">Stream not available</h2>
+                          <p class="mt-3 text-sm text-white/55">This title is currently unavailable from active stream providers. Please try another title shortly.</p>
+                        </div>
+                      </div>
+                    }
+                  }
+                }
+
+                <app-effectivegate-banner></app-effectivegate-banner>
+              </div>
+
+              <aside class="space-y-4">
+                <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                  <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Playback</p>
+                  <p class="mt-3 text-lg font-semibold text-white">{{ playbackStatusText() }}</p>
+                  <div class="mt-5 grid grid-cols-2 gap-3 text-sm text-white/65">
+                    <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                      <span class="block text-[11px] uppercase tracking-[0.18em] text-white/40">Mode</span>
+                      <span class="mt-2 block font-medium text-white">{{ streamModeLabel() }}</span>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                      <span class="block text-[11px] uppercase tracking-[0.18em] text-white/40">Offline</span>
+                      <span class="mt-2 block font-medium text-white">{{ isOffline() ? 'Available' : 'No' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                  <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Controls</p>
+                  <div class="mt-4 flex flex-wrap gap-3 text-sm text-white/70">
+                    <span class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">Left/Right to skip</span>
+                    <span class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">Space to play/pause</span>
+                    <span class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">F for fullscreen</span>
+                  </div>
+                </div>
+
+                @if (!auth.isPremium()) {
+                  <a
+                    [href]="smartlinkUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex w-full items-center justify-center gap-3 rounded-[1.5rem] border border-[#d0a97a]/30 bg-[#800020]/12 px-5 py-4 text-sm font-semibold text-[#f2e6d7] transition hover:bg-[#800020]/22"
+                  >
+                    <app-symbol-icon name="local_activity" [size]="22"></app-symbol-icon>
+                    Explore sponsor offers
+                  </a>
+                }
+              </aside>
+            </div>
+          } @else {
+            <div class="flex items-center justify-center h-64">
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#800020]"></div>
+            </div>
+          }
+        </div>
+      </div>
+    } @else {
     <div class="min-h-screen bg-[#0a0a0a] dark:bg-cinema-900 flex flex-col">
       <!-- Branded Intro -->
       @if (showIntro) {
@@ -155,6 +271,7 @@ import { AuthStateService } from "../../../../core/auth/auth-state.service";
         </div>
       </div>
     </div>
+    }
   `,
 })
 export class WatchRoomComponent {
@@ -162,6 +279,7 @@ export class WatchRoomComponent {
   slug = input<string>('');
   private movieQuery = inject(MoviesQueryService);
   private offlineService = inject(OfflineStorageService);
+  protected pwaService = inject(PwaService);
   auth = inject(AuthStateService);
   query = this.movieQuery.getMovieDetailQuery(this.slug);
 
@@ -224,6 +342,29 @@ export class WatchRoomComponent {
 
   movie() {
     return this.query.data()?.data;
+  }
+
+  useCinemaShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return this.pwaService.isAppMode() && window.innerWidth >= 1100;
+  }
+
+  streamModeLabel(): string {
+    if (this.isOffline()) return 'Offline copy';
+    if (this.streamSource() === 'embed') return 'Embed provider';
+    if (this.resolvedStreamUrl()) return 'NaijasPride stream';
+    return 'Unavailable';
+  }
+
+  playbackStatusText(): string {
+    const m = this.movie();
+    if (!m) return 'Preparing your screen...';
+    if (m.youtubeId) return 'Streaming via YouTube with big-screen controls.';
+    if (this.isOffline()) return 'Playing saved offline copy.';
+    if (this.streamSource() === 'embed') return 'Streaming via embed provider. Switch servers if playback stalls.';
+    if (this.resolvedStreamUrl()) return 'Streaming directly from NaijasPride.';
+    return 'Temporarily unavailable.';
   }
 
   private isStreamableVideoUrl(url: string): boolean {

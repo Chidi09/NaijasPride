@@ -6,8 +6,10 @@ import { WatchApiService, WatchHistoryItem } from '../watch/services/watch-api.s
 import { BookSummary, MusicFeaturedSections, MovieSummary } from '@naijaspride/types';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReaderStateService } from '../../core/services/reader-state.service';
+import { PwaService } from '../../core/services/pwa.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
+import { TvHomeExperienceComponent } from './components/tv-home-experience.component';
 
 type BookProgressResponse = {
   status: string;
@@ -19,7 +21,7 @@ type BookProgressResponse = {
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, TvHomeExperienceComponent],
   styles: [`
     :host {
       display: flex;
@@ -157,6 +159,16 @@ type BookProgressResponse = {
     }
   `],
   template: `
+    @if (pwaService.isTV()) {
+      <app-tv-home-experience
+        [userName]="userName()"
+        [membershipLabel]="membershipLabel()"
+        [continueWatching]="continueWatching()"
+        [downloadMovies]="downloadMovies()"
+        [trendingAnime]="trendingAnime()"
+        [streamMovies]="streamMovies()"
+      ></app-tv-home-experience>
+    } @else {
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- LEFT SIDEBAR                                                   -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -790,6 +802,7 @@ type BookProgressResponse = {
       </div>
 
     </aside>
+    }
   `
 })
 export class HomeComponent implements OnInit, OnDestroy {
@@ -797,6 +810,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private watchApi = inject(WatchApiService);
   private authService = inject(AuthService);
   private readerState = inject(ReaderStateService);
+  protected pwaService = inject(PwaService);
 
   isLoadingContinue = signal(true);
   isLoadingMovies = signal(true);

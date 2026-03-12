@@ -12,6 +12,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MangaOfflineService } from '../../../../core/services/manga-offline.service';
 import { LibraryService } from '../../../../core/services/library.service';
 import { AuthService } from '../../../../core/auth/auth.service';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 type MangaDetail = {
   id: string;
@@ -75,8 +78,115 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    SymbolIconComponent,
+    TvFocusGroupDirective,
   ],
   template: `
+    @if (useEditorialShell()) {
+      <div appTvFocusGroup [tvAutoFocus]="true" class="min-h-screen overflow-x-hidden bg-[#090609] text-[#f6efe8] books-theme">
+        @if (detail(); as manga) {
+          <section class="relative min-h-[76vh] overflow-hidden">
+            <div class="absolute inset-0 bg-cover bg-center" [style.background-image]="heroBackdrop(manga)"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,6,9,0.96)_0%,rgba(9,6,9,0.72)_42%,rgba(9,6,9,0.18)_100%),linear-gradient(0deg,rgba(9,6,9,1)_0%,rgba(9,6,9,0.38)_45%,rgba(9,6,9,0)_100%)]"></div>
+
+            <header class="relative z-10 flex items-center justify-between px-8 py-8 md:px-12 xl:px-16">
+              <a [routerLink]="libraryRootPath()" class="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white">
+                <app-symbol-icon name="arrow_back" [size]="22"></app-symbol-icon>
+                Back to {{ isComicsMode() ? 'Comics' : 'Manga' }}
+              </a>
+            </header>
+
+            <div class="relative z-10 flex min-h-[76vh] flex-col justify-end px-8 pb-12 md:px-12 xl:px-16">
+              <div class="max-w-5xl">
+                <div class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.22em] text-white/55">
+                  <span class="rounded-full border border-[#d0a97a]/40 bg-[#d0a97a]/10 px-3 py-1 text-[#ecd8b7]">{{ sourceLabel() }}</span>
+                  @if (manga.status) { <span>{{ manga.status }}</span> }
+                  @if (manga.year) { <span>{{ manga.year }}</span> }
+                </div>
+                <h1 class="mt-5 text-5xl font-black leading-[0.95] text-white md:text-7xl">{{ manga.title }}</h1>
+                <div class="mt-4 flex flex-wrap items-center gap-6 text-sm text-white/65">
+                  @if (manga.author) { <span class="inline-flex items-center gap-2"><app-symbol-icon name="person" [size]="18"></app-symbol-icon>{{ manga.author }}</span> }
+                  @if (manga.tags?.length) { <span class="inline-flex items-center gap-2"><app-symbol-icon name="category" [size]="18"></app-symbol-icon>{{ manga.tags.slice(0, 3).join(', ') }}</span> }
+                  <span class="inline-flex items-center gap-2"><app-symbol-icon name="update" [size]="18"></app-symbol-icon>{{ isChaptersLoading() ? 'Loading chapters' : chapters().length + ' chapters' }}</span>
+                </div>
+                <p class="mt-6 max-w-3xl text-base leading-8 text-white/68">{{ manga.description || 'No description available.' }}</p>
+
+                <div class="mt-8 flex flex-wrap gap-4">
+                  @if (continueReadingChapterId(); as contId) {
+                    <a [routerLink]="[readBasePath(), toRouteParam(contId)]" [queryParams]="{ title: manga.title, chapter: continueReadingChapterLabel() || '', mangaId: manga.id }" class="inline-flex items-center gap-3 rounded-2xl bg-[#800020] px-7 py-4 text-base font-semibold text-white shadow-[0_18px_48px_rgba(128,0,32,0.35)] transition hover:bg-[#95002a]">
+                      <app-symbol-icon name="play_arrow" [size]="24" [fill]="true"></app-symbol-icon>
+                      Continue Reading
+                    </a>
+                  }
+                  <button type="button" (click)="toggleFavorite()" class="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/[0.06] px-7 py-4 text-base font-semibold text-white/90 backdrop-blur-md transition hover:bg-white/[0.1]">
+                    <app-symbol-icon [name]="isFavorite() ? 'favorite' : 'add'" [size]="24" [fill]="isFavorite()"></app-symbol-icon>
+                    {{ isFavorite() ? 'In My List' : 'Add to My List' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="space-y-10 px-8 pb-16 pt-10 md:px-12 xl:px-16">
+            <section>
+              <div class="mb-5 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">Chapters</h2>
+                <div class="flex gap-2">
+                  <button type="button" class="rounded-full border border-white/15 bg-white/[0.04] p-2 text-white/70 transition hover:bg-white/[0.08]" (click)="toggleChapterOrder()">
+                    <app-symbol-icon name="swap_vert" [size]="20"></app-symbol-icon>
+                  </button>
+                </div>
+              </div>
+              <div class="flex gap-5 overflow-x-auto pb-3">
+                @for (chapter of visibleChapters().slice(0, 18); track chapter.id) {
+                  @if (chapter.isExternal && chapter.externalUrl) {
+                    <a [href]="chapter.externalUrl" target="_blank" rel="noopener noreferrer" class="group block w-56 flex-shrink-0">
+                      <div class="rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.06]">
+                        <div class="flex h-32 items-center justify-center rounded-2xl bg-black/20 text-white/60">
+                          <app-symbol-icon name="open_in_new" [size]="32"></app-symbol-icon>
+                        </div>
+                        <p class="mt-4 line-clamp-2 text-sm font-semibold text-white">{{ chapterLabel(chapter) }}</p>
+                        <p class="mt-1 text-xs text-white/45">External chapter</p>
+                      </div>
+                    </a>
+                  } @else {
+                    <a [routerLink]="[readBasePath(), toRouteParam(chapter.id)]" [queryParams]="{ title: manga.title, chapter: chapter.chapter || '', mangaId: manga.id }" (click)="rememberContinue(chapter)" class="group block w-56 flex-shrink-0">
+                      <div class="rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.06]">
+                        <div class="flex h-32 items-center justify-center rounded-2xl bg-black/20 text-white/60">
+                          <app-symbol-icon name="chrome_reader_mode" [size]="34"></app-symbol-icon>
+                        </div>
+                        <p class="mt-4 line-clamp-2 text-sm font-semibold text-white">{{ chapterLabel(chapter) }}</p>
+                        <p class="mt-1 text-xs text-white/45">{{ chapter.publishedAt ? (chapter.publishedAt | date: 'MMM d, y') : 'Tap to read' }}</p>
+                      </div>
+                    </a>
+                  }
+                }
+              </div>
+            </section>
+
+            @if (supportsSimilar()) {
+              <section>
+                <div class="mb-5 flex items-center justify-between">
+                  <h2 class="text-2xl font-bold text-white">More Like This</h2>
+                </div>
+                <div class="flex gap-5 overflow-x-auto pb-3">
+                  @for (item of similar().slice(0, 12); track item.id) {
+                    <a [routerLink]="[detailBasePath(), toRouteParam(item.id)]" class="group block w-44 flex-shrink-0">
+                      <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                        @if (item.coverUrl) { <img [src]="item.coverUrl" [alt]="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer"> }
+                      </div>
+                      <p class="mt-3 truncate text-sm font-semibold text-white">{{ item.title }}</p>
+                    </a>
+                  }
+                </div>
+              </section>
+            }
+          </div>
+        } @else {
+          <div class="px-8 py-12 text-white/60">Loading title...</div>
+        }
+      </div>
+    } @else {
     <div class="container mx-auto px-4 py-10 books-theme">
       <a mat-stroked-button color="primary" [routerLink]="libraryRootPath()" class="mb-6">
         Back to {{ isComicsMode() ? 'Comics' : 'Manga' }} Library
@@ -478,11 +588,13 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
         </button>
       }
     </div>
+    }
   `,
 })
 export class MangaDetailComponent implements OnInit {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
+  protected pwaService = inject(PwaService);
   mangaOffline = inject(MangaOfflineService);
   library = inject(LibraryService);
   auth = inject(AuthService);
@@ -534,6 +646,17 @@ export class MangaDetailComponent implements OnInit {
   filteredChapterCount = computed(() => this.filteredChapters().length);
   visibleFilteredChapterCount = computed(() => Math.min(this.visibleChapterCount(), this.filteredChapters().length));
   hasExternalChapters = computed(() => this.chapters().some((chapter) => chapter.isExternal));
+
+  useEditorialShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 1200;
+  }
+
+  heroBackdrop(manga: MangaDetail): string {
+    const image = manga.coverUrl || '';
+    return image ? `url(${image})` : 'linear-gradient(135deg, #2b0a16 0%, #10090d 55%, #040304 100%)';
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {

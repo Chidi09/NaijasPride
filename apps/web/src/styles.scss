@@ -130,14 +130,15 @@ body.tv-mode [tabindex]:focus-visible {
 /* Movie cards focus state for TV navigation */
 .movie-card:focus,
 .movie-card:focus-visible {
-  @apply ring-4 ring-red-600 ring-offset-2 ring-offset-black;
+  box-shadow: 0 0 0 4px rgba(128, 0, 32, 0.9);
   transform: scale(1.05);
   z-index: 10;
 }
 
 /* Skip link for accessibility */
 .skip-link {
-  @apply absolute -top-10 left-0 bg-red-600 text-white px-4 py-2 z-[9999] transition-all;
+  @apply absolute -top-10 left-0 text-white px-4 py-2 z-[9999] transition-all;
+  background: #800020;
 }
 
 .skip-link:focus {

@@ -4,6 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BookSummary, MovieSummary, MusicVideoSummary } from '@naijaspride/types';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 type MangaResult = {
   id: string;
@@ -20,11 +23,117 @@ type SearchSuggestion = {
   link: string[];
 };
 
+type TvResultCard = SearchSuggestion & {
+  badge: string;
+};
+
 @Component({
   selector: 'app-global-search',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, SymbolIconComponent, TvFocusGroupDirective],
   template: `
+    @if (pwaService.isTV()) {
+      <div appTvFocusGroup [tvAutoFocus]="true" class="flex h-screen flex-col overflow-hidden bg-[#090609] text-[#f6efe8]">
+        <header class="flex items-center justify-between border-b border-white/10 px-10 py-6">
+          <div class="flex items-center gap-4">
+            <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#800020]/20 text-[#d0a97a]">
+              <app-symbol-icon name="search" [size]="28"></app-symbol-icon>
+            </span>
+            <div>
+              <p class="text-xs uppercase tracking-[0.24em] text-[#d0a97a]">TV Search</p>
+              <h1 class="text-3xl font-black text-white">Search NaijasPride</h1>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+            <app-symbol-icon name="account_circle" [size]="26"></app-symbol-icon>
+            <span class="text-sm font-medium text-white/80">Big-screen mode</span>
+          </div>
+        </header>
+
+        <main class="grid min-h-0 flex-1 grid-cols-[1.02fr,0.98fr]">
+          <section class="border-r border-white/10 px-10 py-8">
+            <div class="rounded-[2rem] border border-[#800020]/25 bg-white/[0.04] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <p class="text-[11px] uppercase tracking-[0.24em] text-white/45">Searching for</p>
+              <div class="mt-3 flex items-center gap-4 rounded-[1.6rem] border border-white/10 bg-black/30 px-5 py-5">
+                <app-symbol-icon name="search" [size]="28"></app-symbol-icon>
+                <span class="min-h-[2.5rem] text-4xl font-black tracking-tight text-white">{{ query || 'Type with your remote' }}</span>
+                <span class="h-10 w-1 animate-pulse rounded-full bg-[#d0a97a]"></span>
+              </div>
+
+              <div class="mt-8 space-y-3">
+                @for (row of tvKeyboardRows; track $index) {
+                  <div class="flex gap-2.5">
+                    @for (key of row; track key.value) {
+                      <button
+                        type="button"
+                        (click)="onTvKeyPress(key.value)"
+                        class="flex min-h-[4.5rem] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xl font-bold text-white transition hover:bg-[#800020]/25"
+                        [class.flex-[1.4]]="key.wide"
+                        [class.flex-1]="!key.wide"
+                      >
+                        @if (key.icon) {
+                          <app-symbol-icon [name]="key.icon" [size]="24"></app-symbol-icon>
+                        } @else {
+                          {{ key.label }}
+                        }
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="mt-6 flex gap-3">
+                <button type="button" (click)="clearQuery()" class="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-white/70 transition hover:bg-white/[0.08]">Clear</button>
+                <button type="button" (click)="submitTvSearch()" class="flex-1 rounded-2xl bg-[#800020] px-5 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-white shadow-[0_16px_40px_rgba(128,0,32,0.35)] transition hover:bg-[#95002a]">Search</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="min-h-0 overflow-y-auto px-10 py-8">
+            <div class="mb-6 flex items-center justify-between">
+              <div>
+                <h2 class="text-2xl font-black text-white">Results</h2>
+                <p class="mt-1 text-sm text-white/45">{{ tvResults().length }} items found</p>
+              </div>
+              @if (searchHint()) {
+                <p class="max-w-sm text-right text-sm text-[#d0a97a]">{{ searchHint() }}</p>
+              }
+            </div>
+
+            @if (loading()) {
+              <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 text-white/55">Searching across movies, books, manga and music...</div>
+            } @else {
+              <div class="grid grid-cols-2 gap-5 pb-10">
+                @for (item of tvResults(); track item.key) {
+                  <a [routerLink]="item.link" class="group block overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.06]">
+                    <div class="relative aspect-video overflow-hidden bg-black/30">
+                      @if (item.coverUrl) {
+                        <img [src]="item.coverUrl" [alt]="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer" />
+                      }
+                      <div class="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent"></div>
+                      <div class="absolute left-4 top-4 rounded-full bg-[#800020]/85 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-white">{{ item.badge }}</div>
+                    </div>
+                    <div class="space-y-1 p-4">
+                      <p class="truncate text-lg font-semibold text-white">{{ item.title }}</p>
+                      <p class="truncate text-sm text-white/55">{{ item.subtitle }}</p>
+                    </div>
+                  </a>
+                }
+                @if (!loading() && submitted() && tvResults().length === 0) {
+                  <div class="col-span-2 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center text-white/50">No results yet. Try a different title, artist, or keyword.</div>
+                }
+              </div>
+            }
+          </section>
+        </main>
+
+        <footer class="flex items-center gap-10 border-t border-white/10 bg-black/30 px-10 py-4 text-xs uppercase tracking-[0.22em] text-white/45">
+          <span>Select with Enter</span>
+          <span>Backspace deletes</span>
+          <span>Use ?tv=0 to exit TV mode</span>
+        </footer>
+      </div>
+    } @else {
     <div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(128,0,32,0.12),_transparent_52%),var(--bg-primary)] text-[var(--text-primary)] pb-24">
       <div class="mx-auto max-w-6xl px-4 py-6 md:px-8">
         <div class="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4 shadow-sm md:p-6">
@@ -189,12 +298,14 @@ type SearchSuggestion = {
         }
       </div>
     </div>
+    }
   `,
 })
 export class GlobalSearchComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  protected pwaService = inject(PwaService);
 
   query = '';
   loading = signal(false);
@@ -210,8 +321,52 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
   private suggestionRequestToken = 0;
   private suggestionTimer: ReturnType<typeof setTimeout> | null = null;
 
+  readonly tvKeyboardRows = [
+    '1234567890'.split('').map((value) => ({ label: value, value })),
+    'QWERTYUIOP'.split('').map((value) => ({ label: value, value })),
+    'ASDFGHJKL'.split('').map((value) => ({ label: value, value })),
+    [
+      { label: 'Space', value: ' ', icon: 'space_bar', wide: true },
+      { label: 'Backspace', value: 'BACKSPACE', icon: 'backspace', wide: true },
+    ],
+  ];
+
   hasValidQuery = computed(() => this.query.trim().length >= 2);
   showSuggestions = computed(() => this.query.trim().length >= 2 && (this.suggestionLoading() || this.suggestions().length > 0));
+  tvResults = computed<TvResultCard[]>(() => [
+    ...this.movies().map((movie) => ({
+      key: `movie:${movie.id}`,
+      title: movie.title,
+      subtitle: [movie.year, 'Movie'].filter(Boolean).join(' • '),
+      coverUrl: movie.thumbnailUrl || movie.posterUrl || movie.coverUrl || null,
+      link: ['/movies', movie.slug || movie.id],
+      badge: 'Movie',
+    })),
+    ...this.books().map((book) => ({
+      key: `book:${book.id}`,
+      title: book.title,
+      subtitle: book.author || 'Book',
+      coverUrl: book.coverUrl || null,
+      link: ['/books/novel', book.slug],
+      badge: 'Book',
+    })),
+    ...this.manga().map((item) => ({
+      key: `manga:${item.id}`,
+      title: item.title,
+      subtitle: 'Manga & Comics',
+      coverUrl: item.coverUrl || null,
+      link: ['/books/manga', item.id],
+      badge: 'Manga',
+    })),
+    ...this.music().map((track) => ({
+      key: `music:${track.id}`,
+      title: track.title,
+      subtitle: track.artist || 'Music',
+      coverUrl: track.thumbnailUrl || null,
+      link: ['/music', track.slug],
+      badge: 'Music',
+    })),
+  ].slice(0, 12));
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe((params) => {
@@ -290,6 +445,31 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
   onSuggestionClick(): void {
     this.suggestions.set([]);
     this.suggestionLoading.set(false);
+  }
+
+  onTvKeyPress(value: string): void {
+    if (value === 'BACKSPACE') {
+      this.query = this.query.slice(0, -1);
+    } else {
+      this.query += value;
+    }
+    this.onQueryInput(this.query);
+  }
+
+  clearQuery(): void {
+    this.query = '';
+    this.movies.set([]);
+    this.books.set([]);
+    this.music.set([]);
+    this.manga.set([]);
+    this.submitted.set(false);
+    this.searchHint.set('');
+    this.suggestions.set([]);
+  }
+
+  submitTvSearch(): void {
+    const fakeEvent = { preventDefault() {} } as Event;
+    this.onSubmit(fakeEvent);
   }
 
   private runSearch(q: string): void {

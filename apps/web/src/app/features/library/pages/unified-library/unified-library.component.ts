@@ -8,6 +8,9 @@ import { WatchApiService, WatchHistoryItem } from '../../../watch/services/watch
 import { BookSummary } from '@naijaspride/types';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 type BookProgressResponse = {
   status: string;
@@ -52,7 +55,7 @@ interface MangaHistoryRow {
 @Component({
   selector: 'app-unified-library',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, SymbolIconComponent, TvFocusGroupDirective],
   styles: [`
     :host {
       display: block;
@@ -113,6 +116,109 @@ interface MangaHistoryRow {
     }
   `],
   template: `
+    @if (pwaService.isTV()) {
+      <div appTvFocusGroup [tvAutoFocus]="true" class="flex h-screen overflow-hidden bg-[#090609] text-[#f6efe8]">
+        <aside class="hidden w-24 flex-col border-r border-white/10 bg-black/30 px-3 py-6 backdrop-blur-xl lg:flex xl:w-64 xl:px-5">
+          <div class="mb-8 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
+            <img src="assets/images/logo.svg" alt="NaijasPride" class="h-10 w-10 rounded-xl object-contain" />
+            <div class="hidden xl:block min-w-0">
+              <p class="truncate text-sm font-semibold tracking-[0.24em] text-[#d0a97a] uppercase">NaijasPride</p>
+              <p class="text-xs text-white/45">Saved for later</p>
+            </div>
+          </div>
+
+          <nav class="flex flex-col gap-3">
+            @for (item of tvNavItems; track item.label) {
+              <a
+                [routerLink]="item.link"
+                class="group flex items-center gap-3 rounded-2xl px-3 py-3 text-white/60 transition hover:bg-white/[0.06] hover:text-white"
+                [ngClass]="item.active ? 'bg-[#800020]/25 text-white' : ''"
+              >
+                <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <app-symbol-icon [name]="item.icon" [size]="24"></app-symbol-icon>
+                </span>
+                <span class="hidden xl:block text-base font-medium">{{ item.label }}</span>
+              </a>
+            }
+          </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto px-8 py-8 md:px-12 xl:px-16">
+          <header class="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p class="text-[11px] uppercase tracking-[0.24em] text-[#d0a97a]">My List</p>
+              <h1 class="mt-2 text-4xl font-black text-white">Everything you've saved to watch later.</h1>
+              <p class="mt-3 max-w-2xl text-sm text-white/55">Your movies, books, manga progress, and continue-watching picks are arranged for the big screen.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div class="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45">Watchlist</p>
+                <p class="mt-2 text-2xl font-black text-white">{{ watchlistCount() }}</p>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45">Books</p>
+                <p class="mt-2 text-2xl font-black text-white">{{ summary()?.bookFavCount || 0 }}</p>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45">Manga</p>
+                <p class="mt-2 text-2xl font-black text-white">{{ summary()?.mangaFavCount || 0 }}</p>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45">Offline</p>
+                <p class="mt-2 text-2xl font-black text-white">{{ (summary()?.offlineMangaCount || 0) + (summary()?.offlineBookCount || 0) }}</p>
+              </div>
+            </div>
+          </header>
+
+          <section>
+            <div class="mb-5 flex items-center justify-between">
+              <h2 class="text-2xl font-bold text-white">Saved Collection</h2>
+              <a routerLink="/search" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">Discover More</a>
+            </div>
+
+            <div class="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
+              @for (item of tvSavedItems(); track item.key) {
+                <a [routerLink]="item.link" class="group block">
+                  <div class="relative aspect-[2/3] overflow-hidden rounded-[1.8rem] border border-white/10 bg-white/[0.04] shadow-[0_12px_40px_rgba(0,0,0,0.24)]">
+                    @if (item.coverUrl) {
+                      <img [src]="item.coverUrl" [alt]="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer" />
+                    }
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent"></div>
+                    <div class="absolute left-4 top-4 rounded-full bg-[#800020]/85 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-white">{{ item.badge }}</div>
+                    <div class="absolute bottom-4 left-4 right-4">
+                      <p class="truncate text-base font-semibold text-white">{{ item.title }}</p>
+                      <p class="truncate text-xs uppercase tracking-[0.18em] text-white/50">{{ item.subtitle }}</p>
+                    </div>
+                  </div>
+                </a>
+              }
+            </div>
+          </section>
+
+          <section class="mt-10">
+            <div class="mb-5 flex items-center justify-between">
+              <h2 class="text-2xl font-bold text-white">Continue Reading</h2>
+              <a routerLink="/books" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">Browse Books</a>
+            </div>
+            <div class="flex gap-4 overflow-x-auto pb-2">
+              @for (book of continueReadingBooks(); track book.id) {
+                <a [routerLink]="['/books/novel', book.slug]" class="group block w-44 flex-shrink-0">
+                  <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                    <img [src]="getBookCover(book.slug, book.coverUrl)" [alt]="book.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer" />
+                    @if (getBookProgress(book.slug); as progress) {
+                      <div class="absolute inset-x-0 bottom-0 h-1.5 bg-white/10">
+                        <div class="h-full bg-[#d0a97a]" [style.width.%]="getBookProgressWidth(progress)"></div>
+                      </div>
+                    }
+                  </div>
+                  <p class="mt-3 truncate text-sm font-semibold text-white">{{ book.title }}</p>
+                </a>
+              }
+            </div>
+          </section>
+        </main>
+      </div>
+    } @else {
     <div class="page-body px-4 py-8 md:px-8 lg:px-10 max-w-[1400px] mx-auto">
 
       <!-- ── Page Header ──────────────────────────────────────────── -->
@@ -418,6 +524,7 @@ interface MangaHistoryRow {
       }
 
     </div>
+    }
   `
 })
 export class UnifiedLibraryComponent implements OnInit {
@@ -425,6 +532,7 @@ export class UnifiedLibraryComponent implements OnInit {
   private libraryService = inject(LibraryService);
   private profileService = inject(ProfileQueryService);
   private watchApi = inject(WatchApiService);
+  protected pwaService = inject(PwaService);
 
   profileQuery = this.profileService.getProfileQuery();
 
@@ -507,6 +615,55 @@ export class UnifiedLibraryComponent implements OnInit {
     }
 
     return rows;
+  });
+
+  tvNavItems = [
+    { label: 'Home', link: '/home', icon: 'home', active: false },
+    { label: 'Movies', link: '/movies', icon: 'movie', active: false },
+    { label: 'TV Shows', link: '/tv-shows', icon: 'tv', active: false },
+    { label: 'Anime', link: '/anime', icon: 'auto_awesome_motion', active: false },
+    { label: 'My List', link: '/library', icon: 'bookmarks', active: true },
+    { label: 'Search', link: '/search', icon: 'search', active: false },
+  ];
+
+  tvSavedItems = computed(() => {
+    const items: Array<{ key: string; title: string; subtitle: string; coverUrl: string | null; link: string[]; badge: string }> = [];
+
+    for (const item of this.continueWatching().slice(0, 8)) {
+      items.push({
+        key: `movie:${item.id}`,
+        title: item.movie.title,
+        subtitle: `${Math.round(item.progressPercentage)}% watched`,
+        coverUrl: item.movie.thumbnailUrl || null,
+        link: ['/movies', item.movie.slug || item.movie.id],
+        badge: 'Movie',
+      });
+    }
+
+    for (const book of this.continueReadingBooks().slice(0, 6)) {
+      const progress = this.getBookProgress(book.slug);
+      items.push({
+        key: `book:${book.id}`,
+        title: book.title,
+        subtitle: progress ? `${Math.round(progress)}% read` : (book.author || 'Book'),
+        coverUrl: this.getBookCover(book.slug, book.coverUrl),
+        link: ['/books/novel', book.slug],
+        badge: 'Book',
+      });
+    }
+
+    for (const item of this.mangaHistory().slice(0, 6)) {
+      items.push({
+        key: `manga:${item.chapterId}`,
+        title: item.title?.trim() || item.mangaTitle?.trim() || item.chapterTitle?.trim() || 'Manga Chapter',
+        subtitle: item.isCompleted ? 'Finished' : 'Reading',
+        coverUrl: item.coverUrl || null,
+        link: ['/books/manga', item.mangaId],
+        badge: 'Manga',
+      });
+    }
+
+    return items.slice(0, 18);
   });
 
   async ngOnInit() {

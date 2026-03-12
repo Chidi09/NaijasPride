@@ -1,5 +1,6 @@
 import { Injectable, signal, effect, inject } from '@angular/core';
 import { Platform } from '@angular/cdk/platform';
+import { detectTvEnvironment } from '../utils/tv-detection';
 
 export interface PWAState {
   isStandalone: boolean;
@@ -67,19 +68,7 @@ export class PwaService {
   }
 
   private detectTV(): void {
-    const ua = navigator.userAgent.toLowerCase();
-    const isTV = ua.includes('smart-tv') ||
-                 ua.includes('webos') ||
-                 ua.includes('tizen') ||
-                 ua.includes('bravia') ||
-                 ua.includes('android tv') ||
-                 ua.includes('googletv') ||
-                 ua.includes('appletv') ||
-                 ua.includes('hbbtv') ||
-                 ua.includes('pov_tv') ||
-                 ua.includes('netcast.tv') ||
-                 ua.includes('philipstv') ||
-                 ua.includes('panasonictv');
+    const isTV = detectTvEnvironment();
 
     this.pwaState.update(state => ({ ...state, isTV }));
     this.isTV.set(isTV);

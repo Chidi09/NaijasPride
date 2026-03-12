@@ -21,6 +21,8 @@ import { AuthStateService } from '../../../core/auth/auth-state.service';
 import { BrandLogoComponent } from '../brand-logo/brand-logo.component';
 import { MovieSummary } from '@naijaspride/types';
 import { HttpClient } from '@angular/common/http';
+import { PwaService } from '../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../symbol-icon/symbol-icon.component';
 
 interface SubtitleInfo {
   language: string;
@@ -54,7 +56,7 @@ type YouTubeWindow = Window & {
 @Component({
   selector: 'app-video-player',
   standalone: true,
-  imports: [CommonModule, BrandLogoComponent],
+  imports: [CommonModule, BrandLogoComponent, SymbolIconComponent],
   template: `
     <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group"
          tabindex="0"
@@ -93,21 +95,31 @@ type YouTubeWindow = Window & {
                  label="Subtitles"
                  [default]="showSubtitles">
              }
-           </video>
-           
-           <!-- Quality Selector Overlay (HLS only) -->
-           @if (showQualitySelector && qualityLevels.length > 1) {
-             <div class="absolute top-4 left-4 z-20">
-               <div class="relative group/quality">
+            </video>
+
+            @if (pwaService.isTV() && movie) {
+              <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between bg-gradient-to-b from-black/80 via-black/20 to-transparent px-6 py-5 md:px-8">
+                <div>
+                  <p class="text-[11px] uppercase tracking-[0.24em] text-[#d0a97a]">Now Playing</p>
+                  <h2 class="mt-2 text-2xl font-black text-white md:text-4xl">{{ movie.title }}</h2>
+                </div>
+                @if (movie.year) {
+                  <div class="rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/70 backdrop-blur-sm">{{ movie.year }}</div>
+                }
+              </div>
+            }
+            
+            <!-- Quality Selector Overlay (HLS only) -->
+            @if (showQualitySelector && qualityLevels.length > 1) {
+              <div class="absolute top-4 left-4 z-20">
+                <div class="relative group/quality">
                  <button 
                    (click)="toggleQualityMenu()"
                    aria-label="Video quality"
                    class="bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded backdrop-blur-sm transition-colors text-sm font-medium flex items-center gap-2">
                    <span>{{ selectedQualityLabel }}</span>
-                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                   </svg>
-                 </button>
+                    <app-symbol-icon name="expand_more" [size]="18"></app-symbol-icon>
+                  </button>
                  
                  @if (qualityMenuOpen) {
                    <div class="absolute top-full left-0 mt-1 bg-black/90 rounded-lg overflow-hidden min-w-[140px] shadow-xl">
@@ -146,32 +158,26 @@ type YouTubeWindow = Window & {
            @if (config.showSkipButtons && showControls) {
              <div class="absolute inset-0 flex items-center justify-between px-8 pointer-events-none">
                <!-- Rewind Button -->
-               <button 
-                 (click)="skip(-10)"
-                 aria-label="Rewind 10 seconds"
-                 class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
-                 <div class="flex flex-col items-center">
-                   <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                           d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"/>
-                   </svg>
-                   <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">-10s</span>
-                 </div>
-               </button>
+                <button 
+                  (click)="skip(-10)"
+                  aria-label="Rewind 10 seconds"
+                  class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
+                  <div class="flex flex-col items-center">
+                    <app-symbol-icon name="replay_10" [size]="pwaService.isTV() ? 42 : 32"></app-symbol-icon>
+                    <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">-10s</span>
+                  </div>
+                </button>
 
                <!-- Forward Button -->
-               <button 
-                 (click)="skip(30)"
-                 aria-label="Skip forward 30 seconds"
-                 class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
-                 <div class="flex flex-col items-center">
-                   <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                           d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z"/>
-                   </svg>
-                   <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">+30s</span>
-                 </div>
-               </button>
+                <button 
+                  (click)="skip(30)"
+                  aria-label="Skip forward 30 seconds"
+                  class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
+                  <div class="flex flex-col items-center">
+                    <app-symbol-icon name="forward_30" [size]="pwaService.isTV() ? 42 : 32"></app-symbol-icon>
+                    <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">+30s</span>
+                  </div>
+                </button>
              </div>
            }
 
@@ -190,15 +196,9 @@ type YouTubeWindow = Window & {
                   aria-label="Toggle fullscreen"
                   class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors">
                   @if (isFullscreen) {
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                            d="M6 18L18 6M6 6l12 12M4 10V4h6M20 14v6h-6M20 10V4h-6M4 14v6h6"></path>
-                    </svg>
+                    <app-symbol-icon name="fullscreen_exit" [size]="24"></app-symbol-icon>
                   } @else {
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                            d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
-                    </svg>
+                    <app-symbol-icon name="fullscreen" [size]="24"></app-symbol-icon>
                   }
                 </button>
               </div>
@@ -213,7 +213,7 @@ type YouTubeWindow = Window & {
                     aria-label="Toggle subtitles"
                     class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors"
                     [class.text-red-500]="showSubtitles && subtitleTrackUrl">
-                    <span class="font-bold border-2 border-current rounded px-1 text-xs">CC</span>
+                    <app-symbol-icon name="subtitles" [size]="22"></app-symbol-icon>
                   </button>
                   
                   <div class="absolute bottom-12 right-0 bg-black/90 p-2 rounded hidden group-hover/cc:block min-w-[220px]">
@@ -331,6 +331,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   private anonymousWatch = inject(AnonymousWatchService);
   private authState = inject(AuthStateService);
   private http = inject(HttpClient);
+  protected pwaService = inject(PwaService);
   private destroy$ = new Subject<void>();
   private progressUpdate = new Subject<number>();
 

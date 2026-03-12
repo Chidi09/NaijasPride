@@ -4,12 +4,116 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Hls from 'hls.js';
 import { AnimeApiService } from '../../services/anime-api.service';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 @Component({
   selector: 'app-anime-watch',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, SymbolIconComponent, TvFocusGroupDirective],
   template: `
+    @if (useCinemaShell()) {
+      <section appTvFocusGroup [tvAutoFocus]="true" class="min-h-screen bg-[#090609] px-6 py-6 text-[#f6efe8] md:px-10 xl:px-14">
+        <header class="mb-6 flex items-center justify-between gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
+          <a [routerLink]="['/anime', animeId()]" class="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white">
+            <app-symbol-icon name="arrow_back" [size]="22"></app-symbol-icon>
+            Back to Anime
+          </a>
+          <div class="min-w-0 text-right">
+            <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Anime Watch</p>
+            <h1 class="truncate text-2xl font-black text-white">{{ title() }}</h1>
+          </div>
+        </header>
+
+        @if (loading()) {
+          <div class="py-12 text-center text-white/60">Loading stream...</div>
+        } @else if (error()) {
+          <div class="py-12 text-center text-red-300">{{ error() }}</div>
+        } @else {
+          <div class="grid gap-6 xl:grid-cols-[1.2fr,0.8fr] xl:items-start">
+            <div class="space-y-4">
+              <section class="relative overflow-hidden rounded-[2rem] border border-white/10 bg-black/30">
+                <div class="absolute inset-0 bg-cover bg-center opacity-30" [style.background-image]="'url(' + heroImage() + ')'" ></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/10"></div>
+                <div class="relative z-10 p-6 md:p-8">
+                  <div class="mb-4 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.22em] text-white/55">
+                    <span class="rounded-full border border-[#d0a97a]/35 bg-[#d0a97a]/10 px-3 py-1 text-[#ecd8b7]">Episode {{ episodeNumber() }}</span>
+                    <span>{{ scoreText() }}</span>
+                    <span>{{ genreText() }}</span>
+                  </div>
+                  <h2 class="max-w-3xl text-3xl font-black text-white md:text-5xl">{{ title() }}</h2>
+                  <p class="mt-3 max-w-2xl text-sm leading-7 text-white/65">{{ synopsisText() }}</p>
+                </div>
+              </section>
+
+              <section class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 md:p-5">
+                <div class="mb-3 flex flex-wrap items-center gap-2">
+                  @for (source of sourceButtons(); track source.url) {
+                    <button type="button" class="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]" [class]="activeSourceUrl() === source.url ? 'bg-[#800020] text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'" (click)="selectSource(source.url, source.index)">
+                      {{ source.label }}
+                    </button>
+                  }
+
+                  @if (selectedSource()?.url) {
+                    <a [href]="selectedSource()?.originalUrl || selectedSource()?.url" target="_blank" rel="noopener noreferrer" class="rounded-full border border-white/15 bg-black/30 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10">
+                      Open Source
+                    </a>
+                  }
+                </div>
+
+                @if (playbackNotice()) {
+                  <div class="mb-3 rounded-xl border border-yellow-500/30 bg-yellow-900/20 px-3 py-2 text-xs text-yellow-100">{{ playbackNotice() }}</div>
+                }
+
+                <div class="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black">
+                  @if (selectedSourceIsEmbed()) {
+                    <iframe class="aspect-video w-full bg-black" [src]="selectedEmbedUrl()" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
+                  } @else {
+                    <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
+                  }
+                </div>
+              </section>
+            </div>
+
+            <aside class="space-y-4">
+              <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Series Information</p>
+                <div class="mt-4 space-y-3 text-sm">
+                  <div class="flex items-center justify-between border-b border-white/10 pb-2"><span class="text-white/55">Aired</span><span class="text-white">{{ airedText() }}</span></div>
+                  <div class="flex items-center justify-between border-b border-white/10 pb-2"><span class="text-white/55">Status</span><span class="text-white">{{ statusText() }}</span></div>
+                  <div class="flex items-center justify-between border-b border-white/10 pb-2"><span class="text-white/55">Episodes</span><span class="text-white">{{ totalEpisodesText() }}</span></div>
+                  <div class="flex items-center justify-between"><span class="text-white/55">Rating</span><span class="text-white">{{ scoreText() }}</span></div>
+                </div>
+              </div>
+
+              <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                <div class="mb-4 flex items-center justify-between">
+                  <h3 class="text-lg font-bold text-white">Episodes</h3>
+                  <span class="text-xs uppercase tracking-[0.18em] text-white/45">{{ episodes().length }} total</span>
+                </div>
+                <div class="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+                  @for (ep of episodes(); track ep.id) {
+                    <a [routerLink]="['/anime', animeId(), 'watch', ep.number]" class="group block rounded-[1.3rem] border p-3 transition"
+                      [class]="ep.number === episodeNumber() ? 'border-[#800020]/60 bg-[#800020]/15' : 'border-white/10 bg-white/[0.03] hover:border-[#800020]/40 hover:bg-[#800020]/10'">
+                      <div class="flex gap-3">
+                        <div class="relative aspect-video w-28 overflow-hidden rounded-xl">
+                          <img [src]="ep.image || posterImage()" alt="Episode artwork" class="h-full w-full object-cover" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <h4 class="truncate font-semibold text-white">Episode {{ ep.number }}</h4>
+                          <p class="truncate text-sm text-white/60">{{ ep.title || 'Untitled Episode' }}</p>
+                        </div>
+                      </div>
+                    </a>
+                  }
+                </div>
+              </div>
+            </aside>
+          </div>
+        }
+      </section>
+    } @else {
     <section class="mx-auto w-full max-w-7xl pb-16">
       <a [routerLink]="['/anime', animeId()]" class="mb-3 mt-5 inline-block px-4 text-sm text-white/60 hover:text-white md:px-6">← Back to Anime</a>
 
@@ -159,6 +263,7 @@ import { AnimeApiService } from '../../services/anime-api.service';
         </section>
       }
     </section>
+    }
   `,
 })
 export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
@@ -168,6 +273,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   private router = inject(Router);
   private api = inject(AnimeApiService);
   private sanitizer = inject(DomSanitizer);
+  protected pwaService = inject(PwaService);
 
   private hls: Hls | null = null;
   private mediaRecoveryAttempted = false;
@@ -229,6 +335,12 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     return end?.year ? `${start.year} - ${end.year}` : `${start.year} - Present`;
   });
   totalEpisodesText = computed(() => this.animeData()?.episodes || this.episodes().length || '?');
+
+  useCinemaShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return (this.pwaService.isAppMode() && window.innerWidth >= 1100) || window.innerWidth >= 1400;
+  }
 
   constructor() {
     this.route.paramMap.subscribe((params) => {

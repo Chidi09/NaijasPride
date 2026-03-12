@@ -9,6 +9,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 type BookProgressResponse = {
   status: string;
@@ -57,8 +60,118 @@ type SourceDiscoverResponse = {
 @Component({
   selector: 'app-book-hub',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, SymbolIconComponent, TvFocusGroupDirective],
   template: `
+    @if (useEditorialShell()) {
+      <div appTvFocusGroup [tvAutoFocus]="true" class="flex min-h-screen w-full overflow-hidden bg-[#090609] text-[#f6efe8] books-theme">
+        <aside class="hidden w-24 flex-col border-r border-white/10 bg-black/30 px-3 py-8 backdrop-blur-xl lg:flex xl:w-64 xl:px-5">
+          <div class="flex items-center gap-3 px-1">
+            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#800020] text-white">
+              <app-symbol-icon name="menu_book" [size]="24"></app-symbol-icon>
+            </span>
+            <div class="hidden xl:block">
+              <p class="text-sm font-semibold tracking-[0.22em] text-[#d0a97a] uppercase">NaijasPride</p>
+              <p class="text-xs text-white/45">Reading lounge</p>
+            </div>
+          </div>
+
+          <nav class="mt-8 flex flex-col gap-3">
+            @for (item of shelfNavItems; track item.label) {
+              <a [routerLink]="item.link" class="group flex items-center gap-3 rounded-2xl px-3 py-3 text-white/65 transition hover:bg-white/[0.06] hover:text-white" [ngClass]="item.active ? 'bg-[#800020]/25 text-white' : ''">
+                <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <app-symbol-icon [name]="item.icon" [size]="24"></app-symbol-icon>
+                </span>
+                <span class="hidden xl:block text-base font-medium">{{ item.label }}</span>
+              </a>
+            }
+          </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto">
+          <section class="relative min-h-[72vh] overflow-hidden">
+            <div class="absolute inset-0 bg-cover bg-center" [style.background-image]="heroBackground()"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,6,9,0.96)_0%,rgba(9,6,9,0.7)_42%,rgba(9,6,9,0.18)_100%),linear-gradient(0deg,rgba(9,6,9,1)_0%,rgba(9,6,9,0.35)_45%,rgba(9,6,9,0)_100%)]"></div>
+            <div class="relative z-10 flex min-h-[72vh] max-w-5xl flex-col justify-center px-8 py-12 md:px-12 xl:px-20">
+              <div class="flex items-center gap-3 text-xs uppercase tracking-[0.22em] text-white/55">
+                <span class="rounded-full border border-[#d0a97a]/40 bg-[#d0a97a]/10 px-3 py-1 text-[#ecd8b7]">Featured Shelf</span>
+                <span>{{ heroTypeLabel() }}</span>
+              </div>
+              <h1 class="mt-5 text-5xl font-black leading-[0.95] text-white md:text-7xl">{{ heroTitle() }}</h1>
+              <p class="mt-5 max-w-2xl text-base leading-8 text-white/68">{{ heroDescription() }}</p>
+              <div class="mt-8 flex flex-wrap gap-4">
+                <a [routerLink]="heroPrimaryLink()" class="inline-flex items-center gap-3 rounded-2xl bg-[#800020] px-7 py-4 text-base font-semibold text-white shadow-[0_18px_48px_rgba(128,0,32,0.35)] transition hover:bg-[#95002a]">
+                  <app-symbol-icon name="auto_stories" [size]="24"></app-symbol-icon>
+                  Read Now
+                </a>
+                <a [routerLink]="heroSecondaryLink()" class="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/[0.06] px-7 py-4 text-base font-semibold text-white/90 backdrop-blur-md transition hover:bg-white/[0.1]">
+                  <app-symbol-icon name="info" [size]="24"></app-symbol-icon>
+                  Browse Collection
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <div class="space-y-12 px-8 pb-16 md:px-12 xl:px-20">
+            <section>
+              <div class="mb-5 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">Books</h2>
+                <a routerLink="/books/all" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">See all</a>
+              </div>
+              <div class="flex gap-5 overflow-x-auto pb-2">
+                @for (book of books().slice(0, 10); track book.id) {
+                  <a [routerLink]="['/books/novel', book.slug]" class="group block w-44 flex-shrink-0">
+                    <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                      <img [src]="getBookCover(book.slug, book.coverUrl)" [alt]="book.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer">
+                      @if (getBookProgress(book.slug); as progress) {
+                        <div class="absolute inset-x-0 bottom-0 h-1.5 bg-white/10"><div class="h-full bg-[#d0a97a]" [style.width.%]="getBookProgressWidth(progress)"></div></div>
+                      }
+                    </div>
+                    <p class="mt-3 truncate text-sm font-semibold text-white">{{ book.title }}</p>
+                    <p class="truncate text-xs text-white/50">{{ book.author || 'Book' }}</p>
+                  </a>
+                }
+              </div>
+            </section>
+
+            <section>
+              <div class="mb-5 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">Comics</h2>
+                <a routerLink="/books/comics" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">Explore comics</a>
+              </div>
+              <div class="flex gap-5 overflow-x-auto pb-2">
+                @for (comic of comics().slice(0, 10); track comic.id) {
+                  <a [routerLink]="['/books/comics', toRouteParam(comic.id)]" class="group block w-44 flex-shrink-0">
+                    <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                      @if (comic.coverUrl) { <img [src]="comic.coverUrl" [alt]="comic.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer"> }
+                    </div>
+                    <p class="mt-3 truncate text-sm font-semibold text-white">{{ comic.title }}</p>
+                    <p class="truncate text-xs text-white/50">{{ comic.latestChapter ? 'Latest ' + comic.latestChapter : 'Comic' }}</p>
+                  </a>
+                }
+              </div>
+            </section>
+
+            <section>
+              <div class="mb-5 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">Manga</h2>
+                <a routerLink="/books/manga" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">Open manga</a>
+              </div>
+              <div class="flex gap-5 overflow-x-auto pb-2">
+                @for (item of manga().slice(0, 10); track item.id) {
+                  <a [routerLink]="['/books/manga', toRouteParam(item.id)]" class="group block w-44 flex-shrink-0">
+                    <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                      @if (item.coverUrl) { <img [src]="item.coverUrl" [alt]="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer"> }
+                    </div>
+                    <p class="mt-3 truncate text-sm font-semibold text-white">{{ item.title }}</p>
+                    <p class="truncate text-xs text-white/50">{{ item.latestChapter ? 'Ch. ' + item.latestChapter : 'Manga' }}</p>
+                  </a>
+                }
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    } @else {
     <div class="min-h-screen bg-[var(--bg-primary)] pb-20 books-theme">
       <!-- Hero Section with Featured Content -->
       <div class="bg-gradient-to-b from-cinema-800 to-cinema-900 py-12 px-6">
@@ -422,10 +535,12 @@ type SourceDiscoverResponse = {
 
       </div>
     </div>
+    }
   `
 })
 export class BookHubComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
+  protected pwaService = inject(PwaService);
   private destroy$ = new Subject<void>();
   
   // Content signals
@@ -449,6 +564,14 @@ export class BookHubComponent implements OnInit, OnDestroy {
   private mangaRotationIndex = 0;
   private allTrendingManga: ContentItem[] = [];
 
+  shelfNavItems = [
+    { label: 'Home', link: '/home', icon: 'home', active: false },
+    { label: 'Browse', link: '/books', icon: 'explore', active: true },
+    { label: 'Books', link: '/books/all', icon: 'menu_book', active: false },
+    { label: 'Comics', link: '/books/comics', icon: 'library_books', active: false },
+    { label: 'Manga', link: '/books/manga', icon: 'auto_stories', active: false },
+  ];
+
   ngOnInit() {
     this.loadBooks();
     this.loadLightNovels();
@@ -459,6 +582,56 @@ export class BookHubComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  useEditorialShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 1200;
+  }
+
+  heroItem(): ContentItem | null {
+    return this.featured().manga || this.featured().book || this.featured().comic || null;
+  }
+
+  heroTitle(): string {
+    return this.heroItem()?.title || 'Reading Library';
+  }
+
+  heroDescription(): string {
+    const item = this.heroItem();
+    if (!item) return 'Discover stories across books, comics, and manga in a premium shelf-first reading experience.';
+    if (item.type === 'book') return `${item.author || 'Featured author'} brings a standout read to the front shelf. Dive into premium storytelling built for desktop and TV.`;
+    if (item.type === 'comic') return 'A cinematic comic selection with bold art, fast updates, and immersive reading routes curated for big screens.';
+    return 'Explore trending manga with chapter updates, rich cover art, and a browse-first layout inspired by premium streaming interfaces.';
+  }
+
+  heroTypeLabel(): string {
+    const item = this.heroItem();
+    if (!item) return 'Reading lounge';
+    return item.type === 'book' ? 'Featured Book' : item.type === 'comic' ? 'Featured Comic' : 'Featured Manga';
+  }
+
+  heroBackground(): string {
+    const item = this.heroItem();
+    const image = item?.coverUrl || (item?.slug ? this.getBookCover(item.slug, item.coverUrl) : '');
+    return image ? `url(${image})` : 'linear-gradient(135deg, #2b0a16 0%, #10090d 55%, #040304 100%)';
+  }
+
+  heroPrimaryLink(): string[] {
+    const item = this.heroItem();
+    if (!item) return ['/books'];
+    if (item.type === 'book' && item.slug) return ['/books/novel', item.slug];
+    if (item.type === 'comic') return ['/books/comics', this.toRouteParam(item.id)];
+    return ['/books/manga', this.toRouteParam(item.id)];
+  }
+
+  heroSecondaryLink(): string[] {
+    const item = this.heroItem();
+    if (!item) return ['/books'];
+    if (item.type === 'book') return ['/books/all'];
+    if (item.type === 'comic') return ['/books/comics'];
+    return ['/books/manga'];
   }
 
   loadBooks() {

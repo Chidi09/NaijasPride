@@ -12,6 +12,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 type MangaSummary = {
   id: string;
@@ -96,8 +99,137 @@ type MangaSourceHealth = {
     MatProgressSpinnerModule,
     MatSelectModule,
     MatTabsModule,
+    SymbolIconComponent,
+    TvFocusGroupDirective,
   ],
   template: `
+    @if (useEditorialShell()) {
+      <div appTvFocusGroup [tvAutoFocus]="true" class="flex min-h-screen w-full overflow-hidden bg-[#090609] text-[#f6efe8] books-theme">
+        <aside class="hidden w-24 flex-col border-r border-white/10 bg-black/30 px-3 py-8 backdrop-blur-xl lg:flex xl:w-64 xl:px-5">
+          <div class="flex items-center gap-3 px-1">
+            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#800020] text-white">
+              <app-symbol-icon name="auto_stories" [size]="24"></app-symbol-icon>
+            </span>
+            <div class="hidden xl:block">
+              <p class="text-sm font-semibold tracking-[0.22em] text-[#d0a97a] uppercase">NaijasPride</p>
+              <p class="text-xs text-white/45">Manga shelf</p>
+            </div>
+          </div>
+
+          <nav class="mt-8 flex flex-col gap-3">
+            @for (item of shelfNavItems; track item.label) {
+              <a [routerLink]="item.link" class="group flex items-center gap-3 rounded-2xl px-3 py-3 text-white/65 transition hover:bg-white/[0.06] hover:text-white" [ngClass]="item.active ? 'bg-[#800020]/25 text-white' : ''">
+                <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <app-symbol-icon [name]="item.icon" [size]="24"></app-symbol-icon>
+                </span>
+                <span class="hidden xl:block text-base font-medium">{{ item.label }}</span>
+              </a>
+            }
+          </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto">
+          <section class="relative min-h-[72vh] overflow-hidden">
+            <div class="absolute inset-0 bg-[linear-gradient(135deg,#221014_0%,#12090d_48%,#050406_100%)]"></div>
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(208,169,122,0.14),transparent_24%)]"></div>
+            <div class="relative z-10 flex min-h-[72vh] max-w-5xl flex-col justify-center px-8 py-12 md:px-12 xl:px-20">
+              <div class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.22em] text-white/55">
+                <span class="rounded-full border border-[#d0a97a]/40 bg-[#d0a97a]/10 px-3 py-1 text-[#ecd8b7]">Manga Library</span>
+                <span>{{ selectedSourceLabel() }}</span>
+              </div>
+              <h1 class="mt-5 text-5xl font-black leading-[0.95] text-white md:text-7xl">Curated manga, manhwa, and manhua for desktop and TV.</h1>
+              <p class="mt-5 max-w-2xl text-base leading-8 text-white/68">Same data, new presentation. Browse, switch sources, and pick up where you left off with a more premium shelf layout.</p>
+
+              <div class="mt-8 flex max-w-3xl flex-col gap-3 rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center">
+                  <div class="flex flex-1 items-center gap-3 rounded-2xl bg-black/20 px-4 py-3">
+                    <app-symbol-icon name="search" [size]="22"></app-symbol-icon>
+                    <input [ngModel]="query()" (ngModelChange)="query.set($event)" (keyup.enter)="search()" class="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35" placeholder="Search manga, manhwa, manhua..." />
+                  </div>
+                  <div class="flex gap-3">
+                    <button type="button" (click)="search()" class="rounded-2xl bg-[#800020] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#95002a]">Search</button>
+                    <button type="button" (click)="clearFilters()" class="rounded-2xl border border-white/15 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]">Reset</button>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  @for (source of sources(); track source.id) {
+                    <button type="button" (click)="setSource(source.id)" class="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]" [class]="selectedSource() === source.id ? 'bg-[#800020] text-white' : 'bg-white/10 text-white/65 hover:bg-white/20'">
+                      {{ source.displayName }}
+                    </button>
+                  }
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" (click)="onTabChange(0)" class="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]" [class]="activeTab() === 'search' ? 'bg-[#d0a97a] text-[#12090d]' : 'bg-white/10 text-white/65 hover:bg-white/20'">Search</button>
+                  <button type="button" (click)="onTabChange(1)" class="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]" [class]="activeTab() === 'favorites' ? 'bg-[#d0a97a] text-[#12090d]' : 'bg-white/10 text-white/65 hover:bg-white/20'">Favorites</button>
+                  <button type="button" (click)="onTabChange(2)" class="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]" [class]="activeTab() === 'history' ? 'bg-[#d0a97a] text-[#12090d]' : 'bg-white/10 text-white/65 hover:bg-white/20'">History</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="space-y-12 px-8 pb-16 md:px-12 xl:px-20">
+            @if (activeTab() === 'search') {
+              <section>
+                <div class="mb-5 flex items-center justify-between">
+                  <h2 class="text-2xl font-bold text-white">{{ showHome() ? 'Trending Now' : 'Search Results' }}</h2>
+                  <span class="text-sm text-[#d0a97a]">{{ selectedSourceLabel() }}</span>
+                </div>
+                <div class="flex gap-5 overflow-x-auto pb-2">
+                  @for (entry of editorialItems(); track entry.id) {
+                    <a [routerLink]="[detailRouteFor(entry.id), toRouteParam(entry.id)]" class="group block w-44 flex-shrink-0">
+                      <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                        @if (entry.coverUrl) { <img [src]="entry.coverUrl" [alt]="entry.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer"> }
+                      </div>
+                      <p class="mt-3 truncate text-sm font-semibold text-white">{{ entry.title }}</p>
+                      <p class="truncate text-xs text-white/50">{{ entry.latestChapter ? 'Ch. ' + entry.latestChapter : sourceLabel(entry.id) }}</p>
+                    </a>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (activeTab() === 'favorites') {
+              <section>
+                <div class="mb-5 flex items-center justify-between">
+                  <h2 class="text-2xl font-bold text-white">Favorites</h2>
+                </div>
+                <div class="flex gap-5 overflow-x-auto pb-2">
+                  @for (fav of favorites(); track fav.id) {
+                    <a [routerLink]="[detailRouteFor(fav.mangaId), toRouteParam(fav.mangaId)]" class="group block w-44 flex-shrink-0">
+                      <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                        @if (fav.coverUrl) { <img [src]="fav.coverUrl" [alt]="fav.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer"> }
+                      </div>
+                      <p class="mt-3 truncate text-sm font-semibold text-white">{{ fav.title }}</p>
+                    </a>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (activeTab() === 'history') {
+              <section>
+                <div class="mb-5 flex items-center justify-between">
+                  <h2 class="text-2xl font-bold text-white">Continue Reading</h2>
+                </div>
+                <div class="space-y-3">
+                  @for (item of history(); track item.id) {
+                    <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+                      <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p class="text-sm font-semibold text-white">Chapter {{ item.chapterId.slice(0, 10) }}...</p>
+                          <p class="mt-1 text-xs text-white/45">Page {{ item.pageIndex + 1 }} / {{ item.totalPages }}</p>
+                        </div>
+                        <a [routerLink]="[readerRouteFor(item.chapterId), toRouteParam(item.chapterId)]" [queryParams]="{ mangaId: item.mangaId }" class="rounded-2xl bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Continue</a>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </section>
+            }
+          </div>
+        </main>
+      </div>
+    } @else {
     <div class="container mx-auto px-4 py-10 books-theme">
       <!-- Header -->
       <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -504,11 +636,13 @@ type MangaSourceHealth = {
         </mat-tab-group>
       }
     </div>
+    }
   `,
 })
 export class MangaLibraryComponent implements OnInit {
   private http = inject(HttpClient);
   private injector = inject(Injector);
+  protected pwaService = inject(PwaService);
 
   activeTab = signal<'search' | 'favorites' | 'history'>('search');
   query = signal('');
@@ -552,6 +686,14 @@ export class MangaLibraryComponent implements OnInit {
   sort = signal<'relevance' | 'latestUploadedChapter' | 'followedCount' | 'createdAt' | 'year'>('relevance');
   year = signal<number | null>(null);
 
+  shelfNavItems = [
+    { label: 'Home', link: '/home', icon: 'home', active: false },
+    { label: 'Browse', link: '/books', icon: 'explore', active: false },
+    { label: 'Books', link: '/books/all', icon: 'menu_book', active: false },
+    { label: 'Comics', link: '/books/comics', icon: 'library_books', active: false },
+    { label: 'Manga', link: '/books/manga', icon: 'auto_stories', active: true },
+  ];
+
   hasActiveFilters = computed(() => {
     return (
       this.selectedTagIds().length > 0 ||
@@ -565,6 +707,17 @@ export class MangaLibraryComponent implements OnInit {
   });
 
   showHome = computed(() => !this.query().trim() && !this.hasActiveFilters());
+  editorialItems = computed(() => {
+    if (!this.showHome()) return this.results().slice(0, 16);
+    const discover = this.discover();
+    return (discover?.trending || discover?.recentlyUpdated || discover?.newTitles || []).slice(0, 16);
+  });
+
+  useEditorialShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 1200;
+  }
 
   ngOnInit() {
     // NOTE: `effect()` must run in an injection context OR receive an explicit injector.

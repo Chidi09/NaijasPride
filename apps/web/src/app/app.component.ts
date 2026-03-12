@@ -6,7 +6,6 @@ import { BottomNavComponent } from './core/components/bottom-nav/bottom-nav.comp
 import { AppHeaderComponent } from './core/components/app-header/app-header.component';
 import { SidePanelComponent } from './core/components/side-panel/side-panel.component';
 import { PwaInstallPromptComponent } from './core/components/pwa-install-prompt/pwa-install-prompt.component';
-import { DeviceService } from './core/services/device.service';
 import { ReaderStateService } from './core/services/reader-state.service';
 import { ThemeService } from './core/services/theme.service';
 import { PwaService } from './core/services/pwa.service';
@@ -114,7 +113,6 @@ import { filter } from 'rxjs/operators';
   `
 })
 export class AppComponent implements OnInit {
-  private deviceService = inject(DeviceService);
   private themeService = inject(ThemeService);
   private firebaseMessaging = inject(FirebaseMessagingService);
   protected pwaService = inject(PwaService);
@@ -175,7 +173,7 @@ export class AppComponent implements OnInit {
       setTimeout(initializeMessaging, 2000);
     }
 
-    if (this.deviceService.isTV()) {
+    if (this.pwaService.isTV()) {
       document.body.classList.add('tv-mode');
     }
 
