@@ -431,9 +431,16 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
         const payload = (await sourceResponse.json()) as { link?: string };
         if (!payload.link) continue;
 
-        // Skip embed sources - Playwright resolution is too slow for API requests
-        // Sources must provide direct URLs to be usable
-        continue;
+        // Return embed source directly - let frontend handle playback
+        sources.push({
+          url: payload.link,
+          quality: `embed-${serverId}`,
+          isM3U8: false,
+          isEmbed: true,
+        });
+        if (!preferredReferer) {
+          preferredReferer = payload.link;
+        }
       }
 
       if (sources.length > 0) {
@@ -1112,10 +1119,70 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // Try hianime fallback if bridge providers failed
       if (!episode || !watch || !resolvedProvider || sources.length === 0) {
+        let fallback: HianimeFallbackResult = { sources: [], headers: {} };
+        let fallbackEpisodeRef = fallbackEpisodeIdForHianime || fallbackEpisodeId;
+
+        if (fallbackEpisodeIdForHianime) {
+          fallback = await hianimeEmbedFallback(fallbackEpisodeIdForHianime);
+        }
+
+        if (fallback.sources.length === 0) {
+          try {
+            const titles = await getAnilistTitles();
+            if (titles.length > 0) {
+              fallback = await hianimeEmbedFallbackByTitles(titles, episodeNumber);
+              if (fallback.sources.length > 0 && !fallbackEpisodeRef) {
+                fallbackEpisodeRef = `hianime-title-${episodeNumber}`;
+              }
+            }
+          } catch {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'hianime-title-fallback',
+              provider: 'hianime',
+              outcome: 'error',
+              detail: 'Title-based hianime fallback failed',
+            });
+          }
+        }
+
+        if (fallback.sources.length > 0) {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'hianime-fallback',
+            provider: 'hianime',
+            outcome: 'success',
+          });
+          logResolutionTrace(request, resolutionTrace);
+          return reply.send({
+            success: true,
+            data: {
+              animeId: id,
+              episode: episode || {
+                id: fallbackEpisodeRef || `hianime-fallback-${episodeNumber}`,
+                number: episodeNumber,
+                title: null,
+                image: null,
+                url: null,
+                isFiller: false,
+              },
+              provider: 'hianime-fallback',
+              requestedProvider: provider,
+              server: server || null,
+              sources: fallback.sources,
+              subtitles: [],
+              headers: fallback.headers,
+              download: null,
+              resolutionTrace,
+              resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+              animepaheRuntime: getAnimepaheRuntimeStats(),
+            },
+          });
+        }
+
         pushResolutionEvent(resolutionTrace, {
-          stage: 'fallback',
-          provider: 'none',
+          stage: 'hianime-fallback',
+          provider: 'hianime',
           outcome: 'miss',
           detail: 'No hianime fallback embeds resolved',
         });

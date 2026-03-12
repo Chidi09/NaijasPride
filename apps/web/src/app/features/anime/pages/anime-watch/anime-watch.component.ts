@@ -1,6 +1,7 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Hls from 'hls.js';
 import { AnimeApiService } from '../../services/anime-api.service';
 
@@ -99,7 +100,16 @@ import { AnimeApiService } from '../../services/anime-api.service';
           }
 
           <div class="overflow-hidden rounded-xl border border-white/10 bg-black">
-            <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
+            @if (selectedSourceIsEmbed()) {
+              <iframe
+                class="aspect-video w-full bg-black"
+                [src]="selectedEmbedUrl()"
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowfullscreen
+              ></iframe>
+            } @else {
+              <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
+            }
           </div>
         </section>
 
@@ -157,6 +167,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private api = inject(AnimeApiService);
+  private sanitizer = inject(DomSanitizer);
 
   private hls: Hls | null = null;
   private mediaRecoveryAttempted = false;
@@ -169,7 +180,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   error = signal<string | null>(null);
   playbackNotice = signal<string | null>(null);
   episodes = signal<any[]>([]);
-  sources = signal<Array<{ url: string; originalUrl?: string; quality?: string; isM3U8?: boolean }>>([]);
+  sources = signal<Array<{ url: string; originalUrl?: string; quality?: string; isM3U8?: boolean; isEmbed?: boolean }>>([]);
   watchHeaders = signal<Record<string, string>>({});
   qualityOptions = signal<Array<{ value: string; label: string }>>([{ value: '-1', label: 'Auto' }]);
   selectedQualityLevel = signal(-1);
@@ -182,6 +193,12 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   selectedSource = computed(() => this.sources().find((entry) => entry.url === this.activeSourceUrl()) || null);
   selectedSourceIndex = computed(() => this.sources().findIndex((entry) => entry.url === this.activeSourceUrl()));
+  selectedSourceIsEmbed = computed(() => !!this.selectedSource()?.isEmbed);
+  selectedEmbedUrl = computed<SafeResourceUrl | null>(() => {
+    const source = this.selectedSource();
+    if (!source?.url || !source.isEmbed) return null;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(source.url);
+  });
   sourceButtons = computed(() =>
     this.sources().map((source, index) => ({
       ...source,
@@ -235,7 +252,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     const source = this.selectedSource();
-    if (!source) return;
+    if (!source || source.isEmbed) return;
     this.attachSource(source.url, !!source.isM3U8);
   }
 
@@ -249,6 +266,11 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
     const source = this.selectedSource();
     if (!source) return;
+
+    if (source.isEmbed) {
+      this.destroyPlayer();
+      return;
+    }
 
     this.attachSource(source.url, !!source.isM3U8);
   }
@@ -302,11 +324,24 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
           .map((entry: any) => {
             const originalUrl = String(entry.url);
             const sourceReferer = typeof entry.referer === 'string' && entry.referer.trim() ? entry.referer.trim() : referer;
+            
+            // Don't proxy embed URLs - return them directly for iframe
+            if (entry.isEmbed) {
+              return {
+                url: originalUrl,
+                originalUrl,
+                quality: entry.quality,
+                isM3U8: false,
+                isEmbed: true,
+              };
+            }
+            
             return {
               url: this.proxyStreamUrl(originalUrl, sourceReferer),
               originalUrl,
               quality: entry.quality,
               isM3U8: entry.isM3U8,
+              isEmbed: false,
             };
           });
 
@@ -363,8 +398,9 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.selectSource(next.url, nextIndex);
   }
 
-  private labelSource(source: { quality?: string; isM3U8?: boolean }, index: number): string {
+  private labelSource(source: { quality?: string; isM3U8?: boolean; isEmbed?: boolean }, index: number): string {
     const quality = (source.quality || '').trim();
+    if (source.isEmbed) return `Server ${index + 1}`;
     if (/^\d{3,4}p$/i.test(quality)) return quality.toUpperCase();
     if (/\bm3u8\b/i.test(quality)) return `HLS ${index + 1}`;
     if (/\b(auto|default)\b/i.test(quality)) return `Auto ${index + 1}`;
