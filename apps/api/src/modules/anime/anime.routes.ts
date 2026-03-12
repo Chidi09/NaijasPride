@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { PassThrough } from 'node:stream';
 import { getAnimepaheRuntimeStats, resolveAnimepaheEpisodesByTitles, resolveAnimepaheWatchByTitles } from './animepahe-resolver';
 import { resolveDirectMediaFromEmbed } from './embed-stream-resolver';
+import { extractVideoSources, VideoSource } from './video-source-extractor';
 import {
   createResolutionTrace,
   pushResolutionEvent,
@@ -74,6 +75,27 @@ const animeProxyQuerySchema = z.object({
   url: z.string().url(),
   referer: z.string().trim().url().optional(),
 });
+
+// Simple in-memory cache with TTL for video sources
+const VIDEO_SOURCE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const videoSourceCache = new Map<string, { sources: VideoSource[]; timestamp: number }>();
+
+function getCachedVideoSources(key: string): VideoSource[] | null {
+  const cached = videoSourceCache.get(key);
+  if (!cached) return null;
+  
+  const now = Date.now();
+  if (now - cached.timestamp > VIDEO_SOURCE_CACHE_TTL_MS) {
+    videoSourceCache.delete(key);
+    return null;
+  }
+  
+  return cached.sources;
+}
+
+function setCachedVideoSources(key: string, sources: VideoSource[]): void {
+  videoSourceCache.set(key, { sources, timestamp: Date.now() });
+}
 
 const SEARCH_ANIME_QUERY = `
 query SearchAnime(
@@ -396,7 +418,7 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
   try {
     for (const hianimeEpisodeId of hianimeEpisodeIds.slice(0, 3)) {
       const serversResponse = await fetch(
-        `https://hianime.to/ajax/v2/episode/servers?episodeId=${encodeURIComponent(hianimeEpisodeId)}`,
+        `https://hianimez.to/ajax/v2/episode/servers?episodeId=${encodeURIComponent(hianimeEpisodeId)}`,
         {
           headers: {
             Accept: 'application/json',
@@ -417,7 +439,7 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
       let preferredReferer: string | null = null;
       for (const serverId of serverIds.slice(0, 4)) {
         const sourceResponse = await fetch(
-          `https://hianime.to/ajax/v2/episode/sources?id=${encodeURIComponent(serverId)}`,
+          `https://hianimez.to/ajax/v2/episode/sources?id=${encodeURIComponent(serverId)}`,
           {
             headers: {
               Accept: 'application/json',
@@ -428,16 +450,63 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
         );
         if (!sourceResponse.ok) continue;
 
-        const payload = (await sourceResponse.json()) as { link?: string };
+        const payload = (await sourceResponse.json()) as { link?: string; sources?: Array<{url: string; quality?: string; isM3U8?: boolean}> };
         if (!payload.link) continue;
 
-        // Return embed source directly - let frontend handle playback
-        sources.push({
-          url: payload.link,
-          quality: `embed-${serverId}`,
-          isM3U8: false,
-          isEmbed: true,
-        });
+        // Check if we have direct sources
+        if (payload.sources && payload.sources.length > 0) {
+          for (const source of payload.sources) {
+            if (source.url) {
+              sources.push({
+                url: source.url,
+                quality: source.quality || `server-${serverId}`,
+                isM3U8: source.isM3U8 || source.url.includes('.m3u8'),
+                isEmbed: false,
+              });
+            }
+          }
+        }
+        
+        // Try to extract video sources from embed using Playwright
+        if (sources.length === 0) {
+          const cacheKey = `${hianimeEpisodeId}-${serverId}`;
+          const cachedSources = getCachedVideoSources(cacheKey);
+          
+          if (cachedSources && cachedSources.length > 0) {
+            for (const src of cachedSources) {
+              sources.push({
+                url: src.url,
+                quality: src.quality,
+                isM3U8: src.isM3U8,
+                isEmbed: false,
+              });
+            }
+          } else {
+            try {
+              const extractedSources = await extractVideoSources(payload.link);
+              if (extractedSources.length > 0) {
+                setCachedVideoSources(cacheKey, extractedSources);
+                for (const src of extractedSources) {
+                  sources.push({
+                    url: src.url,
+                    quality: src.quality,
+                    isM3U8: src.isM3U8,
+                    isEmbed: false,
+                  });
+                }
+              }
+            } catch {
+              // Fallback to embed URL if extraction fails
+              sources.push({
+                url: payload.link,
+                quality: `embed-${serverId}`,
+                isM3U8: false,
+                isEmbed: true,
+              });
+            }
+          }
+        }
+        
         if (!preferredReferer) {
           preferredReferer = payload.link;
         }
@@ -478,7 +547,7 @@ const hianimeSearchAnimeIdsByTitles = async (titles: string[]): Promise<string[]
     const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
     try {
       const response = await fetch(
-        `https://hianime.to/ajax/search/suggest?keyword=${encodeURIComponent(query)}`,
+        `https://hianimez.to/ajax/search/suggest?keyword=${encodeURIComponent(query)}`,
         {
           headers: {
             Accept: 'application/json',
