@@ -1,7 +1,6 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Hls from 'hls.js';
 import { AnimeApiService } from '../../services/anime-api.service';
 
@@ -73,7 +72,7 @@ import { AnimeApiService } from '../../services/anime-api.service';
                 }
               </select>
 
-              @if (qualityOptions().length > 1 && !selectedSourceIsEmbed()) {
+              @if (qualityOptions().length > 1) {
                 <select
                   class="rounded-full border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white"
                   [value]="selectedQualityLevel()"
@@ -100,18 +99,7 @@ import { AnimeApiService } from '../../services/anime-api.service';
           }
 
           <div class="overflow-hidden rounded-xl border border-white/10 bg-black">
-            @if (selectedSourceIsEmbed()) {
-              <iframe
-                class="aspect-video w-full bg-black"
-                [src]="selectedEmbedUrl()"
-                (load)="onEmbedLoad()"
-                (error)="onEmbedError()"
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowfullscreen
-              ></iframe>
-            } @else {
-              <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
-            }
+            <video #videoEl controls playsinline class="aspect-video w-full bg-black"></video>
           </div>
         </section>
 
@@ -166,15 +154,11 @@ import { AnimeApiService } from '../../services/anime-api.service';
 export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   @ViewChild('videoEl') videoRef?: ElementRef<HTMLVideoElement>;
 
-  private static readonly EMBED_LOAD_TIMEOUT_MS = 9000;
-
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private api = inject(AnimeApiService);
-  private sanitizer = inject(DomSanitizer);
 
   private hls: Hls | null = null;
-  private embedLoadTimeout: ReturnType<typeof setTimeout> | null = null;
   private mediaRecoveryAttempted = false;
 
   animeId = signal(0);
@@ -185,7 +169,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   error = signal<string | null>(null);
   playbackNotice = signal<string | null>(null);
   episodes = signal<any[]>([]);
-  sources = signal<Array<{ url: string; originalUrl?: string; quality?: string; isM3U8?: boolean; isEmbed?: boolean }>>([]);
+  sources = signal<Array<{ url: string; originalUrl?: string; quality?: string; isM3U8?: boolean }>>([]);
   watchHeaders = signal<Record<string, string>>({});
   qualityOptions = signal<Array<{ value: string; label: string }>>([{ value: '-1', label: 'Auto' }]);
   selectedQualityLevel = signal(-1);
@@ -198,12 +182,6 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   selectedSource = computed(() => this.sources().find((entry) => entry.url === this.activeSourceUrl()) || null);
   selectedSourceIndex = computed(() => this.sources().findIndex((entry) => entry.url === this.activeSourceUrl()));
-  selectedSourceIsEmbed = computed(() => !!this.selectedSource()?.isEmbed);
-  selectedEmbedUrl = computed<SafeResourceUrl | null>(() => {
-    const source = this.selectedSource();
-    if (!source?.url || !source.isEmbed) return null;
-    return this.sanitizer.bypassSecurityTrustResourceUrl(source.url);
-  });
   sourceButtons = computed(() =>
     this.sources().map((source, index) => ({
       ...source,
@@ -257,40 +235,22 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     const source = this.selectedSource();
-    if (!source || source.isEmbed) return;
+    if (!source) return;
     this.attachSource(source.url, !!source.isM3U8);
   }
 
   ngOnDestroy(): void {
-    this.clearEmbedTimeout();
     this.destroyPlayer();
   }
 
   selectSource(url: string, index?: number): void {
     this.activeSourceUrl.set(url);
-    this.clearEmbedTimeout();
     this.playbackNotice.set(null);
 
     const source = this.selectedSource();
     if (!source) return;
 
-    const sourceIndex = index ?? this.selectedSourceIndex();
-    if (source.isEmbed) {
-      this.destroyPlayer();
-      this.armEmbedTimeout(sourceIndex);
-      return;
-    }
-
     this.attachSource(source.url, !!source.isM3U8);
-  }
-
-  onEmbedLoad(): void {
-    this.clearEmbedTimeout();
-    this.playbackNotice.set('If playback stalls, tap Open source or switch servers.');
-  }
-
-  onEmbedError(): void {
-    this.tryNextSource('This server failed. Trying next server...');
   }
 
   onProviderChange(event: Event): void {
@@ -342,23 +302,16 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
           .map((entry: any) => {
             const originalUrl = String(entry.url);
             const sourceReferer = typeof entry.referer === 'string' && entry.referer.trim() ? entry.referer.trim() : referer;
-            if (entry.isEmbed) {
-              return {
-                ...entry,
-                url: originalUrl,
-                originalUrl,
-              };
-            }
-
             return {
-              ...entry,
               url: this.proxyStreamUrl(originalUrl, sourceReferer),
               originalUrl,
+              quality: entry.quality,
+              isM3U8: entry.isM3U8,
             };
           });
 
         this.sources.set(sources);
-        const first = sources.find((source: any) => !source.isEmbed) || sources[0];
+        const first = sources[0];
         this.activeSourceUrl.set(first?.url || null);
         this.loading.set(false);
         if (first) {
@@ -397,21 +350,6 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     return undefined;
   }
 
-  private armEmbedTimeout(index: number): void {
-    this.clearEmbedTimeout();
-    this.embedLoadTimeout = setTimeout(() => {
-      if (this.selectedSourceIndex() !== index) return;
-      this.tryNextSource('Source timed out. Trying next server...');
-    }, AnimeWatchComponent.EMBED_LOAD_TIMEOUT_MS);
-  }
-
-  private clearEmbedTimeout(): void {
-    if (this.embedLoadTimeout) {
-      clearTimeout(this.embedLoadTimeout);
-      this.embedLoadTimeout = null;
-    }
-  }
-
   private tryNextSource(message: string): void {
     const currentIndex = this.selectedSourceIndex();
     const nextIndex = currentIndex >= 0 ? currentIndex + 1 : -1;
@@ -425,13 +363,12 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.selectSource(next.url, nextIndex);
   }
 
-  private labelSource(source: { quality?: string; isEmbed?: boolean; isM3U8?: boolean }, index: number): string {
+  private labelSource(source: { quality?: string; isM3U8?: boolean }, index: number): string {
     const quality = (source.quality || '').trim();
-    if (source.isEmbed) return `Server ${index + 1}`;
     if (/^\d{3,4}p$/i.test(quality)) return quality.toUpperCase();
     if (/\bm3u8\b/i.test(quality)) return `HLS ${index + 1}`;
     if (/\b(auto|default)\b/i.test(quality)) return `Auto ${index + 1}`;
-    if (!quality || /^embed-\d+$/i.test(quality)) return `Server ${index + 1}`;
+    if (!quality) return `Server ${index + 1}`;
     return quality.replace(/[-_]/g, ' ').slice(0, 18);
   }
 
@@ -502,7 +439,6 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   }
 
   private destroyPlayer(): void {
-    this.clearEmbedTimeout();
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;

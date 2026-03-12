@@ -443,15 +443,8 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
           if (!preferredReferer) {
             preferredReferer = payload.link;
           }
-          continue;
         }
-
-        sources.push({
-          url: payload.link,
-          quality: `embed-${serverId}`,
-          isM3U8: false,
-          isEmbed: true,
-        });
+        // Skip sources we can't resolve to direct media URLs
       }
 
       if (sources.length > 0) {
@@ -1079,22 +1072,31 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             `/meta/anilist/watch/${encodeURIComponent(targetEpisode.id)}?${query.toString()}`,
           );
 
-          const mappedSources = (watchAttempt.sources || [])
-            .filter((source) => !!source.url)
-            .map((source) => ({
-              url: source.url as string,
-              quality: source.quality || 'auto',
-              isM3U8: !!source.isM3U8,
-              isEmbed: false,
-            }));
+          const mappedSources: Array<{ url: string; quality: string; isM3U8: boolean; isEmbed?: boolean }> = [];
 
+          // Direct sources - use as-is
+          for (const source of watchAttempt.sources || []) {
+            if (source.url) {
+              mappedSources.push({
+                url: source.url as string,
+                quality: source.quality || 'auto',
+                isM3U8: !!source.isM3U8,
+                isEmbed: false,
+              });
+            }
+          }
+
+          // Embed link - resolve to direct media URL
           if (mappedSources.length === 0 && watchAttempt.link) {
-            mappedSources.push({
-              url: watchAttempt.link,
-              quality: 'embed',
-              isM3U8: false,
-              isEmbed: true,
-            });
+            const directMedia = await resolveDirectMediaFromEmbed(watchAttempt.link);
+            if (directMedia) {
+              mappedSources.push({
+                url: directMedia.url,
+                quality: directMedia.isM3U8 ? 'hls' : 'mp4',
+                isM3U8: directMedia.isM3U8,
+                isEmbed: false,
+              });
+            }
           }
 
           if (mappedSources.length === 0) continue;
