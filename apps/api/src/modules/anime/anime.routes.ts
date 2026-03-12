@@ -431,20 +431,9 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
         const payload = (await sourceResponse.json()) as { link?: string };
         if (!payload.link) continue;
 
-        const direct = await resolveDirectMediaFromEmbed(payload.link);
-        if (direct) {
-          sources.push({
-            url: direct.url,
-            quality: direct.isM3U8 ? `hls-${serverId}` : `mp4-${serverId}`,
-            isM3U8: direct.isM3U8,
-            isEmbed: false,
-            referer: payload.link,
-          });
-          if (!preferredReferer) {
-            preferredReferer = payload.link;
-          }
-        }
-        // Skip sources we can't resolve to direct media URLs
+        // Skip embed sources - Playwright resolution is too slow for API requests
+        // Sources must provide direct URLs to be usable
+        continue;
       }
 
       if (sources.length > 0) {
@@ -1086,17 +1075,16 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             }
           }
 
-          // Embed link - resolve to direct media URL
+          // Skip embed links that can't be resolved quickly
+          // Playwright-based resolution is too slow for API requests
           if (mappedSources.length === 0 && watchAttempt.link) {
-            const directMedia = await resolveDirectMediaFromEmbed(watchAttempt.link);
-            if (directMedia) {
-              mappedSources.push({
-                url: directMedia.url,
-                quality: directMedia.isM3U8 ? 'hls' : 'mp4',
-                isM3U8: directMedia.isM3U8,
-                isEmbed: false,
-              });
-            }
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'bridge-watch',
+              provider: candidate,
+              outcome: 'miss',
+              detail: 'Provider returned embed link without direct sources',
+            });
+            continue;
           }
 
           if (mappedSources.length === 0) continue;
