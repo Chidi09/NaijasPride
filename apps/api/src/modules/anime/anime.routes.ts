@@ -467,7 +467,7 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
           }
         }
         
-        // Try to extract video sources from embed using Playwright
+        // Try to extract video sources from embed using Playwright (with timeout)
         if (sources.length === 0) {
           const cacheKey = `${hianimeEpisodeId}-${serverId}`;
           const cachedSources = getCachedVideoSources(cacheKey);
@@ -482,28 +482,22 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
               });
             }
           } else {
-            try {
-              const extractedSources = await extractVideoSources(payload.link);
+            // Try extraction with timeout - don't block response
+            extractVideoSources(payload.link).then(extractedSources => {
               if (extractedSources.length > 0) {
                 setCachedVideoSources(cacheKey, extractedSources);
-                for (const src of extractedSources) {
-                  sources.push({
-                    url: src.url,
-                    quality: src.quality,
-                    isM3U8: src.isM3U8,
-                    isEmbed: false,
-                  });
-                }
               }
-            } catch {
-              // Fallback to embed URL if extraction fails
-              sources.push({
-                url: payload.link,
-                quality: `embed-${serverId}`,
-                isM3U8: false,
-                isEmbed: true,
-              });
-            }
+            }).catch(() => {
+              // Extraction failed, cache will remain empty
+            });
+            
+            // Return embed URL immediately while extraction happens in background
+            sources.push({
+              url: payload.link,
+              quality: `embed-${serverId}`,
+              isM3U8: false,
+              isEmbed: true,
+            });
           }
         }
         
