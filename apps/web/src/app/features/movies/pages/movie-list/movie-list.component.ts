@@ -10,6 +10,9 @@ import { Genre, MovieSearchParams, Quality, MovieSummary } from '@naijaspride/ty
 import { WatchApiService } from '../../../watch/services/watch-api.service';
 import { AuthStateService } from '../../../../core/auth/auth-state.service';
 import { HttpClient } from '@angular/common/http';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 type MovieSectionKey = 'trending' | 'latest-2026' | 'latest-2025' | 'highest-rated' | 'award-winning';
 
@@ -24,7 +27,7 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
 @Component({
   selector: 'app-movie-list',
   standalone: true,
-  imports: [CommonModule, MovieCardComponent, FilterBarComponent, PaginatorComponent, RouterLink, RouterLinkActive],
+  imports: [CommonModule, MovieCardComponent, FilterBarComponent, PaginatorComponent, RouterLink, RouterLinkActive, SymbolIconComponent, TvFocusGroupDirective],
   styles: [`
     :host { display: block; }
 
@@ -129,6 +132,124 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
     }
   `],
   template: `
+    @if (useLivingRoomShell()) {
+      <section appTvFocusGroup [tvAutoFocus]="true" class="flex min-h-screen w-full overflow-hidden bg-[#090609] text-[#f6efe8]">
+        <aside class="hidden w-24 flex-col border-r border-white/10 bg-black/30 px-3 py-8 backdrop-blur-xl lg:flex xl:w-64 xl:px-5">
+          <div class="flex items-center gap-3 px-1">
+            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#800020] text-white">
+              <app-symbol-icon name="movie" [size]="24"></app-symbol-icon>
+            </span>
+            <div class="hidden xl:block">
+              <p class="text-sm font-semibold tracking-[0.22em] text-[#d0a97a] uppercase">NaijasPride</p>
+              <p class="text-xs text-white/45">Cinema lounge</p>
+            </div>
+          </div>
+
+          <nav class="mt-8 flex flex-col gap-3">
+            @for (item of livingRoomNavItems; track item.label) {
+              <a [routerLink]="item.link" class="group flex items-center gap-3 rounded-2xl px-3 py-3 text-white/65 transition hover:bg-white/[0.06] hover:text-white" [ngClass]="item.active ? 'bg-[#800020]/25 text-white' : ''">
+                <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <app-symbol-icon [name]="item.icon" [size]="24"></app-symbol-icon>
+                </span>
+                <span class="hidden xl:block text-base font-medium">{{ item.label }}</span>
+              </a>
+            }
+          </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto">
+          <section class="relative min-h-[72vh] overflow-hidden border-b border-white/10">
+            <div class="absolute inset-0 bg-cover bg-center" [style.background-image]="movieHeroBackground()"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,6,9,0.96)_0%,rgba(9,6,9,0.72)_42%,rgba(9,6,9,0.16)_100%),linear-gradient(0deg,rgba(9,6,9,1)_0%,rgba(9,6,9,0.34)_46%,rgba(9,6,9,0)_100%)]"></div>
+
+            <div class="relative z-10 flex min-h-[72vh] max-w-5xl flex-col justify-center px-8 py-12 md:px-12 xl:px-20">
+              <div class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.22em] text-white/55">
+                <span class="rounded-full border border-[#d0a97a]/40 bg-[#d0a97a]/10 px-3 py-1 text-[#ecd8b7]">Cinema Collection</span>
+                <span>{{ heroMovieMeta() }}</span>
+              </div>
+              <h1 class="mt-5 text-5xl font-black leading-[0.95] text-white md:text-7xl">Movies</h1>
+              <p class="mt-5 max-w-2xl text-base leading-8 text-white/68">Discover the latest blockbusters, trending films, and cinematic masterpieces from around the world in the new living-room shell.</p>
+
+              <div class="mt-8 flex max-w-3xl flex-col gap-3 rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center">
+                  <div class="flex flex-1 items-center gap-3 rounded-2xl bg-black/20 px-4 py-3">
+                    <app-symbol-icon name="search" [size]="22"></app-symbol-icon>
+                    <input [value]="searchParams().q || ''" (input)="onHeroSearch(($any($event.target).value || ''))" class="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35" placeholder="Search by movie title..." />
+                  </div>
+                  <div class="flex gap-3">
+                    <button type="button" (click)="resetFilters()" class="rounded-2xl border border-white/15 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]">Reset</button>
+                  </div>
+                </div>
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-2">
+                  <app-filter-bar [activeFilters]="searchParams()" (filterChange)="onFilterChange($event)"></app-filter-bar>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="space-y-12 px-8 pb-16 pt-10 md:px-12 xl:px-20">
+            @if (!hasActiveFilters()) {
+              <section>
+                <div class="mb-5 flex items-center justify-between">
+                  <h2 class="text-2xl font-bold text-white">Curated For You</h2>
+                  <div class="hidden md:flex gap-2">
+                    @for (key of sectionKeys; track key) {
+                      <button type="button" class="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]" [class]="activeSection() === key ? 'bg-[#d0a97a] text-[#12090d]' : 'bg-white/10 text-white/65 hover:bg-white/20'" (click)="applySection(key)">{{ sectionLabel(key) }}</button>
+                    }
+                  </div>
+                </div>
+
+                @for (key of sectionKeys; track key) {
+                  <div class="mb-10">
+                    <div class="mb-4 flex items-center justify-between">
+                      <div>
+                        <h3 class="text-lg font-semibold text-white">{{ sectionLabel(key) }}</h3>
+                        <p class="text-xs uppercase tracking-[0.18em] text-white/45">{{ sectionQuery(key).data()?.data?.length || 0 }} movies</p>
+                      </div>
+                      <button type="button" (click)="applySection(key)" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">View all</button>
+                    </div>
+                    <div class="flex gap-5 overflow-x-auto pb-2">
+                      @for (movie of (sectionQuery(key).data()?.data || []).slice(0, 10); track movie.id) {
+                        <a [routerLink]="['/movies', movie.slug]" class="group block w-48 flex-shrink-0">
+                          <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                            <img [src]="movie.posterUrl || movie.thumbnailUrl || '/assets/images/poster-placeholder.svg'" [alt]="movie.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+                          </div>
+                          <p class="mt-3 line-clamp-2 text-sm font-semibold text-white">{{ movie.title }}</p>
+                          <p class="text-xs text-white/50">{{ movie.year || 'Feature' }} • {{ movie.genre?.[0] || 'Movie' }}</p>
+                        </a>
+                      }
+                    </div>
+                  </div>
+                }
+              </section>
+            }
+
+            <section id="movies-full-list" class="scroll-mt-24">
+              <div class="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 class="text-2xl font-bold text-white">{{ fullListTitle() }}</h2>
+                  <p class="mt-1 text-sm text-white/45">{{ query.data()?.meta?.total || 0 }} movies found</p>
+                </div>
+              </div>
+
+              @if (query.isPending()) {
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+                  @for (i of [1,2,3,4,5,6,7,8,9,10]; track i) {
+                    <div class="animate-pulse"><div class="aspect-[2/3] rounded-[1.6rem] bg-white/5"></div></div>
+                  }
+                </div>
+              } @else {
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  @for (movie of streamMovies(); track movie.id) {
+                    <app-movie-card [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
+                  }
+                </div>
+              }
+            </section>
+          </div>
+        </main>
+      </section>
+    } @else {
     <section class="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
       <!-- Animated Background -->
       <div class="pointer-events-none fixed inset-0 z-0">
@@ -387,10 +508,19 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
       <!-- Footer Spacing -->
       <div class="h-20"></div>
     </section>
+    }
   `
 })
 export class MovieListComponent {
   sectionKeys: MovieSectionKey[] = ['trending', 'latest-2026', 'latest-2025', 'highest-rated', 'award-winning'];
+  livingRoomNavItems = [
+    { label: 'Home', link: '/home', icon: 'home', active: false },
+    { label: 'Search', link: '/search', icon: 'search', active: false },
+    { label: 'Movies', link: '/movies', icon: 'movie', active: true },
+    { label: 'TV', link: '/tv-shows', icon: 'tv', active: false },
+    { label: 'Anime', link: '/anime', icon: 'auto_awesome_motion', active: false },
+    { label: 'Books', link: '/books', icon: 'menu_book', active: false },
+  ];
   
   searchParams = signal<MovieSearchParams>({ 
     page: 1, 
@@ -408,6 +538,7 @@ export class MovieListComponent {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   private http = inject(HttpClient);
+  protected pwaService = inject(PwaService);
 
   private syncingFromUrl = false;
 
@@ -437,6 +568,30 @@ export class MovieListComponent {
     const label = this.sectionLabel(this.activeSection());
     return `${label} - Full Catalog`;
   });
+
+  featuredMovie = computed(() => (this.trendingQuery.data()?.data || [])[0] || null);
+
+  useLivingRoomShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 1200;
+  }
+
+  movieHeroBackground(): string {
+    const movie = this.featuredMovie();
+    const image = movie?.thumbnailUrl || movie?.posterUrl || '/assets/images/poster-placeholder.svg';
+    return `url(${image})`;
+  }
+
+  heroMovieMeta(): string {
+    const movie = this.featuredMovie();
+    if (!movie) return 'Premium cinema discovery';
+    return `${movie.year || 'Featured'} • ${movie.genre?.[0] || 'Cinema'}`;
+  }
+
+  onHeroSearch(value: string): void {
+    this.onFilterChange({ q: value || undefined });
+  }
 
   hasActiveFilters = computed(() => {
     const params = this.searchParams();

@@ -6,6 +6,9 @@ import { HttpClient } from '@angular/common/http';
 import { Genre, TvShowSearchParams, TvShowSummary } from '@naijaspride/types';
 import { TvShowsQueryService } from '../../services/tv-shows-query.service';
 import { TvShowCardComponent } from '../../components/tv-show-card/tv-show-card.component';
+import { PwaService } from '../../../../core/services/pwa.service';
+import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
+import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
 
 type TvSectionKey = 'trending' | 'latest-2026' | 'latest-2025' | 'highest-rated' | 'award-winning';
 
@@ -20,8 +23,135 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
 @Component({
   selector: 'app-tv-shows-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TvShowCardComponent],
+  imports: [CommonModule, FormsModule, RouterLink, TvShowCardComponent, SymbolIconComponent, TvFocusGroupDirective],
   template: `
+    @if (useLivingRoomShell()) {
+      <section appTvFocusGroup [tvAutoFocus]="true" class="flex min-h-screen w-full overflow-hidden bg-[#090609] text-[#f6efe8]">
+        <aside class="hidden w-24 flex-col border-r border-white/10 bg-black/30 px-3 py-8 backdrop-blur-xl lg:flex xl:w-64 xl:px-5">
+          <div class="flex items-center gap-3 px-1">
+            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#800020] text-white">
+              <app-symbol-icon name="tv" [size]="24"></app-symbol-icon>
+            </span>
+            <div class="hidden xl:block">
+              <p class="text-sm font-semibold tracking-[0.22em] text-[#d0a97a] uppercase">NaijasPride</p>
+              <p class="text-xs text-white/45">Series lounge</p>
+            </div>
+          </div>
+
+          <nav class="mt-8 flex flex-col gap-3">
+            @for (item of livingRoomNavItems; track item.label) {
+              <a [routerLink]="item.link" class="group flex items-center gap-3 rounded-2xl px-3 py-3 text-white/65 transition hover:bg-white/[0.06] hover:text-white" [ngClass]="item.active ? 'bg-[#800020]/25 text-white' : ''">
+                <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <app-symbol-icon [name]="item.icon" [size]="24"></app-symbol-icon>
+                </span>
+                <span class="hidden xl:block text-base font-medium">{{ item.label }}</span>
+              </a>
+            }
+          </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto">
+          <section class="relative min-h-[72vh] overflow-hidden border-b border-white/10">
+            <div class="absolute inset-0 bg-cover bg-center" [style.background-image]="tvHeroBackground()"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,6,9,0.96)_0%,rgba(9,6,9,0.72)_42%,rgba(9,6,9,0.16)_100%),linear-gradient(0deg,rgba(9,6,9,1)_0%,rgba(9,6,9,0.34)_46%,rgba(9,6,9,0)_100%)]"></div>
+
+            <div class="relative z-10 flex min-h-[72vh] max-w-5xl flex-col justify-center px-8 py-12 md:px-12 xl:px-20">
+              <div class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.22em] text-white/55">
+                <span class="rounded-full border border-[#d0a97a]/40 bg-[#d0a97a]/10 px-3 py-1 text-[#ecd8b7]">TV Series Collection</span>
+                <span>{{ heroShowMeta() }}</span>
+              </div>
+              <h1 class="mt-5 text-5xl font-black leading-[0.95] text-white md:text-7xl">TV Shows</h1>
+              <p class="mt-5 max-w-2xl text-base leading-8 text-white/68">Discover trending series, latest releases, and award-winning television from around the world in the new living-room layout.</p>
+
+              <div class="mt-8 flex max-w-3xl flex-col gap-3 rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center">
+                  <div class="flex flex-1 items-center gap-3 rounded-2xl bg-black/20 px-4 py-3">
+                    <app-symbol-icon name="search" [size]="22"></app-symbol-icon>
+                    <input
+                      type="text"
+                      class="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+                      placeholder="Search shows, genres, or actors..."
+                      [ngModel]="q()"
+                      (ngModelChange)="onSearchInput($event || '')"
+                      (focus)="searchFocused.set(true)"
+                      (blur)="onSearchBlur()"
+                    />
+                  </div>
+                  <div class="flex gap-3">
+                    <select class="rounded-2xl border border-white/15 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" [ngModel]="genre()" (ngModelChange)="onGenreChange($event)">
+                      <option value="">All Genres</option>
+                      @for (entry of genreOptions; track entry) {
+                        <option [value]="entry">{{ entry }}</option>
+                      }
+                    </select>
+                    <button type="button" (click)="resetFilters()" class="rounded-2xl border border-white/15 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]">Reset</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="space-y-12 px-8 pb-16 pt-10 md:px-12 xl:px-20">
+            <section>
+              <div class="mb-5 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">Curated For You</h2>
+                <div class="hidden md:flex gap-2">
+                  @for (key of sectionKeys; track key) {
+                    <button type="button" class="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]" [class]="activeSection() === key ? 'bg-[#d0a97a] text-[#12090d]' : 'bg-white/10 text-white/65 hover:bg-white/20'" (click)="applySection(key)">{{ sectionLabel(key) }}</button>
+                  }
+                </div>
+              </div>
+
+              @for (key of sectionKeys; track key) {
+                <div class="mb-10">
+                  <div class="mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 class="text-lg font-semibold text-white">{{ sectionLabel(key) }}</h3>
+                      <p class="text-xs uppercase tracking-[0.18em] text-white/45">{{ sectionQuery(key).data()?.data?.length || 0 }} shows</p>
+                    </div>
+                    <button type="button" (click)="applySection(key)" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">View all</button>
+                  </div>
+                  <div class="flex gap-5 overflow-x-auto pb-2">
+                    @for (show of (sectionQuery(key).data()?.data || []).slice(0, 10); track show.id) {
+                      <a [routerLink]="['/tv-shows', show.slug]" class="group block w-48 flex-shrink-0">
+                        <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                          <img [src]="show.posterUrl || show.thumbnailUrl || '/assets/images/poster-placeholder.svg'" [alt]="show.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+                        </div>
+                        <p class="mt-3 line-clamp-2 text-sm font-semibold text-white">{{ show.title }}</p>
+                        <p class="text-xs text-white/50">{{ show.seasonCount }} seasons • {{ show.episodeCount }} episodes</p>
+                      </a>
+                    }
+                  </div>
+                </div>
+              }
+            </section>
+
+            <section id="tv-full-list" class="scroll-mt-24">
+              <div class="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 class="text-2xl font-bold text-white">{{ fullListTitle() }}</h2>
+                  <p class="mt-1 text-sm text-white/45">{{ query.data()?.meta?.total || 0 }} shows found</p>
+                </div>
+              </div>
+
+              @if (query.isLoading()) {
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+                  @for (i of [1,2,3,4,5,6,7,8,9,10]; track i) {
+                    <div class="animate-pulse"><div class="aspect-[2/3] rounded-[1.6rem] bg-white/5"></div></div>
+                  }
+                </div>
+              } @else {
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  @for (show of query.data()?.data || []; track show.id) {
+                    <app-tv-show-card [show]="show"></app-tv-show-card>
+                  }
+                </div>
+              }
+            </section>
+          </div>
+        </main>
+      </section>
+    } @else {
     <section class="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
       <!-- Animated Background -->
       <div class="pointer-events-none fixed inset-0 z-0">
@@ -398,6 +528,7 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
       <!-- Footer Spacing -->
       <div class="h-20"></div>
     </section>
+    }
   `,
   styles: [`
     @keyframes fade-in-up {
@@ -489,9 +620,18 @@ export class TvShowsListComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private http = inject(HttpClient);
+  protected pwaService = inject(PwaService);
 
   sectionKeys: TvSectionKey[] = ['trending', 'latest-2026', 'latest-2025', 'highest-rated', 'award-winning'];
   genreOptions = Object.values(Genre);
+  livingRoomNavItems = [
+    { label: 'Home', link: '/home', icon: 'home', active: false },
+    { label: 'Search', link: '/search', icon: 'search', active: false },
+    { label: 'Movies', link: '/movies', icon: 'movie', active: false },
+    { label: 'TV', link: '/tv-shows', icon: 'tv', active: true },
+    { label: 'Anime', link: '/anime', icon: 'auto_awesome_motion', active: false },
+    { label: 'Books', link: '/books', icon: 'menu_book', active: false },
+  ];
 
   q = signal('');
   sortBy = signal<'latest' | 'popular' | 'title' | 'trending'>('trending');
@@ -548,6 +688,26 @@ export class TvShowsListComponent implements OnInit {
     const label = this.sectionLabel(this.activeSection());
     return `${label} - Full Catalog`;
   });
+
+  featuredShow = computed(() => (this.trendingQuery.data()?.data || [])[0] || null);
+
+  useLivingRoomShell(): boolean {
+    if (this.pwaService.isTV()) return true;
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 1200;
+  }
+
+  tvHeroBackground(): string {
+    const show = this.featuredShow();
+    const image = show?.thumbnailUrl || show?.posterUrl || '/assets/images/poster-placeholder.svg';
+    return `url(${image})`;
+  }
+
+  heroShowMeta(): string {
+    const show = this.featuredShow();
+    if (!show) return 'Premium series discovery';
+    return `${show.seasonCount} seasons • ${show.episodeCount} episodes`;
+  }
 
   ngOnInit(): void {
     const params = this.route.snapshot.queryParamMap;
