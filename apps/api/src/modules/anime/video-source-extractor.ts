@@ -1,5 +1,17 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 
+// Extend Window interface for video players
+declare global {
+  interface Window {
+    jwplayer?: () => {
+      getPlaylist: () => Array<{sources?: Array<{file?: string; label?: string}>}>;
+    };
+    videojs?: (id: string) => {src: () => string};
+    Hls?: unknown;
+    hls?: {url?: string};
+  }
+}
+
 export type VideoSource = {
   url: string;
   quality: string;
