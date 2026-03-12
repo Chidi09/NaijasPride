@@ -179,7 +179,7 @@ interface MangaHistoryRow {
             <div class="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
               @for (item of tvSavedItems(); track item.key) {
                 <a [routerLink]="item.link" class="group block">
-                  <div class="relative aspect-[2/3] overflow-hidden rounded-[1.8rem] border border-white/10 bg-white/[0.04] shadow-[0_12px_40px_rgba(0,0,0,0.24)]">
+                  <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04] shadow-[0_12px_40px_rgba(0,0,0,0.24)]">
                     @if (item.coverUrl) {
                       <img [src]="item.coverUrl" [alt]="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer" />
                     }

@@ -44,7 +44,7 @@ type AnimeCard = {
           }
         </nav>
 
-        <div class="mt-auto rounded-3xl border border-[#800020]/30 bg-[#800020]/10 p-4">
+        <div class="mt-auto rounded-[2rem] border border-[#800020]/30 bg-[#800020]/10 p-4">
           <p class="text-[11px] uppercase tracking-[0.24em] text-[#d0a97a]">Profile</p>
           <div class="mt-3 flex items-center gap-3">
             <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#d0a97a]/15 text-[#d0a97a]">
@@ -101,7 +101,7 @@ type AnimeCard = {
             <div class="flex gap-5 overflow-x-auto pb-2">
               @for (item of continueWatching(); track item.id) {
                 <a [routerLink]="['/movies', item.movie.slug || item.movie.id]" class="group block w-72 flex-shrink-0">
-                  <div class="relative aspect-video overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]">
+                  <div class="relative aspect-video overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
                     <img [src]="item.movie.thumbnailUrl || item.movie.posterUrl || ''" [alt]="item.movie.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer" />
                     <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
                     <div class="absolute inset-x-0 bottom-0 h-1.5 bg-white/10">
@@ -130,7 +130,7 @@ type AnimeCard = {
             <div class="flex gap-5 overflow-x-auto pb-2">
               @for (movie of downloadMovies(); track movie.id) {
                 <a [routerLink]="['/movies', movie.slug || movie.id]" class="group block w-52 flex-shrink-0">
-                  <div class="relative aspect-[2/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]">
+                  <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
                     <img [src]="movie.posterUrl || movie.thumbnailUrl || movie.coverUrl || ''" [alt]="movie.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer" />
                     <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent"></div>
                     <div class="absolute bottom-4 left-4 right-4">

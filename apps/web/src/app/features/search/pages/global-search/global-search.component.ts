@@ -105,7 +105,7 @@ type TvResultCard = SearchSuggestion & {
             } @else {
               <div class="grid grid-cols-2 gap-5 pb-10">
                 @for (item of tvResults(); track item.key) {
-                  <a [routerLink]="item.link" class="group block overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.06]">
+                  <a [routerLink]="item.link" class="group block overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.06]">
                     <div class="relative aspect-video overflow-hidden bg-black/30">
                       @if (item.coverUrl) {
                         <img [src]="item.coverUrl" [alt]="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer" />

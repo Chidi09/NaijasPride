@@ -94,7 +94,7 @@ import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-gr
                 </div>
                 <div class="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
                   @for (ep of episodes(); track ep.id) {
-                    <a [routerLink]="['/anime', animeId(), 'watch', ep.number]" class="group block rounded-[1.3rem] border p-3 transition"
+                    <a [routerLink]="['/anime', animeId(), 'watch', ep.number]" class="group block rounded-[1.5rem] border p-3 transition"
                       [class]="ep.number === episodeNumber() ? 'border-[#800020]/60 bg-[#800020]/15' : 'border-white/10 bg-white/[0.03] hover:border-[#800020]/40 hover:bg-[#800020]/10'">
                       <div class="flex gap-3">
                         <div class="relative aspect-video w-28 overflow-hidden rounded-xl">
