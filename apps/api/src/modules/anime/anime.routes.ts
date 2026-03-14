@@ -12,6 +12,12 @@ import {
   type ResolutionTraceEvent,
 } from './anime-resolution-observability';
 import { searchAniWatch, getAniWatchEpisodes, getAniWatchSources } from './aniwatch-provider';
+import { 
+  getEpisodesMultiProvider, 
+  getSourcesMultiProvider,
+  getProvidersHealth,
+  type ProviderType 
+} from './anime-provider-manager';
 
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 const ANILIST_TIMEOUT_MS = 12_000;
@@ -737,6 +743,25 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     request.log.info({ traceSummary: summarizeResolutionTrace(trace), trace }, 'Anime resolution trace');
   };
 
+  // Health check endpoint for anime providers
+  app.get('/health', async (request, reply) => {
+    try {
+      const health = await getProvidersHealth();
+      return reply.send({
+        success: true,
+        data: health,
+      });
+    } catch (error) {
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: 'HEALTH_CHECK_FAILED',
+          message: error instanceof Error ? error.message : 'Health check failed',
+        },
+      });
+    }
+  });
+
   app.get('/search', {
     schema: {
       querystring: animeSearchQuerySchema,
@@ -1040,29 +1065,21 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         return anilistTitlesCache;
       };
 
-      // Try AniWatch first (most reliable)
-      if (provider === 'auto' || provider === 'aniwatch') {
+      // Try multi-provider system first (9anime, aniwatch, etc.)
+      if (provider === 'auto' || provider === 'nineanime' || provider === 'aniwatch') {
         try {
           const titles = await getAnilistTitles();
-          // Search AniWatch for the anime
+          
           for (const title of titles.slice(0, 3)) {
-            const searchResults = await searchAniWatch(title);
-            if (searchResults.length === 0) continue;
+            const result = await getSourcesMultiProvider(title, episodeNumber, {
+              preferredProvider: provider === 'auto' ? undefined : provider as ProviderType,
+              type: type || 'sub',
+            });
             
-            // Get episodes for first match
-            const animeId = searchResults[0]!.id;
-            const episodes = await getAniWatchEpisodes(animeId);
-            const targetEpisode = episodes.find(ep => ep.number === episodeNumber);
-            
-            if (!targetEpisode) continue;
-            
-            // Get sources for this episode
-            const { sources, subtitles } = await getAniWatchSources(targetEpisode.id, type);
-            
-            if (sources.length > 0) {
+            if (result.sources && result.sources.length > 0) {
               pushResolutionEvent(resolutionTrace, {
-                stage: 'aniwatch-watch',
-                provider: 'aniwatch',
+                stage: 'multi-provider-watch',
+                provider: result.provider,
                 outcome: 'success',
               });
               logResolutionTrace(request, resolutionTrace);
@@ -1071,24 +1088,24 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 data: {
                   animeId: id,
                   episode: {
-                    id: targetEpisode.id,
+                    id: result.episode?.id || `ep-${episodeNumber}`,
                     number: episodeNumber,
-                    title: targetEpisode.title || null,
-                    image: targetEpisode.image || null,
+                    title: result.episode?.title || null,
+                    image: result.episode?.image || null,
                     url: null,
                     isFiller: false,
                   },
-                  provider: 'aniwatch',
+                  provider: result.provider,
                   requestedProvider: provider,
                   server: server || null,
-                  sources: sources.map(s => ({
+                  sources: result.sources.map(s => ({
                     url: s.url,
                     quality: s.quality,
                     isM3U8: s.isM3U8,
                     isEmbed: s.isEmbed,
                   })),
-                  subtitles: subtitles || [],
-                  headers: { Referer: 'https://aniwatch.to/' },
+                  subtitles: result.subtitles || [],
+                  headers: result.sources[0]?.referer ? { Referer: result.sources[0].referer } : {},
                   download: null,
                   resolutionTrace,
                   resolutionSummary: summarizeResolutionTrace(resolutionTrace),
@@ -1097,18 +1114,19 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               });
             }
           }
+          
           pushResolutionEvent(resolutionTrace, {
-            stage: 'aniwatch-watch',
-            provider: 'aniwatch',
+            stage: 'multi-provider-watch',
+            provider: 'multi',
             outcome: 'miss',
-            detail: 'No AniWatch sources found',
+            detail: 'No sources found from any provider',
           });
         } catch (err) {
           pushResolutionEvent(resolutionTrace, {
-            stage: 'aniwatch-watch',
-            provider: 'aniwatch',
+            stage: 'multi-provider-watch',
+            provider: 'multi',
             outcome: 'error',
-            detail: err instanceof Error ? err.message : 'AniWatch error',
+            detail: err instanceof Error ? err.message : 'Multi-provider error',
           });
         }
       }
