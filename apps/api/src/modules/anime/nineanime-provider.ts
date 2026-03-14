@@ -16,6 +16,7 @@ export type NineAnimeSource = {
 
 const NINEANIME_BASE = process.env.NINEANIME_BASE_URL || 'https://9anime.to';
 const NINEANIME_API = `${NINEANIME_BASE}/ajax`;
+const FLARESOLVERR_URL = process.env.FLARESOLVERR_URL || 'http://flaresolverr:8191/v1';
 
 // Common browser headers to avoid blocking
 const BROWSER_HEADERS = {
@@ -27,11 +28,56 @@ const BROWSER_HEADERS = {
   'Origin': NINEANIME_BASE,
 };
 
+// Check if we should use FlareSolverr for Cloudflare bypass
+const shouldUseFlareSolverr = (): boolean => {
+  return !!process.env.FLARESOLVERR_URL || process.env.USE_FLARESOLVERR === 'true';
+};
+
+// Make request through FlareSolverr for Cloudflare bypass
+async function flaresolverrRequest(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s for FlareSolverr
+    
+    const response = await fetch(FLARESOLVERR_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cmd: 'request.get',
+        url: url,
+        maxTimeout: 60000,
+      }),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeout);
+    
+    if (!response.ok) {
+      console.warn(`[9anime] FlareSolverr request failed: ${response.status}`);
+      return null;
+    }
+    
+    const data = await response.json() as { solution?: { response?: string; status?: number } };
+    
+    if (data.solution?.response && data.solution.status === 200) {
+      return data.solution.response;
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn(`[9anime] FlareSolverr error: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
 async function nineAnimeRequest<T>(url: string, options: RequestInit = {}): Promise<T | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     
+    // Try direct request first
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -44,6 +90,14 @@ async function nineAnimeRequest<T>(url: string, options: RequestInit = {}): Prom
     clearTimeout(timeout);
     
     if (!response.ok) {
+      // If blocked and FlareSolverr available, try that
+      if (response.status === 403 && shouldUseFlareSolverr()) {
+        console.log(`[9anime] Direct request blocked, trying FlareSolverr for ${url}`);
+        const flaresolverrHtml = await flaresolverrRequest(url);
+        if (flaresolverrHtml) {
+          return { html: flaresolverrHtml } as unknown as T;
+        }
+      }
       console.warn(`[9anime] Request failed: ${response.status} for ${url}`);
       return null;
     }
@@ -59,6 +113,14 @@ async function nineAnimeRequest<T>(url: string, options: RequestInit = {}): Prom
     return { html: text } as unknown as T;
     
   } catch (error) {
+    // If direct request failed and FlareSolverr available, try that
+    if (shouldUseFlareSolverr()) {
+      console.log(`[9anime] Request failed, trying FlareSolverr for ${url}`);
+      const flaresolverrHtml = await flaresolverrRequest(url);
+      if (flaresolverrHtml) {
+        return { html: flaresolverrHtml } as unknown as T;
+      }
+    }
     console.warn(`[9anime] Request error: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
