@@ -26,31 +26,8 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
   imports: [CommonModule, FormsModule, RouterLink, TvShowCardComponent, SymbolIconComponent, TvFocusGroupDirective],
   template: `
     @if (useLivingRoomShell()) {
-      <section appTvFocusGroup [tvAutoFocus]="true" class="flex min-h-screen w-full overflow-hidden bg-[#090609] text-[#f6efe8]">
-        <aside class="hidden w-24 flex-col border-r border-white/10 bg-black/30 px-3 py-8 backdrop-blur-xl lg:flex xl:w-64 xl:px-5">
-          <div class="flex items-center gap-3 px-1">
-            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#800020] text-white">
-              <app-symbol-icon name="tv" [size]="24"></app-symbol-icon>
-            </span>
-            <div class="hidden xl:block">
-              <p class="text-sm font-semibold tracking-[0.22em] text-[#d0a97a] uppercase">NaijasPride</p>
-              <p class="text-xs text-white/45">Series lounge</p>
-            </div>
-          </div>
-
-          <nav class="mt-8 flex flex-col gap-3">
-            @for (item of livingRoomNavItems; track item.label) {
-              <a [routerLink]="item.link" class="group flex items-center gap-3 rounded-2xl px-3 py-3 text-white/65 transition hover:bg-white/[0.06] hover:text-white" [ngClass]="item.active ? 'bg-[#800020]/25 text-white' : ''">
-                <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                  <app-symbol-icon [name]="item.icon" [size]="24"></app-symbol-icon>
-                </span>
-                <span class="hidden xl:block text-base font-medium">{{ item.label }}</span>
-              </a>
-            }
-          </nav>
-        </aside>
-
-        <main class="flex-1 overflow-y-auto">
+      <section appTvFocusGroup [tvAutoFocus]="true" class="min-h-screen w-full overflow-hidden bg-[#090609] text-[#f6efe8]">
+        <main class="overflow-y-auto">
           <section class="relative min-h-[72vh] overflow-hidden border-b border-white/10">
             <div class="absolute inset-0 bg-cover bg-center" [style.background-image]="tvHeroBackground()"></div>
             <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,6,9,0.96)_0%,rgba(9,6,9,0.72)_42%,rgba(9,6,9,0.16)_100%),linear-gradient(0deg,rgba(9,6,9,1)_0%,rgba(9,6,9,0.34)_46%,rgba(9,6,9,0)_100%)]"></div>
@@ -624,14 +601,6 @@ export class TvShowsListComponent implements OnInit {
 
   sectionKeys: TvSectionKey[] = ['trending', 'latest-2026', 'latest-2025', 'highest-rated', 'award-winning'];
   genreOptions = Object.values(Genre);
-  livingRoomNavItems = [
-    { label: 'Home', link: '/home', icon: 'home', active: false },
-    { label: 'Search', link: '/search', icon: 'search', active: false },
-    { label: 'Movies', link: '/movies', icon: 'movie', active: false },
-    { label: 'TV', link: '/tv-shows', icon: 'tv', active: true },
-    { label: 'Anime', link: '/anime', icon: 'auto_awesome_motion', active: false },
-    { label: 'Books', link: '/books', icon: 'menu_book', active: false },
-  ];
 
   q = signal('');
   sortBy = signal<'latest' | 'popular' | 'title' | 'trending'>('trending');
