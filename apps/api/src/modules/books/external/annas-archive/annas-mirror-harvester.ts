@@ -19,6 +19,7 @@ import { chromium, type Browser, type Page } from 'playwright';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import type { PrismaClient } from '@prisma/client';
 import { StorageService } from '../../../../shared/services/storage.service';
+import { sortBooksBySeriesAndVolume } from '../../book-series-sort';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -602,8 +603,8 @@ export const runAnnasMirrorHarvester = async (
     errors: [],
   };
 
-  // 1. Find unmirrored Anna's Archive books
-  const unmirrored = await prisma.book.findMany({
+  // 1. Find unmirrored Anna's Archive books — fetch a larger pool then sort series-aware
+  const candidatePool = await prisma.book.findMany({
     where: {
       OR: [
         { publisher: { equals: "Anna's Archive", mode: 'insensitive' } },
@@ -618,22 +619,25 @@ export const runAnnasMirrorHarvester = async (
       format: true,
       downloadUrl: true,
     },
-    orderBy: { updatedAt: 'asc' },
-    take: batchSize,
+    // Fetch up to 4× batchSize so the sorter has enough candidates to
+    // produce a well-ordered batch; final slice is applied after sorting.
+    take: batchSize * 4,
   });
+
+  // Sort: finish near-complete series first, volumes in ascending order
+  const unmirrored = sortBooksBySeriesAndVolume(candidatePool).slice(0, batchSize);
 
   if (unmirrored.length === 0) {
     console.log('[AnnasMirror] No unmirrored Anna\'s Archive books found. Nothing to do.');
     return result;
   }
 
-  console.log(`[AnnasMirror] Found ${unmirrored.length} unmirrored Anna's Archive books.`);
+  console.log(`[AnnasMirror] Found ${unmirrored.length} unmirrored Anna's Archive books (series-ordered batch):`);
+  for (const book of unmirrored) {
+    console.log(`  - ${book.title}`);
+  }
 
   if (dryRun) {
-    console.log('[AnnasMirror] DRY RUN — would mirror these:');
-    for (const book of unmirrored) {
-      console.log(`  - ${book.slug} (${book.title})`);
-    }
     result.attempted = unmirrored.length;
     result.skipped = unmirrored.length;
     return result;

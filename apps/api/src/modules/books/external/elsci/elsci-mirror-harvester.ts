@@ -21,6 +21,7 @@ import { chromium, type Browser, type Page } from 'playwright';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import type { PrismaClient } from '@prisma/client';
 import { StorageService } from '../../../../shared/services/storage.service';
+import { sortBooksBySeriesAndVolume } from '../../book-series-sort';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -227,8 +228,8 @@ export const runElsciMirrorHarvester = async (
     reAuthCount: 0,
   };
 
-  // 1. Find unmirrored Elsci books
-  const unmirrored = await prisma.book.findMany({
+  // 1. Find unmirrored Elsci books — fetch a larger pool then sort series-aware
+  const candidatePool = await prisma.book.findMany({
     where: {
       OR: [
         { publisher: { contains: 'elsci', mode: 'insensitive' } },
@@ -243,22 +244,25 @@ export const runElsciMirrorHarvester = async (
       format: true,
       downloadUrl: true,
     },
-    orderBy: { updatedAt: 'asc' },
-    take: batchSize,
+    // Fetch up to 4× batchSize so the sorter has enough candidates to
+    // produce a well-ordered batch; final slice is applied after sorting.
+    take: batchSize * 4,
   });
+
+  // Sort: finish near-complete series first, volumes in ascending order
+  const unmirrored = sortBooksBySeriesAndVolume(candidatePool).slice(0, batchSize);
 
   if (unmirrored.length === 0) {
     console.log('[ElsciMirror] No unmirrored books found. Nothing to do.');
     return result;
   }
 
-  console.log(`[ElsciMirror] Found ${unmirrored.length} unmirrored Elsci books.`);
+  console.log(`[ElsciMirror] Found ${unmirrored.length} unmirrored Elsci books (series-ordered batch):`);
+  for (const book of unmirrored) {
+    console.log(`  - ${book.title}`);
+  }
 
   if (dryRun) {
-    console.log('[ElsciMirror] DRY RUN — would mirror these:');
-    for (const book of unmirrored) {
-      console.log(`  - ${book.slug} (${book.title})`);
-    }
     result.attempted = unmirrored.length;
     result.skipped = unmirrored.length;
     return result;
