@@ -1,17 +1,9 @@
 // apps/api/src/modules/anime/proxy-scraper.ts
 // Scrape anime sites through rotating proxies to avoid IP blocks
 
-const PROXY_LIST = [
-  // Free proxy list (these rotate frequently, should be updated)
-  // In production, use paid residential proxy services like:
-  // - BrightData
-  // - Oxylabs  
-  // - Smartproxy
-  // - PacketStream
-];
-
 // ScrapingBee API (paid service that handles JS rendering and proxies)
-const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY;
+// API Key: DAFZ9OYEEVQ6BGFQMWTUY92LKZ82SSMGOVXFKD0B0EKMOZIQKVEHGT6Z6G2NV7PKV49L5K05EGMPTLU3
+const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY || 'DAFZ9OYEEVQ6BGFQMWTUY92LKZ82SSMGOVXFKD0B0EKMOZIQKVEHGT6Z6G2NV7PKV49L5K05EGMPTLU3';
 const SCRAPINGBEE_URL = 'https://app.scrapingbee.com/api/v1';
 
 // ScrapingAnt API (alternative)
@@ -22,32 +14,48 @@ export type ProxySource = {
   url: string;
   quality: string;
   isM3U8: boolean;
+  isEmbed?: boolean;
   proxy?: string;
 };
 
 /**
- * Scrape using ScrapingBee (if API key available)
+ * Scrape using ScrapingBee with optimized settings for anime sites
  */
 export async function scrapeWithScrapingBee(
-  targetUrl: string
-): Promise<{ sources: ProxySource[]; html?: string }> {
-  if (!SCRAPINGBEE_API_KEY) {
-    return { sources: [] };
-  }
+  targetUrl: string,
+  options: {
+    waitForSelector?: string;
+    waitTime?: number;
+    useStealthProxy?: boolean;
+  } = {}
+): Promise<{ sources: ProxySource[]; html?: string; cost?: number }> {
+  const { 
+    waitForSelector = 'video', 
+    waitTime = 8000,
+    useStealthProxy = false 
+  } = options;
 
   try {
-    const params = new URLSearchParams({
-      api_key: SCRAPINGBEE_API_KEY,
-      url: targetUrl,
-      render_js: 'true',
-      premium_proxy: 'true',
-      country_code: 'us',
-      wait: '5000',
-    });
+    const params = new URLSearchParams();
+    params.set('api_key', SCRAPINGBEE_API_KEY);
+    params.set('url', targetUrl);
+    params.set('render_js', 'true');
+    params.set('premium_proxy', 'true');
+    params.set('country_code', 'us');
+    params.set('wait', waitTime.toString());
+    params.set('wait_for', waitForSelector);
+    params.set('block_ads', 'true');
+    params.set('json_response', 'true');  // Get JSON response with XHR data
+    
+    if (useStealthProxy) {
+      params.set('stealth_proxy', 'true');
+    }
+
+    console.log(`[ScrapingBee] Scraping ${targetUrl} with wait_for=${waitForSelector}`);
 
     const response = await fetch(`${SCRAPINGBEE_URL}?${params.toString()}`, {
       headers: {
-        'Accept': 'text/html',
+        'Accept': 'application/json',
       },
     });
 
@@ -55,8 +63,52 @@ export async function scrapeWithScrapingBee(
       throw new Error(`ScrapingBee returned ${response.status}`);
     }
 
-    const html = await response.text();
-    return extractSourcesFromHtml(html, targetUrl);
+    const data = await response.json() as {
+      body?: string;
+      xhr?: Array<{ url: string; status_code: number; body?: string }>;
+      cost?: number;
+    };
+
+    const cost = data.cost || 5;
+    console.log(`[ScrapingBee] Request cost: ${cost} credits`);
+
+    // Extract sources from HTML
+    const htmlSources = extractSourcesFromHtml(data.body || '', targetUrl);
+    
+    // Extract sources from XHR requests (where video URLs often hide)
+    const xhrSources: ProxySource[] = [];
+    if (data.xhr && Array.isArray(data.xhr)) {
+      for (const xhr of data.xhr) {
+        if (xhr.url && (xhr.url.includes('.m3u8') || xhr.url.includes('.mp4'))) {
+          xhrSources.push({
+            url: xhr.url,
+            quality: extractQuality(xhr.url),
+            isM3U8: xhr.url.includes('.m3u8'),
+          });
+        }
+        
+        // Check XHR response body for video URLs
+        if (xhr.body) {
+          const bodySources = extractSourcesFromHtml(xhr.body, targetUrl);
+          xhrSources.push(...bodySources.sources);
+        }
+      }
+    }
+
+    // Combine and deduplicate
+    const allSources = [...htmlSources.sources, ...xhrSources];
+    const seenUrls = new Set<string>();
+    const uniqueSources = allSources.filter(source => {
+      if (seenUrls.has(source.url)) return false;
+      seenUrls.add(source.url);
+      return true;
+    });
+
+    return { 
+      sources: uniqueSources.slice(0, 20), 
+      html: data.body,
+      cost 
+    };
   } catch (error) {
     console.error('[ProxyScraper] ScrapingBee failed:', error);
     return { sources: [] };
@@ -187,26 +239,80 @@ function extractQuality(url: string): string {
 }
 
 /**
- * Try multiple proxy methods
+ * Try multiple proxy methods - ScrapingBee is primary since we have API key
  */
 export async function scrapeWithProxies(
-  targetUrl: string
-): Promise<{ sources: ProxySource[]; method?: string }> {
-  // Try ScrapingBee first
-  if (SCRAPINGBEE_API_KEY) {
-    const result = await scrapeWithScrapingBee(targetUrl);
-    if (result.sources.length > 0) {
-      return { sources: result.sources, method: 'scrapingbee' };
-    }
+  targetUrl: string,
+  options: {
+    retryWithStealth?: boolean;
+  } = {}
+): Promise<{ sources: ProxySource[]; method?: string; cost?: number }> {
+  // Try ScrapingBee with premium proxy first
+  console.log(`[ProxyScraper] Trying ScrapingBee for ${targetUrl}`);
+  const result = await scrapeWithScrapingBee(targetUrl, {
+    waitTime: 10000,
+    useStealthProxy: false,
+  });
+  
+  if (result.sources.length > 0) {
+    return { 
+      sources: result.sources, 
+      method: 'scrapingbee-premium',
+      cost: result.cost 
+    };
   }
 
-  // Try ScrapingAnt
-  if (SCRAPINGANT_API_KEY) {
-    const result = await scrapeWithScrapingAnt(targetUrl);
-    if (result.sources.length > 0) {
-      return { sources: result.sources, method: 'scrapingant' };
+  // If failed and retryWithStealth is enabled, try with stealth proxy
+  if (options.retryWithStealth) {
+    console.log(`[ProxyScraper] Retrying with stealth proxy for ${targetUrl}`);
+    const stealthResult = await scrapeWithScrapingBee(targetUrl, {
+      waitTime: 15000,
+      useStealthProxy: true,
+    });
+    
+    if (stealthResult.sources.length > 0) {
+      return { 
+        sources: stealthResult.sources, 
+        method: 'scrapingbee-stealth',
+        cost: stealthResult.cost 
+      };
     }
   }
 
   return { sources: [] };
+}
+
+/**
+ * Check ScrapingBee health/status
+ */
+export async function checkScrapingBeeHealth(): Promise<{ healthy: boolean; message: string; credits?: number }> {
+  try {
+    const response = await fetch(`https://app.scrapingbee.com/api/v1/usage?api_key=${SCRAPINGBEE_API_KEY}`);
+    
+    if (!response.ok) {
+      return { 
+        healthy: false, 
+        message: `ScrapingBee API error: ${response.status}` 
+      };
+    }
+    
+    const data = await response.json() as {
+      max_api_credit?: number;
+      used_api_credit?: number;
+      renewal_subscription_date?: string;
+    };
+    
+    const remaining = (data.max_api_credit || 0) - (data.used_api_credit || 0);
+    
+    return {
+      healthy: true,
+      message: `${remaining.toLocaleString()} credits remaining`,
+      credits: remaining,
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      message: `ScrapingBee unreachable: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }

@@ -8,6 +8,8 @@ import {
   getNineAnimeSources,
   checkNineAnimeHealth 
 } from './nineanime-provider';
+import { scrapeWithProxies, type ProxySource } from './proxy-scraper';
+import { scrapeWithStealth, type ScrapedSource } from './stealth-browser';
 
 export type ProviderType = 'aniwatch' | 'nineanime' | 'animepahe' | 'gogoanime' | 'zoro';
 
@@ -256,10 +258,70 @@ export async function getSourcesMultiProvider(
     }
   }
   
+  // If all providers failed, try ScrapingBee proxy service
+  console.log(`[MultiProvider] All direct providers failed, trying ScrapingBee proxy...`);
+  try {
+    // Build a search URL for the anime episode
+    const searchQuery = encodeURIComponent(`${animeQuery} episode ${episodeNumber}`);
+    const proxyResult = await scrapeWithProxies(`https://9anime.to/search?keyword=${searchQuery}`, {
+      retryWithStealth: true
+    });
+    
+    if (proxyResult.sources.length > 0) {
+      console.log(`[MultiProvider] Found ${proxyResult.sources.length} sources via ${proxyResult.method}`);
+      return {
+        provider: 'nineanime',
+        sources: proxyResult.sources.map((s: ProxySource) => ({
+          url: s.url,
+          quality: s.quality,
+          isM3U8: s.isM3U8,
+          isEmbed: s.isEmbed,
+          referer: 'https://9anime.to/',
+        })),
+        episode: {
+          id: `proxy-ep-${episodeNumber}`,
+          number: episodeNumber,
+          title: `Episode ${episodeNumber}`,
+        },
+      };
+    }
+  } catch (error) {
+    console.error('[MultiProvider] ScrapingBee proxy failed:', error);
+  }
+  
+  // Last resort: try stealth browser
+  console.log(`[MultiProvider] Trying stealth browser as last resort...`);
+  try {
+    const stealthResult = await scrapeWithStealth(`https://9anime.to/search?keyword=${encodeURIComponent(animeQuery)}`, {
+      waitForVideo: true,
+      timeout: 60000,
+    });
+    
+    if (stealthResult.sources.length > 0) {
+      console.log(`[MultiProvider] Found ${stealthResult.sources.length} sources via stealth browser`);
+      return {
+        provider: 'nineanime',
+        sources: stealthResult.sources.map((s: ScrapedSource) => ({
+          url: s.url,
+          quality: s.quality,
+          isM3U8: s.isM3U8,
+          referer: s.referer || 'https://9anime.to/',
+        })),
+        episode: {
+          id: `stealth-ep-${episodeNumber}`,
+          number: episodeNumber,
+          title: stealthResult.title || `Episode ${episodeNumber}`,
+        },
+      };
+    }
+  } catch (error) {
+    console.error('[MultiProvider] Stealth browser failed:', error);
+  }
+  
   return {
     provider: providersToTry[0]!,
     sources: [],
-    error: 'No playable sources found from any provider',
+    error: 'No playable sources found from any provider (direct, proxy, or stealth)',
   };
 }
 
