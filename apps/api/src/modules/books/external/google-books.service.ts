@@ -130,18 +130,21 @@ export async function fetchGoogleBooksCover(
 }
 
 /**
- * Enrich book metadata from Google Books
+ * Enrich book metadata from Google Books.
+ * Returns author (first listed), coverUrl, description, pageCount, and categories.
  */
 export async function enrichBookFromGoogleBooks(
   title: string,
   author?: string,
   year?: number,
 ): Promise<{
+  author: string | null;
   coverUrl: string | null;
   description: string | null;
   pageCount: number | null;
   categories: string[] | null;
 }> {
+  const empty = { author: null, coverUrl: null, description: null, pageCount: null, categories: null };
   try {
     let query = `intitle:${encodeURIComponent(title)}`;
     if (author) {
@@ -149,15 +152,45 @@ export async function enrichBookFromGoogleBooks(
     }
 
     const response = await axios.get<GoogleBooksSearchResult>(
-      `${GOOGLE_BOOKS_API_BASE}?q=${query}&maxResults=3`,
+      `${GOOGLE_BOOKS_API_BASE}?q=${query}&maxResults=5`,
       { timeout: 10000 },
     );
 
     if (!response.data.items || response.data.items.length === 0) {
-      return { coverUrl: null, description: null, pageCount: null, categories: null };
+      return empty;
     }
 
-    const bestMatch = response.data.items[0];
+    // Score results: prefer title match + author match + has cover
+    let bestMatch = response.data.items[0]!;
+    let bestScore = 0;
+    const searchTitle = title.toLowerCase().trim();
+
+    for (const item of response.data.items) {
+      const info = item.volumeInfo;
+      let score = 0;
+      const itemTitle = (info.title || '').toLowerCase().trim();
+
+      if (itemTitle === searchTitle) score += 100;
+      else if (itemTitle.includes(searchTitle) || searchTitle.includes(itemTitle)) score += 50;
+
+      if (author && info.authors) {
+        const match = info.authors.some(
+          (a) => a.toLowerCase().includes(author.toLowerCase()) || author.toLowerCase().includes(a.toLowerCase()),
+        );
+        if (match) score += 30;
+      }
+
+      if (year && info.publishedDate) {
+        const pubYear = Number.parseInt(info.publishedDate.substring(0, 4), 10);
+        if (Number.isFinite(pubYear) && Math.abs(pubYear - year) <= 1) score += 20;
+      }
+
+      if (info.imageLinks?.thumbnail) score += 10;
+      if (info.authors?.length) score += 5;
+
+      if (score > bestScore) { bestScore = score; bestMatch = item; }
+    }
+
     const info = bestMatch.volumeInfo;
 
     const imageLinks = info.imageLinks;
@@ -171,6 +204,7 @@ export async function enrichBookFromGoogleBooks(
       null;
 
     return {
+      author: info.authors?.[0] || null,
       coverUrl,
       description: info.description || null,
       pageCount: info.pageCount || null,
@@ -178,6 +212,6 @@ export async function enrichBookFromGoogleBooks(
     };
   } catch (error) {
     console.error('[GoogleBooks] Failed to enrich book:', error);
-    return { coverUrl: null, description: null, pageCount: null, categories: null };
+    return empty;
   }
 }
