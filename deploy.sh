@@ -97,6 +97,8 @@ services:
     environment:
       LOG_LEVEL: \${FLARESOLVERR_LOG_LEVEL:-info}
       TZ: \${TZ:-Africa/Lagos}
+    volumes:
+      - flaresolverr_downloads_$stack:/app/Downloads
     networks:
       default:
         aliases:
@@ -195,6 +197,9 @@ services:
     environment:
       REDIS_URL: redis://redis-$stack:6379
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      FLARESOLVERR_DOWNLOADS_DIR: /tmp/flaresolverr-downloads
+    volumes:
+      - flaresolverr_downloads_$stack:/tmp/flaresolverr-downloads
 
   annas-mirror-worker-$stack:
     image: naijaspride-api:$stack
@@ -207,10 +212,14 @@ services:
     environment:
       REDIS_URL: redis://redis-$stack:6379
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      FLARESOLVERR_DOWNLOADS_DIR: /tmp/flaresolverr-downloads
+    volumes:
+      - flaresolverr_downloads_$stack:/tmp/flaresolverr-downloads
 
 volumes:
   redis_data_$stack:
   torrent_tmp_$stack:
+  flaresolverr_downloads_$stack:
 COMPOSE
 }
 
@@ -334,11 +343,14 @@ docker compose -f "$(compose_file "$ACTIVE")" stop || true
 # rollback. It will be removed at the start of the NEXT deploy cycle.
 
 echo ""
-echo "==> Pruning build cache and dangling images"
+echo "==> Pruning build cache, dangling images, and stale volumes"
 # Build cache grows ~2-5 GB per deploy. Always safe to prune here because
 # the final image layers are already written to disk in the new image.
 docker builder prune -f
 docker image prune -f
+# Remove dangling volumes (orphaned anonymous volumes from stopped containers).
+# Named volumes for the active stack are explicitly listed and will NOT be removed.
+docker volume prune -f
 
 echo ""
 echo "============================================"
