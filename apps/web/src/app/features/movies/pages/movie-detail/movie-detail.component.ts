@@ -167,15 +167,55 @@ import { catchError, map, of, switchMap } from 'rxjs';
           
           <div class="lg:col-span-2 space-y-8">
             <section>
-               <h3 class="text-xl font-serif font-bold text-[#24181b] dark:text-white mb-3">Synopsis</h3>
-               <p class="text-[#725f58] dark:text-gray-400 leading-relaxed">{{ movie.overview || movie.description || 'No description available.' }}</p>
+               <h3 class="text-xl font-serif font-bold text-[#24181b] dark:text-white mb-3">Storyline</h3>
+               <p class="text-[#725f58] dark:text-gray-400 leading-relaxed text-lg">{{ movie.overview || movie.description || 'No description available.' }}</p>
+               
+               <!-- Metadata Table for SEO/Crawlers -->
+               <div class="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4 border-t border-[#d9c4b7] dark:border-white/10 pt-6">
+                 <div>
+                   <span class="block text-[10px] uppercase tracking-widest text-[#9f7d73] mb-1">Status</span>
+                   <span class="text-sm font-semibold text-[#24181b] dark:text-white">{{ movie.status || 'Released' }}</span>
+                 </div>
+                 <div>
+                   <span class="block text-[10px] uppercase tracking-widest text-[#9f7d73] mb-1">Release Year</span>
+                   <span class="text-sm font-semibold text-[#24181b] dark:text-white">{{ movie.year }}</span>
+                 </div>
+                 <div>
+                   <span class="block text-[10px] uppercase tracking-widest text-[#9f7d73] mb-1">Language</span>
+                   <span class="text-sm font-semibold text-[#24181b] dark:text-white">{{ movie.language || 'English' }}</span>
+                 </div>
+                 @if (movie.tmdbRating) {
+                   <div>
+                     <span class="block text-[10px] uppercase tracking-widest text-[#9f7d73] mb-1">Average Vote</span>
+                     <span class="text-sm font-semibold text-[#24181b] dark:text-white">{{ movie.tmdbRating / 10 }} / 10</span>
+                   </div>
+                 }
+                 <div>
+                   <span class="block text-[10px] uppercase tracking-widest text-[#9f7d73] mb-1">Quality</span>
+                   <span class="text-sm font-semibold text-[#24181b] dark:text-white">HD / 4K</span>
+                 </div>
+               </div>
             </section>
 
-            <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#f0e4da]/30 dark:bg-cinema-800/20 p-6 rounded-lg border border-[#d9c4b7] dark:border-white/5">
               <div>
-                <h4 class="font-bold text-[#24181b] dark:text-white mb-2">Director</h4>
-                <p class="text-[#725f58] dark:text-gray-500">{{ movie.metadata?.director || 'Unknown' }}</p>
+                <h4 class="font-bold text-[#24181b] dark:text-white mb-2">Direction</h4>
+                <p class="text-[#725f58] dark:text-gray-400">{{ movie.metadata?.director || 'Information currently unavailable' }}</p>
+                
+                <h4 class="font-bold text-[#24181b] dark:text-white mt-4 mb-2">Original Studio</h4>
+                <p class="text-[#725f58] dark:text-gray-400">Nollywood Distribution Network</p>
               </div>
+              <div>
+                <h4 class="font-bold text-[#24181b] dark:text-white mb-2">Genre & Tags</h4>
+                <div class="flex flex-wrap gap-2">
+                  @for (g of movie.genre; track g) {
+                    <span class="bg-white/50 dark:bg-white/5 text-[#24181b] dark:text-gray-300 text-xs px-2 py-1 rounded border border-[#d9c4b7] dark:border-white/10">{{ g }}</span>
+                  }
+                </div>
+              </div>
+            </section>
+
+            <section>
               <div>
                 <h4 class="font-bold text-[#24181b] dark:text-white mb-2">Top Cast</h4>
                 @if ((movie.cast || []).length > 0) {

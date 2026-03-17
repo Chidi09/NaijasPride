@@ -25,9 +25,30 @@ export class AdScriptService {
   private readonly effectiveGateSocialBarScriptId = 'effectivegate-socialbar-script';
   private readonly effectiveGateSocialBarUrl = 'https://pl28821993.effectivegatecpm.com/e2/17/7f/e2177fff15ecad68b2c2b7e699359650.js';
 
+  // Pages where AdSense is NOT allowed (Utility/Low Content pages)
+  private readonly adBlacklist = [
+    '/auth/login',
+    '/auth/register',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/verify-email',
+    '/profile',
+    '/profile/settings',
+    '/payment-callback'
+  ];
+
   ensureAdSenseAutoAdsScript(): void {
     if (!this.canUseDom()) return;
+
+    // Don't load AdSense on blacklisted utility pages
+    const currentPath = window.location.pathname;
+    if (this.adBlacklist.some(path => currentPath.startsWith(path))) {
+      this.unloadAllAdScripts();
+      return;
+    }
+
     if (this.hasScriptById(this.adsenseAutoAdsScriptId) || this.hasScriptBySrc(this.adsenseAutoAdsUrl)) return;
+
 
     const appendScript = () => {
       if (this.hasScriptById(this.adsenseAutoAdsScriptId) || this.hasScriptBySrc(this.adsenseAutoAdsUrl)) return;

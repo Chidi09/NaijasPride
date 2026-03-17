@@ -332,21 +332,25 @@ type BookProgressResponse = {
       <div class="mobile-content-area px-4 py-6 space-y-8 lg:px-6">
 
         <!-- ── Hero Greeting ─────────────────────────────────────── -->
-        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#800020] via-[#69001b] to-[#3f0011] p-6 md:p-8">
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#800020] via-[#69001b] to-[#3f0011] p-6 md:p-10">
           <!-- Decorative circles -->
           <div class="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5"></div>
           <div class="absolute -right-4 bottom-4 h-24 w-24 rounded-full bg-white/5"></div>
 
-          <div class="relative">
+          <div class="relative max-w-3xl">
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">{{ getGreeting() }}</p>
-            <h1 class="mt-1 text-2xl font-bold text-white md:text-3xl">{{ userName() }}</h1>
-            <p class="mt-1 text-sm text-white/70">Your gateway to Nollywood, Bollywood & Hollywood.</p>
+            <h1 class="mt-1 text-2xl font-bold text-white md:text-4xl">{{ userName() }}</h1>
+            <p class="mt-4 text-base md:text-lg text-white/80 leading-relaxed font-light">
+              Welcome to the capital of African culture. Discover an curated collection of Nollywood blockbusters, 
+              chart-topping Afrobeats, and award-winning African literature. From the streets of Lagos to the global stage, 
+              NaijasPride brings you the best of Nigeria and beyond.
+            </p>
             @if (isPremiumUser()) {
-              <span class="mt-3 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">Premium Member</span>
+              <span class="mt-4 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">Premium Member</span>
             }
 
             <!-- Quick action pills -->
-            <div class="mt-5 flex flex-wrap gap-2">
+            <div class="mt-8 flex flex-wrap gap-3">
               <a routerLink="/movies" class="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-white/20 transition">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                   <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>

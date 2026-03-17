@@ -89,8 +89,31 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                   }
                 }
 
-                <app-effectivegate-banner></app-effectivegate-banner>
-              </div>
+                  <app-effectivegate-banner></app-effectivegate-banner>
+
+                  <!-- SEO Content for Watch Page -->
+                  <div class="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8">
+                    <h2 class="text-xl font-bold text-white mb-4">About this Cinema Experience</h2>
+                    <p class="text-white/60 leading-relaxed">
+                      You are currently watching <strong>{{ m.title }}</strong>, a {{ m.year }} {{ m.genre.join('/') }} production. 
+                      NaijasPride offers high-quality streaming for this title with adaptive bitrate support. 
+                      @if (m.overview || m.description) {
+                        <span class="block mt-4">{{ m.overview || m.description }}</span>
+                      }
+                    </p>
+                    <div class="mt-6 flex flex-wrap gap-6 text-sm">
+                      <div>
+                        <span class="block text-white/30 uppercase text-[10px] tracking-wider mb-1">Director</span>
+                        <span class="text-white">{{ m.metadata?.director || 'Unknown' }}</span>
+                      </div>
+                      <div>
+                        <span class="block text-white/30 uppercase text-[10px] tracking-wider mb-1">Cast</span>
+                        <span class="text-white">{{ (m.metadata?.cast || []).slice(0, 3).join(', ') || 'N/A' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
 
               <aside class="space-y-4">
                 <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">

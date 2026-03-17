@@ -69,8 +69,21 @@ import { RouterLink } from '@angular/router';
           </div>
         </div>
 
-        <div class="mt-10 pt-6 border-t border-[var(--border-color)] text-[10px] tracking-[0.12em] text-[var(--text-muted)]">
-          © 2026 NAIJASPRIDE MUSIC GROUP. | DESIGNED IN LAGOS
+        <div class="mt-10 pt-8 border-t border-[var(--border-color)]">
+          <p class="text-[10px] md:text-xs text-[var(--text-secondary)] leading-relaxed max-w-4xl italic">
+            NaijasPride is the ultimate destination for Nollywood movies, Nigerian music, and African literature. 
+            Stream the latest Nigerian cinema, explore Yoruba, Igbo, and Hausa films, and discover emerging African authors. 
+            Our platform is dedicated to promoting African culture and providing high-quality entertainment to a global audience.
+          </p>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-[var(--border-color)] text-[10px] tracking-[0.12em] text-[var(--text-muted)] flex flex-col md:flex-row justify-between gap-4">
+          <span>© 2026 NAIJASPRIDE MUSIC GROUP. | DESIGNED IN LAGOS</span>
+          <div class="flex gap-4">
+             <a routerLink="/privacy" class="hover:underline">Privacy</a>
+             <a routerLink="/terms" class="hover:underline">Terms</a>
+             <a routerLink="/cookies" class="hover:underline">Cookies</a>
+          </div>
         </div>
       </div>
     </footer>
