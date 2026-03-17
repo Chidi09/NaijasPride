@@ -1076,6 +1076,280 @@ export const adminRoutes = async (
     },
   });
 
+  // POST /api/admin/movies/upload-url - Generate signed upload URL for movie files (Admin only)
+  app.post('/movies/upload-url', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Admin access required',
+            },
+          });
+        }
+
+        const body = request.body as {
+          fileName: string;
+          contentType: string;
+          fileSize?: number;
+        };
+
+        const allowedVideoTypes = new Set([
+          'video/mp4',
+          'video/x-matroska',
+          'video/webm',
+          'video/quicktime',
+          'video/x-msvideo',
+          'video/x-m4v',
+        ]);
+
+        if (!allowedVideoTypes.has(body.contentType)) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: 'INVALID_CONTENT_TYPE',
+              message: `Unsupported video type: ${body.contentType}. Allowed: ${Array.from(allowedVideoTypes).join(', ')}`,
+            },
+          });
+        }
+
+        // Max 5GB for video uploads
+        if (body.fileSize && body.fileSize > 5 * 1024 * 1024 * 1024) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: 'FILE_TOO_LARGE',
+              message: 'File size exceeds 5GB limit',
+            },
+          });
+        }
+
+        const safeName = body.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storageKey = `movies/uploaded/${Date.now()}-${safeName}`;
+        
+        const { StorageService } = await import('../../shared/services/storage.service');
+        const storageService = new StorageService();
+        const uploadUrl = await storageService.getUploadUrl(storageKey, body.contentType);
+
+        return reply.send({
+          success: true,
+          data: {
+            uploadUrl,
+            storageKey,
+            downloadUrl: `/api/v1/movies/download?key=${encodeURIComponent(storageKey)}`,
+            expiresIn: 3600, // 1 hour
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] Movie upload URL error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'UPLOAD_URL_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to create upload URL',
+          },
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/movies/create - Create a new movie with metadata (Admin only)
+  app.post('/movies/create', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Admin access required',
+            },
+          });
+        }
+
+        const body = request.body as {
+          title: string;
+          description?: string;
+          year: number;
+          genre?: string[];
+          director?: string;
+          cast?: string[];
+          duration?: number;
+          thumbnailUrl?: string;
+          storageKey: string;
+          contentType: string;
+          fileSize?: number;
+          isStreamOnly?: boolean;
+        };
+
+        // Validate required fields
+        if (!body.title || !body.year || !body.storageKey) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: 'MISSING_FIELDS',
+              message: 'Title, year, and storageKey are required',
+            },
+          });
+        }
+
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        // Generate slug
+        const slugBase = body.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+        const slug = `${slugBase}-${body.year}`;
+
+        // Check for duplicate
+        const existing = await prisma.movie.findUnique({
+          where: { slug },
+        });
+
+        if (existing) {
+          await prisma.$disconnect();
+          return reply.status(409).send({
+            success: false,
+            error: {
+              code: 'DUPLICATE_MOVIE',
+              message: `Movie with slug "${slug}" already exists`,
+            },
+          });
+        }
+
+        // Create movie record
+        const movie = await prisma.movie.create({
+          data: {
+            title: body.title,
+            slug,
+            description: body.description || null,
+            year: body.year,
+            genre: normalizeGenres(body.genre),
+            director: body.director || null,
+            cast: body.cast || [],
+            duration: body.duration || null,
+            thumbnailUrl: body.thumbnailUrl || null,
+            downloadUrl: `/api/v1/movies/download?key=${encodeURIComponent(body.storageKey)}`,
+            storageKey: body.storageKey,
+            contentType: body.contentType,
+            fileSize: body.fileSize || null,
+            status: 'active',
+            source: 'admin-upload',
+            uploadedBy: 'admin',
+            isStreamOnly: body.isStreamOnly ?? true,
+          },
+        });
+
+        await prisma.$disconnect();
+
+        return reply.status(201).send({
+          success: true,
+          data: {
+            movie,
+            message: 'Movie created successfully',
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] Movie creation error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'CREATE_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to create movie',
+          },
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/movies/uploads - List uploaded movies (Admin only)
+  app.get('/movies/uploads', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Admin access required',
+            },
+          });
+        }
+
+        const query = request.query as {
+          page?: string;
+          limit?: string;
+        };
+
+        const page = parseInt(query.page || '1', 10);
+        const limit = parseInt(query.limit || '20', 10);
+        const skip = (page - 1) * limit;
+
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        const [movies, total] = await Promise.all([
+          prisma.movie.findMany({
+            where: {
+              source: 'admin-upload',
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              year: true,
+              genre: true,
+              thumbnailUrl: true,
+              status: true,
+              createdAt: true,
+              fileSize: true,
+              downloadUrl: true,
+            },
+          }),
+          prisma.movie.count({
+            where: {
+              source: 'admin-upload',
+            },
+          }),
+        ]);
+
+        await prisma.$disconnect();
+
+        return reply.send({
+          success: true,
+          data: {
+            movies,
+            pagination: {
+              page,
+              limit,
+              total,
+              totalPages: Math.ceil(total / limit),
+            },
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] List uploads error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'LIST_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to list uploads',
+          },
+        });
+      }
+    },
+  });
+
   // Register queue management routes
   await app.register(adminQueueRoutes, { prefix: '' });
 
