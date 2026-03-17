@@ -3,7 +3,8 @@
 
 import { extractVideoSources, VideoSource } from './video-source-extractor';
 
-const ANIWATCH_BASE = process.env.ANIWATCH_BASE_URL || 'https://aniwatch.to';
+// AniWatch rebranded to HiAnime - use the new domain
+const ANIWATCH_BASE = process.env.ANIWATCH_BASE_URL || 'https://hianime.to';
 const ANIWATCH_API = `${ANIWATCH_BASE}/ajax`;
 
 export type AniWatchEpisode = {

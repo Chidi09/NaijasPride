@@ -175,4 +175,17 @@ export class StorageService {
   static getBackend(): 's3' {
     return 's3';
   }
+
+  /**
+   * Upload a buffer directly to R2
+   */
+  async uploadBuffer(key: string, buffer: Buffer, contentType: string) {
+    const command = new PutObjectCommand({
+      Bucket: s3Config.bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    });
+    return s3Client.send(command);
+  }
 }

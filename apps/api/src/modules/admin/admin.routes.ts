@@ -1252,14 +1252,15 @@ export const adminRoutes = async (
         const movieData: any = {
           title: body.title,
           slug,
-          description: body.description || tmdbData?.overview || null,
+          description: body.description || null,
+          overview: tmdbData?.overview || null,
           year: body.year,
-          genre: tmdbData?.genres?.length > 0 
-            ? tmdbData.genres.map((g: { name: string }) => g.name)
-            : normalizeGenres(body.genre),
-          director: body.director || null,
-          cast: body.cast || [],
-          duration: body.duration || tmdbData?.runtime || null,
+          genre: normalizeGenres(
+            tmdbData?.genres && tmdbData.genres.length > 0 
+              ? tmdbData.genres.map((g: { name: string }) => g.name)
+              : body.genre
+          ),
+          durationMinutes: body.duration || tmdbData?.runtime || null,
           thumbnailUrl: body.thumbnailUrl || null,
           posterUrl: tmdbData?.poster_path 
             ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` 
@@ -1267,17 +1268,25 @@ export const adminRoutes = async (
           backdropUrl: tmdbData?.backdrop_path 
             ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` 
             : null,
-          downloadUrl: `/api/v1/movies/download?key=${encodeURIComponent(body.storageKey)}`,
-          storageKey: body.storageKey,
-          contentType: body.contentType,
-          fileSize: body.fileSize || null,
+          fileUrls: {
+            "Original": `/api/v1/movies/download?key=${encodeURIComponent(body.storageKey)}`
+          },
+          fileSizes: {
+            "Original": body.fileSize || 0
+          },
           status: 'active',
-          source: 'admin-upload',
           uploadedBy: 'admin',
           isStreamOnly: body.isStreamOnly ?? true,
           tmdbId: tmdbData?.id || null,
           imdbId: body.imdbId || tmdbData?.imdb_id || null,
           tmdbRating: tmdbData?.vote_average ? Math.round(tmdbData.vote_average * 10) : null,
+          metadata: {
+            storageKey: body.storageKey,
+            contentType: body.contentType,
+            fileSize: body.fileSize,
+            source: 'admin-upload',
+            director: body.director || null,
+          }
         };
 
         // Create movie record
@@ -1516,7 +1525,10 @@ export const adminRoutes = async (
         const [movies, total] = await Promise.all([
           prisma.movie.findMany({
             where: {
-              source: 'admin-upload',
+              metadata: {
+                path: ['source'],
+                equals: 'admin-upload',
+              },
             },
             orderBy: { createdAt: 'desc' },
             skip,
@@ -1530,13 +1542,15 @@ export const adminRoutes = async (
               thumbnailUrl: true,
               status: true,
               createdAt: true,
-              fileSize: true,
-              downloadUrl: true,
+              fileSizes: true,
             },
           }),
           prisma.movie.count({
             where: {
-              source: 'admin-upload',
+              metadata: {
+                path: ['source'],
+                equals: 'admin-upload',
+              },
             },
           }),
         ]);
@@ -1709,7 +1723,8 @@ export const adminRoutes = async (
           });
         }
 
-        if (!movie.storageKey) {
+        const storageKey = (movie.metadata as any)?.storageKey;
+        if (!storageKey) {
           await prisma.$disconnect();
           return reply.status(400).send({
             success: false,
@@ -1732,7 +1747,7 @@ export const adminRoutes = async (
           const { promisify } = await import('util');
           const execAsync = promisify(exec);
 
-          const videoUrl = await storageService.getDownloadUrl(movie.storageKey, 3600);
+          const videoUrl = await storageService.getDownloadUrl(storageKey, { expiresInSeconds: 3600 });
           const tempPath = `/tmp/thumbnail-${id}.jpg`;
 
           await execAsync(

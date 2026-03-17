@@ -2,8 +2,7 @@
 // Scrape anime sites through rotating proxies to avoid IP blocks
 
 // ScrapingBee API (paid service that handles JS rendering and proxies)
-// API Key: DAFZ9OYEEVQ6BGFQMWTUY92LKZ82SSMGOVXFKD0B0EKMOZIQKVEHGT6Z6G2NV7PKV49L5K05EGMPTLU3
-const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY || 'DAFZ9OYEEVQ6BGFQMWTUY92LKZ82SSMGOVXFKD0B0EKMOZIQKVEHGT6Z6G2NV7PKV49L5K05EGMPTLU3';
+const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY || '';
 const SCRAPINGBEE_URL = 'https://app.scrapingbee.com/api/v1';
 
 // ScrapingAnt API (alternative)

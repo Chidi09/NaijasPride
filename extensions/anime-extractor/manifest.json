@@ -1,0 +1,69 @@
+{
+  "manifest_version": 3,
+  "name": "NaijasPride Anime Extractor",
+  "version": "1.0.0",
+  "description": "Extracts video URLs from anime sites for NaijasPride playback",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "https://*/"
+  ],
+  "host_permissions": [
+    "*://9anime.to/*",
+    "*://9anime.id/*",
+    "*://hianime.to/*",
+    "*://hianimez.to/*",
+    "*://aniwatch.to/*",
+    "*://gogoanime.io/*",
+    "*://gogoanime.ai/*",
+    "*://zoro.to/*",
+    "*://animepahe.si/*",
+    "*://animepahe.org/*",
+    "*://kissanime.com.ru/*",
+    "*://localhost:*/*",
+    "*://naijaspride.com/*",
+    "*://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://9anime.to/*",
+        "*://9anime.id/*",
+        "*://hianime.to/*",
+        "*://hianimez.to/*",
+        "*://aniwatch.to/*",
+        "*://gogoanime.io/*",
+        "*://gogoanime.ai/*",
+        "*://zoro.to/*",
+        "*://animepahe.si/*",
+        "*://animepahe.org/*",
+        "*://kissanime.com.ru/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

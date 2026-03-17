@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NaijasPride Anime Extractor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 400px;
+      min-height: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      padding: 16px;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .header h1 {
+      font-size: 18px;
+      color: #d0a97a;
+      margin-bottom: 4px;
+    }
+    
+    .header p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+    }
+    
+    .status {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    
+    .status-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    
+    .status-dot.active {
+      background: #4ade80;
+      box-shadow: 0 0 8px #4ade80;
+    }
+    
+    .status-dot.inactive {
+      background: #ef4444;
+    }
+    
+    .sources-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+    
+    .source-item {
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    
+    .source-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .source-quality {
+      display: inline-block;
+      background: #800020;
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .source-url {
+      color: rgba(255,255,255,0.7);
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    
+    .buttons {
+      display: flex;
+      gap: 8px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #800020 0%, #a00030 100%);
+      color: #fff;
+    }
+    
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #900030 0%, #b00040 100%);
+    }
+    
+    .btn-primary:disabled {
+      background: #444;
+      cursor: not-allowed;
+    }
+    
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    
+    .settings {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .settings h3 {
+      font-size: 13px;
+      margin-bottom: 8px;
+      color: rgba(255,255,255,0.8);
+    }
+    
+    .input-group {
+      display: flex;
+      gap: 8px;
+    }
+    
+    input[type="text"] {
+      flex: 1;
+      padding: 8px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      color: #fff;
+      font-size: 12px;
+    }
+    
+    input[type="text"]::placeholder {
+      color: rgba(255,255,255,0.4);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: rgba(255,255,255,0.5);
+    }
+    
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+    
+    .error-message {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #fca5a5;
+    }
+    
+    .success-message {
+      background: rgba(74, 222, 128, 0.2);
+      border: 1px solid rgba(74, 222, 128, 0.4);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #86efac;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>NaijasPride Anime Extractor</h1>
+    <p>Extract video sources from anime sites</p>
+  </div>
+
+  <div id="status" class="status">
+    <div class="status-row">
+      <span>Extension Status</span>
+      <span class="status-indicator">
+        <span class="status-dot active"></span>
+        Active
+      </span>
+    </div>
+    <div class="status-row">
+      <span>Sources Found</span>
+      <span id="source-count">0</span>
+    </div>
+    <div class="status-row">
+      <span>Current Site</span>
+      <span id="current-site">-</span>
+    </div>
+  </div>
+
+  <div id="message-container"></div>
+
+  <div id="sources-list" class="sources-list">
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+      </svg>
+      <p>No video sources found yet.<br>Navigate to an anime episode and start playback.</p>
+    </div>
+  </div>
+
+  <div class="buttons">
+    <button id="refresh-btn" class="btn-secondary">Refresh</button>
+    <button id="send-btn" class="btn-primary" disabled>Send to NaijasPride</button>
+  </div>
+
+  <div class="settings">
+    <h3>API Endpoint</h3>
+    <div class="input-group">
+      <input type="text" id="api-base" placeholder="http://localhost:3001" value="http://localhost:3001">
+      <button id="save-api-btn" class="btn-secondary" style="flex: 0 0 auto; padding: 8px 12px;">Save</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
