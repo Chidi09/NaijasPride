@@ -1157,6 +1157,7 @@ export const adminRoutes = async (
   });
 
   // POST /api/admin/movies/create - Create a new movie with metadata (Admin only)
+  // Supports TMDB auto-enrichment when tmdbId is provided or via search
   app.post('/movies/create', {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
@@ -1184,6 +1185,9 @@ export const adminRoutes = async (
           contentType: string;
           fileSize?: number;
           isStreamOnly?: boolean;
+          tmdbId?: number;
+          imdbId?: string;
+          fetchMetadata?: boolean;
         };
 
         // Validate required fields
@@ -1199,6 +1203,27 @@ export const adminRoutes = async (
 
         const { PrismaClient } = await import('@prisma/client');
         const prisma = new PrismaClient();
+
+        // Initialize TMDB service for metadata fetching
+        const { TMDBMetadataService } = await import('./services/tmdb-metadata.service');
+        const tmdbService = new TMDBMetadataService(prisma);
+
+        // Fetch metadata from TMDB if requested or if tmdbId provided
+        let tmdbData = null;
+        let metadataSource = 'manual';
+        
+        if (body.fetchMetadata || body.tmdbId) {
+          if (body.tmdbId) {
+            tmdbData = await tmdbService.getMovieDetails(body.tmdbId);
+          } else {
+            tmdbData = await tmdbService.searchMovie(body.title, body.year);
+          }
+          
+          if (tmdbData) {
+            metadataSource = 'tmdb';
+            console.log(`[Admin] Found TMDB match: ${tmdbData.title} (ID: ${tmdbData.id})`);
+          }
+        }
 
         // Generate slug
         const slugBase = body.title
@@ -1223,28 +1248,62 @@ export const adminRoutes = async (
           });
         }
 
+        // Prepare movie data with TMDB enrichment
+        const movieData: any = {
+          title: body.title,
+          slug,
+          description: body.description || tmdbData?.overview || null,
+          year: body.year,
+          genre: tmdbData?.genres?.length > 0 
+            ? tmdbData.genres.map((g: { name: string }) => g.name)
+            : normalizeGenres(body.genre),
+          director: body.director || null,
+          cast: body.cast || [],
+          duration: body.duration || tmdbData?.runtime || null,
+          thumbnailUrl: body.thumbnailUrl || null,
+          posterUrl: tmdbData?.poster_path 
+            ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` 
+            : null,
+          backdropUrl: tmdbData?.backdrop_path 
+            ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` 
+            : null,
+          downloadUrl: `/api/v1/movies/download?key=${encodeURIComponent(body.storageKey)}`,
+          storageKey: body.storageKey,
+          contentType: body.contentType,
+          fileSize: body.fileSize || null,
+          status: 'active',
+          source: 'admin-upload',
+          uploadedBy: 'admin',
+          isStreamOnly: body.isStreamOnly ?? true,
+          tmdbId: tmdbData?.id || null,
+          imdbId: body.imdbId || tmdbData?.imdb_id || null,
+          tmdbRating: tmdbData?.vote_average ? Math.round(tmdbData.vote_average * 10) : null,
+        };
+
         // Create movie record
         const movie = await prisma.movie.create({
-          data: {
-            title: body.title,
-            slug,
-            description: body.description || null,
-            year: body.year,
-            genre: normalizeGenres(body.genre),
-            director: body.director || null,
-            cast: body.cast || [],
-            duration: body.duration || null,
-            thumbnailUrl: body.thumbnailUrl || null,
-            downloadUrl: `/api/v1/movies/download?key=${encodeURIComponent(body.storageKey)}`,
-            storageKey: body.storageKey,
-            contentType: body.contentType,
-            fileSize: body.fileSize || null,
-            status: 'active',
-            source: 'admin-upload',
-            uploadedBy: 'admin',
-            isStreamOnly: body.isStreamOnly ?? true,
-          },
+          data: movieData,
         });
+
+        // Add cast members from TMDB if available
+        if (tmdbData?.credits?.cast && tmdbData.credits.cast.length > 0) {
+          const topCast = tmdbData.credits.cast.slice(0, 10);
+          
+          for (const actor of topCast) {
+            await prisma.cast.create({
+              data: {
+                name: actor.name,
+                character: actor.character || null,
+                photoUrl: actor.profile_path 
+                  ? `https://image.tmdb.org/t/p/w200${actor.profile_path}` 
+                  : null,
+                movieId: movie.id,
+              },
+            });
+          }
+          
+          console.log(`[Admin] Added ${topCast.length} cast members from TMDB`);
+        }
 
         await prisma.$disconnect();
 
@@ -1252,7 +1311,14 @@ export const adminRoutes = async (
           success: true,
           data: {
             movie,
-            message: 'Movie created successfully',
+            metadata: {
+              source: metadataSource,
+              tmdbId: tmdbData?.id || null,
+              enriched: !!tmdbData,
+            },
+            message: tmdbData 
+              ? 'Movie created successfully with TMDB metadata' 
+              : 'Movie created successfully (TMDB metadata not found)',
           },
         });
       } catch (error) {
@@ -1262,6 +1328,158 @@ export const adminRoutes = async (
           error: {
             code: 'CREATE_ERROR',
             message: error instanceof Error ? error.message : 'Failed to create movie',
+          },
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/movies/search-tmdb - Search TMDB for movie metadata
+  app.post('/movies/search-tmdb', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+          });
+        }
+
+        const body = request.body as {
+          title: string;
+          year?: number;
+        };
+
+        if (!body.title) {
+          return reply.status(400).send({
+            success: false,
+            error: { code: 'MISSING_TITLE', message: 'Title is required' },
+          });
+        }
+
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+        const { TMDBMetadataService } = await import('./services/tmdb-metadata.service');
+        const tmdbService = new TMDBMetadataService(prisma);
+
+        const results = await tmdbService.searchMovie(body.title, body.year);
+        
+        await prisma.$disconnect();
+
+        if (!results) {
+          return reply.send({
+            success: true,
+            data: {
+              results: [],
+              message: 'No TMDB matches found',
+            },
+          });
+        }
+
+        return reply.send({
+          success: true,
+          data: {
+            results: [results],
+            message: 'TMDB match found',
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] TMDB search error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'SEARCH_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to search TMDB',
+          },
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/movies/:id/enrich - Enrich existing movie with TMDB data
+  app.post('/movies/:id/enrich', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+          });
+        }
+
+        const { id } = request.params as { id: string };
+        const body = request.body as {
+          tmdbId?: number;
+          searchTitle?: string;
+          searchYear?: number;
+        };
+
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        const movie = await prisma.movie.findUnique({
+          where: { id },
+        });
+
+        if (!movie) {
+          await prisma.$disconnect();
+          return reply.status(404).send({
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Movie not found' },
+          });
+        }
+
+        const { TMDBMetadataService } = await import('./services/tmdb-metadata.service');
+        const tmdbService = new TMDBMetadataService(prisma);
+
+        let tmdbId = body.tmdbId;
+        
+        if (!tmdbId && body.searchTitle) {
+          const searchResult = await tmdbService.searchMovie(
+            body.searchTitle, 
+            body.searchYear || movie.year
+          );
+          if (searchResult) {
+            tmdbId = searchResult.id;
+          }
+        }
+
+        if (!tmdbId) {
+          await prisma.$disconnect();
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: 'NO_TMDB_ID',
+              message: 'Please provide tmdbId or searchTitle',
+            },
+          });
+        }
+
+        await tmdbService.enrichMovieFromTMDB(id, movie.title, movie.year);
+        
+        const updatedMovie = await prisma.movie.findUnique({
+          where: { id },
+          include: { cast: true },
+        });
+
+        await prisma.$disconnect();
+
+        return reply.send({
+          success: true,
+          data: {
+            movie: updatedMovie,
+            message: 'Movie enriched with TMDB data',
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] Enrich error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'ENRICH_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to enrich movie',
           },
         });
       }
