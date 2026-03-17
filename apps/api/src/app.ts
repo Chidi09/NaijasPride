@@ -40,7 +40,9 @@ import { WrappedCronService } from "./modules/wrapped/wrapped.cron";
 import { YouTubeChannelService } from "./modules/admin/services/youtube-channel.service";
 import { YouTubeMusicService } from "./modules/music/youtube-music.service";
 import { YouTubeStatsSyncService } from "./modules/music/youtube-stats-sync.service";
+import { YoutubeDiscoveryService } from "./modules/admin/services/youtube-discovery.service";
 import { TorrentDiscoveryService, type TorrentSourceType } from "./modules/movies/torrent-discovery.service";
+
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
 import { globalErrorHandler } from "./shared/errors/global-handler";
@@ -314,7 +316,10 @@ const start = async () => {
     // Monitor configured YouTube channels every 6 hours.
     const channelService = new YouTubeChannelService(app.prisma);
     const musicChannelService = new YouTubeMusicService(app.prisma);
+    const discoveryService = new YoutubeDiscoveryService(app.prisma);
     const sixHoursMs = 6 * 60 * 60 * 1000;
+    const twelveHoursMs = 12 * 60 * 60 * 1000;
+
     setInterval(() => {
       channelService.monitorAllChannelsEvery6Hours().catch((error) => {
         app.log.error({ error }, "YouTube channel monitor failed");
@@ -323,12 +328,27 @@ const start = async () => {
         app.log.error({ error }, "YouTube music channel monitor failed");
       });
     }, sixHoursMs);
+
+    setInterval(() => {
+      discoveryService.runDiscoveryCycle().catch((error) => {
+        app.log.error({ error }, "YouTube auto-discovery cycle failed");
+      });
+    }, twelveHoursMs);
+
     channelService.monitorAllChannelsEvery6Hours().catch((error) => {
       app.log.error({ error }, "Initial YouTube channel monitor run failed");
     });
     musicChannelService.monitorAll().catch((error) => {
       app.log.error({ error }, "Initial YouTube music channel monitor run failed");
     });
+    
+    // Initial discovery run after 1 hour to avoid quota hits at boot
+    setTimeout(() => {
+      discoveryService.runDiscoveryCycle().catch((error) => {
+        app.log.error({ error }, "Initial YouTube auto-discovery cycle failed");
+      });
+    }, 60 * 60 * 1000);
+
 
     const tvTmdbSyncEnabled = parseBooleanFlag(process.env.TV_TMDB_SYNC_ENABLED, true);
     if (tvTmdbSyncEnabled) {

@@ -7,6 +7,7 @@ import { YoutubeScoutService } from "./services/youtube-scout.service";
 import { RssScoutService } from "./services/rss-scout.service";
 import { TMDBMetadataService } from "./services/tmdb-metadata.service";
 import { YouTubeChannelService } from "./services/youtube-channel.service";
+import { YoutubeDiscoveryService } from "./services/youtube-discovery.service";
 import { AutoLibraryDiscoveryService } from "../books/auto-library-discovery.service";
 import { adminQueueRoutes } from "./admin-queue.routes";
 import { adminUserRoutes } from "./admin-user.routes";
@@ -751,6 +752,30 @@ export const adminRoutes = async (
 
   // ===== YouTube Channel Management Routes =====
   const channelService = new YouTubeChannelService(app.prisma);
+  const discoveryService = new YoutubeDiscoveryService(app.prisma);
+
+  // POST /api/admin/youtube/discovery/run - Manually trigger auto-discovery
+  app.post("/youtube/discovery/run", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        // Run in background
+        discoveryService.runDiscoveryCycle().catch(err => {
+          console.error('[Admin] Manual YouTube discovery failed:', err);
+        });
+
+        return reply.send({
+          status: "success",
+          message: "YouTube auto-discovery cycle started in background",
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message: error instanceof Error ? error.message : "Failed to start discovery",
+        });
+      }
+    },
+  });
 
   // GET /api/admin/youtube/channels - List all configured channels
   app.get("/youtube/channels", {

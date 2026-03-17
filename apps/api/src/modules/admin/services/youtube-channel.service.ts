@@ -874,25 +874,59 @@ export class YouTubeChannelService {
 
   async registerDiscoveredChannel(channelId: string, channelTitle: string, requestedName: string) {
     const existing = await this.prisma.youTubeChannel.findUnique({ where: { channelId } });
+    
+    // If it exists, just ensure it's active
     if (existing) {
-      return this.prisma.youTubeChannel.update({
-        where: { channelId },
-        data: {
-          name: channelTitle || existing.name,
-          url: existing.url || `https://www.youtube.com/channel/${channelId}`,
-          isActive: true,
-        },
-      });
+      if (!existing.isActive) {
+        return this.prisma.youTubeChannel.update({
+          where: { channelId },
+          data: { isActive: true },
+        });
+      }
+      return existing;
     }
 
+    // New channel: Perform basic validation before adding
+    const isNollywood = await this.validateNollywoodChannel(channelId, channelTitle);
+    if (!isNollywood) {
+      console.log(`[Channel Service] Skipping non-Nollywood channel: ${channelTitle} (${channelId})`);
+      return null;
+    }
+
+    console.log(`[Channel Service] Registering new Nollywood channel: ${channelTitle}`);
     return this.prisma.youTubeChannel.create({
       data: {
         channelId,
         name: channelTitle || requestedName,
-        url: requestedName.startsWith('http') ? requestedName : `https://www.youtube.com/@${requestedName.replace(/^@/, '')}`,
+        url: requestedName.startsWith('http') ? requestedName : `https://www.youtube.com/channel/${channelId}`,
         isActive: true,
       },
     });
+  }
+
+  /**
+   * Basic validation to see if a channel is likely a Nollywood movie channel
+   */
+  private async validateNollywoodChannel(channelId: string, title: string): Promise<boolean> {
+    const keywords = ['nollywood', 'movie', 'yoruba', 'igbo', 'hausa', 'cinema', 'film', 'official channel', 'tv', 'entertainment'];
+    const titleLower = title.toLowerCase();
+    
+    // check title first
+    if (keywords.some(k => titleLower.includes(k))) return true;
+
+    try {
+      const yt = getYoutube();
+      const res = await yt.channels.list({
+        part: ['snippet'],
+        id: [channelId],
+      });
+
+      const description = res.data.items?.[0]?.snippet?.description?.toLowerCase() || '';
+      return keywords.some(k => description.includes(k));
+    } catch (error) {
+      console.error(`[Channel Service] Validation failed for ${channelId}:`, error);
+      return false;
+    }
   }
 
 }

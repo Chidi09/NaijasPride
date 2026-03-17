@@ -177,6 +177,70 @@ export class YoutubeScoutService {
     return output;
   }
 
+  /**
+   * Finds trending videos in Nigeria (Film & Animation category)
+   */
+  async discoverTrendingVideos(maxResults = 20): Promise<YouTubeVideoResult[]> {
+    try {
+      const yt = getYoutube();
+      const res = await yt.videos.list({
+        part: ["snippet", "contentDetails"],
+        chart: "mostPopular",
+        regionCode: "NG",
+        videoCategoryId: "1", // Film & Animation
+        maxResults,
+      });
+
+      return (res.data.items || []).map((item) => ({
+        youtubeId: item.id || "",
+        title: item.snippet?.title || "",
+        description: item.snippet?.description || "",
+        thumbnail: item.snippet?.thumbnails?.high?.url || "",
+        channel: item.snippet?.channelTitle || "",
+        publishedAt: item.snippet?.publishedAt || "",
+        channelId: item.snippet?.channelId || "",
+      })) as any;
+    } catch (error) {
+      console.error("[YouTube Scout] Error discovering trending videos:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Search for niche Nollywood content using varied keywords
+   */
+  async discoverByKeywords(keywords: string[], maxResults = 5): Promise<YouTubeVideoResult[]> {
+    const allResults: YouTubeVideoResult[] = [];
+    const yt = getYoutube();
+
+    for (const q of keywords) {
+      try {
+        const res = await yt.search.list({
+          part: ["snippet"],
+          q,
+          type: ["video"],
+          videoDuration: "long",
+          regionCode: "NG",
+          relevanceLanguage: "en",
+          order: "date",
+          maxResults,
+        });
+
+        allResults.push(...this.mapResults(res.data.items));
+      } catch (error) {
+        console.error(`[YouTube Scout] Error searching keywords "${q}":`, error);
+      }
+    }
+
+    // Deduplicate by youtubeId
+    const seen = new Set();
+    return allResults.filter((v) => {
+      if (seen.has(v.youtubeId)) return false;
+      seen.add(v.youtubeId);
+      return true;
+    });
+  }
+
   private mapResults(items: youtube_v3.Schema$SearchResult[] | undefined): YouTubeVideoResult[] {
     return (
       items?.map((item) => ({
@@ -186,7 +250,8 @@ export class YoutubeScoutService {
         thumbnail: item.snippet?.thumbnails?.high?.url || "",
         channel: item.snippet?.channelTitle || "",
         publishedAt: item.snippet?.publishedAt || "",
+        channelId: item.snippet?.channelId || "",
       })) || []
-    );
+    ) as any;
   }
 }
