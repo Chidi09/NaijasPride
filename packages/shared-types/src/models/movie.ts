@@ -7,6 +7,13 @@ export interface MovieMetadata {
   subtitles?: string[];
   trailerUrl?: string;
   nollywood?: boolean;
+  storageKey?: string;
+  contentType?: string;
+  fileSize?: number;
+  source?: string;
+  originalName?: string;
+  processingJobId?: string;
+  [key: string]: any;
 }
 
 export interface CastMember {

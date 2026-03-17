@@ -456,6 +456,7 @@ export const routes: Routes = [
       { path: 'books', loadComponent: () => import('./features/admin/pages/admin-books/admin-books.component').then(m => m.AdminBooksComponent) },
       { path: 'movies', loadComponent: () => import('./features/admin/pages/admin-movie-list/admin-movie-list.component').then(m => m.AdminMovieListComponent) },
       { path: 'movies/new', loadComponent: () => import('./features/admin/pages/admin-movie-create/admin-movie-create.component').then(m => m.AdminMovieCreateComponent) },
+      { path: 'movies/upload', loadComponent: () => import('./features/admin/pages/admin-movie-upload/admin-movie-upload.component').then(m => m.AdminMovieUploadComponent) },
       { path: 'movies/:id/edit', loadComponent: () => import('./features/admin/pages/admin-movie-edit/admin-movie-edit.component').then(m => m.AdminMovieEditComponent) },
       { path: 'discovery', loadComponent: () => import('./features/admin/pages/content-discovery/content-discovery.component').then(m => m.ContentDiscoveryComponent) },
       { path: 'queues', loadComponent: () => import('./features/admin/pages/admin-job-queue/admin-job-queue.component').then(m => m.AdminJobQueueComponent) },

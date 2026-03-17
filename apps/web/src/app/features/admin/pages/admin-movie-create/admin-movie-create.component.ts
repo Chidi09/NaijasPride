@@ -159,9 +159,10 @@ export class AdminMovieCreateComponent {
     return new FormGroup<Record<string, AbstractControl>>({});
   }
 
-  onCheckboxChange(e: any, controlName: 'genre' | 'quality') {
-    const value = e.target.value;
-    const checked = e.target.checked;
+  onCheckboxChange(e: Event, controlName: 'genre' | 'quality') {
+    const target = e.target as HTMLInputElement;
+    const value = target.value;
+    const checked = target.checked;
     const control = this.form.get(controlName);
     let current: string[] = control?.value || [];
 

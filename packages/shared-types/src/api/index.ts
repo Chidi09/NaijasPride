@@ -77,3 +77,53 @@ export interface ApiErrorResponse {
     details?: Record<string, string[]>;
   };
 }
+
+// --- Admin Uploads ---
+export interface AdminUploadUrlRequest {
+  fileName: string;
+  contentType: string;
+}
+
+export interface AdminUploadUrlResponse {
+  uploadUrl: string;
+  storageKey: string;
+}
+
+export interface AdminCreateMovieRequest {
+  title: string;
+  year: number;
+  genre: string | string[];
+  description?: string;
+  duration?: number;
+  thumbnailUrl?: string;
+  storageKey: string;
+  contentType: string;
+  fileSize: number;
+  imdbId?: string;
+  tmdbId?: number;
+  fetchMetadata?: boolean;
+  isStreamOnly?: boolean;
+  director?: string;
+}
+
+export interface AdminBulkUploadMovie {
+  title: string;
+  year: number;
+  genre: string | string[];
+  storageKey: string;
+  contentType: string;
+  fileSize: number;
+  fetchMetadata?: boolean;
+}
+
+export interface AdminBulkUploadRequest {
+  movies: AdminBulkUploadMovie[];
+}
+
+export interface AdminJobProgressResponse {
+  jobId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  message?: string;
+  data?: any;
+}

@@ -36,12 +36,21 @@ import { BrandLogoComponent } from '../../../../shared/components/brand-logo/bra
             Movies
           </a>
           <a 
+            routerLink="/admin/movies/upload" 
+            routerLinkActive="bg-cinema-500 text-white" 
+            class="flex items-center gap-3 px-4 py-3 text-[#b59c95] hover:bg-[#22161b] hover:text-white rounded-lg transition-colors group"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <span>Upload Movie</span>
+            <span class="ml-auto text-[10px] bg-cinema-500/20 text-cinema-400 px-1.5 py-0.5 rounded border border-cinema-500/30 opacity-0 group-hover:opacity-100 transition-opacity">NEW</span>
+          </a>
+          <a 
             routerLink="/admin/movies/new" 
             routerLinkActive="bg-cinema-500 text-white" 
             class="flex items-center gap-3 px-4 py-3 text-[#b59c95] hover:bg-[#22161b] hover:text-white rounded-lg transition-colors"
           >
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 5v14m-7-7h14"/></svg>
-            Add Movie
+            Add External Link
           </a>
           <a 
             routerLink="/admin/discovery" 

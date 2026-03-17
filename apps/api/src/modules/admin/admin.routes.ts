@@ -1274,7 +1274,7 @@ export const adminRoutes = async (
         }
 
         // Prepare movie data with TMDB enrichment
-        const movieData: any = {
+        const movieData = {
           title: body.title,
           slug,
           description: body.description || null,
@@ -1299,7 +1299,7 @@ export const adminRoutes = async (
           fileSizes: {
             "Original": body.fileSize || 0
           },
-          status: 'active',
+          status: 'active' as const,
           uploadedBy: 'admin',
           isStreamOnly: body.isStreamOnly ?? true,
           tmdbId: tmdbData?.id || null,

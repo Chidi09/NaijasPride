@@ -275,12 +275,12 @@ export class AdminUsersComponent implements OnInit {
     this.loading = true;
     this.error = null;
 
-    const params: any = { page, limit: 20 };
+    const params: Record<string, string | number | boolean> = { page, limit: 20 };
     const filters = this.filterForm.value;
 
-    if (filters.search) params.search = filters.search;
-    if (filters.role) params.role = filters.role;
-    if (filters.isPremium !== '') params.isPremium = filters.isPremium === 'true';
+    if (filters.search) params['search'] = filters.search;
+    if (filters.role) params['role'] = filters.role;
+    if (filters.isPremium !== '') params['isPremium'] = filters.isPremium === 'true';
 
     this.http.get<UsersResponse>('/api/v1/admin/users', { params }).subscribe({
       next: (res) => {

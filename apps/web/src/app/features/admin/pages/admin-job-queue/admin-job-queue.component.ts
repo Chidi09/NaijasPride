@@ -17,7 +17,7 @@ interface QueueStats {
 interface QueueJob {
   id: string;
   name: string;
-  data: any;
+  data: Record<string, unknown>;
   progress: number;
   attemptsMade: number;
   failedReason?: string;

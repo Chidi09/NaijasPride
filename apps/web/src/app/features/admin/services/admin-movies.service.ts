@@ -1,23 +1,49 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { injectMutation, injectQueryClient } from '@tanstack/angular-query-experimental';
-import { CreateMovieRequest, ApiResponse, Movie, MovieSearchParams, MovieSummary } from '@naijaspride/types';
-import { lastValueFrom } from 'rxjs';
+import { CreateMovieRequest, ApiResponse, Movie, MovieSearchParams, MovieSummary, AdminUploadUrlRequest, AdminUploadUrlResponse, AdminCreateMovieRequest, AdminBulkUploadRequest, AdminJobProgressResponse } from '@naijaspride/types';
+import { lastValueFrom, map } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class AdminMoviesService {
   private http = inject(HttpClient);
   private queryClient = injectQueryClient();
 
+  // Existing methods...
   createMovieMutation() {
     return injectMutation(() => ({
       mutationFn: (data: CreateMovieRequest) => 
         lastValueFrom(this.http.post<ApiResponse<Movie>>('/api/v1/movies', data)),
       onSuccess: () => {
-        // Invalidate public queries so new content shows up immediately
         this.queryClient.invalidateQueries({ queryKey: ['movies'] });
       },
     }));
+  }
+
+  // Admin Specific Upload Methods
+  getUploadUrl(data: AdminUploadUrlRequest) {
+    return this.http.post<ApiResponse<AdminUploadUrlResponse>>('/api/v1/admin/movies/upload-url', data);
+  }
+
+  adminCreateMovie(data: AdminCreateMovieRequest) {
+    return this.http.post<ApiResponse<Movie>>('/api/v1/admin/movies/create', data);
+  }
+
+  bulkUpload(data: AdminBulkUploadRequest) {
+    return this.http.post<ApiResponse<{ jobId: string }>>('/api/v1/admin/movies/bulk-upload', data);
+  }
+
+  getJobProgress(jobId: string) {
+    return this.http.get<ApiResponse<AdminJobProgressResponse>>(`/api/v1/admin/movies/progress/${jobId}`);
+  }
+
+  // Upload file to R2 using signed URL
+  uploadToR2(url: string, file: File) {
+    return this.http.put(url, file, {
+      headers: { 'Content-Type': file.type },
+      reportProgress: true,
+      observe: 'events'
+    });
   }
 
   getMovies(params: Partial<MovieSearchParams> = { page: 1, limit: 20 }) {
