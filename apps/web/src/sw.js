@@ -15,6 +15,11 @@ const MAX_RUNTIME_ENTRIES = 240;
 
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
+const OFFLINE_RESPONSE = new Response('You are offline or the resource is unavailable.', {
+  status: 503,
+  headers: { 'Content-Type': 'text/plain' },
+});
+
 const KEEP_CACHES = new Set([STATIC_CACHE, RUNTIME_CACHE, OFFLINE_CACHE, MANGA_CACHE, BOOK_CACHE]);
 const HASHED_ASSET_RE = /\.[a-f0-9]{8,}\./i;
 
@@ -107,11 +112,16 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const cloned = response.clone();
-          void putWithLimit(STATIC_CACHE, '/index.html', cloned, MAX_STATIC_ENTRIES);
+          if (response.ok) {
+            const cloned = response.clone();
+            void putWithLimit(STATIC_CACHE, '/index.html', cloned, MAX_STATIC_ENTRIES);
+          }
           return response;
         })
-        .catch(() => caches.match('/index.html')),
+        .catch(async () => {
+          const cached = await caches.match('/index.html');
+          return cached || OFFLINE_RESPONSE;
+        }),
     );
     return;
   }
@@ -160,10 +170,18 @@ self.addEventListener('fetch', (event) => {
           }
 
           // CDN fetch failed — fall back to server-side proxy.
-          return fetch(event.request);
+          try {
+            return await fetch(event.request);
+          } catch {
+            return OFFLINE_RESPONSE;
+          }
         } catch {
           // Network error (CORS block etc.) — fall back to server-side proxy.
-          return fetch(event.request);
+          try {
+            return await fetch(event.request);
+          } catch {
+            return OFFLINE_RESPONSE;
+          }
         }
       }),
     );
@@ -180,8 +198,9 @@ self.addEventListener('fetch', (event) => {
 
     if (isHashed) {
       event.respondWith(
-        caches.match(event.request).then((cached) => {
+        caches.match(event.request).then(async (cached) => {
           if (cached) {
+            // Revalidate in background
             const networkFetch = fetch(event.request)
               .then((response) => {
                 if (response && response.ok) {
@@ -194,12 +213,15 @@ self.addEventListener('fetch', (event) => {
             return cached;
           }
 
-          return fetch(event.request).then((response) => {
+          try {
+            const response = await fetch(event.request);
             if (response && response.ok) {
               void putWithLimit(STATIC_CACHE, event.request, response.clone(), MAX_STATIC_ENTRIES);
             }
             return response;
-          });
+          } catch {
+            return OFFLINE_RESPONSE;
+          }
         }),
       );
       return;
@@ -213,7 +235,10 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(event.request)),
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          return cached || OFFLINE_RESPONSE;
+        }),
     );
     return;
   }
@@ -226,7 +251,10 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request)),
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        return cached || OFFLINE_RESPONSE;
+      }),
   );
 });
 
