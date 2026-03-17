@@ -15,6 +15,40 @@ type Counter = {
   imports: [CommonModule, RouterLink],
   template: `
     <div class="space-y-6">
+      <!-- Admin Quick Guide -->
+      <section class="rounded-xl border border-[#d6b87a]/20 bg-[#1b1014] p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-[#d6b87a]/10 flex items-center justify-center text-[#d6b87a]">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-white">Admin Quick Guide</h2>
+            <p class="text-xs text-[#9f7d73]">How to manage content on NaijasPride</p>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="space-y-2">
+            <h4 class="text-[#d6b87a] text-sm font-bold uppercase tracking-wider">1. Adding Content</h4>
+            <p class="text-xs text-[#b59c95] leading-relaxed">
+              Use <strong class="text-white">Upload Movie</strong> for high-quality files. Use <strong class="text-white">Content Scout</strong> to automate imports from YouTube. Manual links should only be used as a last resort.
+            </p>
+          </div>
+          <div class="space-y-2">
+            <h4 class="text-[#d6b87a] text-sm font-bold uppercase tracking-wider">2. Metadata Sync</h4>
+            <p class="text-xs text-[#b59c95] leading-relaxed">
+              Always click <strong class="text-white">Auto-Fill Info</strong> in the Movie List. This fetches posters, cast, and ratings from TMDB automatically using the movie title and year.
+            </p>
+          </div>
+          <div class="space-y-2">
+            <h4 class="text-[#d6b87a] text-sm font-bold uppercase tracking-wider">3. Monitoring</h4>
+            <p class="text-xs text-[#b59c95] leading-relaxed">
+              Check <strong class="text-white">Job Queues</strong> if a movie isn't appearing. Transcoding and image processing happen in the background and might take a few minutes for large files.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section class="rounded-xl border border-[#2d1a21] bg-[#140d11] p-6">
         <h2 class="text-xl font-semibold text-white">Dashboard</h2>
         <p class="mt-1 text-sm text-[#9f7d73]">Operational snapshot across movies, books, comics, and manga channels.</p>

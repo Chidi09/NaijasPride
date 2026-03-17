@@ -12,15 +12,34 @@ import { AdminMoviesService } from '../../services/admin-movies.service';
     <div class="max-w-5xl mx-auto bg-[#140d11] border border-[#2d1a21] rounded-xl shadow-2xl overflow-hidden">
       <div class="p-6 border-b border-[#2d1a21] flex items-center justify-between gap-4">
         <div>
-          <h2 class="text-xl font-bold text-white">Movies</h2>
-          <p class="text-sm text-[#9f7d73] mt-1">Sync posters, backdrops, cast, and ratings from TMDB.</p>
+          <h2 class="text-xl font-bold text-white">Movie Management</h2>
+          <p class="text-sm text-[#9f7d73] mt-1">Manage, edit, and sync metadata for all movies.</p>
         </div>
-        <a
-          routerLink="/admin/movies/new"
-          class="inline-flex items-center px-4 py-2 rounded-lg bg-cinema-500 text-white font-semibold hover:bg-cinema-400"
-        >
-          + Add Movie
-        </a>
+        <div class="flex gap-3">
+          <a
+            routerLink="/admin/movies/upload"
+            class="inline-flex items-center px-4 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-500 transition-colors shadow-lg shadow-green-900/20"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            Upload File
+          </a>
+          <a
+            routerLink="/admin/movies/new"
+            class="inline-flex items-center px-4 py-2 rounded-lg border border-[#5f1327] bg-[#1b1014] text-[#d6b87a] font-semibold hover:bg-[#2a131a] transition-colors"
+          >
+            + Manual Link
+          </a>
+        </div>
+      </div>
+
+      <!-- User Instructions -->
+      <div class="px-6 py-4 bg-blue-900/10 border-b border-[#2d1a21] flex items-center gap-4">
+        <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <p class="text-xs text-blue-200/70 leading-relaxed">
+          <strong>Tip:</strong> If a movie is missing its poster or details, click <span class="text-white font-bold italic">"Auto-Fill Info"</span>. We use TMDB to automatically fetch the best quality assets based on the title and year you provided.
+        </p>
       </div>
 
       <div class="p-6 border-b border-[#2d1a21] bg-[#1b1014] flex items-center justify-between gap-3">

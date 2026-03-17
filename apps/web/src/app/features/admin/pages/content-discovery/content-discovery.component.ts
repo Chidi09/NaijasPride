@@ -73,9 +73,18 @@ interface ChannelImportResult {
   imports: [CommonModule, FormsModule],
   template: `
     <div class="p-6 max-w-6xl mx-auto">
-      <div class="mb-6">
-        <h2 class="text-2xl font-serif text-white mb-2">Content Scout</h2>
-        <p class="text-gray-400 text-sm">Import Nigerian movies from YouTube channels</p>
+      <div class="mb-6 flex justify-between items-end gap-4 flex-wrap">
+        <div>
+          <h2 class="text-2xl font-serif text-white mb-2">Content Scout</h2>
+          <p class="text-gray-400 text-sm">Automate discovery and ingestion of Nigerian movies from YouTube.</p>
+        </div>
+        
+        <div class="bg-blue-900/10 border border-blue-500/20 rounded-lg px-4 py-3 flex items-center gap-3 max-w-md">
+          <svg class="w-5 h-5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <p class="text-[11px] text-blue-200/60 leading-tight">
+            <strong>How it works:</strong> Add a channel URL to monitor it. Our workers check for new uploads every 6 hours. You can also manually trigger a scan to catch up on old videos.
+          </p>
+        </div>
       </div>
 
       <!-- Tab buttons -->

@@ -10,10 +10,22 @@ import { CreateMovieRequest, Genre, Quality } from '@naijaspride/types';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
-    <div class="max-w-4xl mx-auto bg-[#140d11] border border-[#2d1a21] rounded-xl shadow-2xl overflow-hidden">
-      <div class="p-6 border-b border-[#2d1a21] flex justify-between items-center">
-        <h2 class="text-xl font-bold text-white">Add New Movie</h2>
-      </div>
+    <div class="max-w-4xl mx-auto space-y-6">
+      <div class="bg-[#140d11] border border-[#2d1a21] rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-6 border-b border-[#2d1a21] flex justify-between items-center bg-yellow-900/5">
+          <div>
+            <h2 class="text-xl font-bold text-white">Manual Movie Registration</h2>
+            <p class="text-xs text-[#9f7d73] mt-1">Register external video links or YouTube embeds.</p>
+          </div>
+          <a routerLink="/admin/movies/upload" class="px-4 py-2 bg-cinema-500 text-white text-xs font-bold rounded-lg hover:bg-cinema-400">Switch to File Upload</a>
+        </div>
+
+        <div class="px-6 py-4 bg-yellow-900/10 border-b border-[#2d1a21] flex items-start gap-4">
+          <svg class="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <p class="text-xs text-yellow-200/70 leading-relaxed">
+            <strong>Use this only for External Links:</strong> If you have a video file (MP4, MKV) on your computer, please use the <strong class="text-white">Upload Movie</strong> section instead. This form is for movies already hosted elsewhere.
+          </p>
+        </div>
 
       <form [formGroup]="form" (ngSubmit)="onSubmit()" class="p-6 space-y-6">
         
