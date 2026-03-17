@@ -9,7 +9,9 @@ import { RouterLink } from "@angular/router";
 import { Movie } from "@naijaspride/types";
 import { OfflineStorageService } from "../../../../core/services/offline-storage.service";
 import { AuthStateService } from "../../../../core/auth/auth-state.service";
+import { AdPolicyService } from "../../../../core/services/ad-policy.service";
 import { PwaService } from "../../../../core/services/pwa.service";
+
 import { SymbolIconComponent } from "../../../../shared/components/symbol-icon/symbol-icon.component";
 import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-group.directive";
 
@@ -140,7 +142,7 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                   </div>
                 </div>
 
-                @if (!auth.isPremium()) {
+                @if (adPolicy.canShowAds()) {
                   <a
                     [href]="smartlinkUrl"
                     target="_blank"
@@ -151,6 +153,7 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                     Explore sponsor offers
                   </a>
                 }
+
               </aside>
             </div>
           } @else {
@@ -241,7 +244,7 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
 
             <app-effectivegate-banner></app-effectivegate-banner>
 
-            @if (!auth.isPremium()) {
+            @if (adPolicy.canShowAds()) {
               <div class="mb-4 flex justify-center">
                 <a
                   [href]="smartlinkUrl"
@@ -253,6 +256,7 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                 </a>
               </div>
             }
+
 
             <div
               class="mt-2 flex flex-col sm:flex-row items-center justify-between gap-4"
@@ -304,7 +308,9 @@ export class WatchRoomComponent {
   private offlineService = inject(OfflineStorageService);
   protected pwaService = inject(PwaService);
   auth = inject(AuthStateService);
+  adPolicy = inject(AdPolicyService);
   query = this.movieQuery.getMovieDetailQuery(this.slug);
+
 
   showIntro = true;
   isOffline = signal(false);
