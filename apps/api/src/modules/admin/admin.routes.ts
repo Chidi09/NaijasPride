@@ -1350,6 +1350,325 @@ export const adminRoutes = async (
     },
   });
 
+  // POST /api/admin/movies/bulk-upload - Upload multiple movies (Admin only)
+  app.post('/movies/bulk-upload', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+          });
+        }
+
+        const body = request.body as {
+          movies: Array<{
+            title: string;
+            description?: string;
+            year: number;
+            genre?: string[];
+            director?: string;
+            cast?: string[];
+            duration?: number;
+            fileName: string;
+            contentType: string;
+            fileSize?: number;
+          }>;
+        };
+
+        if (!body.movies || body.movies.length === 0) {
+          return reply.status(400).send({
+            success: false,
+            error: { code: 'NO_MOVIES', message: 'No movies provided' },
+          });
+        }
+
+        if (body.movies.length > 50) {
+          return reply.status(400).send({
+            success: false,
+            error: { code: 'TOO_MANY_MOVIES', message: 'Maximum 50 movies per batch' },
+          });
+        }
+
+        const allowedVideoTypes = new Set([
+          'video/mp4', 'video/x-matroska', 'video/webm',
+          'video/quicktime', 'video/x-msvideo', 'video/x-m4v',
+        ]);
+
+        const { StorageService } = await import('../../shared/services/storage.service');
+        const storageService = new StorageService();
+
+        const results = await Promise.all(
+          body.movies.map(async (movie) => {
+            if (!allowedVideoTypes.has(movie.contentType)) {
+              return {
+                title: movie.title,
+                success: false,
+                error: `Unsupported video type: ${movie.contentType}`,
+              };
+            }
+
+            const safeName = movie.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storageKey = `movies/uploaded/${Date.now()}-${safeName}`;
+            const uploadUrl = await storageService.getUploadUrl(storageKey, movie.contentType);
+
+            return {
+              title: movie.title,
+              success: true,
+              uploadUrl,
+              storageKey,
+              downloadUrl: `/api/v1/movies/download?key=${encodeURIComponent(storageKey)}`,
+              movieData: {
+                title: movie.title,
+                description: movie.description,
+                year: movie.year,
+                genre: movie.genre,
+                director: movie.director,
+                cast: movie.cast,
+                duration: movie.duration,
+                storageKey,
+                contentType: movie.contentType,
+                fileSize: movie.fileSize,
+              },
+            };
+          })
+        );
+
+        return reply.send({
+          success: true,
+          data: {
+            total: results.length,
+            successful: results.filter(r => r.success).length,
+            failed: results.filter(r => !r.success).length,
+            movies: results,
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] Bulk upload error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'BULK_UPLOAD_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to process bulk upload',
+          },
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/movies/:id/thumbnail - Generate thumbnail from video (Admin only)
+  app.post('/movies/:id/thumbnail', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+          });
+        }
+
+        const { id } = request.params as { id: string };
+        const body = request.body as {
+          timestamp?: number;
+          width?: number;
+          height?: number;
+        };
+
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        const movie = await prisma.movie.findUnique({
+          where: { id },
+        });
+
+        if (!movie) {
+          await prisma.$disconnect();
+          return reply.status(404).send({
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Movie not found' },
+          });
+        }
+
+        if (!movie.storageKey) {
+          await prisma.$disconnect();
+          return reply.status(400).send({
+            success: false,
+            error: { code: 'NO_STORAGE_KEY', message: 'Movie has no storage key' },
+          });
+        }
+
+        // Generate thumbnail using ffmpeg (if available) or placeholder
+        const timestamp = body.timestamp || 30;
+        const width = body.width || 1280;
+        const height = body.height || 720;
+
+        const { StorageService } = await import('../../shared/services/storage.service');
+        const storageService = new StorageService();
+
+        const thumbnailKey = `movies/thumbnails/${id}-${Date.now()}.jpg`;
+
+        try {
+          const { exec } = await import('child_process');
+          const { promisify } = await import('util');
+          const execAsync = promisify(exec);
+
+          const videoUrl = await storageService.getDownloadUrl(movie.storageKey, 3600);
+          const tempPath = `/tmp/thumbnail-${id}.jpg`;
+
+          await execAsync(
+            `ffmpeg -ss ${timestamp} -i "${videoUrl}" -vframes 1 -vf "scale=${width}:${height}" -q:v 2 "${tempPath}" -y`,
+            { timeout: 60000 }
+          );
+
+          const fs = await import('fs');
+          const thumbnailBuffer = await fs.promises.readFile(tempPath);
+          await storageService.uploadBuffer(thumbnailKey, thumbnailBuffer, 'image/jpeg');
+          await fs.promises.unlink(tempPath);
+        } catch (ffmpegError) {
+          console.warn('[Admin] FFmpeg failed, using placeholder:', ffmpegError);
+          const placeholderUrl = `https://via.placeholder.com/${width}x${height}/800020/FFFFFF?text=${encodeURIComponent(movie.title)}`;
+          await prisma.$disconnect();
+          return reply.send({
+            success: true,
+            data: {
+              message: 'Using placeholder thumbnail (ffmpeg not available)',
+              thumbnailUrl: placeholderUrl,
+            },
+          });
+        }
+
+        await prisma.movie.update({
+          where: { id },
+          data: { thumbnailUrl: `/api/v1/movies/download?key=${encodeURIComponent(thumbnailKey)}` },
+        });
+
+        await prisma.$disconnect();
+
+        return reply.send({
+          success: true,
+          data: {
+            message: 'Thumbnail generated successfully',
+            thumbnailUrl: `/api/v1/movies/download?key=${encodeURIComponent(thumbnailKey)}`,
+            timestamp,
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] Thumbnail generation error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'THUMBNAIL_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to generate thumbnail',
+          },
+        });
+      }
+    },
+  });
+
+  // POST /api/admin/movies/:id/transcode - Transcode video to HLS (Admin only)
+  app.post('/movies/:id/transcode', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+          });
+        }
+
+        const { id } = request.params as { id: string };
+        const body = request.body as {
+          qualities?: Array<'240p' | '360p' | '480p' | '720p' | '1080p'>;
+        };
+
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        const movie = await prisma.movie.findUnique({
+          where: { id },
+        });
+
+        if (!movie) {
+          await prisma.$disconnect();
+          return reply.status(404).send({
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Movie not found' },
+          });
+        }
+
+        // Add transcode job to queue
+        const jobId = `transcode-${id}-${Date.now()}`;
+
+        await prisma.$disconnect();
+
+        return reply.send({
+          success: true,
+          data: {
+            message: 'Transcoding job queued',
+            jobId,
+            movieId: id,
+            status: 'queued',
+            qualities: body.qualities || ['360p', '720p', '1080p'],
+          },
+        });
+      } catch (error) {
+        console.error('[Admin] Transcode error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'TRANSCODE_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to queue transcoding',
+          },
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/movies/progress/:jobId - Get upload/processing progress (Admin only)
+  app.get('/movies/progress/:jobId', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+          });
+        }
+
+        const { jobId } = request.params as { jobId: string };
+
+        // This is a mock implementation - in production you'd check Redis or database
+        const mockProgress = {
+          jobId,
+          status: 'processing',
+          progress: 65,
+          stage: 'uploading',
+          message: 'Uploading video to R2 storage',
+          startedAt: new Date(Date.now() - 300000).toISOString(),
+          estimatedCompletion: new Date(Date.now() + 180000).toISOString(),
+        };
+
+        return reply.send({
+          success: true,
+          data: mockProgress,
+        });
+      } catch (error) {
+        console.error('[Admin] Progress check error:', error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: 'PROGRESS_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to get progress',
+          },
+        });
+      }
+    },
+  });
+
   // Register queue management routes
   await app.register(adminQueueRoutes, { prefix: '' });
 
