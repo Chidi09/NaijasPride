@@ -72,52 +72,52 @@ interface ChannelImportResult {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="p-6 max-w-6xl mx-auto">
+    <div class="p-6 max-w-6xl mx-auto text-[#24181b] dark:text-white">
       <div class="mb-6 flex justify-between items-end gap-4 flex-wrap">
         <div>
-          <h2 class="text-2xl font-serif text-white mb-2">Content Scout</h2>
-          <p class="text-gray-400 text-sm">Automate discovery and ingestion of Nigerian movies from YouTube.</p>
+          <h2 class="text-2xl font-serif text-[#24181b] dark:text-white mb-2">Content Scout</h2>
+          <p class="text-[#7b6660] dark:text-gray-400 text-sm">Automate discovery and ingestion of Nigerian movies from YouTube.</p>
         </div>
         
-        <div class="bg-blue-900/10 border border-blue-500/20 rounded-lg px-4 py-3 flex items-center gap-3 max-w-md">
+        <div class="bg-blue-100/70 border border-blue-300 rounded-lg px-4 py-3 flex items-center gap-3 max-w-md dark:bg-blue-900/10 dark:border-blue-500/20">
           <svg class="w-5 h-5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <p class="text-[11px] text-blue-200/60 leading-tight">
+          <p class="text-[11px] text-blue-900/80 leading-tight dark:text-blue-200/60">
             <strong>How it works:</strong> Add a channel URL to monitor it. Our workers check for new uploads every 6 hours. You can also manually trigger a scan to catch up on old videos.
           </p>
         </div>
       </div>
 
       <!-- Tab buttons -->
-      <div class="flex gap-2 mb-8 border-b border-[#5f1327]/40 pb-4 flex-wrap">
+      <div class="flex gap-2 mb-8 border-b border-[#dcc5b8] pb-4 flex-wrap dark:border-[#5f1327]/40">
         <button
           (click)="activeTab.set('my-channels')"
           [class]="activeTab() === 'my-channels'
             ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
         >My Channels</button>
         <button
           (click)="activeTab.set('channels')"
           [class]="activeTab() === 'channels'
             ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
         >Add Channels (Bulk)</button>
         <button
           (click)="activeTab.set('search')"
           [class]="activeTab() === 'search'
             ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
         >Search by Title</button>
         <button
           (click)="activeTab.set('trending')"
           [class]="activeTab() === 'trending'
             ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
         >Trending</button>
         <button
           (click)="activeTab.set('rss')"
           [class]="activeTab() === 'rss'
             ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-gray-400 hover:text-white px-4 py-2 rounded text-sm border border-gray-700'"
+            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
         >RSS Feed</button>
       </div>
 
@@ -125,15 +125,15 @@ interface ChannelImportResult {
       @if (activeTab() === 'my-channels') {
         <div class="space-y-6">
           <!-- Add New Channel -->
-          <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-4">
-            <h3 class="text-[#d6b87a] font-bold mb-3">Add New Channel</h3>
+          <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#5f1327]">
+            <h3 class="text-[#5f1327] font-bold mb-3 dark:text-[#d6b87a]">Add New Channel</h3>
             <div class="flex gap-3">
               <input
                 type="url"
                 [ngModel]="newChannelUrl()"
                 (ngModelChange)="newChannelUrl.set($event)"
                 placeholder="https://www.youtube.com/@channelname"
-                class="flex-1 rounded-lg border border-[#5f1327] bg-[#0d0d0d] px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-[#800020]"
+                class="flex-1 rounded-lg border border-[#dcc5b8] bg-white px-4 py-2 text-[#24181b] placeholder-[#8a756e] outline-none focus:border-[#800020] dark:border-[#5f1327] dark:bg-[#0d0d0d] dark:text-white dark:placeholder-gray-500"
               >
               <button
                 (click)="addChannel()"
@@ -152,11 +152,11 @@ interface ChannelImportResult {
           </div>
 
           <!-- Backfill from existing movies -->
-          <div class="bg-[#1b1014] border border-[#5f1327]/60 rounded-lg p-4">
+          <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#5f1327]/60">
             <div class="flex items-start justify-between gap-4 mb-3">
               <div>
-                <h3 class="text-[#d6b87a] font-bold mb-1">Recover Channels from Existing Movies</h3>
-                <p class="text-gray-400 text-sm">If you already have YouTube movies imported, this will look up their channels and register them here automatically.</p>
+                <h3 class="text-[#5f1327] font-bold mb-1 dark:text-[#d6b87a]">Recover Channels from Existing Movies</h3>
+                <p class="text-[#7b6660] dark:text-gray-400 text-sm">If you already have YouTube movies imported, this will look up their channels and register them here automatically.</p>
               </div>
               <button
                 (click)="backfillChannels()"
@@ -174,11 +174,11 @@ interface ChannelImportResult {
             @if (backfillProgress(); as bp) {
               <div class="space-y-2">
                 @if (bp.status === 'running' || bp.status === 'pending') {
-                  <div class="flex justify-between text-xs text-gray-400">
+                  <div class="flex justify-between text-xs text-[#7b6660] dark:text-gray-400">
                     <span>Scanning movies...</span>
                     <span>{{ bp.processed }} / {{ bp.total }}</span>
                   </div>
-                  <div class="w-full bg-[#0d0d0d] rounded-full h-2">
+                  <div class="w-full bg-white/90 rounded-full h-2 dark:bg-[#0d0d0d]">
                     <div
                       class="bg-[#d6b87a] h-2 rounded-full transition-all"
                       [style.width.%]="bp.total > 0 ? (bp.processed / bp.total) * 100 : 0"
@@ -196,7 +196,7 @@ interface ChannelImportResult {
                 @if (bp.errors.length > 0) {
                   <details class="text-xs">
                     <summary class="text-yellow-400 cursor-pointer">{{ bp.errors.length }} warning(s)</summary>
-                    <div class="mt-1 text-gray-500 max-h-20 overflow-y-auto">
+                      <div class="mt-1 text-[#8a756e] max-h-20 overflow-y-auto dark:text-gray-500">
                       @for (err of bp.errors.slice(0, 5); track err) {
                         <p>{{ err }}</p>
                       }
@@ -209,23 +209,23 @@ interface ChannelImportResult {
 
           <!-- Channel List -->
           @if (channels().length === 0) {
-            <div class="text-center py-12 text-gray-500">
+            <div class="text-center py-12 text-[#8a756e] dark:text-gray-500">
               <p class="text-lg mb-2">No channels configured yet</p>
               <p class="text-sm">Add a YouTube channel above, or click "Scan Existing Movies" to recover channels from your imported movies</p>
             </div>
           } @else {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @for (channel of channels(); track channel.id) {
-                <div class="bg-[#120a0d] border border-[#5f1327]/40 rounded-lg p-4 hover:border-[#800020]/60 transition">
+                <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 hover:border-[#800020]/40 transition dark:bg-[#120a0d] dark:border-[#5f1327]/40 dark:hover:border-[#800020]/60">
                   <div class="flex items-start justify-between mb-3">
                     <div>
-                      <h3 class="text-white font-bold">{{ channel.name }}</h3>
+                      <h3 class="text-[#24181b] font-bold dark:text-white">{{ channel.name }}</h3>
                       <a [href]="channel.url" target="_blank" class="text-xs text-[#d6b87a] hover:underline">{{ channel.channelId }}</a>
                     </div>
                     <div class="flex gap-2">
                       <button
                         (click)="viewChannelVideos(channel)"
-                        class="text-xs px-3 py-1.5 rounded bg-[#1b1014] text-gray-300 hover:text-white hover:bg-[#2d1a21] transition"
+                        class="text-xs px-3 py-1.5 rounded bg-white text-[#7b6660] hover:text-[#24181b] hover:bg-[#f6e4d7] transition dark:bg-[#1b1014] dark:text-gray-300 dark:hover:text-white dark:hover:bg-[#2d1a21]"
                       >
                         View Videos
                       </button>
@@ -245,23 +245,23 @@ interface ChannelImportResult {
 
                   <!-- Stats -->
                   <div class="grid grid-cols-3 gap-2 mb-3">
-                    <div class="bg-[#0d0d0d] rounded p-2 text-center">
-                      <div class="text-lg font-bold text-white">{{ channel.stats.totalVideos }}</div>
-                      <div class="text-[10px] text-gray-500 uppercase">Total</div>
+                    <div class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]">
+                      <div class="text-lg font-bold text-[#24181b] dark:text-white">{{ channel.stats.totalVideos }}</div>
+                      <div class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500">Total</div>
                     </div>
-                    <div class="bg-[#0d0d0d] rounded p-2 text-center">
+                    <div class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]">
                       <div class="text-lg font-bold text-green-400">{{ channel.stats.importedCount }}</div>
-                      <div class="text-[10px] text-gray-500 uppercase">Imported</div>
+                      <div class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500">Imported</div>
                     </div>
-                    <div class="bg-[#0d0d0d] rounded p-2 text-center">
+                    <div class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]">
                       <div class="text-lg font-bold text-[#d6b87a]">{{ channel.stats.remainingCount }}</div>
-                      <div class="text-[10px] text-gray-500 uppercase">Remaining</div>
+                      <div class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500">Remaining</div>
                     </div>
                   </div>
 
                   <!-- Last Synced -->
                   @if (channel.lastSyncedAt) {
-                    <p class="text-xs text-gray-500 mb-3">
+                    <p class="text-xs text-[#8a756e] mb-3 dark:text-gray-500">
                       Last synced: {{ channel.lastSyncedAt | date:'medium' }}
                     </p>
                   }
@@ -285,11 +285,11 @@ interface ChannelImportResult {
                   <!-- Progress Bar -->
                   @if (batchImportProgress(channel.channelId); as progress) {
                     <div class="mt-3 space-y-2">
-                      <div class="flex justify-between text-xs text-gray-400">
+                      <div class="flex justify-between text-xs text-[#7b6660] dark:text-gray-400">
                         <span>Batch {{ progress.currentBatch }} of {{ progress.totalBatches }}</span>
                         <span>{{ progress.processed }} / {{ progress.total }}</span>
                       </div>
-                      <div class="w-full bg-[#0d0d0d] rounded-full h-2">
+                      <div class="w-full bg-white rounded-full h-2 dark:bg-[#0d0d0d]">
                         <div 
                           class="bg-[#d6b87a] h-2 rounded-full transition-all"
                           [style.width.%]="(progress.processed / progress.total) * 100"
@@ -303,7 +303,7 @@ interface ChannelImportResult {
                       @if (progress.errors.length > 0) {
                         <details class="text-xs">
                           <summary class="text-red-400 cursor-pointer">{{ progress.errors.length }} errors</summary>
-                          <div class="mt-1 text-gray-500 max-h-20 overflow-y-auto">
+                          <div class="mt-1 text-[#8a756e] max-h-20 overflow-y-auto dark:text-gray-500">
                             @for (error of progress.errors.slice(0, 5); track error) {
                               <p>{{ error }}</p>
                             }
@@ -319,11 +319,11 @@ interface ChannelImportResult {
 
           <!-- Batch Import All Channels -->
           @if (channels().length > 0 && totalRemaining() > 0) {
-            <div class="bg-[#1b1014] border border-[#800020] rounded-lg p-4">
+            <div class="bg-[#fff7f0] border border-[#d6b87a]/50 rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#800020]">
               <div class="flex items-center justify-between">
                 <div>
-                  <h3 class="text-white font-bold">Bulk Import All Channels</h3>
-                  <p class="text-gray-400 text-sm">{{ totalRemaining() }} videos remaining across all channels</p>
+                  <h3 class="text-[#24181b] font-bold dark:text-white">Bulk Import All Channels</h3>
+                  <p class="text-[#7b6660] dark:text-gray-400 text-sm">{{ totalRemaining() }} videos remaining across all channels</p>
                 </div>
                 <button
                   (click)="importAllChannels()"
@@ -346,12 +346,12 @@ interface ChannelImportResult {
       <!-- ============ CHANNEL DETAIL MODAL ============ -->
       @if (selectedChannel(); as channel) {
         <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div class="bg-[#120a0d] border border-[#5f1327] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col dark:bg-[#120a0d] dark:border-[#5f1327]">
             <!-- Header -->
-            <div class="p-4 border-b border-[#5f1327] flex items-center justify-between">
+            <div class="p-4 border-b border-[#dcc5b8] flex items-center justify-between dark:border-[#5f1327]">
               <div>
-                <h3 class="text-white font-bold text-lg">{{ channel.name }}</h3>
-                <p class="text-gray-400 text-sm">{{ channelVideos().length }} videos loaded</p>
+                <h3 class="text-[#24181b] font-bold text-lg dark:text-white">{{ channel.name }}</h3>
+                <p class="text-[#7b6660] dark:text-gray-400 text-sm">{{ channelVideos().length }} videos loaded</p>
               </div>
               <div class="flex items-center gap-3">
                 @if (selectedChannelRemaining() > 0) {
@@ -368,7 +368,7 @@ interface ChannelImportResult {
                 }
                 <button
                   (click)="closeChannelDetail()"
-                  class="text-gray-400 hover:text-white text-xl"
+                  class="text-[#7b6660] hover:text-[#24181b] text-xl dark:text-gray-400 dark:hover:text-white"
                 >
                   &times;
                 </button>
@@ -376,24 +376,24 @@ interface ChannelImportResult {
             </div>
 
             <!-- Filter Tabs -->
-            <div class="flex gap-2 p-4 border-b border-[#5f1327] bg-[#0d0d0d]">
+            <div class="flex gap-2 p-4 border-b border-[#dcc5b8] bg-white dark:border-[#5f1327] dark:bg-[#0d0d0d]">
               <button
                 (click)="videoFilter.set('all')"
-                [class]="videoFilter() === 'all' ? 'text-white border-b-2 border-[#800020]' : 'text-gray-400 hover:text-white'"
+                [class]="videoFilter() === 'all' ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white' : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'"
                 class="px-3 py-1 text-sm transition"
               >
                 All ({{ channelVideos().length }})
               </button>
               <button
                 (click)="videoFilter.set('not-imported')"
-                [class]="videoFilter() === 'not-imported' ? 'text-white border-b-2 border-[#800020]' : 'text-gray-400 hover:text-white'"
+                [class]="videoFilter() === 'not-imported' ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white' : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'"
                 class="px-3 py-1 text-sm transition"
               >
                 Not Imported ({{ selectedChannelRemaining() }})
               </button>
               <button
                 (click)="videoFilter.set('imported')"
-                [class]="videoFilter() === 'imported' ? 'text-white border-b-2 border-[#800020]' : 'text-gray-400 hover:text-white'"
+                [class]="videoFilter() === 'imported' ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white' : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'"
                 class="px-3 py-1 text-sm transition"
               >
                 Imported ({{ importedChannelVideosCount() }})
@@ -405,7 +405,7 @@ interface ChannelImportResult {
               @if (isLoadingChannelVideos()) {
                 <div class="text-center py-12">
                   <span class="inline-block w-8 h-8 border-2 border-[#800020] border-t-transparent rounded-full animate-spin"></span>
-                  <p class="text-gray-400 mt-2">Loading videos...</p>
+                  <p class="text-[#7b6660] dark:text-gray-400 mt-2">Loading videos...</p>
                 </div>
               } @else if (filteredChannelVideos().length === 0) {
                 <div class="text-center py-12 text-gray-500">
@@ -414,7 +414,7 @@ interface ChannelImportResult {
               } @else {
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   @for (video of filteredChannelVideos(); track video.youtubeId) {
-                    <div class="bg-[#1b1014] border rounded-lg overflow-hidden flex flex-col"
+                    <div class="bg-[#fff7f0] border rounded-lg overflow-hidden flex flex-col dark:bg-[#1b1014]"
                          [class.border-green-800]="video.isImported"
                          [class.border-[#5f1327]]="!video.isImported">
                       <div class="relative">
@@ -426,8 +426,8 @@ interface ChannelImportResult {
                         }
                       </div>
                       <div class="p-3 flex-grow">
-                        <h4 class="text-white text-sm font-bold line-clamp-2">{{ video.title }}</h4>
-                        <p class="text-gray-500 text-xs mt-1">
+                        <h4 class="text-[#24181b] text-sm font-bold line-clamp-2 dark:text-white">{{ video.title }}</h4>
+                        <p class="text-[#8a756e] dark:text-gray-500 text-xs mt-1">
                           {{ video.publishedAt | date:'mediumDate' }}
                         </p>
                       </div>
@@ -479,10 +479,10 @@ interface ChannelImportResult {
 
       <!-- ============ ADD CHANNELS TAB (BULK IMPORT) ============ -->
       @if (activeTab() === 'channels') {
-        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
           <h3 class="text-[#d6b87a] font-bold mb-2">Bulk Channel Import</h3>
-          <p class="text-gray-400 text-sm mb-4">
-            Bulk import is currently consolidated under <strong class="text-white">My Channels</strong>.
+          <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
+            Bulk import is currently consolidated under <strong class="text-[#24181b] dark:text-white">My Channels</strong>.
             Add channels there, then run import in batches with progress tracking.
           </p>
           <button
@@ -496,11 +496,11 @@ interface ChannelImportResult {
 
       <!-- ============ SEARCH BY TITLE TAB ============ -->
       @if (activeTab() === 'search') {
-        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
           <h3 class="text-[#d6b87a] font-bold mb-2">Title Search Import</h3>
-          <p class="text-gray-400 text-sm mb-4">
+          <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
             Title-based import has been folded into channel workflows for reliability.
-            Use <strong class="text-white">My Channels</strong> to import verified long-form videos.
+            Use <strong class="text-[#24181b] dark:text-white">My Channels</strong> to import verified long-form videos.
           </p>
           <button
             (click)="activeTab.set('my-channels')"
@@ -513,9 +513,9 @@ interface ChannelImportResult {
 
       <!-- ============ TRENDING SCAN TAB ============ -->
       @if (activeTab() === 'trending') {
-        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
           <h3 class="text-[#d6b87a] font-bold mb-2">Trending Scout</h3>
-          <p class="text-gray-400 text-sm mb-4">
+          <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
             Trending scan is temporarily paused while we prioritize channel-based imports.
             This avoids duplicate entries and improves metadata quality.
           </p>
@@ -530,9 +530,9 @@ interface ChannelImportResult {
 
       <!-- ============ RSS TAB ============ -->
       @if (activeTab() === 'rss') {
-        <div class="bg-[#1b1014] border border-[#5f1327] rounded-lg p-6">
+        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
           <h3 class="text-[#d6b87a] font-bold mb-2">RSS Ingestion</h3>
-          <p class="text-gray-400 text-sm mb-4">
+          <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
             RSS import is managed from server-side automation. This panel is reserved for future manual controls.
           </p>
           <button

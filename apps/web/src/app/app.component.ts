@@ -145,9 +145,17 @@ export class AppComponent implements OnInit {
       const canShowAds = this.adPolicy.canShowAds();
       if (canShowAds) {
         this.adScriptService.ensureAdSenseAutoAdsScript();
-        this.adScriptService.ensureEffectiveGateSocialBarScript();
       } else {
         this.adScriptService.unloadAllAdScripts();
+      }
+    });
+
+    effect(() => {
+      const canShowSocialBarAds = this.adPolicy.canShowSocialBarAds();
+      if (canShowSocialBarAds) {
+        this.adScriptService.ensureEffectiveGateSocialBarScript();
+      } else {
+        this.adScriptService.unloadEffectiveGateSocialBarScript();
       }
     });
   }

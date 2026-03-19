@@ -32,8 +32,41 @@ import type { TtsVoice } from '../services/reader-tts.service';
     MatSliderModule,
     MatTooltipModule,
   ],
+  styles: [
+    `
+      .np-sidebar-shell {
+        width: min(92vw, 420px);
+        background: color-mix(in srgb, var(--np-reader-surface) 95%, var(--np-reader-bg) 5%);
+        color: var(--np-reader-fg);
+        border-left: 1px solid var(--np-reader-border);
+        backdrop-filter: blur(14px);
+        font-family: var(--np-reader-ui);
+      }
+
+      .np-sidebar-kicker {
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--np-reader-muted);
+      }
+
+      .np-sidebar-panel {
+        border: 1px solid var(--np-reader-border);
+        border-radius: 10px;
+        background: color-mix(in srgb, var(--np-reader-bg) 70%, transparent);
+      }
+
+      .np-sidebar-panel-title {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--np-reader-accent);
+        font-weight: 700;
+      }
+    `,
+  ],
   template: `
-    <div class="h-full w-[min(92vw,420px)] bg-[var(--np-reader-bg)] text-[var(--np-reader-fg)]">
+    <div class="np-sidebar-shell h-full">
       <div class="flex items-center justify-between gap-3 border-b border-[var(--np-reader-border)] px-4 py-3">
         <div class="min-w-0">
           <p class="truncate text-sm font-semibold">Reader</p>
@@ -45,7 +78,7 @@ import type { TtsVoice } from '../services/reader-tts.service';
       </div>
 
       <div class="h-full overflow-auto px-4 py-4">
-        <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-muted)]">Search</p>
+        <p class="np-sidebar-kicker">Search</p>
         <div class="mt-3 flex items-center gap-2">
           <input
             #searchBox
@@ -157,8 +190,8 @@ import type { TtsVoice } from '../services/reader-tts.service';
           </div>
         }
 
-        <div class="mt-6 rounded-lg border border-[var(--np-reader-border)] p-3">
-          <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--np-reader-accent)] font-medium">Theme</p>
+        <div class="np-sidebar-panel mt-6 p-3">
+          <p class="np-sidebar-panel-title">Theme</p>
           <div class="mt-3 grid grid-cols-3 gap-2">
             <button mat-stroked-button type="button" (click)="setTheme.emit('paper')" [class.mat-accent]="theme === 'paper'">Paper</button>
             <button mat-stroked-button type="button" (click)="setTheme.emit('sepia')" [class.mat-accent]="theme === 'sepia'">Sepia</button>

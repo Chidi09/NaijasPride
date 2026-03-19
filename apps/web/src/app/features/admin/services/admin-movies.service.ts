@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { injectMutation, injectQueryClient } from '@tanstack/angular-query-experimental';
-import { CreateMovieRequest, ApiResponse, Movie, MovieSearchParams, MovieSummary, AdminUploadUrlRequest, AdminUploadUrlResponse, AdminCreateMovieRequest, AdminBulkUploadRequest, AdminJobProgressResponse } from '@naijaspride/types';
+import { CreateMovieRequest, ApiResponse, Movie, MovieSearchParams, MovieSummary, AdminUploadUrlRequest, AdminUploadUrlResponse, AdminCreateMovieRequest, AdminBulkUploadRequest, AdminJobProgressResponse, AdminRevenueSummary, AdminRevenueBreakdownItem, AdminRecordAdRevenueRequest } from '@naijaspride/types';
 import { lastValueFrom, map } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
@@ -44,6 +44,21 @@ export class AdminMoviesService {
       reportProgress: true,
       observe: 'events'
     });
+  }
+
+  // Revenue Methods
+  getRevenueSummary() {
+    return this.http.get<ApiResponse<AdminRevenueSummary>>('/api/v1/admin/revenue/summary');
+  }
+
+  getRevenueBreakdown(period: 'weekly' | 'monthly' | 'yearly' = 'monthly') {
+    return this.http.get<ApiResponse<AdminRevenueBreakdownItem[]>>('/api/v1/admin/revenue/breakdown', {
+      params: { period }
+    });
+  }
+
+  recordAdRevenue(data: AdminRecordAdRevenueRequest) {
+    return this.http.post<ApiResponse<any>>('/api/v1/admin/revenue/ads/record', data);
   }
 
   getMovies(params: Partial<MovieSearchParams> = { page: 1, limit: 20 }) {

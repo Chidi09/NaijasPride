@@ -19,24 +19,24 @@ type UploadUrlResponse = {
   imports: [CommonModule, FormsModule],
   template: `
     <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <section class="rounded-xl border border-[#2d1a21] bg-[#140d11]">
-        <div class="border-b border-[#2d1a21] p-6">
-          <h2 class="text-xl font-bold text-white">Upload Book / Comic</h2>
-          <p class="mt-1 text-sm text-[#9f7d73]">Upload EPUB/PDF files, then publish metadata to the library.</p>
+      <section class="rounded-xl border border-[#dcc5b8] bg-[#fffdf8] dark:border-[#2d1a21] dark:bg-[#140d11]">
+        <div class="border-b border-[#dcc5b8] p-6 dark:border-[#2d1a21]">
+          <h2 class="text-xl font-bold text-[#24181b] dark:text-white">Upload Book / Comic</h2>
+          <p class="mt-1 text-sm text-[#7b6660] dark:text-[#9f7d73]">Upload EPUB/PDF files, then publish metadata to the library.</p>
         </div>
 
         <div class="space-y-5 p-6">
-          <div class="rounded-lg border border-[#5f1327]/40 bg-[#1b1014] p-4">
-            <label class="mb-2 block text-xs uppercase tracking-[0.2em] text-[#9f7d73]">File Upload</label>
+          <div class="rounded-lg border border-[#d6b87a]/40 bg-[#fff7f0] p-4 dark:border-[#5f1327]/40 dark:bg-[#1b1014]">
+            <label class="mb-2 block text-xs uppercase tracking-[0.2em] text-[#7b6660] dark:text-[#9f7d73]">File Upload</label>
             <input
               type="file"
               (change)="onFileSelected($event)"
               accept=".pdf,.epub,.mobi,.azw,.azw3,.txt,.doc,.docx"
-              class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]"
+              class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]"
             >
 
             @if (selectedFileName()) {
-              <p class="mt-2 text-xs text-[#b59c95]">Selected: {{ selectedFileName() }}</p>
+              <p class="mt-2 text-xs text-[#7b6660] dark:text-[#b59c95]">Selected: {{ selectedFileName() }}</p>
             }
 
             <button
@@ -58,58 +58,58 @@ type UploadUrlResponse = {
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Type</label>
-              <select [(ngModel)]="kind" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Type</label>
+              <select [(ngModel)]="kind" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
                 <option value="book">Book</option>
                 <option value="comic">Comic</option>
               </select>
             </div>
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Year</label>
-              <input [(ngModel)]="year" type="number" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Year</label>
+              <input [(ngModel)]="year" type="number" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
             </div>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Title</label>
-              <input [(ngModel)]="title" type="text" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Title</label>
+              <input [(ngModel)]="title" type="text" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
             </div>
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Author</label>
-              <input [(ngModel)]="author" type="text" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Author</label>
+              <input [(ngModel)]="author" type="text" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
             </div>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Format</label>
-              <input [(ngModel)]="format" type="text" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Format</label>
+              <input [(ngModel)]="format" type="text" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
             </div>
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Language</label>
-              <input [(ngModel)]="language" type="text" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Language</label>
+              <input [(ngModel)]="language" type="text" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
             </div>
           </div>
 
           <div>
-            <label class="mb-1 block text-xs text-[#9f7d73]">Genres (comma separated)</label>
-            <input [(ngModel)]="genreInput" type="text" placeholder="Fiction, Classic" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+            <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Genres (comma separated)</label>
+            <input [(ngModel)]="genreInput" type="text" placeholder="Fiction, Classic" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
           </div>
 
           <div>
-            <label class="mb-1 block text-xs text-[#9f7d73]">Description</label>
-            <textarea [(ngModel)]="description" rows="4" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]"></textarea>
+            <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Description</label>
+            <textarea [(ngModel)]="description" rows="4" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]"></textarea>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Cover URL (optional)</label>
-              <input [(ngModel)]="coverUrl" type="url" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Cover URL (optional)</label>
+              <input [(ngModel)]="coverUrl" type="url" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
             </div>
             <div>
-              <label class="mb-1 block text-xs text-[#9f7d73]">Download URL</label>
-              <input [(ngModel)]="downloadUrl" type="text" class="w-full rounded-lg border border-[#5f1327] bg-[#120a0d] px-3 py-2 text-sm text-[#f7eee7]">
+              <label class="mb-1 block text-xs text-[#7b6660] dark:text-[#9f7d73]">Download URL</label>
+              <input [(ngModel)]="downloadUrl" type="text" class="w-full rounded-lg border border-[#dcc5b8] bg-white px-3 py-2 text-sm text-[#24181b] dark:border-[#5f1327] dark:bg-[#120a0d] dark:text-[#f7eee7]">
             </div>
           </div>
 
@@ -131,23 +131,23 @@ type UploadUrlResponse = {
         </div>
       </section>
 
-      <section class="rounded-xl border border-[#2d1a21] bg-[#140d11]">
-        <div class="border-b border-[#2d1a21] p-6 flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-white">Recent Library Entries</h3>
-          <button type="button" (click)="loadBooks()" class="text-xs text-[#d6b87a] hover:text-white">Refresh</button>
+      <section class="rounded-xl border border-[#dcc5b8] bg-[#fffdf8] dark:border-[#2d1a21] dark:bg-[#140d11]">
+        <div class="border-b border-[#dcc5b8] p-6 flex items-center justify-between dark:border-[#2d1a21]">
+          <h3 class="text-lg font-semibold text-[#24181b] dark:text-white">Recent Library Entries</h3>
+          <button type="button" (click)="loadBooks()" class="text-xs text-[#5f1327] hover:text-[#24181b] dark:text-[#d6b87a] dark:hover:text-white">Refresh</button>
         </div>
         <div class="p-6">
           @if (isLoadingBooks()) {
-            <p class="text-sm text-[#9f7d73]">Loading books...</p>
+            <p class="text-sm text-[#7b6660] dark:text-[#9f7d73]">Loading books...</p>
           } @else if (books().length === 0) {
-            <p class="text-sm text-[#9f7d73]">No books found.</p>
+            <p class="text-sm text-[#7b6660] dark:text-[#9f7d73]">No books found.</p>
           } @else {
             <div class="space-y-3">
               @for (book of books(); track book.id) {
-                <article class="rounded-lg border border-[#2d1a21] bg-[#1b1014] p-3">
-                  <p class="text-sm font-semibold text-white line-clamp-2">{{ book.title }}</p>
-                  <p class="mt-1 text-xs text-[#b59c95]">{{ book.author }} • {{ book.year }}</p>
-                  <p class="mt-1 text-[11px] text-[#9f7d73] line-clamp-1">{{ book.genre.join(', ') }}</p>
+                <article class="rounded-lg border border-[#dcc5b8] bg-[#fff7f0] p-3 dark:border-[#2d1a21] dark:bg-[#1b1014]">
+                  <p class="text-sm font-semibold text-[#24181b] dark:text-white line-clamp-2">{{ book.title }}</p>
+                  <p class="mt-1 text-xs text-[#7b6660] dark:text-[#b59c95]">{{ book.author }} • {{ book.year }}</p>
+                  <p class="mt-1 text-[11px] text-[#8a756e] dark:text-[#9f7d73] line-clamp-1">{{ book.genre.join(', ') }}</p>
                 </article>
               }
             </div>

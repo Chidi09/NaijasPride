@@ -218,6 +218,7 @@ model User {
   musicLikes           MusicLike[]
   musicPlaylists       MusicPlaylist[]
   wrappedStats         UserWrappedStats[]
+  transactions         Transaction[]
 
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -727,6 +728,40 @@ model UserWrappedStats {
   @@unique([userId, period])
   @@index([userId])
   @@index([period])
+}
+
+// ─── REVENUE / PAYMENTS ─────────────────────────────────────────────────────
+
+model Transaction {
+  id            String   @id @default(uuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  amount        Int      // in kobo (Paystack standard)
+  currency      String   @default("NGN")
+  status        String   // "success", "failed", "reversed"
+  reference     String   @unique
+  metadata      Json?
+  planSlug      String?
+  type          String   @default("subscription") // "subscription", "one_time"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model AdRevenueRecord {
+  id          String   @id @default(uuid())
+  date        DateTime @unique // One record per day
+  revenue     Float    // in Naira (or USD, but we'll stick to a primary currency)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  provider    String   @default("Adsterra") // "Adsterra", "EffectiveGate", etc.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
 }
 
 // ─── YOUTUBE CHANNELS (MOVIES) ──────────────────────────────────────────────

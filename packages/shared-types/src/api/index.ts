@@ -127,3 +127,23 @@ export interface AdminJobProgressResponse {
   message?: string;
   data?: any;
 }
+
+// --- Revenue ---
+export interface AdminRevenueSummary {
+  subscriptions: number;
+  ads: number;
+  total: number;
+}
+
+export interface AdminRevenueBreakdownItem {
+  period: string;
+  subscription: number;
+  ads: number;
+}
+
+export interface AdminRecordAdRevenueRequest {
+  date?: string;
+  revenue: number;
+  impressions?: number;
+  clicks?: number;
+}

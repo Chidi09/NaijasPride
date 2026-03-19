@@ -9,11 +9,11 @@ import { AdminMoviesService } from '../../services/admin-movies.service';
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="max-w-5xl mx-auto bg-[#140d11] border border-[#2d1a21] rounded-xl shadow-2xl overflow-hidden">
-      <div class="p-6 border-b border-[#2d1a21] flex items-center justify-between gap-4">
+    <div class="max-w-5xl mx-auto bg-[#fffdf8] border border-[#dcc5b8] rounded-xl shadow-2xl overflow-hidden dark:bg-[#140d11] dark:border-[#2d1a21]">
+      <div class="p-6 border-b border-[#dcc5b8] flex items-center justify-between gap-4 dark:border-[#2d1a21]">
         <div>
-          <h2 class="text-xl font-bold text-white">Movie Management</h2>
-          <p class="text-sm text-[#9f7d73] mt-1">Manage, edit, and sync metadata for all movies.</p>
+          <h2 class="text-xl font-bold text-[#24181b] dark:text-white">Movie Management</h2>
+          <p class="text-sm text-[#7b6660] mt-1 dark:text-[#9f7d73]">Manage, edit, and sync metadata for all movies.</p>
         </div>
         <div class="flex gap-3">
           <a
@@ -25,7 +25,7 @@ import { AdminMoviesService } from '../../services/admin-movies.service';
           </a>
           <a
             routerLink="/admin/movies/new"
-            class="inline-flex items-center px-4 py-2 rounded-lg border border-[#5f1327] bg-[#1b1014] text-[#d6b87a] font-semibold hover:bg-[#2a131a] transition-colors"
+            class="inline-flex items-center px-4 py-2 rounded-lg border border-[#d6b87a]/50 bg-[#fff7f0] text-[#5f1327] font-semibold hover:bg-[#f6e4d7] transition-colors dark:border-[#5f1327] dark:bg-[#1b1014] dark:text-[#d6b87a] dark:hover:bg-[#2a131a]"
           >
             + Manual Link
           </a>
@@ -33,22 +33,22 @@ import { AdminMoviesService } from '../../services/admin-movies.service';
       </div>
 
       <!-- User Instructions -->
-      <div class="px-6 py-4 bg-blue-900/10 border-b border-[#2d1a21] flex items-center gap-4">
+      <div class="px-6 py-4 bg-blue-100/70 border-b border-[#dcc5b8] flex items-center gap-4 dark:bg-blue-900/10 dark:border-[#2d1a21]">
         <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
-        <p class="text-xs text-blue-200/70 leading-relaxed">
-          <strong>Tip:</strong> If a movie is missing its poster or details, click <span class="text-white font-bold italic">"Auto-Fill Info"</span>. We use TMDB to automatically fetch the best quality assets based on the title and year you provided.
+        <p class="text-xs text-blue-900/80 leading-relaxed dark:text-blue-200/70">
+          <strong>Tip:</strong> If a movie is missing its poster or details, click <span class="text-[#24181b] font-bold italic dark:text-white">"Auto-Fill Info"</span>. We use TMDB to automatically fetch the best quality assets based on the title and year you provided.
         </p>
       </div>
 
-      <div class="p-6 border-b border-[#2d1a21] bg-[#1b1014] flex items-center justify-between gap-3">
-        <p class="text-sm text-[#c5aea5]">Use <span class="font-semibold text-[#d6b87a]">Auto-Fill Info</span> after upload.</p>
+      <div class="p-6 border-b border-[#dcc5b8] bg-[#fff7f0] flex items-center justify-between gap-3 dark:border-[#2d1a21] dark:bg-[#1b1014]">
+        <p class="text-sm text-[#7b6660] dark:text-[#c5aea5]">Use <span class="font-semibold text-[#5f1327] dark:text-[#d6b87a]">Auto-Fill Info</span> after upload.</p>
         <button
           type="button"
           (click)="loadMovies()"
           [disabled]="moviesLoading()"
-          class="text-sm px-3 py-2 rounded-md border border-[#5f1327] text-[#d6b87a] hover:bg-[#2a131a] disabled:opacity-50"
+          class="text-sm px-3 py-2 rounded-md border border-[#d6b87a]/50 text-[#5f1327] hover:bg-[#f6e4d7] disabled:opacity-50 dark:border-[#5f1327] dark:text-[#d6b87a] dark:hover:bg-[#2a131a]"
         >
           Refresh
         </button>
@@ -56,22 +56,22 @@ import { AdminMoviesService } from '../../services/admin-movies.service';
 
       <div class="p-6">
         @if (moviesLoading()) {
-          <p class="text-sm text-[#9f7d73]">Loading movies...</p>
+          <p class="text-sm text-[#7b6660] dark:text-[#9f7d73]">Loading movies...</p>
         } @else if (movies().length === 0) {
-          <p class="text-sm text-[#9f7d73]">No movies found. Add one to get started.</p>
+          <p class="text-sm text-[#7b6660] dark:text-[#9f7d73]">No movies found. Add one to get started.</p>
         } @else {
           <div class="space-y-3">
             @for (movie of movies(); track movie.id) {
-              <div class="flex items-center justify-between gap-4 border border-[#2d1a21] bg-[#1b1014] rounded-lg p-4">
+              <div class="flex items-center justify-between gap-4 border border-[#dcc5b8] bg-[#fff7f0] rounded-lg p-4 dark:border-[#2d1a21] dark:bg-[#1b1014]">
                 <div class="min-w-0">
-                  <p class="font-semibold text-white truncate">{{ movie.title }}</p>
-                  <p class="text-xs text-[#9f7d73]">{{ movie.year }} • {{ movie.genre.join(', ') }}</p>
+                  <p class="font-semibold text-[#24181b] truncate dark:text-white">{{ movie.title }}</p>
+                  <p class="text-xs text-[#7b6660] dark:text-[#9f7d73]">{{ movie.year }} • {{ movie.genre.join(', ') }}</p>
                 </div>
 
                 <div class="flex items-center gap-2">
                   <a
                     [routerLink]="['/admin/movies', movie.id, 'edit']"
-                    class="px-4 py-2 text-xs font-bold border border-[#5f1327] text-[#d6b87a] rounded-md hover:bg-[#2a131a]"
+                    class="px-4 py-2 text-xs font-bold border border-[#d6b87a]/50 text-[#5f1327] rounded-md hover:bg-[#f6e4d7] dark:border-[#5f1327] dark:text-[#d6b87a] dark:hover:bg-[#2a131a]"
                   >
                     Edit
                   </a>

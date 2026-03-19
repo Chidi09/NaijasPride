@@ -12,10 +12,10 @@ import { Genre, Movie } from '@naijaspride/types';
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="max-w-4xl mx-auto space-y-6">
-      <div class="bg-[#140d11] border border-[#2d1a21] rounded-xl shadow-2xl overflow-hidden">
-        <div class="p-6 border-b border-[#2d1a21]">
-          <h2 class="text-xl font-bold text-white">Upload New Movie</h2>
-          <p class="text-[#9f7d73] text-sm mt-1">Directly upload high-quality video files to NaijasPride storage.</p>
+      <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-xl shadow-2xl overflow-hidden dark:bg-[#140d11] dark:border-[#2d1a21]">
+        <div class="p-6 border-b border-[#dcc5b8] dark:border-[#2d1a21]">
+          <h2 class="text-xl font-bold text-[#24181b] dark:text-white">Upload New Movie</h2>
+          <p class="text-[#7b6660] text-sm mt-1 dark:text-[#9f7d73]">Directly upload high-quality video files to NaijasPride storage.</p>
         </div>
 
         <div class="p-6 space-y-8">
@@ -27,14 +27,14 @@ import { Genre, Movie } from '@naijaspride/types';
             </h3>
             
             <div 
-              class="border-2 border-dashed border-[#2d1a21] rounded-xl p-10 text-center transition-colors hover:border-cinema-500/50"
+              class="border-2 border-dashed border-[#dcc5b8] rounded-xl p-10 text-center transition-colors hover:border-cinema-500/50 dark:border-[#2d1a21]"
               [class.border-cinema-500]="selectedFile()"
               (dragover)="$event.preventDefault()"
               (drop)="onFileDrop($event)"
             >
               @if (!selectedFile()) {
                 <div class="space-y-4">
-                  <div class="mx-auto w-16 h-16 bg-[#1b1014] rounded-full flex items-center justify-center text-cinema-500">
+                  <div class="mx-auto w-16 h-16 bg-[#fff7f0] rounded-full flex items-center justify-center text-cinema-500 dark:bg-[#1b1014]">
                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                   </div>
                   <div>
@@ -42,18 +42,18 @@ import { Genre, Movie } from '@naijaspride/types';
                       Choose Video File
                       <input type="file" class="hidden" (change)="onFileSelect($event)" accept="video/*">
                     </label>
-                    <p class="mt-2 text-sm text-[#9f7d73]">or drag and drop files here (Max 5GB)</p>
+                    <p class="mt-2 text-sm text-[#7b6660] dark:text-[#9f7d73]">or drag and drop files here (Max 5GB)</p>
                   </div>
                 </div>
               } @else {
-                <div class="flex items-center justify-between bg-[#1b1014] p-4 rounded-lg border border-[#2d1a21]">
+                <div class="flex items-center justify-between bg-[#fff7f0] p-4 rounded-lg border border-[#dcc5b8] dark:bg-[#1b1014] dark:border-[#2d1a21]">
                   <div class="flex items-center gap-4 text-left">
                     <div class="w-12 h-12 bg-cinema-500/10 rounded flex items-center justify-center text-cinema-500">
                       <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 100 4v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 100-4V6z"/></svg>
                     </div>
                     <div>
-                      <p class="text-white font-medium truncate max-w-xs">{{ selectedFile()?.name }}</p>
-                      <p class="text-xs text-[#9f7d73]">{{ formatFileSize(selectedFile()?.size || 0) }}</p>
+                      <p class="text-[#24181b] font-medium truncate max-w-xs dark:text-white">{{ selectedFile()?.name }}</p>
+                      <p class="text-xs text-[#7b6660] dark:text-[#9f7d73]">{{ formatFileSize(selectedFile()?.size || 0) }}</p>
                     </div>
                   </div>
                   <button (click)="removeFile()" class="text-[#9f7d73] hover:text-red-400 transition-colors">
@@ -90,29 +90,29 @@ import { Genre, Movie } from '@naijaspride/types';
 
                 <div class="space-y-2 md:col-span-2">
                   <label class="flex items-center gap-2 cursor-pointer group">
-                    <input formControlName="fetchMetadata" type="checkbox" class="text-cinema-500 rounded focus:ring-cinema-500 bg-[#0f0f11] border-[#2d1a21]">
-                    <span class="text-sm text-white group-hover:text-cinema-400 transition-colors">Auto-enrich with TMDB metadata (highly recommended)</span>
+                    <input formControlName="fetchMetadata" type="checkbox" class="text-cinema-500 rounded focus:ring-cinema-500 bg-white border-[#dcc5b8] dark:bg-[#0f0f11] dark:border-[#2d1a21]">
+                    <span class="text-sm text-[#24181b] group-hover:text-cinema-400 transition-colors dark:text-white">Auto-enrich with TMDB metadata (highly recommended)</span>
                   </label>
-                  <p class="text-xs text-[#9f7d73] ml-6">Fetches poster, backdrop, synopsis and cast automatically.</p>
+                  <p class="text-xs text-[#7b6660] ml-6 dark:text-[#9f7d73]">Fetches poster, backdrop, synopsis and cast automatically.</p>
                 </div>
               </form>
             </div>
 
             <!-- Step 3: Action -->
-            <div class="pt-6 border-t border-[#2d1a21]">
+            <div class="pt-6 border-t border-[#dcc5b8] dark:border-[#2d1a21]">
               @if (isUploading()) {
                 <div class="space-y-4">
                   <div class="flex justify-between items-center text-sm">
-                    <span class="text-white font-medium">{{ uploadStatus() }}</span>
+                    <span class="text-[#24181b] font-medium dark:text-white">{{ uploadStatus() }}</span>
                     <span class="text-[#d6b87a]">{{ uploadProgress() }}%</span>
                   </div>
-                  <div class="w-full bg-[#1b1014] rounded-full h-2 overflow-hidden border border-[#2d1a21]">
+                  <div class="w-full bg-white rounded-full h-2 overflow-hidden border border-[#dcc5b8] dark:bg-[#1b1014] dark:border-[#2d1a21]">
                     <div 
                       class="bg-gradient-to-r from-cinema-600 to-cinema-400 h-full transition-all duration-300 shadow-[0_0_10px_rgba(128,0,32,0.5)]"
                       [style.width.%]="uploadProgress()"
                     ></div>
                   </div>
-                  <p class="text-xs text-center text-[#9f7d73]">Do not close this tab until the upload is complete.</p>
+                  <p class="text-xs text-center text-[#7b6660] dark:text-[#9f7d73]">Do not close this tab until the upload is complete.</p>
                 </div>
               } @else {
                 <button 
@@ -131,16 +131,16 @@ import { Genre, Movie } from '@naijaspride/types';
 
       <!-- Success Card -->
       @if (uploadedMovie()) {
-        <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-6 flex items-center gap-6 animate-in fade-in slide-in-from-bottom-4">
+        <div class="bg-green-100/70 border border-green-300 rounded-xl p-6 flex items-center gap-6 animate-in fade-in slide-in-from-bottom-4 dark:bg-green-900/20 dark:border-green-500/30">
           <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center text-green-500">
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
           </div>
           <div class="flex-1">
-            <h3 class="text-white font-bold text-lg">Upload Successful!</h3>
-            <p class="text-green-200/70 text-sm">"{{ uploadedMovie()?.title }}" has been added to the library.</p>
+            <h3 class="text-[#1d3b2d] font-bold text-lg dark:text-white">Upload Successful!</h3>
+            <p class="text-green-900/70 text-sm dark:text-green-200/70">"{{ uploadedMovie()?.title }}" has been added to the library.</p>
           </div>
           <div class="flex gap-3">
-            <a [routerLink]="['/movies', uploadedMovie()?.slug]" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-lg transition-colors">View Movie</a>
+            <a [routerLink]="['/movies', uploadedMovie()?.slug]" class="px-4 py-2 bg-white/80 hover:bg-white text-[#1d3b2d] text-sm font-medium rounded-lg transition-colors dark:bg-white/10 dark:hover:bg-white/20 dark:text-white">View Movie</a>
             <button (click)="resetAll()" class="px-4 py-2 bg-green-500 hover:bg-green-400 text-white text-sm font-medium rounded-lg transition-colors">Upload Another</button>
           </div>
         </div>
@@ -149,7 +149,7 @@ import { Genre, Movie } from '@naijaspride/types';
   `,
   styles: [`
     .input-field {
-      @apply w-full rounded-lg border-[#2d1a21] bg-[#0f0f11] text-[#f7eee7] placeholder-[#5a4a42] shadow-sm focus:border-cinema-500 focus:ring focus:ring-cinema-500/20 transition-all py-3 px-4 border;
+      @apply w-full rounded-lg border-[#dcc5b8] bg-white text-[#24181b] placeholder-[#8a756e] shadow-sm focus:border-cinema-500 focus:ring focus:ring-cinema-500/20 transition-all py-3 px-4 border dark:border-[#2d1a21] dark:bg-[#0f0f11] dark:text-[#f7eee7] dark:placeholder-[#5a4a42];
     }
   `]
 })

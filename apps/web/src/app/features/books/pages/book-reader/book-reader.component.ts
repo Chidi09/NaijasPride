@@ -56,41 +56,58 @@ import type {
   styles: [
     `
       .np-book-reader-shell {
-        --np-reader-bg: #0b0b0b;
-        --np-reader-fg: #f7f2ec;
-        --np-reader-muted: rgba(255, 255, 255, 0.7);
-        --np-reader-surface: rgba(0, 0, 0, 0.75);
-        --np-reader-border: rgba(255, 255, 255, 0.12);
+        --np-reader-bg: #050505;
+        --np-reader-fg: #e6e1e1;
+        --np-reader-muted: rgba(218, 208, 208, 0.72);
+        --np-reader-surface: rgba(12, 12, 12, 0.88);
+        --np-reader-border: rgba(222, 191, 191, 0.18);
         --np-reader-accent: #800020;
+        --np-reader-paper-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+        --np-reader-overlay: inset 0 0 120px rgba(0, 0, 0, 0.08);
+        --np-reader-serif: 'Newsreader', 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+        --np-reader-ui: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
       }
 
       .np-book-reader-shell[data-theme='paper'] {
-        --np-reader-bg: #f7f2ec;
-        --np-reader-fg: #1d1416;
-        --np-reader-muted: rgba(29, 20, 22, 0.65);
-        --np-reader-surface: rgba(255, 255, 255, 0.86);
-        --np-reader-border: rgba(29, 20, 22, 0.14);
+        --np-reader-bg: #fbf9f5;
+        --np-reader-fg: #1b1c1a;
+        --np-reader-muted: rgba(74, 63, 63, 0.74);
+        --np-reader-surface: rgba(255, 255, 255, 0.84);
+        --np-reader-border: rgba(140, 112, 113, 0.32);
+        --np-reader-paper-shadow: 0 18px 50px rgba(44, 26, 26, 0.14);
+        --np-reader-overlay: inset 0 0 180px rgba(0, 0, 0, 0.03);
       }
 
       .np-book-reader-shell[data-theme='sepia'] {
         --np-reader-bg: #f4eadb;
         --np-reader-fg: #2b201b;
-        --np-reader-muted: rgba(43, 32, 27, 0.66);
+        --np-reader-muted: rgba(67, 51, 43, 0.72);
         --np-reader-surface: rgba(255, 255, 255, 0.72);
-        --np-reader-border: rgba(43, 32, 27, 0.14);
+        --np-reader-border: rgba(76, 57, 50, 0.26);
+        --np-reader-paper-shadow: 0 18px 46px rgba(43, 32, 27, 0.16);
+        --np-reader-overlay: inset 0 0 170px rgba(77, 45, 30, 0.06);
       }
 
       .np-book-reader-shell[data-theme='night'] {
         --np-reader-bg: #070708;
         --np-reader-fg: #f2efe9;
-        --np-reader-muted: rgba(242, 239, 233, 0.68);
-        --np-reader-surface: rgba(8, 8, 10, 0.88);
-        --np-reader-border: rgba(255, 255, 255, 0.12);
+        --np-reader-muted: rgba(212, 199, 199, 0.74);
+        --np-reader-surface: rgba(9, 9, 9, 0.9);
+        --np-reader-border: rgba(224, 191, 191, 0.2);
+        --np-reader-paper-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
+        --np-reader-overlay: inset 0 0 140px rgba(0, 0, 0, 0.28);
       }
 
       .np-book-reader-shell {
         background: var(--np-reader-bg);
         color: var(--np-reader-fg);
+        font-family: var(--np-reader-serif);
+        background-image: radial-gradient(rgba(79, 16, 17, 0.05) 0.8px, transparent 0.8px);
+        background-size: 40px 40px;
+      }
+
+      .np-book-reader-shell[data-theme='night'] {
+        background-image: radial-gradient(rgba(255, 255, 255, 0.045) 0.8px, transparent 0.8px);
       }
 
       .np-reader-viewer {
@@ -98,6 +115,46 @@ import type {
         width: 100%;
         height: 100%;
         overflow: hidden;
+      }
+
+      .np-reader-overlay {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        box-shadow: var(--np-reader-overlay);
+        z-index: 8;
+      }
+
+      .np-reader-frame {
+        position: relative;
+        height: 100%;
+        width: 100%;
+        padding: clamp(64px, 8vh, 96px) clamp(10px, 2.4vw, 30px) clamp(96px, 12vh, 130px);
+        z-index: 6;
+      }
+
+      .np-reader-frame::before {
+        content: '';
+        position: absolute;
+        inset: clamp(54px, 6.6vh, 84px) clamp(8px, 2vw, 24px) clamp(90px, 10vh, 118px);
+        border-radius: clamp(10px, 1.2vw, 18px);
+        border: 1px solid color-mix(in srgb, var(--np-reader-border) 86%, transparent);
+        background: linear-gradient(
+          170deg,
+          color-mix(in srgb, var(--np-reader-surface) 92%, var(--np-reader-bg) 8%),
+          color-mix(in srgb, var(--np-reader-bg) 90%, transparent)
+        );
+        box-shadow: var(--np-reader-paper-shadow);
+        z-index: -1;
+      }
+
+      .np-reader-frame.np-pdf-frame::before {
+        border-radius: 6px;
+      }
+
+      .np-reader-frame .np-viewport-fill {
+        height: 100%;
+        width: 100%;
       }
 
       .np-turn-next {
@@ -147,8 +204,8 @@ import type {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 48px;
-        opacity: 0.28;
+        width: 52px;
+        opacity: 0.34;
         transition: opacity 300ms ease;
         pointer-events: auto;
       }
@@ -161,13 +218,12 @@ import type {
       .np-side-nav-left { left: 0; }
       .np-side-nav-right { right: 0; }
       .np-side-nav-btn {
-        width: 36px;
-        height: 36px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
-        /* Always dark so it's visible on white/paper books */
-        background: rgba(10, 10, 10, 0.72);
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        color: #f0ede8;
+        background: color-mix(in srgb, var(--np-reader-surface) 96%, transparent);
+        border: 1px solid var(--np-reader-border);
+        color: var(--np-reader-fg);
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -181,10 +237,10 @@ import type {
 
       /* Bottom bar: always visible, opacity-based fade — fixed dark chrome */
       .np-bottom-bar {
-        background: rgba(10, 10, 10, 0.82) !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-        color: #f0ede8;
-        backdrop-filter: blur(8px);
+        background: color-mix(in srgb, var(--np-reader-surface) 95%, transparent) !important;
+        border-top: 1px solid var(--np-reader-border) !important;
+        color: var(--np-reader-fg);
+        backdrop-filter: blur(14px);
         opacity: 0.28;
         transition: opacity 350ms ease;
         pointer-events: none;
@@ -198,8 +254,64 @@ import type {
       }
       /* Force button text/icon colours to be light inside the dark bottom bar */
       .np-bottom-bar button {
-        color: #f0ede8 !important;
-        border-color: rgba(255, 255, 255, 0.22) !important;
+        color: var(--np-reader-fg) !important;
+        border-color: var(--np-reader-border) !important;
+        font-family: var(--np-reader-ui);
+        letter-spacing: 0.03em;
+      }
+
+      .np-bottom-meta {
+        color: var(--np-reader-muted);
+        font-family: var(--np-reader-ui);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .np-progress-track {
+        position: relative;
+        height: 2px;
+        width: 100%;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--np-reader-border) 65%, transparent);
+      }
+
+      .np-progress-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        background: var(--np-reader-accent);
+      }
+
+      @media (max-width: 1024px) {
+        .np-reader-frame {
+          padding-inline: clamp(6px, 1.4vw, 16px);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .np-reader-frame {
+          padding: 58px 0 92px;
+        }
+
+        .np-reader-frame::before {
+          inset: 50px 0 88px;
+          border-left: none;
+          border-right: none;
+          border-radius: 0;
+        }
+
+        .np-side-nav {
+          width: 36px;
+        }
+
+        .np-side-nav-btn {
+          width: 30px;
+          height: 30px;
+        }
+
+        .np-bottom-bar {
+          opacity: 0.76;
+        }
       }
     `,
   ],
@@ -313,63 +425,62 @@ import type {
                 </div>
               }
 
-              <div
-                #viewerWrap
-                class="h-full w-full"
-                [class.np-turn-next]="turnAnim() === 'next'"
-                [class.np-turn-prev]="turnAnim() === 'prev'"
-              >
+              <div #viewerWrap class="np-reader-frame" [class.np-pdf-frame]="readerType() === 'pdf'" [class.np-turn-next]="turnAnim() === 'next'" [class.np-turn-prev]="turnAnim() === 'prev'">
                 @if (readerType() === 'epub') {
-                  <app-epub-viewer
-                    [slug]="slug()"
-                    [fileUrl]="fileUrl()"
-                    [flow]="flow()"
-                    [spread]="spread()"
-                    [theme]="theme()"
-                    [fontFamily]="fontFamily()"
-                    [fontSize]="fontSize()"
-                    [lineHeight]="lineHeight()"
-                    [autoScrollEnabled]="autoScrollEnabled()"
-                    [autoScrollSpeed]="autoScrollSpeed()"
-                    [serverProgress]="reader.serverProgress()"
-                    [serverProgressLoaded]="reader.serverProgressLoaded()"
-                    [highlightMode]="highlightMode()"
-                    [highlightColor]="highlightColor()"
-                    [highlights]="reader.highlights()"
-                    (readyChange)="epubReady.set($event)"
-                    (loadingChange)="viewerLoading.set($event)"
-                    (errorChange)="onViewerError($event)"
-                    (tocChange)="toc.set($event)"
-                    (currentCfiChange)="onCurrentCfi($event)"
-                    (progressChange)="progress.set($event)"
-                    (searchingChange)="isSearching.set($event)"
-                    (searchErrorChange)="searchError.set($event)"
-                    (searchResultsChange)="searchResults.set($event)"
-                    (createHighlight)="onCreateEpubHighlight($event)"
-                  />
+                  <div class="np-viewport-fill">
+                    <app-epub-viewer
+                      [slug]="slug()"
+                      [fileUrl]="fileUrl()"
+                      [flow]="flow()"
+                      [spread]="spread()"
+                      [theme]="theme()"
+                      [fontFamily]="fontFamily()"
+                      [fontSize]="fontSize()"
+                      [lineHeight]="lineHeight()"
+                      [autoScrollEnabled]="autoScrollEnabled()"
+                      [autoScrollSpeed]="autoScrollSpeed()"
+                      [serverProgress]="reader.serverProgress()"
+                      [serverProgressLoaded]="reader.serverProgressLoaded()"
+                      [highlightMode]="highlightMode()"
+                      [highlightColor]="highlightColor()"
+                      [highlights]="reader.highlights()"
+                      (readyChange)="epubReady.set($event)"
+                      (loadingChange)="viewerLoading.set($event)"
+                      (errorChange)="onViewerError($event)"
+                      (tocChange)="toc.set($event)"
+                      (currentCfiChange)="onCurrentCfi($event)"
+                      (progressChange)="progress.set($event)"
+                      (searchingChange)="isSearching.set($event)"
+                      (searchErrorChange)="searchError.set($event)"
+                      (searchResultsChange)="searchResults.set($event)"
+                      (createHighlight)="onCreateEpubHighlight($event)"
+                    />
+                  </div>
                 } @else {
-                  <app-pdf-viewer
-                    [slug]="slug()"
-                    [fileUrl]="fileUrl()"
-                    [zoom]="pdfZoom()"
-                    [cacheVersion]="book()?.updatedAt || ''"
-                    [serverProgress]="reader.serverProgress()"
-                    [serverProgressLoaded]="reader.serverProgressLoaded()"
-                    [highlightMode]="highlightMode()"
-                    [highlightColor]="highlightColor()"
-                    [highlights]="reader.highlights()"
-                    (loadingChange)="viewerLoading.set($event)"
-                    (errorChange)="onViewerError($event)"
-                    (pageChange)="pdfPage.set($event)"
-                    (pageCountChange)="pdfPageCount.set($event)"
-                    (progressChange)="progress.set($event)"
-                    (currentCfiChange)="onCurrentCfi($event)"
-                    (searchingChange)="isSearching.set($event)"
-                    (searchStatusChange)="searchStatus.set($event)"
-                    (searchErrorChange)="searchError.set($event)"
-                    (searchResultsChange)="searchResults.set($event)"
-                    (createHighlight)="onCreatePdfHighlight($event)"
-                  />
+                  <div class="np-viewport-fill">
+                    <app-pdf-viewer
+                      [slug]="slug()"
+                      [fileUrl]="fileUrl()"
+                      [zoom]="pdfZoom()"
+                      [cacheVersion]="book()?.updatedAt || ''"
+                      [serverProgress]="reader.serverProgress()"
+                      [serverProgressLoaded]="reader.serverProgressLoaded()"
+                      [highlightMode]="highlightMode()"
+                      [highlightColor]="highlightColor()"
+                      [highlights]="reader.highlights()"
+                      (loadingChange)="viewerLoading.set($event)"
+                      (errorChange)="onViewerError($event)"
+                      (pageChange)="pdfPage.set($event)"
+                      (pageCountChange)="pdfPageCount.set($event)"
+                      (progressChange)="progress.set($event)"
+                      (currentCfiChange)="onCurrentCfi($event)"
+                      (searchingChange)="isSearching.set($event)"
+                      (searchStatusChange)="searchStatus.set($event)"
+                      (searchErrorChange)="searchError.set($event)"
+                      (searchResultsChange)="searchResults.set($event)"
+                      (createHighlight)="onCreatePdfHighlight($event)"
+                    />
+                  </div>
                 }
 
                 @if (!highlightMode()) {
@@ -430,6 +541,7 @@ import type {
                   </div>
                 }
               </div>
+              <div class="np-reader-overlay"></div>
             </div>
           }
 
@@ -438,24 +550,25 @@ import type {
             class="np-bottom-bar fixed bottom-0 left-0 right-0 z-40"
             [class.controls-visible]="showControls()"
           >
-            <div class="mx-auto w-full max-w-5xl px-4 py-3">
-              <div class="mb-2 flex items-center justify-between text-[11px] text-[rgba(240,237,232,0.65)]">
-                <span>Progress</span>
-                <span>{{ (progress() * 100) | number:'1.0-0' }}%</span>
+            <div class="mx-auto w-full max-w-5xl px-3 py-3 md:px-4">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="np-bottom-meta">Reading Progress</span>
+                @if (readerType() === 'pdf') {
+                  <span class="np-bottom-meta">Page {{ pdfPage() }} / {{ pdfPageCount() || '?' }}</span>
+                } @else {
+                  <span class="np-bottom-meta">{{ (progress() * 100) | number:'1.0-0' }}%</span>
+                }
               </div>
 
-              <div class="grid grid-cols-4 gap-2">
-                <button mat-stroked-button type="button" (click)="prev()" [disabled]="!canPrev()">Prev</button>
+              <div class="np-progress-track">
+                <div class="np-progress-fill" [style.width.%]="(progress() * 100)"></div>
+              </div>
+
+              <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button mat-stroked-button type="button" (click)="prev()" [disabled]="!canPrev()">Previous</button>
                 <button mat-flat-button color="primary" type="button" (click)="next()" [disabled]="!canNext()">Next</button>
-                <button
-                  mat-stroked-button
-                  type="button"
-                  (click)="addBookmark()"
-                  [disabled]="readerType() === 'epub' && !currentCfi()"
-                >
-                  Bookmark
-                </button>
-                <button mat-stroked-button type="button" (click)="drawerOpen.set(true)">Settings</button>
+                <button mat-stroked-button type="button" (click)="addBookmark()" [disabled]="readerType() === 'epub' && !currentCfi()">Bookmark</button>
+                <button mat-stroked-button type="button" (click)="drawerOpen.set(true)">Menu</button>
               </div>
             </div>
           </div>

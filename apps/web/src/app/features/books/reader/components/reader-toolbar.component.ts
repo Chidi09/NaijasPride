@@ -11,24 +11,73 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   imports: [CommonModule, RouterLink, MatButtonModule, MatIconModule, MatTooltipModule],
   styles: [`
     .np-toolbar-wrap {
-      /* Fixed dark chrome — always visible regardless of reader theme */
-      background: linear-gradient(to bottom, rgba(10,10,10,0.92) 0%, rgba(10,10,10,0) 100%);
-      backdrop-filter: blur(2px);
+      background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--np-reader-surface) 94%, transparent) 0%,
+        color-mix(in srgb, var(--np-reader-surface) 22%, transparent) 66%,
+        transparent 100%
+      );
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid color-mix(in srgb, var(--np-reader-border) 85%, transparent);
     }
     .np-toolbar-back {
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.18);
-      color: #f0ede8;
-      border-radius: 6px;
-      padding: 6px 12px;
-      font-size: 12px;
+      background: color-mix(in srgb, var(--np-reader-bg) 82%, transparent);
+      border: 1px solid var(--np-reader-border);
+      color: var(--np-reader-fg);
+      border-radius: 999px;
+      padding: 0.42rem 0.92rem;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 600;
       text-decoration: none;
       white-space: nowrap;
     }
-    .np-toolbar-back:hover { background: rgba(255,255,255,0.2); }
-    .np-toolbar-title { color: #f0ede8; }
-    .np-toolbar-subtitle { color: rgba(240,237,232,0.65); }
-    .np-toolbar-btn { color: #f0ede8 !important; }
+    .np-toolbar-back:hover {
+      background: color-mix(in srgb, var(--np-reader-bg) 94%, var(--np-reader-accent) 6%);
+    }
+    .np-toolbar-title {
+      color: var(--np-reader-fg);
+      font-family: 'Newsreader', 'Times New Roman', Georgia, serif;
+      font-size: clamp(0.95rem, 0.86rem + 0.45vw, 1.24rem);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      font-style: italic;
+    }
+    .np-toolbar-subtitle {
+      color: var(--np-reader-muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    }
+    .np-toolbar-btn {
+      color: var(--np-reader-fg) !important;
+    }
+    .np-toolbar-chip {
+      border: 1px solid var(--np-reader-border);
+      background: color-mix(in srgb, var(--np-reader-bg) 84%, transparent);
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+      color: var(--np-reader-muted);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    }
+    @media (max-width: 640px) {
+      .np-toolbar-wrap {
+        padding-inline: 0.65rem;
+      }
+      .np-toolbar-subtitle,
+      .np-toolbar-chip {
+        display: none;
+      }
+      .np-toolbar-back {
+        font-size: 10px;
+        padding: 0.35rem 0.72rem;
+      }
+    }
   `],
   template: `
     <div
@@ -43,7 +92,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
           <p class="np-toolbar-subtitle mt-1 truncate text-[11px]">{{ subtitle || '' }}</p>
         </div>
 
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-2">
+          <span class="np-toolbar-chip hidden md:inline">Reader</span>
           <button mat-icon-button class="np-toolbar-btn" type="button" (click)="fullscreen.emit()" matTooltip="Fullscreen">
             <mat-icon>fullscreen</mat-icon>
           </button>

@@ -30,21 +30,21 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
   ],
   template: `
     @if (useCinemaShell()) {
-      <div appTvFocusGroup [tvAutoFocus]="true" class="min-h-screen bg-[#090609] text-[#f6efe8]">
+      <div appTvFocusGroup [tvAutoFocus]="true" class="min-h-screen bg-[#f6efe8] text-[#24181b] dark:bg-[#090609] dark:text-[#f6efe8]">
         @if (showIntro) {
           <app-branded-intro (introFinished)="onIntroFinished()"></app-branded-intro>
         }
 
         <div class="mx-auto max-w-[1500px] px-6 py-6 md:px-10 xl:px-14">
-          <header class="mb-6 flex items-center justify-between gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
-            <a [routerLink]="['/movies', movie()?.slug || slug()]" class="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white">
+          <header class="mb-6 flex items-center justify-between gap-4 rounded-[2rem] border border-[#dcc5b8] bg-white/70 px-5 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
+            <a [routerLink]="['/movies', movie()?.slug || slug()]" class="inline-flex items-center gap-3 rounded-2xl border border-[#dcc5b8] bg-white/80 px-4 py-3 text-sm font-medium text-[#24181b]/80 transition hover:bg-white hover:text-[#24181b] dark:border-white/10 dark:bg-black/20 dark:text-white/80 dark:hover:bg-white/[0.08] dark:hover:text-white">
               <app-symbol-icon name="arrow_back" [size]="22"></app-symbol-icon>
               Back to Details
             </a>
             @if (movie(); as m) {
               <div class="min-w-0 text-right">
                 <p class="truncate text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Movie Night</p>
-                <h1 class="truncate text-2xl font-black text-white">{{ m.title }}</h1>
+                <h1 class="truncate text-2xl font-black text-[#24181b] dark:text-white">{{ m.title }}</h1>
               </div>
             }
           </header>
@@ -81,10 +81,10 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                         (playerReady)="onPlayerReady()"
                       ></app-video-player>
                     } @else {
-                      <div class="aspect-video rounded-[2rem] border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center">
+                      <div class="aspect-video rounded-[2rem] border border-[#dcc5b8] bg-white/70 backdrop-blur-sm flex items-center justify-center p-8 text-center dark:border-white/10 dark:bg-black/40">
                         <div class="max-w-md">
-                          <h2 class="text-white text-2xl font-black">Stream not available</h2>
-                          <p class="mt-3 text-sm text-white/55">This title is currently unavailable from active stream providers. Please try another title shortly.</p>
+                          <h2 class="text-[#24181b] text-2xl font-black dark:text-white">Stream not available</h2>
+                          <p class="mt-3 text-sm text-[#6f5b54] dark:text-white/55">This title is currently unavailable from active stream providers. Please try another title shortly.</p>
                         </div>
                       </div>
                     }
@@ -94,9 +94,9 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                   <app-effectivegate-banner></app-effectivegate-banner>
 
                   <!-- SEO Content for Watch Page -->
-                  <div class="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8">
-                    <h2 class="text-xl font-bold text-white mb-4">About this Cinema Experience</h2>
-                    <p class="text-white/60 leading-relaxed">
+                  <div class="mt-8 rounded-[2rem] border border-[#dcc5b8] bg-white/70 p-8 dark:border-white/10 dark:bg-white/[0.04]">
+                    <h2 class="text-xl font-bold text-[#24181b] mb-4 dark:text-white">About this Cinema Experience</h2>
+                    <p class="text-[#6f5b54] leading-relaxed dark:text-white/60">
                       You are currently watching <strong>{{ m.title }}</strong>, a {{ m.year }} {{ m.genre.join('/') }} production. 
                       NaijasPride offers high-quality streaming for this title with adaptive bitrate support. 
                       @if (m.overview || m.description) {
@@ -105,12 +105,12 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                     </p>
                     <div class="mt-6 flex flex-wrap gap-6 text-sm">
                       <div>
-                        <span class="block text-white/30 uppercase text-[10px] tracking-wider mb-1">Director</span>
-                        <span class="text-white">{{ m.metadata?.director || 'Unknown' }}</span>
+                        <span class="block text-[#8a756e] uppercase text-[10px] tracking-wider mb-1 dark:text-white/30">Director</span>
+                        <span class="text-[#24181b] dark:text-white">{{ m.metadata?.director || 'Unknown' }}</span>
                       </div>
                       <div>
-                        <span class="block text-white/30 uppercase text-[10px] tracking-wider mb-1">Cast</span>
-                        <span class="text-white">{{ (m.metadata?.cast || []).slice(0, 3).join(', ') || 'N/A' }}</span>
+                        <span class="block text-[#8a756e] uppercase text-[10px] tracking-wider mb-1 dark:text-white/30">Cast</span>
+                        <span class="text-[#24181b] dark:text-white">{{ (m.metadata?.cast || []).slice(0, 3).join(', ') || 'N/A' }}</span>
                       </div>
                     </div>
                   </div>
@@ -118,27 +118,27 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
 
 
               <aside class="space-y-4">
-                <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                <div class="rounded-[2rem] border border-[#dcc5b8] bg-white/70 p-6 dark:border-white/10 dark:bg-white/[0.04]">
                   <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Playback</p>
-                  <p class="mt-3 text-lg font-semibold text-white">{{ playbackStatusText() }}</p>
-                  <div class="mt-5 grid grid-cols-2 gap-3 text-sm text-white/65">
-                    <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                      <span class="block text-[11px] uppercase tracking-[0.18em] text-white/40">Mode</span>
-                      <span class="mt-2 block font-medium text-white">{{ streamModeLabel() }}</span>
+                  <p class="mt-3 text-lg font-semibold text-[#24181b] dark:text-white">{{ playbackStatusText() }}</p>
+                  <div class="mt-5 grid grid-cols-2 gap-3 text-sm text-[#6f5b54] dark:text-white/65">
+                    <div class="rounded-2xl border border-[#dcc5b8] bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-black/20">
+                      <span class="block text-[11px] uppercase tracking-[0.18em] text-[#8a756e] dark:text-white/40">Mode</span>
+                      <span class="mt-2 block font-medium text-[#24181b] dark:text-white">{{ streamModeLabel() }}</span>
                     </div>
-                    <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                      <span class="block text-[11px] uppercase tracking-[0.18em] text-white/40">Offline</span>
-                      <span class="mt-2 block font-medium text-white">{{ isOffline() ? 'Available' : 'No' }}</span>
+                    <div class="rounded-2xl border border-[#dcc5b8] bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-black/20">
+                      <span class="block text-[11px] uppercase tracking-[0.18em] text-[#8a756e] dark:text-white/40">Offline</span>
+                      <span class="mt-2 block font-medium text-[#24181b] dark:text-white">{{ isOffline() ? 'Available' : 'No' }}</span>
                     </div>
                   </div>
                 </div>
 
-                <div class="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+                <div class="rounded-[2rem] border border-[#dcc5b8] bg-white/70 p-6 dark:border-white/10 dark:bg-white/[0.04]">
                   <p class="text-[11px] uppercase tracking-[0.22em] text-[#d0a97a]">Controls</p>
-                  <div class="mt-4 flex flex-wrap gap-3 text-sm text-white/70">
-                    <span class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">Left/Right to skip</span>
-                    <span class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">Space to play/pause</span>
-                    <span class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">F for fullscreen</span>
+                  <div class="mt-4 flex flex-wrap gap-3 text-sm text-[#6f5b54] dark:text-white/70">
+                    <span class="rounded-2xl border border-[#dcc5b8] bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-black/20">Left/Right to skip</span>
+                    <span class="rounded-2xl border border-[#dcc5b8] bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-black/20">Space to play/pause</span>
+                    <span class="rounded-2xl border border-[#dcc5b8] bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-black/20">F for fullscreen</span>
                   </div>
                 </div>
 
@@ -164,7 +164,7 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
         </div>
       </div>
     } @else {
-    <div class="min-h-screen bg-[#0a0a0a] dark:bg-cinema-900 flex flex-col">
+    <div class="min-h-screen bg-[#f8f0e9] text-[#24181b] dark:bg-cinema-900 dark:text-white flex flex-col">
       <!-- Branded Intro -->
       @if (showIntro) {
         <app-branded-intro (introFinished)="onIntroFinished()">
@@ -172,7 +172,7 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
       }
 
       <header
-        class="p-4 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50"
+        class="p-4 flex items-center gap-4 bg-white/80 backdrop-blur-md sticky top-0 z-50 dark:bg-black/50"
       >
         <a
           [routerLink]="['/movies', movie()?.slug || slug()]"
@@ -230,9 +230,9 @@ import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-gr
                     (playerReady)="onPlayerReady()"
                   ></app-video-player>
                 } @else {
-                  <div class="aspect-video rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center">
+                  <div class="aspect-video rounded-xl border border-[#dcc5b8] bg-white/70 backdrop-blur-sm flex items-center justify-center p-8 text-center dark:border-white/10 dark:bg-black/40">
                     <div class="max-w-md">
-                      <h2 class="text-white font-serif text-xl">Stream not available</h2>
+                      <h2 class="text-[#24181b] font-serif text-xl dark:text-white">Stream not available</h2>
                       <p class="text-[#9a857d] dark:text-gray-500 text-sm mt-2">
                         This title is currently unavailable from active stream providers. Please try another title shortly.
                       </p>

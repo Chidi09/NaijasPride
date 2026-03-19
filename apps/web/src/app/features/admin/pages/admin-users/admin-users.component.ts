@@ -55,30 +55,30 @@ interface UserStats {
       <!-- Stats Cards -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         @for (stat of stats(); track stat.label) {
-          <div class="bg-[#140d11] border border-[#2d1a21] rounded-lg p-4">
-            <p class="text-xs uppercase tracking-wider text-[#9f7d73]">{{ stat.label }}</p>
-            <p class="text-2xl font-bold text-white mt-1">{{ stat.value | number }}</p>
+          <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#140d11] dark:border-[#2d1a21]">
+            <p class="text-xs uppercase tracking-wider text-[#7b6660] dark:text-[#9f7d73]">{{ stat.label }}</p>
+            <p class="text-2xl font-bold text-[#24181b] mt-1 dark:text-white">{{ stat.value | number }}</p>
           </div>
         }
       </div>
 
       <!-- Filters -->
-      <div class="bg-[#140d11] border border-[#2d1a21] rounded-lg p-4">
+      <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#140d11] dark:border-[#2d1a21]">
         <form [formGroup]="filterForm" class="flex flex-wrap gap-4 items-end">
           <div class="flex-grow max-w-md">
-            <label class="block text-xs uppercase tracking-wider text-[#9f7d73] mb-1">Search</label>
+            <label class="block text-xs uppercase tracking-wider text-[#7b6660] mb-1 dark:text-[#9f7d73]">Search</label>
             <input
               type="text"
               formControlName="search"
               placeholder="Email or name..."
-              class="w-full bg-[#0f0f11] border border-[#2d1a21] rounded px-3 py-2 text-white placeholder-[#6f5b54] focus:border-cinema-500 focus:outline-none"
+              class="w-full bg-white border border-[#dcc5b8] rounded px-3 py-2 text-[#24181b] placeholder-[#8a756e] focus:border-cinema-500 focus:outline-none dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white dark:placeholder-[#6f5b54]"
             />
           </div>
           <div>
-            <label class="block text-xs uppercase tracking-wider text-[#9f7d73] mb-1">Role</label>
+            <label class="block text-xs uppercase tracking-wider text-[#7b6660] mb-1 dark:text-[#9f7d73]">Role</label>
             <select
               formControlName="role"
-              class="bg-[#0f0f11] border border-[#2d1a21] rounded px-3 py-2 text-white focus:border-cinema-500 focus:outline-none"
+              class="bg-white border border-[#dcc5b8] rounded px-3 py-2 text-[#24181b] focus:border-cinema-500 focus:outline-none dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
             >
               <option value="">All Roles</option>
               <option value="USER">User</option>
@@ -86,10 +86,10 @@ interface UserStats {
             </select>
           </div>
           <div>
-            <label class="block text-xs uppercase tracking-wider text-[#9f7d73] mb-1">Premium</label>
+            <label class="block text-xs uppercase tracking-wider text-[#7b6660] mb-1 dark:text-[#9f7d73]">Premium</label>
             <select
               formControlName="isPremium"
-              class="bg-[#0f0f11] border border-[#2d1a21] rounded px-3 py-2 text-white focus:border-cinema-500 focus:outline-none"
+              class="bg-white border border-[#dcc5b8] rounded px-3 py-2 text-[#24181b] focus:border-cinema-500 focus:outline-none dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
             >
               <option value="">All</option>
               <option value="true">Premium</option>
@@ -100,9 +100,9 @@ interface UserStats {
       </div>
 
       <!-- Users Table -->
-      <div class="bg-[#140d11] border border-[#2d1a21] rounded-lg overflow-hidden">
+      <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-lg overflow-hidden dark:bg-[#140d11] dark:border-[#2d1a21]">
         @if (loading) {
-          <div class="p-8 text-center text-[#9f7d73]">
+          <div class="p-8 text-center text-[#7b6660] dark:text-[#9f7d73]">
             <div class="inline-block w-6 h-6 border-2 border-cinema-500 border-t-transparent rounded-full animate-spin"></div>
             <p class="mt-2">Loading users...</p>
           </div>
@@ -111,27 +111,27 @@ interface UserStats {
         } @else {
           <div class="overflow-x-auto">
             <table class="w-full">
-              <thead class="bg-[#0f0f11] border-b border-[#2d1a21]">
+              <thead class="bg-[#fff7f0] border-b border-[#dcc5b8] dark:bg-[#0f0f11] dark:border-[#2d1a21]">
                 <tr>
-                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#9f7d73]">User</th>
-                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#9f7d73]">Role</th>
-                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#9f7d73]">Status</th>
-                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#9f7d73]">Subscription</th>
-                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#9f7d73]">Activity</th>
-                  <th class="text-right px-4 py-3 text-xs uppercase tracking-wider text-[#9f7d73]">Actions</th>
+                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#7b6660] dark:text-[#9f7d73]">User</th>
+                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#7b6660] dark:text-[#9f7d73]">Role</th>
+                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#7b6660] dark:text-[#9f7d73]">Status</th>
+                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#7b6660] dark:text-[#9f7d73]">Subscription</th>
+                  <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-[#7b6660] dark:text-[#9f7d73]">Activity</th>
+                  <th class="text-right px-4 py-3 text-xs uppercase tracking-wider text-[#7b6660] dark:text-[#9f7d73]">Actions</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-[#2d1a21]">
+              <tbody class="divide-y divide-[#dcc5b8] dark:divide-[#2d1a21]">
                 @for (user of users; track user.id) {
-                  <tr class="hover:bg-[#1a1116] transition-colors">
+                  <tr class="hover:bg-[#f6e4d7] transition-colors dark:hover:bg-[#1a1116]">
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-cinema-500/20 flex items-center justify-center text-cinema-100 text-sm font-bold">
                           {{ getInitials(user.name || user.email) }}
                         </div>
                         <div>
-                          <p class="text-white font-medium">{{ user.name || 'Unnamed User' }}</p>
-                          <p class="text-sm text-[#9f7d73]">{{ user.email }}</p>
+                          <p class="text-[#24181b] font-medium dark:text-white">{{ user.name || 'Unnamed User' }}</p>
+                          <p class="text-sm text-[#7b6660] dark:text-[#9f7d73]">{{ user.email }}</p>
                           @if (!user.emailVerified) {
                             <span class="inline-block mt-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Unverified</span>
                           }
@@ -142,7 +142,7 @@ interface UserStats {
                       <select
                         [value]="user.role"
                         (change)="updateRole(user.id, $event)"
-                        class="bg-[#0f0f11] border border-[#2d1a21] rounded px-2 py-1 text-sm text-white focus:border-cinema-500 focus:outline-none"
+                        class="bg-white border border-[#dcc5b8] rounded px-2 py-1 text-sm text-[#24181b] focus:border-cinema-500 focus:outline-none dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                         [disabled]="updatingUser === user.id"
                       >
                         <option value="USER">User</option>
@@ -156,7 +156,7 @@ interface UserStats {
                           Admin
                         </span>
                       } @else {
-                        <span class="text-sm text-[#9f7d73]">Member</span>
+                        <span class="text-sm text-[#7b6660] dark:text-[#9f7d73]">Member</span>
                       }
                     </td>
                     <td class="px-4 py-3">
@@ -165,13 +165,13 @@ interface UserStats {
                           <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 5a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1V8a1 1 0 011-1zm5-5a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0V6h-1a1 1 0 110-2h1V3a1 1 0 011-1zm0 5a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1V8a1 1 0 011-1z" clip-rule="evenodd"/></svg>
                           PRO
                         </span>
-                        <p class="text-xs text-[#9f7d73] mt-1">{{ getDaysRemaining(user.nextBillingDate) }}</p>
+                        <p class="text-xs text-[#7b6660] mt-1 dark:text-[#9f7d73]">{{ getDaysRemaining(user.nextBillingDate) }}</p>
                       } @else {
                         <span class="text-xs text-[#6f5b54]">Free Plan</span>
                       }
                     </td>
                     <td class="px-4 py-3">
-                      <div class="text-sm text-[#9f7d73] space-y-0.5">
+                      <div class="text-sm text-[#7b6660] dark:text-[#9f7d73] space-y-0.5">
                         <p>{{ user._count.watchlist }} in watchlist</p>
                         <p>{{ user._count.watchHistory }} watched</p>
                         <p>{{ user._count.downloadHistory }} downloads</p>
@@ -207,22 +207,22 @@ interface UserStats {
 
           <!-- Pagination -->
           @if (meta; as m) {
-            <div class="flex items-center justify-between px-4 py-3 border-t border-[#2d1a21]">
-              <p class="text-sm text-[#9f7d73]">
+            <div class="flex items-center justify-between px-4 py-3 border-t border-[#dcc5b8] dark:border-[#2d1a21]">
+              <p class="text-sm text-[#7b6660] dark:text-[#9f7d73]">
                 Showing {{ (m.page - 1) * m.limit + 1 }} - {{ Math.min(m.page * m.limit, m.total) }} of {{ m.total }}
               </p>
               <div class="flex gap-2">
                 <button
                   (click)="goToPage(m.page - 1)"
                   [disabled]="!m.hasPrev || loading"
-                  class="px-3 py-1 text-sm bg-[#0f0f11] border border-[#2d1a21] rounded text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#1a1116]"
+                  class="px-3 py-1 text-sm bg-white border border-[#dcc5b8] rounded text-[#24181b] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f6e4d7] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white dark:hover:bg-[#1a1116]"
                 >
                   Previous
                 </button>
                 <button
                   (click)="goToPage(m.page + 1)"
                   [disabled]="!m.hasNext || loading"
-                  class="px-3 py-1 text-sm bg-[#0f0f11] border border-[#2d1a21] rounded text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#1a1116]"
+                  class="px-3 py-1 text-sm bg-white border border-[#dcc5b8] rounded text-[#24181b] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f6e4d7] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white dark:hover:bg-[#1a1116]"
                 >
                   Next
                 </button>

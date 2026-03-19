@@ -166,6 +166,21 @@ export class AdScriptService {
     }
   }
 
+  unloadEffectiveGateSocialBarScript(): void {
+    if (!this.canUseDom()) return;
+
+    const byId = document.getElementById(this.effectiveGateSocialBarScriptId);
+    if (byId) {
+      byId.remove();
+      return;
+    }
+
+    const bySrc = document.querySelector(`script[src="${this.effectiveGateSocialBarUrl}"]`);
+    if (bySrc) {
+      bySrc.remove();
+    }
+  }
+
   private buildEffectiveGateConfig(options: EffectiveGateSlotOptions): string {
     const params = options.params ?? {};
     const config = {

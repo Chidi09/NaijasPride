@@ -8,6 +8,7 @@ import { RssScoutService } from "./services/rss-scout.service";
 import { TMDBMetadataService } from "./services/tmdb-metadata.service";
 import { YouTubeChannelService } from "./services/youtube-channel.service";
 import { YoutubeDiscoveryService } from "./services/youtube-discovery.service";
+import { RevenueService } from "./services/revenue.service";
 import { AutoLibraryDiscoveryService } from "../books/auto-library-discovery.service";
 import { adminQueueRoutes } from "./admin-queue.routes";
 import { adminUserRoutes } from "./admin-user.routes";
@@ -748,6 +749,66 @@ export const adminRoutes = async (
         });
       }
     },
+  });
+
+  // ===== Revenue & Analytics Routes =====
+  const revenueService = new RevenueService(app.prisma);
+
+  app.get("/revenue/summary", {
+    preHandler: [app.authenticate, requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        const summary = await revenueService.getRevenueSummary();
+        return reply.send({ success: true, data: summary });
+      } catch (error) {
+        return reply.status(500).send({ success: false, error: { message: error instanceof Error ? error.message : "Failed to fetch summary" } });
+      }
+    }
+  });
+
+  app.get("/revenue/breakdown", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      querystring: z.object({
+        period: z.enum(["weekly", "monthly", "yearly"]).default("monthly"),
+      }),
+    },
+    handler: async (request, reply) => {
+      try {
+        const { period } = request.query as { period: 'weekly' | 'monthly' | 'yearly' };
+        const breakdown = await revenueService.getRevenueBreakdown(period);
+        return reply.send({ success: true, data: breakdown });
+      } catch (error) {
+        return reply.status(500).send({ success: false, error: { message: error instanceof Error ? error.message : "Failed to fetch breakdown" } });
+      }
+    }
+  });
+
+  app.post("/revenue/ads/record", {
+    preHandler: [app.authenticate, requireAdmin],
+    schema: {
+      body: z.object({
+        date: z.string().optional(), // ISO string
+        revenue: z.number().min(0),
+        impressions: z.number().int().min(0).optional(),
+        clicks: z.number().int().min(0).optional(),
+      }),
+    },
+    handler: async (request, reply) => {
+      try {
+        const body = request.body as any;
+        const date = body.date ? new Date(body.date) : new Date();
+        const record = await revenueService.recordAdRevenue(
+          date,
+          body.revenue,
+          body.impressions,
+          body.clicks
+        );
+        return reply.send({ success: true, data: record });
+      } catch (error) {
+        return reply.status(500).send({ success: false, error: { message: error instanceof Error ? error.message : "Failed to record revenue" } });
+      }
+    }
   });
 
   // ===== YouTube Channel Management Routes =====

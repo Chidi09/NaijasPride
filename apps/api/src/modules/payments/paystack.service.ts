@@ -135,8 +135,30 @@ export class PaystackService {
     const nextBilling = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
     const planId = await this.resolvePlanIdFromMetadata(metadata, existingUser.planId || undefined);
+    const planSlug = metadata?.planSlug || null;
+
+    // Record the transaction first
+    await this.prisma.transaction.upsert({
+      where: { reference },
+      update: {
+        status: 'success',
+        amount: amountKobo,
+        userId: existingUser.id,
+        planSlug: planSlug,
+      },
+      create: {
+        reference,
+        status: 'success',
+        amount: amountKobo,
+        userId: existingUser.id,
+        planSlug: planSlug,
+        metadata: metadata || {},
+        type: 'subscription',
+      }
+    }).catch(err => console.error('[Paystack Service] Failed to record transaction:', err));
 
     const user = await this.prisma.user.update({
+
       where: { id: existingUser.id },
       data: {
         isPremium: true,

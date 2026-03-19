@@ -16,15 +16,15 @@ import { Movie } from '@naijaspride/types';
         <div class="flex items-center gap-4">
           <a 
             routerLink="/admin/movies" 
-            class="text-[#9f7d73] hover:text-white transition-colors"
+            class="text-[#7b6660] hover:text-[#24181b] transition-colors dark:text-[#9f7d73] dark:hover:text-white"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
           </a>
           <div>
-            <h1 class="text-2xl font-bold text-white">Edit Movie</h1>
-            <p class="text-[#9f7d73] text-sm">{{ movie?.title }}</p>
+            <h1 class="text-2xl font-bold text-[#24181b] dark:text-white">Edit Movie</h1>
+            <p class="text-[#7b6660] text-sm dark:text-[#9f7d73]">{{ movie?.title }}</p>
           </div>
         </div>
         
@@ -55,69 +55,69 @@ import { Movie } from '@naijaspride/types';
       @if (!loading && movie) {
         <form [formGroup]="movieForm" (ngSubmit)="onSubmit()" class="space-y-6">
           <!-- Basic Info -->
-          <div class="bg-[#140d11] border border-[#2d1a21] rounded-xl p-6">
-            <h2 class="text-lg font-semibold text-white mb-4">Basic Information</h2>
+          <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-xl p-6 dark:bg-[#140d11] dark:border-[#2d1a21]">
+            <h2 class="text-lg font-semibold text-[#24181b] mb-4 dark:text-white">Basic Information</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="md:col-span-2">
-                <label class="block text-sm text-[#9f7d73] mb-2">Title</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Title</label>
                 <input
                   type="text"
                   formControlName="title"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="Movie title"
                 >
               </div>
 
               <div class="md:col-span-2">
-                <label class="block text-sm text-[#9f7d73] mb-2">Description</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Description</label>
                 <textarea
                   formControlName="description"
                   rows="4"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                   class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="Movie description"
                 ></textarea>
               </div>
 
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">Year</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Year</label>
                 <input
                   type="number"
                   formControlName="year"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="2024"
                 >
               </div>
 
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">Language</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Language</label>
                 <input
                   type="text"
                   formControlName="language"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="English"
                 >
               </div>
 
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">Duration (minutes)</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Duration (minutes)</label>
                 <input
                   type="number"
                   formControlName="durationMinutes"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="120"
                 >
               </div>
 
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">Rating</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Rating</label>
                 <input
                   type="number"
                   step="0.1"
                   min="0"
                   max="10"
                   formControlName="rating"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="8.5"
                 >
               </div>
@@ -125,16 +125,16 @@ import { Movie } from '@naijaspride/types';
           </div>
 
           <!-- Streaming Info -->
-          <div class="bg-[#140d11] border border-[#2d1a21] rounded-xl p-6">
-            <h2 class="text-lg font-semibold text-white mb-4">Streaming Information</h2>
+          <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-xl p-6 dark:bg-[#140d11] dark:border-[#2d1a21]">
+            <h2 class="text-lg font-semibold text-[#24181b] mb-4 dark:text-white">Streaming Information</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">YouTube Video ID</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">YouTube Video ID</label>
                 <input
                   type="text"
                   formControlName="youtubeId"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="dQw4w9WgXcQ"
                 >
               </div>
@@ -146,43 +146,43 @@ import { Movie } from '@naijaspride/types';
                     formControlName="isStreamOnly"
                     class="w-4 h-4 rounded border-[#2d1a21] bg-[#0f0f11] text-[#800020] focus:ring-[#800020]"
                   >
-                  <span class="text-white">Stream Only (no downloads)</span>
+                   <span class="text-[#24181b] dark:text-white">Stream Only (no downloads)</span>
                 </label>
               </div>
             </div>
           </div>
 
           <!-- Media URLs -->
-          <div class="bg-[#140d11] border border-[#2d1a21] rounded-xl p-6">
-            <h2 class="text-lg font-semibold text-white mb-4">Media URLs</h2>
+          <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-xl p-6 dark:bg-[#140d11] dark:border-[#2d1a21]">
+            <h2 class="text-lg font-semibold text-[#24181b] mb-4 dark:text-white">Media URLs</h2>
             
             <div class="space-y-4">
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">Thumbnail URL</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Thumbnail URL</label>
                 <input
                   type="url"
                   formControlName="thumbnailUrl"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="https://example.com/thumb.jpg"
                 >
               </div>
 
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">Cover URL</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Cover URL</label>
                 <input
                   type="url"
                   formControlName="coverUrl"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="https://example.com/cover.jpg"
                 >
               </div>
 
               <div>
-                <label class="block text-sm text-[#9f7d73] mb-2">Poster URL</label>
+                <label class="block text-sm text-[#7b6660] mb-2 dark:text-[#9f7d73]">Poster URL</label>
                 <input
                   type="url"
                   formControlName="posterUrl"
-                  class="w-full px-4 py-2 bg-[#0f0f11] border border-[#2d1a21] rounded-lg text-white focus:outline-none focus:border-[#800020]"
+                  class="w-full px-4 py-2 bg-white border border-[#dcc5b8] rounded-lg text-[#24181b] focus:outline-none focus:border-[#800020] dark:bg-[#0f0f11] dark:border-[#2d1a21] dark:text-white"
                   placeholder="https://example.com/poster.jpg"
                 >
               </div>
@@ -204,7 +204,7 @@ import { Movie } from '@naijaspride/types';
 
             <a
               routerLink="/admin/movies"
-              class="px-6 py-3 border border-[#2d1a21] text-[#9f7d73] hover:text-white hover:border-[#9f7d73] rounded-lg transition"
+              class="px-6 py-3 border border-[#dcc5b8] text-[#7b6660] hover:text-[#24181b] hover:border-[#7b6660] rounded-lg transition dark:border-[#2d1a21] dark:text-[#9f7d73] dark:hover:text-white dark:hover:border-[#9f7d73]"
             >
               Cancel
             </a>
