@@ -26,6 +26,7 @@ export type LightNovelVolumeSummary = Pick<
   | 'downloadUrl'
   | 'fileSize'
   | 'publisher'
+  | 'description'
   | 'createdAt'
   | 'updatedAt'
 > & {
@@ -202,6 +203,7 @@ export class BooksService {
       downloadUrl: book.downloadUrl,
       fileSize: book.fileSize,
       publisher: book.publisher,
+      description: book.description,
       createdAt: book.createdAt.toISOString(),
       updatedAt: book.updatedAt.toISOString(),
       volumeNumber: meta.volumeNumber,
