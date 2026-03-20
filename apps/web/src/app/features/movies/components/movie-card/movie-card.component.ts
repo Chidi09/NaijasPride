@@ -78,7 +78,9 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
         @if (isLoggedIn()) {
           <button
             type="button"
-            class="absolute top-2 right-2 z-10 rounded-full bg-black/65 p-2 text-white transition-colors hover:bg-black"
+            class="absolute right-2 z-10 rounded-full bg-black/65 p-2 text-white transition-colors hover:bg-black"
+            [class.top-2]="!movie.quality?.includes('4K')"
+            [class.top-10]="movie.quality?.includes('4K')"
             (click)="toggleWatchlist($event)"
             (touchstart)="$event.stopPropagation()"
             [attr.aria-label]="saved() ? 'Remove from watchlist' : 'Add to watchlist'"
@@ -86,7 +88,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
             @if (saved()) {
               <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 016.5 4c1.74 0 3.41.81 4.5 2.09A6 6 0 0115 4a4.5 4.5 0 014.5 4.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
             } @else {
-              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.1 21.35l-1.2-1.1C5.1 14.9 2 12.1 2 8.7A4.7 4.7 0 016.7 4c1.7 0 3.3.8 4.3 2.1A5.7 5.7 0 0115.3 4 4.7 4.7 0 0120 8.7c0 3.4-3.1 6.2-8.9 11.5l-1 .95z"/></svg>
             }
           </button>
         }

@@ -20,6 +20,7 @@ type LightNovelVolume = {
   downloadUrl: string | null;
   fileSize: number | null;
   publisher: string | null;
+  description?: string | null;
   createdAt: string;
   updatedAt: string;
   volumeNumber: number | null;
@@ -74,7 +75,7 @@ type BookProgressResponse = {
           </div>
         </div>
 
-        <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+        <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
           <input
             [(ngModel)]="searchQuery"
             (keyup.enter)="applySearch()"
@@ -83,6 +84,9 @@ type BookProgressResponse = {
             class="h-11 rounded-xl border border-[#d8c2b8] bg-white/80 px-4 text-[#24181b] outline-none transition focus:border-[#800020] dark:border-cinema-700 dark:bg-cinema-900/80 dark:text-white"
           >
           <button mat-flat-button color="primary" class="h-11" (click)="applySearch()">Search</button>
+          @if (searchQuery.trim() || appliedQuery) {
+            <button mat-stroked-button color="primary" class="h-11" (click)="clearSearch()">Clear</button>
+          }
         </div>
       </div>
 
@@ -137,6 +141,14 @@ type BookProgressResponse = {
                       {{ item.totalVolumes }} Volumes • {{ item.latestYear }}
                     </p>
                   </div>
+
+                  <p class="mt-1 text-xs uppercase tracking-[0.12em] text-[#8a756e] dark:text-gray-400">
+                    {{ seriesAuthor(item) }}
+                  </p>
+
+                  @if (seriesBlurb(item); as blurb) {
+                    <p class="mt-2 line-clamp-2 text-sm text-[#6f5952] dark:text-gray-300">{{ blurb }}</p>
+                  }
 
                   <div class="mt-3 grid gap-2">
                     @for (volume of visibleVolumes(item); track volume.id) {
@@ -198,7 +210,7 @@ export class LightNovelsLibraryComponent {
 
   page = signal(1);
   searchQuery = '';
-  private appliedQuery = '';
+  appliedQuery = '';
 
   constructor() {
     this.loadSeries();
@@ -206,6 +218,13 @@ export class LightNovelsLibraryComponent {
 
   applySearch() {
     this.appliedQuery = this.searchQuery.trim();
+    this.page.set(1);
+    this.loadSeries();
+  }
+
+  clearSearch() {
+    this.searchQuery = '';
+    this.appliedQuery = '';
     this.page.set(1);
     this.loadSeries();
   }
@@ -257,6 +276,36 @@ export class LightNovelsLibraryComponent {
       current.add(seriesKey);
     }
     this.expandedSeries.set(current);
+  }
+
+  private firstVolume(series: LightNovelSeries): LightNovelVolume | undefined {
+    if (!series.volumes?.length) return undefined;
+    return [...series.volumes].sort((a, b) => {
+      const av = a.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+      const bv = b.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+      if (av !== bv) return av - bv;
+      return a.title.localeCompare(b.title);
+    })[0];
+  }
+
+  seriesAuthor(series: LightNovelSeries): string {
+    const author = this.firstVolume(series)?.author?.trim();
+    if (!author || author.toLowerCase() === 'unknown' || author.toLowerCase() === 'unknown author') {
+      return 'Author unavailable';
+    }
+    return author;
+  }
+
+  seriesBlurb(series: LightNovelSeries): string {
+    const raw = this.firstVolume(series)?.description?.trim() || '';
+    if (!raw) return '';
+    const cleaned = raw
+      .replace(/(?:^|\n)\s*series\s*:[^\n]*/gi, '')
+      .replace(/(?:^|\n)\s*volume\s*:[^\n]*/gi, '')
+      .replace(/(?:^|\n)\s*source file\s*:[^\n]*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned;
   }
 
   isExpanded(seriesKey: string): boolean {
