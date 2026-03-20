@@ -1586,6 +1586,71 @@ export const bookRoutes = async (
     },
   });
 
+  // POST /api/books/admin/relink-elsci-r2 — Admin: check R2 storage for all Elsci books that still
+  // carry the legacy /external/elsci/file?href=... URL (disabled endpoint) and update their
+  // downloadUrl to the real R2 key, or null if not yet mirrored.
+  app.post('/admin/relink-elsci-r2', {
+    preHandler: [app.authenticate],
+    config: { rateLimit: SCRAPE_RATE_LIMIT_HEAVY },
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({ status: 'error', message: 'Forbidden: Admin access required' });
+        }
+
+        const books = await app.prisma.book.findMany({
+          where: { downloadUrl: { contains: '/books/external/elsci/file' } },
+          select: { id: true, slug: true, format: true },
+        });
+
+        let relinked = 0;
+        let nulled = 0;
+        let failed = 0;
+        const relinkLog: Array<{ slug: string; key: string | null }> = [];
+
+        for (const book of books) {
+          const candidates = getElsciMirrorKeyCandidates(book.slug, book.format);
+          let foundKey: string | null = null;
+
+          for (const key of candidates) {
+            try {
+              await StorageService.getClient().send(
+                new HeadObjectCommand({ Bucket: StorageService.getBucket(), Key: key }),
+              );
+              foundKey = key;
+              break;
+            } catch {
+              // try next extension
+            }
+          }
+
+          try {
+            const newDownloadUrl = foundKey
+              ? `/api/v1/books/download?key=${encodeURIComponent(foundKey)}`
+              : null;
+            await app.prisma.book.update({ where: { id: book.id }, data: { downloadUrl: newDownloadUrl } });
+            relinkLog.push({ slug: book.slug, key: foundKey });
+            if (foundKey) relinked++;
+            else nulled++;
+          } catch {
+            relinkLog.push({ slug: book.slug, key: null });
+            failed++;
+          }
+        }
+
+        return reply.send({
+          status: 'success',
+          data: { total: books.length, relinked, nulled, failed, log: relinkLog },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to relink Elsci URLs',
+        });
+      }
+    },
+  });
+
   // POST /api/books/import/elsci-lightnovels - Import light novel metadata from Elsci index (Admin only)
   app.post('/import/elsci-lightnovels', {
     preHandler: [app.authenticate],

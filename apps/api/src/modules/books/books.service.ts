@@ -175,6 +175,14 @@ export class BooksService {
     };
   }
 
+  // Legacy Elsci proxy URLs point to a disabled endpoint — null them out so the
+  // frontend never tries to fetch a path that always returns 404.
+  private static sanitizeElsciDownloadUrl(downloadUrl: string | null): string | null {
+    if (!downloadUrl) return null;
+    if (downloadUrl.includes('/books/external/elsci/file')) return null;
+    return downloadUrl;
+  }
+
   private toLightNovelVolumeSummary(book: {
     id: string;
     title: string;
@@ -200,7 +208,7 @@ export class BooksService {
       year: book.year,
       coverUrl: book.coverUrl,
       format: book.format,
-      downloadUrl: book.downloadUrl,
+      downloadUrl: BooksService.sanitizeElsciDownloadUrl(book.downloadUrl),
       fileSize: book.fileSize,
       publisher: book.publisher,
       description: book.description,
@@ -486,6 +494,7 @@ export class BooksService {
     if (!book) return null;
     return {
       ...book,
+      downloadUrl: BooksService.sanitizeElsciDownloadUrl(book.downloadUrl),
       createdAt: book.createdAt.toISOString(),
       updatedAt: book.updatedAt.toISOString(),
     } as Book;
