@@ -15,6 +15,7 @@ export interface GoogleBooksVolume {
     }>;
     pageCount?: number;
     categories?: string[];
+    publisher?: string;
     imageLinks?: {
       smallThumbnail?: string;
       thumbnail?: string;
@@ -143,8 +144,20 @@ export async function enrichBookFromGoogleBooks(
   description: string | null;
   pageCount: number | null;
   categories: string[] | null;
+  publishedYear: number | null;
+  publisher: string | null;
+  language: string | null;
 }> {
-  const empty = { author: null, coverUrl: null, description: null, pageCount: null, categories: null };
+  const empty = {
+    author: null,
+    coverUrl: null,
+    description: null,
+    pageCount: null,
+    categories: null,
+    publishedYear: null,
+    publisher: null,
+    language: null,
+  };
   try {
     let query = `intitle:${encodeURIComponent(title)}`;
     if (author) {
@@ -209,6 +222,9 @@ export async function enrichBookFromGoogleBooks(
       description: info.description || null,
       pageCount: info.pageCount || null,
       categories: info.categories || null,
+      publishedYear: info.publishedDate ? Number.parseInt(info.publishedDate.substring(0, 4), 10) || null : null,
+      publisher: info.publisher || null,
+      language: info.language || null,
     };
   } catch (error) {
     console.error('[GoogleBooks] Failed to enrich book:', error);

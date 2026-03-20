@@ -89,6 +89,25 @@ const animeProxyQuerySchema = z.object({
 const VIDEO_SOURCE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const videoSourceCache = new Map<string, { sources: VideoSource[]; timestamp: number }>();
 
+const ANIME_EPISODES_CACHE_TTL_MS = 90 * 1000;
+const ANIME_WATCH_CACHE_TTL_MS = 60 * 1000;
+const animeEpisodesCache = new Map<string, { payload: unknown; timestamp: number }>();
+const animeWatchCache = new Map<string, { payload: unknown; timestamp: number }>();
+
+const readCachedPayload = (cache: Map<string, { payload: unknown; timestamp: number }>, key: string, ttlMs: number): unknown | null => {
+  const cached = cache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > ttlMs) {
+    cache.delete(key);
+    return null;
+  }
+  return cached.payload;
+};
+
+const writeCachedPayload = (cache: Map<string, { payload: unknown; timestamp: number }>, key: string, payload: unknown): void => {
+  cache.set(key, { payload, timestamp: Date.now() });
+};
+
 function getCachedVideoSources(key: string): VideoSource[] | null {
   const cached = videoSourceCache.get(key);
   if (!cached) return null;
@@ -803,6 +822,12 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     schema: {
       querystring: animeProxyQuerySchema,
     },
+    config: {
+      rateLimit: {
+        max: 120,
+        timeWindow: '1 minute',
+      },
+    },
   }, async (request, reply) => {
     const { url, referer } = request.query;
 
@@ -924,11 +949,26 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       params: animeByIdParamsSchema,
       querystring: animeEpisodesQuerySchema,
     },
+    config: {
+      rateLimit: {
+        max: 45,
+        timeWindow: '1 minute',
+      },
+    },
   }, async (request, reply) => {
     try {
       const { id } = request.params;
       const { provider } = request.query;
+      const episodesCacheKey = `${id}|${provider}`;
+      const cachedEpisodes = readCachedPayload(animeEpisodesCache, episodesCacheKey, ANIME_EPISODES_CACHE_TTL_MS);
+      if (cachedEpisodes) {
+        return reply.send(cachedEpisodes);
+      }
       const resolutionTrace = createResolutionTrace();
+      const sendEpisodesSuccess = (payload: unknown) => {
+        writeCachedPayload(animeEpisodesCache, episodesCacheKey, payload);
+        return reply.send(payload);
+      };
 
       if (shouldTryAnimepahePrimary(provider)) {
         try {
@@ -941,7 +981,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               outcome: 'success',
             });
             logResolutionTrace(request, resolutionTrace);
-            return reply.send({
+            return sendEpisodesSuccess({
               success: true,
               data: {
                 id,
@@ -1020,7 +1060,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         usedProvider = bridgeAvailable ? providersForRequest(provider)[0] || 'gogoanime' : 'auto';
       }
 
-      return reply.send({
+      return sendEpisodesSuccess({
         success: true,
         data: {
           id,
@@ -1052,11 +1092,26 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       params: animeWatchParamsSchema,
       querystring: animeWatchQuerySchema,
     },
+    config: {
+      rateLimit: {
+        max: 24,
+        timeWindow: '1 minute',
+      },
+    },
   }, async (request, reply) => {
     try {
       const { id, episodeNumber } = request.params;
       const { provider, server, type } = request.query;
+      const watchCacheKey = `${id}|${episodeNumber}|${provider}|${server || ''}|${type}`;
+      const cachedWatch = readCachedPayload(animeWatchCache, watchCacheKey, ANIME_WATCH_CACHE_TTL_MS);
+      if (cachedWatch) {
+        return reply.send(cachedWatch);
+      }
       const resolutionTrace = createResolutionTrace();
+      const sendWatchSuccess = (payload: unknown) => {
+        writeCachedPayload(animeWatchCache, watchCacheKey, payload);
+        return reply.send(payload);
+      };
       let anilistTitlesCache: string[] | null = null;
 
       const getAnilistTitles = async (): Promise<string[]> => {
@@ -1083,7 +1138,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 outcome: 'success',
               });
               logResolutionTrace(request, resolutionTrace);
-              return reply.send({
+              return sendWatchSuccess({
                 success: true,
                 data: {
                   animeId: id,
@@ -1142,7 +1197,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               outcome: 'success',
             });
             logResolutionTrace(request, resolutionTrace);
-            return reply.send({
+            return sendWatchSuccess({
               success: true,
               data: {
                 animeId: id,
@@ -1316,7 +1371,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             outcome: 'success',
           });
           logResolutionTrace(request, resolutionTrace);
-          return reply.send({
+          return sendWatchSuccess({
             success: true,
             data: {
               animeId: id,
@@ -1367,7 +1422,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       logResolutionTrace(request, resolutionTrace);
-      return reply.send({
+      return sendWatchSuccess({
         success: true,
         data: {
           animeId: id,

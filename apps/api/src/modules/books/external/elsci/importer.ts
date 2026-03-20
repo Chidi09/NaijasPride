@@ -7,7 +7,8 @@ import {
   type ElsciLightNovelFile,
   type ElsciRequestedFormat,
 } from './elsci-lightnovels';
-import { extractEpubMetadata, uploadCoverImage } from '../cover-extractor.service';
+import { extractEpubMetadataFromBuffer, uploadCoverImage } from '../cover-extractor.service';
+import { enrichBookFromGoogleBooks } from '../google-books.service';
 import { StorageService } from '../../../../shared/services/storage.service';
 
 export type ElsciLightNovelImportOptions = {
@@ -100,6 +101,14 @@ const buildElsciSlug = (entry: ElsciLightNovelFile): string => {
 const buildStableDownloadUrl = (href: string): string =>
   `/api/v1/books/external/elsci/file?href=${encodeURIComponent(href)}`;
 
+const normalizeAuthor = (value?: string | null): string | null => {
+  const normalized = (value || '').trim();
+  if (!normalized) return null;
+  const lowered = normalized.toLowerCase();
+  if (lowered === 'unknown' || lowered === 'unknown author' || lowered === 'n/a') return null;
+  return normalized;
+};
+
 const streamToBuffer = async (stream: NodeJS.ReadableStream, maxBytes: number): Promise<Buffer> => {
   const chunks: Buffer[] = [];
   let total = 0;
@@ -123,6 +132,7 @@ export const importElsciLightNovelsCatalog = async (
   const storageService = new StorageService();
   const shouldMirrorToR2 = (process.env.ELSCI_MIRROR_TO_R2 || 'true').trim().toLowerCase() !== 'false';
   const mirrorMaxBytes = Number.parseInt(process.env.ELSCI_MIRROR_MAX_BYTES || `${80 * 1024 * 1024}`, 10);
+  const metadataMaxBytes = Number.parseInt(process.env.ELSCI_METADATA_MAX_BYTES || `${80 * 1024 * 1024}`, 10);
   const maxBooks =
     Number.isFinite(options.maxBooks) && (options.maxBooks as number) > 0
       ? Math.min(options.maxBooks as number, 2_000)
@@ -151,13 +161,23 @@ export const importElsciLightNovelsCatalog = async (
 
     let coverUrl: string | null = null;
     let extractedAuthor: string | null = null;
+    let extractedDescription: string | null = null;
+    let extractedYear: number | null = null;
+    let extractedPublisher: string | null = null;
+    let metadataFileBuffer: Buffer | null = null;
 
     // Extract cover AND author from EPUB metadata in a single download pass
     if (format === 'EPUB' && !options.dryRun) {
       try {
         console.log(`[ElsciImporter] Extracting metadata from EPUB for "${title}"...`);
-        const fullUrl = `${sourceBaseUrl}${entry.href}`;
-        const { coverBuffer, author } = await extractEpubMetadata(fullUrl);
+        const upstream = await fetchElsciLightNovelFileStream(entry.href, { timeoutMs: 120_000 });
+        metadataFileBuffer = await streamToBuffer(
+          upstream.stream,
+          Number.isFinite(metadataMaxBytes) && metadataMaxBytes > 0
+            ? metadataMaxBytes
+            : 80 * 1024 * 1024,
+        );
+        const { coverBuffer, author, description, publishedYear, publisher } = await extractEpubMetadataFromBuffer(metadataFileBuffer);
 
         if (coverBuffer) {
           console.log(`[ElsciImporter] ✓ Extracted cover from EPUB for "${title}"`);
@@ -173,20 +193,58 @@ export const importElsciLightNovelsCatalog = async (
         } else {
           console.log(`[ElsciImporter] ✗ No author found in EPUB metadata for "${title}"`);
         }
+
+        if (description && description.length >= 32) {
+          extractedDescription = description;
+        }
+
+        if (publishedYear) {
+          extractedYear = publishedYear;
+        }
+
+        if (publisher) {
+          extractedPublisher = publisher;
+        }
       } catch (error) {
         console.error(`[ElsciImporter] Failed to extract metadata for "${title}":`, error);
       }
     }
 
+    const googleEnrichment = await enrichBookFromGoogleBooks(
+      title,
+      normalizeAuthor(extractedAuthor) || undefined,
+      extractedYear ?? deriveBookYear(entry),
+    );
+
+    const resolvedAuthor = normalizeAuthor(extractedAuthor) || normalizeAuthor(googleEnrichment.author) || 'Unknown';
+    const resolvedDescription =
+      (extractedDescription && extractedDescription.length >= 32 ? extractedDescription : null)
+      || (googleEnrichment.description && googleEnrichment.description.length >= 32 ? googleEnrichment.description : null)
+      || buildElsciDescription(entry);
+    const resolvedYear = extractedYear || googleEnrichment.publishedYear || deriveBookYear(entry);
+    const resolvedPublisher = extractedPublisher || googleEnrichment.publisher || 'Elsci';
+
+    if (!coverUrl && googleEnrichment.coverUrl) {
+      coverUrl = googleEnrichment.coverUrl;
+    }
+
     if (!options.dryRun && shouldMirrorToR2) {
       try {
-        const upstream = await fetchElsciLightNovelFileStream(entry.href, { timeoutMs: 120_000 });
         const ext = format === 'PDF' ? 'pdf' : 'epub';
         const storageKey = `books/elsci/${slug}.${ext}`;
         const contentType = format === 'PDF' ? 'application/pdf' : 'application/epub+zip';
-        const body = await streamToBuffer(upstream.stream, Number.isFinite(mirrorMaxBytes) && mirrorMaxBytes > 0
-          ? mirrorMaxBytes
-          : 80 * 1024 * 1024);
+        const body =
+          format === 'EPUB' && metadataFileBuffer
+            ? metadataFileBuffer
+            : await (async () => {
+                const upstream = await fetchElsciLightNovelFileStream(entry.href, { timeoutMs: 120_000 });
+                return streamToBuffer(
+                  upstream.stream,
+                  Number.isFinite(mirrorMaxBytes) && mirrorMaxBytes > 0
+                    ? mirrorMaxBytes
+                    : 80 * 1024 * 1024,
+                );
+              })();
 
         await StorageService.getClient().send(
           new PutObjectCommand({
@@ -209,17 +267,17 @@ export const importElsciLightNovelsCatalog = async (
     const payload = {
       title,
       slug,
-      author: extractedAuthor || 'Unknown',
-      description: buildElsciDescription(entry),
-      year: deriveBookYear(entry),
+      author: resolvedAuthor,
+      description: resolvedDescription,
+      year: resolvedYear,
       coverUrl,
       downloadUrl,
       fileSize,
       format,
-      genre: ['Light Novel'],
-      language: 'English',
-      pageCount: null,
-      publisher: 'Elsci',
+      genre: googleEnrichment.categories && googleEnrichment.categories.length > 0 ? googleEnrichment.categories : ['Light Novel'],
+      language: googleEnrichment.language || 'English',
+      pageCount: googleEnrichment.pageCount || null,
+      publisher: resolvedPublisher,
       downloadCount: 0,
       status: 'active' as const,
     };

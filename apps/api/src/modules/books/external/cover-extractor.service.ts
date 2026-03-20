@@ -192,19 +192,166 @@ function resolvePath(opfPath: string, href: string): string {
 export type EpubMetadata = {
   coverBuffer: Buffer | null;
   author: string | null;
+  description: string | null;
+  publishedYear: number | null;
+  publisher: string | null;
+};
+
+const readOpfContentFromZip = async (epubPathOrBuffer: string | Buffer): Promise<string | null> => {
+  try {
+    const { default: AdmZip } = await import('adm-zip');
+    const zip = new AdmZip(epubPathOrBuffer);
+
+    const containerEntry = zip.getEntry('META-INF/container.xml');
+    if (!containerEntry) return null;
+
+    const containerXml = containerEntry.getData().toString('utf-8');
+    const opfPathMatch = containerXml.match(/full-path=["']([^"']+)["']/i);
+    if (!opfPathMatch) return null;
+
+    const opfEntry = zip.getEntry(opfPathMatch[1]);
+    if (!opfEntry) return null;
+
+    return opfEntry.getData().toString('utf-8');
+  } catch {
+    return null;
+  }
+};
+
+const stripXmlText = (value: string): string =>
+  value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const parseMetadataFromOpfContent = (opfContent: string): {
+  author: string | null;
+  description: string | null;
+  publishedYear: number | null;
+  publisher: string | null;
+} => {
+  const authorMatch = opfContent.match(/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/i);
+  const descriptionMatch = opfContent.match(/<dc:description[^>]*>([\s\S]*?)<\/dc:description>/i);
+  const publisherMatch = opfContent.match(/<dc:publisher[^>]*>([\s\S]*?)<\/dc:publisher>/i);
+  const dateMatch = opfContent.match(/<dc:date[^>]*>([\s\S]*?)<\/dc:date>/i);
+
+  let publishedYear: number | null = null;
+  if (dateMatch?.[1]) {
+    const yearCandidate = Number.parseInt((dateMatch[1].match(/\d{4}/) || [])[0] || '', 10);
+    if (Number.isFinite(yearCandidate) && yearCandidate >= 1400 && yearCandidate <= new Date().getFullYear() + 1) {
+      publishedYear = yearCandidate;
+    }
+  }
+
+  const author = authorMatch?.[1] ? stripXmlText(authorMatch[1]) : null;
+  const description = descriptionMatch?.[1] ? stripXmlText(descriptionMatch[1]) : null;
+  const publisher = publisherMatch?.[1] ? stripXmlText(publisherMatch[1]) : null;
+
+  return {
+    author: author || null,
+    description: description || null,
+    publishedYear,
+    publisher: publisher || null,
+  };
 };
 
 export async function extractEpubMetadataFromFile(epubPath: string): Promise<EpubMetadata> {
   try {
-    const [coverBuffer, author] = await Promise.all([
+    const [coverBuffer, opfContent] = await Promise.all([
       extractCoverFromOpf(epubPath)
         .then(async (buf) => buf ?? extractCoverByFilename(epubPath)),
-      extractAuthorFromOpf(epubPath),
+      readOpfContentFromZip(epubPath),
     ]);
 
-    return { coverBuffer, author };
+    const parsed = opfContent ? parseMetadataFromOpfContent(opfContent) : {
+      author: null,
+      description: null,
+      publishedYear: null,
+      publisher: null,
+    };
+
+    return {
+      coverBuffer,
+      author: parsed.author,
+      description: parsed.description,
+      publishedYear: parsed.publishedYear,
+      publisher: parsed.publisher,
+    };
   } catch {
-    return { coverBuffer: null, author: null };
+    return { coverBuffer: null, author: null, description: null, publishedYear: null, publisher: null };
+  }
+}
+
+export async function extractEpubMetadataFromBuffer(epubBuffer: Buffer): Promise<EpubMetadata> {
+  try {
+    const { default: AdmZip } = await import('adm-zip');
+    const zip = new AdmZip(epubBuffer);
+    const entries = zip.getEntries();
+
+    let coverBuffer: Buffer | null = null;
+    const opfContent = await readOpfContentFromZip(epubBuffer);
+
+    if (opfContent) {
+      const containerEntry = zip.getEntry('META-INF/container.xml');
+      if (containerEntry) {
+        const containerXml = containerEntry.getData().toString('utf-8');
+        const opfPathMatch = containerXml.match(/full-path=["']([^"']+)["']/i);
+        if (opfPathMatch) {
+          const opfPath = opfPathMatch[1];
+          const coverMetaMatch = opfContent.match(/meta[^>]*name=["']cover["'][^>]*content=["']([^"']+)["']/i);
+          if (coverMetaMatch) {
+            const coverId = coverMetaMatch[1];
+            const itemMatch = opfContent.match(new RegExp(`item[^>]*id=["']${coverId}["'][^>]*href=["']([^"']+)["']`, 'i'));
+            if (itemMatch?.[1]) {
+              const coverPath = resolvePath(opfPath, itemMatch[1]);
+              const coverEntry = zip.getEntry(coverPath);
+              if (coverEntry) coverBuffer = coverEntry.getData();
+            }
+          }
+
+          if (!coverBuffer) {
+            const coverItemMatch = opfContent.match(/item[^>]*id=["'][^"']*cover[^"']*["'][^>]*href=["']([^"']+)["']/i);
+            if (coverItemMatch?.[1]) {
+              const coverPath = resolvePath(opfPath, coverItemMatch[1]);
+              const coverEntry = zip.getEntry(coverPath);
+              if (coverEntry) coverBuffer = coverEntry.getData();
+            }
+          }
+        }
+      }
+    }
+
+    if (!coverBuffer) {
+      const coverKeywords = ['cover', 'front', 'title', 'thumbnail'];
+      for (const keyword of coverKeywords) {
+        const coverEntry = entries.find((entry) => {
+          const name = entry.entryName.toLowerCase();
+          return name.includes(keyword) && (name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png'));
+        });
+        if (coverEntry) {
+          coverBuffer = coverEntry.getData();
+          break;
+        }
+      }
+    }
+
+    const parsed = opfContent ? parseMetadataFromOpfContent(opfContent) : {
+      author: null,
+      description: null,
+      publishedYear: null,
+      publisher: null,
+    };
+
+    return {
+      coverBuffer,
+      author: parsed.author,
+      description: parsed.description,
+      publishedYear: parsed.publishedYear,
+      publisher: parsed.publisher,
+    };
+  } catch {
+    return { coverBuffer: null, author: null, description: null, publishedYear: null, publisher: null };
   }
 }
 
@@ -229,7 +376,7 @@ export async function extractEpubMetadata(epubUrl: string): Promise<EpubMetadata
       writer.on('error', reject);
     });
 
-    const { coverBuffer, author } = await extractEpubMetadataFromFile(tempFile);
+    const { coverBuffer, author, description, publishedYear, publisher } = await extractEpubMetadataFromFile(tempFile);
 
     if (coverBuffer) {
       console.log('[CoverExtractor] ✓ Found cover via metadata extraction');
@@ -237,47 +384,20 @@ export async function extractEpubMetadata(epubUrl: string): Promise<EpubMetadata
     if (author) {
       console.log(`[CoverExtractor] ✓ Found author: ${author}`);
     }
+    if (publishedYear) {
+      console.log(`[CoverExtractor] ✓ Found year: ${publishedYear}`);
+    }
 
-    return { coverBuffer, author };
+    return { coverBuffer, author, description, publishedYear, publisher };
   } catch (error) {
     console.error('[CoverExtractor] Error extracting EPUB metadata:', error);
-    return { coverBuffer: null, author: null };
+    return { coverBuffer: null, author: null, description: null, publishedYear: null, publisher: null };
   } finally {
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
     } catch {
       // Ignore
     }
-  }
-}
-
-async function extractAuthorFromOpf(epubPath: string): Promise<string | null> {
-  try {
-    const { default: AdmZip } = await import('adm-zip');
-    const zip = new AdmZip(epubPath);
-
-    const containerEntry = zip.getEntry('META-INF/container.xml');
-    if (!containerEntry) return null;
-
-    const containerXml = containerEntry.getData().toString('utf-8');
-    const opfPathMatch = containerXml.match(/full-path=["']([^"']+)["']/i);
-    if (!opfPathMatch) return null;
-
-    const opfEntry = zip.getEntry(opfPathMatch[1]);
-    if (!opfEntry) return null;
-
-    const opfContent = opfEntry.getData().toString('utf-8');
-
-    // Match <dc:creator ...>Author Name</dc:creator>
-    const creatorMatch = opfContent.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/i);
-    if (creatorMatch) {
-      const author = creatorMatch[1].trim();
-      if (author) return author;
-    }
-
-    return null;
-  } catch {
-    return null;
   }
 }
 

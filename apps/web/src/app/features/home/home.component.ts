@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { WatchApiService, WatchHistoryItem } from '../watch/services/watch-api.service';
 import { BookSummary, MusicFeaturedSections, MovieSummary } from '@naijaspride/types';
 import { AuthService } from '../../core/auth/auth.service';
@@ -301,21 +301,35 @@ type BookProgressResponse = {
         </div>
 
         <!-- Desktop: search bar -->
-        <a routerLink="/search" class="hidden lg:flex items-center gap-2 flex-1 max-w-sm bg-[#181818] hover:bg-[#202020] transition rounded-xl px-4 py-2.5 text-[#a88a78] text-sm cursor-pointer">
+        <div class="hidden lg:flex flex-1 max-w-md items-center gap-2 rounded-xl border border-[#232323] bg-[#181818] px-3 py-2 text-[#a88a78] transition focus-within:border-[#800020]/45 focus-within:bg-[#202020]">
           <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <span>Search movies, anime, books, music…</span>
-        </a>
+          <input
+            type="text"
+            class="w-full bg-transparent text-sm text-[#f2ece8] outline-none placeholder:text-[#8e7668]"
+            placeholder="Search movies, anime, books, music..."
+            [value]="homeSearchQuery()"
+            (input)="homeSearchQuery.set(($any($event.target).value || ''))"
+            (keydown.enter)="openGlobalSearch(homeSearchQuery())"
+          />
+          <button
+            type="button"
+            class="rounded-lg bg-[#800020] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#95002a]"
+            (click)="openGlobalSearch(homeSearchQuery())"
+          >
+            Search
+          </button>
+        </div>
 
         <!-- Right actions -->
         <div class="flex items-center gap-2">
           <!-- Mobile search -->
-          <a routerLink="/search" class="lg:hidden h-9 w-9 rounded-xl bg-[#181818] flex items-center justify-center text-[#a88a78] hover:bg-[#242424] transition">
+          <button type="button" (click)="openGlobalSearch(homeSearchQuery())" class="lg:hidden h-9 w-9 rounded-xl bg-[#181818] flex items-center justify-center text-[#a88a78] hover:bg-[#242424] transition" aria-label="Open search">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-          </a>
+          </button>
           <!-- Library quick link -->
           <a routerLink="/downloads" class="h-9 w-9 rounded-xl bg-[#181818] flex items-center justify-center text-[#a88a78] hover:bg-[#242424] transition">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -811,6 +825,7 @@ type BookProgressResponse = {
 })
 export class HomeComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
+  private router = inject(Router);
   private watchApi = inject(WatchApiService);
   private authService = inject(AuthService);
   private readerState = inject(ReaderStateService);
@@ -835,6 +850,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   userInitials = signal('G');
   membershipLabel = signal('Member');
   isPremiumUser = signal(false);
+  homeSearchQuery = signal('');
 
   ngOnInit(): void {
     // Activate home layout — hides shell navbar/bottom-nav
@@ -927,6 +943,13 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  openGlobalSearch(rawQuery?: string): void {
+    const q = (rawQuery || '').trim();
+    void this.router.navigate(['/search'], {
+      queryParams: q.length >= 2 ? { q } : {},
+    });
   }
 
   getMovieProgress(movieId?: string): number | null {
