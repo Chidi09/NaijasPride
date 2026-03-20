@@ -256,28 +256,51 @@ const parseMetadataFromOpfContent = (opfContent: string): {
   };
 };
 
+const extractDescriptionFromSpineDocuments = (
+  zip: any,
+  opfPath: string,
+  opfContent: string,
+): string | null => {
+  const manifest = new Map<string, string>();
+  const itemRegex = /<item\b[^>]*id=["']([^"']+)["'][^>]*href=["']([^"']+)["'][^>]*>/gi;
+  let itemMatch: RegExpExecArray | null;
+  while ((itemMatch = itemRegex.exec(opfContent)) !== null) {
+    manifest.set(itemMatch[1], itemMatch[2]);
+  }
+
+  const spineSection = opfContent.match(/<spine[\s\S]*?<\/spine>/i)?.[0] || '';
+  const idRefs: string[] = [];
+  const idRefRegex = /<itemref\b[^>]*idref=["']([^"']+)["'][^>]*>/gi;
+  let idRefMatch: RegExpExecArray | null;
+  while ((idRefMatch = idRefRegex.exec(spineSection)) !== null) {
+    idRefs.push(idRefMatch[1]);
+    if (idRefs.length >= 10) break;
+  }
+
+  for (const idRef of idRefs) {
+    const href = manifest.get(idRef);
+    if (!href) continue;
+    const entryPath = resolvePath(opfPath, href);
+    const entry = zip.getEntry(entryPath);
+    if (!entry) continue;
+
+    const raw = entry.getData().toString('utf-8');
+    const cleaned = stripXmlText(raw)
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (cleaned.length >= 220) {
+      return cleaned.slice(0, 1400);
+    }
+  }
+
+  return null;
+};
+
 export async function extractEpubMetadataFromFile(epubPath: string): Promise<EpubMetadata> {
   try {
-    const [coverBuffer, opfContent] = await Promise.all([
-      extractCoverFromOpf(epubPath)
-        .then(async (buf) => buf ?? extractCoverByFilename(epubPath)),
-      readOpfContentFromZip(epubPath),
-    ]);
-
-    const parsed = opfContent ? parseMetadataFromOpfContent(opfContent) : {
-      author: null,
-      description: null,
-      publishedYear: null,
-      publisher: null,
-    };
-
-    return {
-      coverBuffer,
-      author: parsed.author,
-      description: parsed.description,
-      publishedYear: parsed.publishedYear,
-      publisher: parsed.publisher,
-    };
+    const fileBuffer = await fs.readFile(epubPath);
+    return extractEpubMetadataFromBuffer(fileBuffer);
   } catch {
     return { coverBuffer: null, author: null, description: null, publishedYear: null, publisher: null };
   }
@@ -343,10 +366,22 @@ export async function extractEpubMetadataFromBuffer(epubBuffer: Buffer): Promise
       publisher: null,
     };
 
+    const derivedDescription =
+      parsed.description && parsed.description.length >= 120
+        ? parsed.description
+        : opfContent && (() => {
+            const containerEntry = zip.getEntry('META-INF/container.xml');
+            if (!containerEntry) return null;
+            const containerXml = containerEntry.getData().toString('utf-8');
+            const opfPathMatch = containerXml.match(/full-path=["']([^"']+)["']/i);
+            if (!opfPathMatch) return null;
+            return extractDescriptionFromSpineDocuments(zip, opfPathMatch[1], opfContent);
+          })();
+
     return {
       coverBuffer,
       author: parsed.author,
-      description: parsed.description,
+      description: derivedDescription || parsed.description,
       publishedYear: parsed.publishedYear,
       publisher: parsed.publisher,
     };
