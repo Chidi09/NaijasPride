@@ -14,7 +14,6 @@ import { RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MusicPlayerService } from '../../services/music-player.service';
 import { MusicApiService } from '../../services/music-api.service';
-import ColorThief from 'colorthief';
 
 @Component({
   selector: 'app-mini-player',
@@ -263,8 +262,8 @@ import ColorThief from 'colorthief';
             #thumbImg
             [src]="player.currentTrack()!.thumbnailUrl || ''"
             [alt]="player.currentTrack()!.title"
-            crossorigin="anonymous"
             loading="lazy"
+            crossorigin="anonymous"
             (load)="onThumbnailLoad(thumbImg)"
           >
         </a>
@@ -437,10 +436,7 @@ export class MiniPlayerComponent implements OnDestroy {
   onThumbnailLoad(img: HTMLImageElement): void {
     if (!isPlatformBrowser(this.platformId)) return;
     try {
-      type CTCtor = new () => { getColor(img: HTMLImageElement): [number, number, number] };
-      const ct = new (ColorThief as unknown as CTCtor)();
-      const [r, g, b] = ct.getColor(img);
-      // Ensure the extracted color is not too dark/desaturated — fall back to brand crimson if so
+      const [r, g, b] = this.extractDominantColor(img);
       const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
       if (luminance < 20) {
         this.nowPlayingColor = '#800020';
@@ -453,6 +449,28 @@ export class MiniPlayerComponent implements OnDestroy {
       this.nowPlayingColor = '#800020';
       this.nowPlayingColorAlpha = 'rgba(128,0,32,0.35)';
     }
+  }
+
+  private extractDominantColor(img: HTMLImageElement): [number, number, number] {
+    const canvas = document.createElement('canvas');
+    // Sample at tiny size for speed; still captures dominant hue well
+    canvas.width = 24;
+    canvas.height = 24;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return [128, 0, 32];
+    ctx.drawImage(img, 0, 0, 24, 24);
+    const data = ctx.getImageData(0, 0, 24, 24).data;
+    let r = 0, g = 0, b = 0, count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const a = data[i + 3];
+      if (a < 128) continue; // skip transparent pixels
+      r += data[i];
+      g += data[i + 1];
+      b += data[i + 2];
+      count++;
+    }
+    if (count === 0) return [128, 0, 32];
+    return [Math.round(r / count), Math.round(g / count), Math.round(b / count)];
   }
 
   ngOnDestroy(): void {
