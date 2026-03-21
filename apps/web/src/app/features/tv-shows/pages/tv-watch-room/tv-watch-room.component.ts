@@ -7,6 +7,7 @@ import { EmbedPlayerComponent } from '../../../../shared/components/embed-player
 import { PwaService } from '../../../../core/services/pwa.service';
 import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
 import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
+import { WatchApiService } from '../../../watch/services/watch-api.service';
 
 @Component({
   selector: 'app-tv-watch-room',
@@ -41,6 +42,7 @@ import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-gr
                 [episodeNumber]="episodeNumber()"
                 [episodeId]="currentEpisode()!.id"
                 [durationHintSeconds]="getDurationHintSeconds()"
+                [startAt]="resumeAt()"
                 (playbackEnded)="onPlaybackEnded()"
               ></app-embed-player>
             </div>
@@ -131,11 +133,13 @@ export class TvWatchRoomComponent {
   private tvQuery = inject(TvShowsQueryService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private watchApi = inject(WatchApiService);
   protected pwaService = inject(PwaService);
 
   seasonNumber = signal(1);
   episodeNumber = signal(1);
   autoNext = signal(true);
+  resumeAt = signal(0);
 
   private queryParams = toSignal(this.route.queryParamMap, { initialValue: this.route.snapshot.queryParamMap });
 
@@ -191,6 +195,22 @@ export class TvWatchRoomComponent {
       this.seasonNumber.set(Number.isFinite(season) && season > 0 ? season : 1);
       this.episodeNumber.set(Number.isFinite(episode) && episode > 0 ? episode : 1);
       this.autoNext.set(auto !== 'false');
+      this.resumeAt.set(0); // Reset when episode changes; load fresh below
+    }, { allowSignalWrites: true });
+
+    // Load saved progress once the show id is available
+    effect(() => {
+      const show = this.show();
+      if (!show?.id) return;
+      this.watchApi.getTvProgress(show.id).subscribe({
+        next: (res) => {
+          const saved = res?.data;
+          if (saved && saved.progress > 10) {
+            this.resumeAt.set(saved.progress);
+          }
+        },
+        error: () => { /* silently ignore — no resume */ },
+      });
     }, { allowSignalWrites: true });
   }
 

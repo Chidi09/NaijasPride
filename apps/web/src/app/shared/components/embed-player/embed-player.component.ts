@@ -215,7 +215,7 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
       .get<EmbedResponse>(endpoint)
       .subscribe({
         next: (response) => {
-          const list = response?.data?.providers || [];
+          const list = (response?.data?.providers || []).map((p) => this.applyResumeToUrl(p));
           this.providers.set(list);
           if (list.length > 0) {
             this.activeProvider.set(list[0]);
@@ -233,6 +233,14 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
           this.stopFallbackTracking();
         },
       });
+  }
+
+  /** Appends ?progress=X to Vidking URLs when we have a saved resume position. */
+  private applyResumeToUrl(provider: EmbedProvider): EmbedProvider {
+    const resumeAt = Math.floor(Math.max(0, this.startAt || 0));
+    if (resumeAt <= 5 || provider.id !== 'vidking') return provider;
+    const separator = provider.url.includes('?') ? '&' : '?';
+    return { ...provider, url: `${provider.url}${separator}progress=${resumeAt}` };
   }
 
   private configureTrackingForProvider(provider: EmbedProvider): void {
