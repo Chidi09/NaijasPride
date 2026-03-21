@@ -244,7 +244,7 @@ interface MangaHistoryRow {
           <!-- Thumbnail area -->
           <div class="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-[#181818] card-img-wrap">
             @if (watchlistPreview(); as item) {
-              <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
+              <img [src]="item.movie.thumbnailUrl || item.movie.posterUrl || item.movie.coverUrl || ''" [alt]="item.movie.title"
                    class="w-full h-full object-cover opacity-80 group-hover:opacity-100"
                    referrerpolicy="no-referrer">
             } @else {
@@ -566,7 +566,7 @@ export class UnifiedLibraryComponent implements OnInit {
       rows.push({
         type: 'movie',
         title: item.movie.title,
-        thumbnailUrl: item.movie.thumbnailUrl,
+        thumbnailUrl: item.movie.thumbnailUrl || item.movie.posterUrl || item.movie.coverUrl || null,
         meta: 'Movie',
         statusLabel: item.progressPercentage >= 95 ? 'Completed' : 'Watching',
         statusColor: item.progressPercentage >= 95 ? 'text-emerald-400' : 'text-[#800020]',
@@ -634,7 +634,7 @@ export class UnifiedLibraryComponent implements OnInit {
         key: `movie:${item.id}`,
         title: item.movie.title,
         subtitle: `${Math.round(item.progressPercentage)}% watched`,
-        coverUrl: item.movie.thumbnailUrl || null,
+        coverUrl: item.movie.thumbnailUrl || item.movie.posterUrl || item.movie.coverUrl || null,
         link: ['/movies', item.movie.slug || item.movie.id],
         badge: 'Movie',
       });

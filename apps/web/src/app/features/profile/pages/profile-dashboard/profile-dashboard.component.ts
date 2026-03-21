@@ -127,10 +127,10 @@ import { ProfileStatsCardComponent, ProfileStat } from '../../../../shared/compo
                   <div class="bg-[#f1e5dd] dark:bg-cinema-800 rounded overflow-hidden transition-transform group-hover:scale-105">
                      <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="relative block">
                        <img 
-                         [src]="item.movie.thumbnailUrl"
-                         [alt]="item.movie.title"
-                         class="w-full aspect-[2/3] object-cover"
-                       >
+                          [src]="item.movie.thumbnailUrl || item.movie.posterUrl || item.movie.coverUrl || '/assets/images/poster-placeholder.svg'"
+                          [alt]="item.movie.title"
+                          class="w-full aspect-[2/3] object-cover"
+                        >
                       <!-- Progress Bar -->
                       <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
                         <div 

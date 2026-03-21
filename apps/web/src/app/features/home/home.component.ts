@@ -589,7 +589,7 @@ type TrendingAnimeItem = {
                 @for (item of continueWatching(); track item.id) {
                   <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="cw-card">
                     <div class="relative aspect-[2/3] overflow-hidden bg-[#181818]">
-                      <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
+                      <img [src]="item.movie.thumbnailUrl || item.movie.posterUrl || item.movie.coverUrl || ''" [alt]="item.movie.title"
                            class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
                       <!-- Gradient overlay with title -->
                       <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 pt-10">
@@ -1007,7 +1007,7 @@ type TrendingAnimeItem = {
             @for (item of continueWatching().slice(0, 5); track item.id) {
               <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="activity-card">
                 <div class="relative h-12 w-9 flex-shrink-0 overflow-hidden rounded-lg border border-[#222]">
-                  <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
+                  <img [src]="item.movie.thumbnailUrl || item.movie.posterUrl || item.movie.coverUrl || ''" [alt]="item.movie.title"
                        class="h-full w-full object-cover" referrerpolicy="no-referrer">
                 </div>
                 <div class="min-w-0 flex-1">

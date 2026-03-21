@@ -37,6 +37,9 @@ export interface WatchHistoryItem {
     title: string;
     slug: string;
     thumbnailUrl: string | null;
+    posterUrl?: string | null;
+    coverUrl?: string | null;
+    backdropUrl?: string | null;
   };
 }
 
