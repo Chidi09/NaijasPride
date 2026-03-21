@@ -27,6 +27,26 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       const { plan } = req.body as z.infer<typeof initializePaymentSchema>;
       const user = req.user;
 
+      // Guard: block re-subscription on the same plan while still active
+      const dbUser = await fastify.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { subStatus: true, nextBillingDate: true, plan: { select: { slug: true } } },
+      });
+
+      const now = new Date();
+      const isActive = dbUser?.subStatus === 'active' && dbUser?.nextBillingDate && dbUser.nextBillingDate > now;
+      const isSamePlan = dbUser?.plan?.slug === plan;
+
+      if (isActive && isSamePlan) {
+        const expiresAt = dbUser.nextBillingDate!;
+        const formatted = expiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        return reply.status(409).send({
+          success: false,
+          message: `You're already subscribed to this plan until ${formatted}. No charge needed.`,
+          data: { nextBillingDate: expiresAt.toISOString() },
+        });
+      }
+
       // Look up the plan price from DB by slug, fall back to legacy monthly/yearly amounts
       let amountKobo: number;
       let durationDays: number | undefined;

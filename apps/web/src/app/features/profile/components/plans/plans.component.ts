@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ProfileQueryService } from '../../services/profile-query.service';
@@ -28,6 +28,20 @@ interface ApiPlan {
         <p class="text-gray-400">Downgrade or cancel at any time.</p>
       </div>
 
+      @if (isSubscribed()) {
+        <div class="max-w-xl mx-auto mb-10 rounded-xl border border-green-700/40 bg-green-900/20 px-5 py-4 text-center">
+          <p class="text-green-300 font-semibold text-sm">
+            ✓ You're currently on the <strong>{{ subscriptionPlanName() }}</strong> plan
+          </p>
+          @if (renewalDate()) {
+            <p class="text-green-400/70 text-xs mt-1">
+              Active until <strong>{{ renewalDate() }}</strong>
+              @if (daysRemaining() !== null) { · {{ daysRemaining() }} day{{ daysRemaining() === 1 ? '' : 's' }} remaining }
+            </p>
+          }
+        </div>
+      }
+
       @if (loadingPlans()) {
         <div class="flex justify-center py-16">
           <div class="w-10 h-10 border-4 border-red-600/30 border-t-red-600 rounded-full animate-spin"></div>
@@ -50,6 +64,11 @@ interface ApiPlan {
               @if (isCurrentPlan(plan)) {
                 <div class="absolute top-3 right-3 bg-green-600/20 text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-600/40">
                   CURRENT PLAN
+                </div>
+              }
+              @if (isCurrentPlan(plan) && renewalDate()) {
+                <div class="mb-3 mt-1 rounded-lg bg-green-900/20 border border-green-700/30 px-3 py-2 text-xs text-green-400/80">
+                  Active until {{ renewalDate() }}
                 </div>
               }
 
@@ -103,6 +122,7 @@ interface ApiPlan {
               >
                 @if (loading() === plan.slug) { Redirecting... }
                 @else if (isCurrentPlan(plan)) { Current Plan }
+                @else if (isSubscribed()) { Switch to {{ plan.name }} }
                 @else { Subscribe }
               </button>
             </div>
@@ -179,6 +199,30 @@ export class PlansComponent implements OnInit {
   plansError = signal<string | null>(null);
   loading = signal<string | null>(null);
   error = signal<string | null>(null);
+
+  isSubscribed = computed(() => {
+    const data = this.subscriptionQuery.data()?.data;
+    return !!data?.isPremium && data.subscriptionStatus === 'active';
+  });
+
+  subscriptionPlanName = computed(() => {
+    const data = this.subscriptionQuery.data()?.data;
+    return data?.subscriptionPlan ?? 'Premium';
+  });
+
+  renewalDate = computed((): string | null => {
+    const data = this.subscriptionQuery.data()?.data;
+    if (!data?.subscriptionExpiresAt) return null;
+    return new Date(data.subscriptionExpiresAt).toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    });
+  });
+
+  daysRemaining = computed((): number | null => {
+    const data = this.subscriptionQuery.data()?.data;
+    if (typeof data?.daysRemaining !== 'number') return null;
+    return Math.max(0, data.daysRemaining);
+  });
 
   get currentPlanSlug(): string | null {
     const data = this.subscriptionQuery.data()?.data;
