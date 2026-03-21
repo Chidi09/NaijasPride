@@ -1,7 +1,51 @@
 import { PrismaClient, Genre } from '@prisma/client';
 import { google, youtube_v3 } from 'googleapis';
 import { getRedis } from '../../../shared/services/redis.service';
-import { normalizeYouTubeTitle } from '@naijaspride/utils';
+
+/**
+ * Strip YouTube noise from a video title so only the movie name remains.
+ * Mirrors the shared-utils normalizeYouTubeTitle — kept inline so the API
+ * build has no cross-workspace import dependency.
+ */
+function normalizeYouTubeTitle(raw: string): string {
+  if (!raw) return raw;
+  const pipeSegments = raw.split(/\s*[|–—]\s*/);
+  const isNoise = (s: string) =>
+    /\b(full\s+movie|full\s+film|official\s+movie|nollywood|hollywood|bollywood|yoruba|igbo|hausa|african|naija|4k|uhd|fhd|hd|1080p|720p|latest\s+movie|latest\s+film)\b/i.test(s);
+  const candidate =
+    pipeSegments.find((seg) => seg.trim().length > 0 && !isNoise(seg.trim())) ?? pipeSegments[0];
+  let title = candidate.trim();
+  title = title.replace(
+    /^(?:latest|new|best|top)\s+(?:nollywood|yoruba|igbo|hausa|african|naija|hollywood|bollywood)?\s*(?:full\s+)?(?:movies?|films?)?\s*[-–—]?\s*/gi,
+    '',
+  );
+  const noisePhrases = [
+    /\bfull\s+(?:hd\s+)?(?:movie|film)\b/gi,
+    /\bofficial\s+(?:full\s+)?(?:movie|film)\b/gi,
+    /\bnollywood\s+(?:movies?|films?)?\b/gi,
+    /\bhollywood\s+(?:movies?|films?)?\b/gi,
+    /\bbolly\s*wood\s+(?:movies?|films?)?\b/gi,
+    /\byoruba\s+(?:movies?|films?)?\b/gi,
+    /\bigbo\s+(?:movies?|films?)?\b/gi,
+    /\bhausa\s+(?:movies?|films?)?\b/gi,
+    /\bafrican\s+(?:movies?|films?)?\b/gi,
+    /\bnaija\s+(?:movies?|films?)?\b/gi,
+    /\b(?:4k|uhd|fhd|full\s+hd|1080p|720p|480p|hd)\b/gi,
+  ];
+  for (const re of noisePhrases) title = title.replace(re, '');
+  title = title.replace(/[\[(]\s*(?:19|20)\d{2}\s*[\])]/g, '');
+  title = title.replace(/\b(?:19|20)\d{2}\b/g, '');
+  title = title.replace(/\s{2,}/g, ' ').trim();
+  title = title.replace(/^[-–—:,.\s]+|[-–—:,.\s]+$/g, '').trim();
+  const letters = title.replace(/[^a-zA-Z]/g, '');
+  if (letters.length > 3) {
+    const upperRatio = (letters.match(/[A-Z]/g) || []).length / letters.length;
+    if (upperRatio > 0.6) {
+      title = title.toLowerCase().replace(/(?:^|\s|[-–—(])\S/g, (ch) => ch.toUpperCase());
+    }
+  }
+  return title || raw.trim();
+}
 
 // Lazy YouTube client
 let _youtube: youtube_v3.Youtube | null = null;
