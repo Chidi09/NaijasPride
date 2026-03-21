@@ -86,10 +86,10 @@ type BookProgressResponse = {
       overflow-y: auto;
       border-left: 1px solid #1e1e1e;
       background: #0f0f0f;
-      padding: 20px 16px;
+      padding: 24px 16px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 24px;
     }
     @media (max-width: 1279px) {
       .right-panel { display: none; }
@@ -97,11 +97,94 @@ type BookProgressResponse = {
     .right-panel::-webkit-scrollbar { width: 4px; }
     .right-panel::-webkit-scrollbar-thumb { background: #2a0a12; border-radius: 4px; }
 
-    /* ── Movie cards ────────────────────────────────────────────── */
-    .movie-card:hover .card-img { transform: scale(1.06); }
-    .card-img { transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
-    .movie-card:hover .card-overlay { opacity: 1; }
-    .card-overlay { opacity: 0; transition: opacity 0.22s ease; }
+    /* ── Poster card (portrait) ─────────────────────────────────── */
+    .poster-card {
+      display: block;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1c1c1c;
+      background: #111;
+      transition: transform 280ms cubic-bezier(0.16,1,0.3,1),
+                  box-shadow 280ms ease,
+                  border-color 280ms ease;
+    }
+    .poster-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      border-color: rgba(128,0,32,0.4);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.4), 0 0 0 1px rgba(128,0,32,0.15);
+      z-index: 5;
+      position: relative;
+    }
+    .poster-card .poster-img {
+      transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+    }
+    .poster-card:hover .poster-img {
+      transform: scale(1.08);
+    }
+
+    /* ── Landscape card (16:9 stream) ──────────────────────────── */
+    .stream-card {
+      display: block;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1c1c1c;
+      background: #111;
+      transition: transform 280ms cubic-bezier(0.16,1,0.3,1),
+                  box-shadow 280ms ease,
+                  border-color 280ms ease;
+    }
+    .stream-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(128,0,32,0.35);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+      z-index: 5;
+      position: relative;
+    }
+    .stream-card .poster-img {
+      transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+    }
+    .stream-card:hover .poster-img {
+      transform: scale(1.05);
+    }
+    .stream-card:hover .stream-play {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .stream-play {
+      opacity: 0;
+      transform: scale(0.8);
+      transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    /* ── Continue watching card ─────────────────────────────────── */
+    .cw-card {
+      display: block;
+      flex-shrink: 0;
+      width: 120px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1c1c1c;
+      background: #111;
+      transition: transform 280ms cubic-bezier(0.16,1,0.3,1),
+                  border-color 280ms ease;
+    }
+    .cw-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(128,0,32,0.4);
+    }
+    .cw-card .poster-img {
+      transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+    }
+    .cw-card:hover .poster-img {
+      transform: scale(1.06);
+    }
+    .cw-card:hover .cw-play {
+      opacity: 1;
+    }
+    .cw-play {
+      opacity: 0;
+      transition: opacity 0.22s ease;
+    }
 
     /* ── Horizontal scroll ──────────────────────────────────────── */
     .hscroll {
@@ -114,6 +197,42 @@ type BookProgressResponse = {
     .hscroll::-webkit-scrollbar-track { background: transparent; }
     .hscroll::-webkit-scrollbar-thumb { background: #2a0a12; border-radius: 4px; }
 
+    /* ── Section header ────────────────────────────────────────── */
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #f9f9f2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .section-link {
+      font-size: 12px;
+      font-weight: 600;
+      color: #800020;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .section-link:hover { color: #b0003a; }
+
     /* ── Featured Movies grid (portrait 2:3) ────────────────────── */
     .movies-home-grid {
       display: grid;
@@ -122,36 +241,44 @@ type BookProgressResponse = {
     }
     @media (min-width: 640px) { .movies-home-grid { grid-template-columns: repeat(4, 1fr); } }
     @media (min-width: 1024px) { .movies-home-grid { grid-template-columns: repeat(5, 1fr); } }
-    @media (min-width: 1280px) { .movies-home-grid { grid-template-columns: repeat(5, 1fr); } }
 
     /* ── YouTube / Stream-only grid (landscape 16:9) ─────────────── */
     .youtube-home-grid {
       display: grid;
-      gap: 12px;
+      gap: 14px;
       grid-template-columns: repeat(1, 1fr);
     }
     @media (min-width: 480px) { .youtube-home-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (min-width: 900px) { .youtube-home-grid { grid-template-columns: repeat(3, 1fr); } }
-    @media (min-width: 1280px) { .youtube-home-grid { grid-template-columns: repeat(3, 1fr); } }
 
-    /* ── Books grid ─────────────────────────────────────────────── */
-    .books-home-grid {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(2, 1fr);
+    /* ── Activity items (right panel) ──────────────────────────── */
+    .activity-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      transition: background 0.2s, border-color 0.2s;
+      cursor: pointer;
+      text-decoration: none;
     }
-    @media (min-width: 640px) { .books-home-grid { grid-template-columns: repeat(3, 1fr); } }
-    @media (min-width: 1024px) { .books-home-grid { grid-template-columns: repeat(4, 1fr); } }
+    .activity-card:hover {
+      background: #161616;
+      border-color: #1e1e1e;
+    }
 
-    /* ── Activity items ─────────────────────────────────────────── */
-    .activity-item { 
-      display: flex; 
-      align-items: center; 
-      gap: 10px; 
-      padding: 8px 0;
-      border-bottom: 1px solid #1a1a1a;
+    /* ── Right panel music row ─────────────────────────────────── */
+    .rp-music-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      transition: background 0.2s;
+      text-decoration: none;
     }
-    .activity-item:last-child { border-bottom: none; }
+    .rp-music-row:hover { background: #161616; }
 
     /* ── Mobile bottom padding (for PWA bottom pill) ─────────────── */
     @media (max-width: 1023px) {
@@ -343,7 +470,7 @@ type BookProgressResponse = {
         </div>
       </header>
 
-      <div class="mobile-content-area px-4 py-6 space-y-8 lg:px-6">
+      <div class="mobile-content-area px-4 py-6 space-y-10 lg:px-6">
 
         <!-- ── Hero Greeting ─────────────────────────────────────── -->
         <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#800020] via-[#69001b] to-[#3f0011] p-6 md:p-10">
@@ -398,41 +525,44 @@ type BookProgressResponse = {
         <!-- ── Continue Watching ─────────────────────────────────── -->
         @if (continueWatching().length > 0 || isLoadingContinue()) {
           <section>
-            <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-base font-semibold text-[#f9f9f2]">Continue Watching</h2>
-              <a routerLink="/profile" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">View all</a>
+            <div class="section-head">
+              <h2 class="section-title">Continue Watching</h2>
+              <a routerLink="/profile" class="section-link">View all</a>
             </div>
             @if (isLoadingContinue()) {
               <div class="hscroll">
                 @for (i of [1,2,3,4,5]; track i) {
-                  <div class="flex-shrink-0 w-28">
+                  <div class="flex-shrink-0" style="width:120px">
                     <div class="aspect-[2/3] animate-pulse rounded-xl bg-[#181818]"></div>
-                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
+                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#151515]"></div>
                   </div>
                 }
               </div>
             } @else {
               <div class="hscroll">
                 @for (item of continueWatching(); track item.id) {
-                  <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="movie-card flex-shrink-0 w-28 group">
-                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl">
+                  <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="cw-card">
+                    <div class="relative aspect-[2/3] overflow-hidden bg-[#181818]">
                       <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
-                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                           class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                      <!-- Gradient overlay with title -->
+                      <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 pt-10">
+                        <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ item.movie.title }}</p>
+                        <p class="text-[10px] text-white/50 mt-0.5">{{ item.progressPercentage | number:'1.0-0' }}% watched</p>
+                      </div>
                       <!-- Progress bar -->
-                      <div class="absolute inset-x-0 bottom-0 h-1 bg-black/50">
+                      <div class="absolute inset-x-0 bottom-0 h-[3px] bg-black/60">
                         <div class="h-full bg-[#800020]" [style.width.%]="item.progressPercentage"></div>
                       </div>
-                      <!-- Hover overlay -->
-                      <div class="card-overlay absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <div class="h-9 w-9 rounded-full bg-[#800020] flex items-center justify-center">
+                      <!-- Hover play -->
+                      <div class="cw-play absolute inset-0 bg-black/45 flex items-center justify-center">
+                        <div class="h-10 w-10 rounded-full bg-[#800020] flex items-center justify-center shadow-lg">
                           <svg class="h-4 w-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z"/>
                           </svg>
                         </div>
                       </div>
                     </div>
-                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ item.movie.title }}</p>
-                    <p class="text-[10px] text-[#a88a78]">{{ item.progressPercentage | number:'1.0-0' }}%</p>
                   </a>
                 }
               </div>
@@ -443,42 +573,48 @@ type BookProgressResponse = {
         <!-- ── Trending Movies (portrait 2:3) ─────────────────────── -->
         @if (downloadMovies().length > 0 || isLoadingMovies()) {
           <section>
-            <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Movies</h2>
-              <a routerLink="/movies" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+            <div class="section-head">
+              <h2 class="section-title">
+                Trending Movies
+                <span class="section-badge" style="background:rgba(128,0,32,0.15);color:#c4506a;">
+                  <svg style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M17.55 11.2c-.23-.3-.5-.56-.76-.82-.65-.6-1.4-1.03-2.03-1.66C13.3 7.26 13 5.86 13.52 4c-1.16.67-1.99 1.63-2.53 2.75-.56 1.12-.62 2.37-.37 3.5.06.25.03.5-.12.68-.15.17-.38.28-.64.28-.2-.01-.37-.1-.5-.24A3.4 3.4 0 019 9.57c-.77 1.5-.58 3.39.34 4.73.93 1.35 2.52 2.2 4.17 2.2 1.87 0 3.66-1.15 4.37-2.93.8-1.99.28-3.98-.83-5.37z"/></svg>
+                  TMDB
+                </span>
+              </h2>
+              <a routerLink="/movies" class="section-link">See all</a>
             </div>
             @if (isLoadingMovies()) {
               <div class="movies-home-grid">
                 @for (i of [1,2,3,4,5]; track i) {
-                  <div>
-                    <div class="aspect-[2/3] animate-pulse rounded-xl bg-[#181818]"></div>
-                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
-                    <div class="mt-1 h-2.5 w-1/2 animate-pulse rounded bg-[#181818]"></div>
+                  <div style="border-radius:12px;overflow:hidden;border:1px solid #1c1c1c">
+                    <div class="aspect-[2/3] animate-pulse bg-[#151515]"></div>
                   </div>
                 }
               </div>
             } @else {
               <div class="movies-home-grid">
                 @for (movie of downloadMovies(); track movie.id) {
-                  <a [routerLink]="['/movies', movie.slug]" class="movie-card group">
-                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#181818]">
-                      <img [src]="movie.thumbnailUrl || ''" [alt]="movie.title"
-                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                  <a [routerLink]="['/movies', movie.slug]" class="poster-card">
+                    <div class="relative aspect-[2/3] overflow-hidden bg-[#181818]">
+                      <img [src]="movie.thumbnailUrl || movie.posterUrl || ''" [alt]="movie.title"
+                           class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                      <!-- Always-visible gradient with title -->
+                      <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-2.5 pt-12">
+                        <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ movie.title }}</p>
+                        <div class="flex items-center gap-1.5 mt-1">
+                          <span class="text-[10px] text-white/50">{{ movie.year }}</span>
+                          @if (movie.genre?.[0]) {
+                            <span class="text-[10px] text-white/30">·</span>
+                            <span class="text-[10px] text-white/50">{{ movie.genre[0] }}</span>
+                          }
+                        </div>
+                      </div>
                       @if (getMovieProgress(movie.id); as progress) {
-                        <div class="absolute inset-x-0 bottom-0 h-1 bg-black/50">
+                        <div class="absolute inset-x-0 bottom-0 h-[3px] bg-black/60">
                           <div class="h-full bg-[#800020]" [style.width.%]="progress"></div>
                         </div>
                       }
-                      <div class="card-overlay absolute inset-0 bg-black/40 flex items-end p-2">
-                        <div class="h-7 w-7 rounded-full bg-[#800020] flex items-center justify-center">
-                          <svg class="h-3.5 w-3.5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z"/>
-                          </svg>
-                        </div>
-                      </div>
                     </div>
-                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ movie.title }}</p>
-                    <p class="text-[10px] text-[#a88a78]">{{ movie.year }}</p>
                   </a>
                 }
               </div>
@@ -489,37 +625,37 @@ type BookProgressResponse = {
         <!-- ── Trending Anime (portrait 2:3) ─────────────────────── -->
         @if (trendingAnime().length > 0 || isLoadingAnime()) {
           <section>
-            <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Anime</h2>
-              <a routerLink="/anime" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+            <div class="section-head">
+              <h2 class="section-title">
+                Trending Anime
+                <span class="section-badge" style="background:rgba(59,130,246,0.12);color:#60a5fa;">
+                  <svg style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6l8 12 8-12H4z"/></svg>
+                  AniList
+                </span>
+              </h2>
+              <a routerLink="/anime" class="section-link">See all</a>
             </div>
             @if (isLoadingAnime()) {
               <div class="movies-home-grid">
                 @for (i of [1,2,3,4,5]; track i) {
-                  <div>
-                    <div class="aspect-[2/3] animate-pulse rounded-xl bg-[#181818]"></div>
-                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
-                    <div class="mt-1 h-2.5 w-1/2 animate-pulse rounded bg-[#181818]"></div>
+                  <div style="border-radius:12px;overflow:hidden;border:1px solid #1c1c1c">
+                    <div class="aspect-[2/3] animate-pulse bg-[#151515]"></div>
                   </div>
                 }
               </div>
             } @else {
               <div class="movies-home-grid">
                 @for (anime of trendingAnime(); track anime.id) {
-                  <a [routerLink]="['/anime', anime.id]" class="movie-card group">
-                    <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#181818]">
+                  <a [routerLink]="['/anime', anime.id]" class="poster-card">
+                    <div class="relative aspect-[2/3] overflow-hidden bg-[#181818]">
                       <img [src]="anime.coverImage?.large || anime.coverImage?.medium || '/assets/images/poster-placeholder.svg'" [alt]="anime.title?.english || anime.title?.romaji || anime.title?.native"
-                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
-                      <div class="card-overlay absolute inset-0 bg-black/40 flex items-end p-2">
-                        <div class="h-7 w-7 rounded-full bg-[#800020] flex items-center justify-center">
-                          <svg class="h-3.5 w-3.5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z"/>
-                          </svg>
-                        </div>
+                           class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                      <!-- Always-visible gradient with title -->
+                      <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-2.5 pt-12">
+                        <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ anime.title?.english || anime.title?.romaji || anime.title?.native }}</p>
+                        <span class="text-[10px] text-white/50 mt-0.5 block">{{ anime.seasonYear || '-' }}</span>
                       </div>
                     </div>
-                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ anime.title?.english || anime.title?.romaji || anime.title?.native }}</p>
-                    <p class="text-[10px] text-[#a88a78]">{{ anime.seasonYear || '-' }}</p>
                   </a>
                 }
               </div>
@@ -527,50 +663,48 @@ type BookProgressResponse = {
           </section>
         }
 
-        <!-- ── Trending YouTube / Stream Movies (landscape 16:9) ──── -->
+        <!-- ── YouTube Cinema / Stream Movies (landscape 16:9) ──── -->
         @if (streamMovies().length > 0 || isLoadingStreamMovies()) {
           <section>
-            <div class="mb-3 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <h2 class="text-base font-semibold text-[#f9f9f2]">YouTube Cinema</h2>
-                <span class="rounded-md bg-[#800020]/20 px-2 py-0.5 text-[10px] font-semibold text-[#800020] uppercase tracking-wide">Stream</span>
-              </div>
-              <a routerLink="/movies" [queryParams]="{type: 'stream'}" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">See all</a>
+            <div class="section-head">
+              <h2 class="section-title">
+                YouTube Cinema
+                <span class="section-badge" style="background:rgba(239,68,68,0.12);color:#f87171;">
+                  <svg style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M23.5 6.19a3 3 0 00-2.11-2.12C19.55 3.5 12 3.5 12 3.5s-7.55 0-9.39.57A3 3 0 00.5 6.19 31.3 31.3 0 000 12a31.3 31.3 0 00.5 5.81 3 3 0 002.11 2.12C4.45 20.5 12 20.5 12 20.5s7.55 0 9.39-.57a3 3 0 002.11-2.12A31.3 31.3 0 0024 12a31.3 31.3 0 00-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>
+                  Stream
+                </span>
+              </h2>
+              <a routerLink="/movies" [queryParams]="{type: 'stream'}" class="section-link">See all</a>
             </div>
             @if (isLoadingStreamMovies()) {
               <div class="youtube-home-grid">
                 @for (i of [1,2,3]; track i) {
-                  <div>
-                    <div class="aspect-video animate-pulse rounded-xl bg-[#181818]"></div>
-                    <div class="mt-2 h-3 w-3/4 animate-pulse rounded bg-[#181818]"></div>
-                    <div class="mt-1 h-2.5 w-1/2 animate-pulse rounded bg-[#181818]"></div>
+                  <div style="border-radius:12px;overflow:hidden;border:1px solid #1c1c1c">
+                    <div class="aspect-video animate-pulse bg-[#151515]"></div>
                   </div>
                 }
               </div>
             } @else {
               <div class="youtube-home-grid">
                 @for (movie of streamMovies(); track movie.id) {
-                  <a [routerLink]="['/movies', movie.slug]" class="movie-card group">
-                    <div class="relative aspect-video overflow-hidden rounded-xl bg-[#181818]">
+                  <a [routerLink]="['/movies', movie.slug]" class="stream-card">
+                    <div class="relative aspect-video overflow-hidden bg-[#181818]">
                       <img [src]="movie.thumbnailUrl || ''" [alt]="movie.title"
-                           class="card-img h-full w-full object-cover" referrerpolicy="no-referrer">
-                      <!-- YouTube play button overlay -->
-                      <div class="card-overlay absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <div class="h-12 w-12 rounded-full bg-[#800020]/90 flex items-center justify-center shadow-lg">
+                           class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                      <!-- Play button on hover -->
+                      <div class="stream-play absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div class="h-12 w-12 rounded-full bg-[#800020]/90 flex items-center justify-center shadow-lg shadow-black/40">
                           <svg class="h-5 w-5 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z"/>
                           </svg>
                         </div>
                       </div>
-                      <!-- Bottom title bar on hover -->
-                      <div class="card-overlay absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                        <p class="truncate text-xs font-semibold text-white">{{ movie.title }}</p>
-                        <p class="text-[10px] text-white/60">{{ movie.year }}</p>
-                      </div>
                     </div>
                     <!-- Title below card (always visible) -->
-                    <p class="mt-2 truncate text-xs font-medium text-[#f9f9f2]">{{ movie.title }}</p>
-                    <p class="text-[10px] text-[#a88a78]">{{ movie.year }}</p>
+                    <div class="px-3 py-2.5">
+                      <p class="truncate text-[12px] font-semibold text-[#f9f9f2] leading-tight">{{ movie.title }}</p>
+                      <p class="text-[10px] text-[#a88a78] mt-0.5">{{ movie.year }}</p>
+                    </div>
                   </a>
                 }
               </div>
@@ -583,9 +717,9 @@ type BookProgressResponse = {
 
           <!-- Trending Books -->
           <section>
-            <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Books</h2>
-              <a routerLink="/books" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">Browse</a>
+            <div class="section-head">
+              <h2 class="section-title">Trending Books</h2>
+              <a routerLink="/books" class="section-link">Browse</a>
             </div>
             <div class="space-y-2">
               @for (book of books(); track book.id) {
@@ -628,9 +762,9 @@ type BookProgressResponse = {
 
           <!-- Trending Music -->
           <section>
-            <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-base font-semibold text-[#f9f9f2]">Trending Music</h2>
-              <a routerLink="/music" class="text-xs font-medium text-[#800020] hover:text-[#a0002a] transition">Explore</a>
+            <div class="section-head">
+              <h2 class="section-title">Trending Music</h2>
+              <a routerLink="/music" class="section-link">Explore</a>
             </div>
             <div class="space-y-1">
               @for (video of musicTrending(); track video.id; let idx = $index) {
@@ -673,7 +807,7 @@ type BookProgressResponse = {
 
         <!-- ── Your Library shortcuts ────────────────────────────── -->
         <section>
-          <h2 class="mb-3 text-base font-semibold text-[#f9f9f2]">Your Library</h2>
+          <h2 class="section-title" style="margin-bottom:14px">Your Library</h2>
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <a routerLink="/library" [queryParams]="{ tab: 'watchlist' }"
                class="group flex items-center gap-3 rounded-xl border border-[#1e1e1e] bg-[#111] px-4 py-4 transition hover:border-[#800020]/50 hover:bg-[#151515]">
@@ -724,35 +858,39 @@ type BookProgressResponse = {
 
       <!-- Recent Activity -->
       <div>
-        <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] mb-3">Recent Activity</h3>
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.16em] text-[#555] mb-2">Recent Activity</h3>
         @if (continueWatching().length > 0) {
-          @for (item of continueWatching().slice(0, 5); track item.id) {
-            <div class="activity-item">
-              <div class="relative h-10 w-8 flex-shrink-0 overflow-hidden rounded-md">
-                <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
-                     class="h-full w-full object-cover" referrerpolicy="no-referrer">
-              </div>
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-xs font-medium text-[#f9f9f2]">{{ item.movie.title }}</p>
-                <div class="mt-1 h-1 rounded-full bg-[#1e1e1e]">
-                  <div class="h-full rounded-full bg-[#800020]" [style.width.%]="item.progressPercentage"></div>
+          <div class="flex flex-col gap-1">
+            @for (item of continueWatching().slice(0, 5); track item.id) {
+              <a [routerLink]="['/watch', item.movie.slug || item.movie.id]" class="activity-card">
+                <div class="relative h-12 w-9 flex-shrink-0 overflow-hidden rounded-lg border border-[#222]">
+                  <img [src]="item.movie.thumbnailUrl || ''" [alt]="item.movie.title"
+                       class="h-full w-full object-cover" referrerpolicy="no-referrer">
                 </div>
-                <p class="mt-0.5 text-[10px] text-[#a88a78]">{{ item.progressPercentage | number:'1.0-0' }}% watched</p>
-              </div>
-            </div>
-          }
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-[11px] font-semibold text-[#f9f9f2]">{{ item.movie.title }}</p>
+                  <div class="mt-1.5 h-[3px] rounded-full bg-[#1e1e1e] overflow-hidden">
+                    <div class="h-full rounded-full bg-[#800020]" [style.width.%]="item.progressPercentage"></div>
+                  </div>
+                  <p class="mt-0.5 text-[9px] text-[#a88a78]">{{ item.progressPercentage | number:'1.0-0' }}% watched</p>
+                </div>
+              </a>
+            }
+          </div>
         } @else if (isLoadingContinue()) {
-          @for (i of [1,2,3]; track i) {
-            <div class="activity-item">
-              <div class="h-10 w-8 animate-pulse rounded-md bg-[#1e1e1e] flex-shrink-0"></div>
-              <div class="flex-1 space-y-1.5">
-                <div class="h-2.5 w-3/4 animate-pulse rounded bg-[#1e1e1e]"></div>
-                <div class="h-1.5 w-full animate-pulse rounded-full bg-[#1e1e1e]"></div>
+          <div class="flex flex-col gap-1">
+            @for (i of [1,2,3]; track i) {
+              <div class="activity-card">
+                <div class="h-12 w-9 animate-pulse rounded-lg bg-[#1e1e1e] flex-shrink-0"></div>
+                <div class="flex-1 space-y-1.5">
+                  <div class="h-2.5 w-3/4 animate-pulse rounded bg-[#1e1e1e]"></div>
+                  <div class="h-[3px] w-full animate-pulse rounded-full bg-[#1e1e1e]"></div>
+                </div>
               </div>
-            </div>
-          }
+            }
+          </div>
         } @else {
-          <p class="text-xs text-[#4a4a4a] italic">No recent activity yet</p>
+          <p class="text-xs text-[#4a4a4a] italic px-2">No recent activity yet</p>
         }
       </div>
 
@@ -761,22 +899,24 @@ type BookProgressResponse = {
 
       <!-- Trending Music (right panel list) -->
       <div>
-        <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a]">Top Music</h3>
-          <a routerLink="/music" class="text-[10px] text-[#800020] hover:text-[#a0002a] transition">All</a>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-[10px] font-bold uppercase tracking-[0.16em] text-[#555]">Top Music</h3>
+          <a routerLink="/music" class="section-link" style="font-size:10px">All</a>
         </div>
-        @for (video of musicTrending().slice(0, 4); track video.id; let idx = $index) {
-          <a [routerLink]="['/music', video.slug]" class="flex items-center gap-3 py-2 hover:opacity-80 transition">
-            <span class="w-4 text-[10px] font-bold text-[#800020]">{{ idx + 1 }}</span>
-            <div class="h-9 w-12 flex-shrink-0 overflow-hidden rounded-md">
-              <img [src]="video.thumbnailUrl || ''" [alt]="video.title" class="h-full w-full object-cover" referrerpolicy="no-referrer">
-            </div>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-medium text-[#f9f9f2]">{{ video.title }}</p>
-              <p class="truncate text-[10px] text-[#a88a78]">{{ video.artist }}</p>
-            </div>
-          </a>
-        }
+        <div class="flex flex-col gap-0.5">
+          @for (video of musicTrending().slice(0, 4); track video.id; let idx = $index) {
+            <a [routerLink]="['/music', video.slug]" class="rp-music-row">
+              <span class="w-4 text-center text-[10px] font-bold text-[#800020]">{{ idx + 1 }}</span>
+              <div class="h-10 w-14 flex-shrink-0 overflow-hidden rounded-lg border border-[#222]">
+                <img [src]="video.thumbnailUrl || ''" [alt]="video.title" class="h-full w-full object-cover" referrerpolicy="no-referrer">
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-[11px] font-semibold text-[#f9f9f2]">{{ video.title }}</p>
+                <p class="truncate text-[10px] text-[#a88a78]">{{ video.artist }}</p>
+              </div>
+            </a>
+          }
+        </div>
       </div>
 
       <!-- Divider -->
@@ -784,7 +924,7 @@ type BookProgressResponse = {
 
       <!-- Quick nav links -->
       <div>
-        <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] mb-3">Quick Links</h3>
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.16em] text-[#555] mb-3">Quick Links</h3>
         <div class="grid grid-cols-2 gap-2">
           <a routerLink="/movies" class="rounded-xl border border-[#1e1e1e] bg-[#111] px-3 py-3 text-center hover:border-[#800020]/40 transition">
             <svg class="mx-auto mb-1.5 h-4 w-4 text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
