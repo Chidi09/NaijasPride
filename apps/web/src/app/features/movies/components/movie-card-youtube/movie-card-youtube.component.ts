@@ -17,9 +17,45 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
   selector: 'app-movie-card-youtube',
   standalone: true,
   imports: [CommonModule, NgOptimizedImage],
+  styles: [`
+    :host { display: block; width: 100%; }
+
+    .stream-card {
+      display: block;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1c1c1c;
+      background: #111;
+      transition: transform 280ms cubic-bezier(0.16,1,0.3,1),
+                  box-shadow 280ms ease,
+                  border-color 280ms ease;
+    }
+    .stream-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(128,0,32,0.35);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+      position: relative;
+      z-index: 5;
+    }
+    .poster-img {
+      transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+    }
+    .stream-card:hover .poster-img {
+      transform: scale(1.05);
+    }
+    .stream-play {
+      opacity: 0;
+      transform: scale(0.8);
+      transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16,1,0.3,1);
+    }
+    .stream-card:hover .stream-play {
+      opacity: 1;
+      transform: scale(1);
+    }
+  `],
   template: `
     <div
-      class="group cursor-pointer transition-transform duration-200 ease-out hover:scale-105"
+      class="stream-card group cursor-pointer"
       tabindex="0"
       (click)="onCardClick($event)"
       (keydown.enter)="openDetails($event)"
@@ -29,8 +65,32 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
       (touchmove)="onTouchMove($event)"
       (contextmenu)="onContextMenu($event)"
     >
-      <!-- Thumbnail Container - 16:9 Aspect Ratio -->
-      <div class="aspect-video relative rounded-lg overflow-hidden bg-[#e5d2c6] dark:bg-cinema-800">
+      <!-- Thumbnail - 16:9 -->
+      <div class="relative aspect-video overflow-hidden bg-[#181818]">
+        @if (movie.thumbnailUrl?.trim()) {
+          <img
+            [ngSrc]="movie.thumbnailUrl!"
+            [alt]="movie.title"
+            fill
+            sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            class="poster-img h-full w-full object-cover"
+          >
+        } @else {
+          <div class="poster-img flex h-full w-full items-center justify-center bg-[#181818]">
+            <span class="text-4xl">🎬</span>
+          </div>
+        }
+
+        <!-- Hover play overlay -->
+        <div class="stream-play absolute inset-0 flex items-center justify-center bg-black/40">
+          <div class="flex h-12 w-12 items-center justify-center rounded-full bg-[#800020]/90 shadow-lg shadow-black/40">
+            <svg class="h-5 w-5 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Watchlist button -->
         @if (isLoggedIn()) {
           <button
             type="button"
@@ -39,58 +99,26 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
             class="absolute left-2 top-2 z-10 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white hover:bg-black"
           >{{ saved() ? '★' : '☆' }}</button>
         }
-        @if (movie.thumbnailUrl?.trim()) {
-          <img 
-            [ngSrc]="movie.thumbnailUrl!" 
-            [alt]="movie.title"
-            fill
-            sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
-            class="w-full h-full object-cover"
-          >
-        } @else {
-          <div class="w-full h-full flex items-center justify-center bg-[#dfc8bb] dark:bg-cinema-700">
-            <span class="text-4xl">🎬</span>
-          </div>
-        }
-        
-        <!-- Quality Badge - Always Visible -->
+
+        <!-- Quality badge -->
         @if (movie.quality?.includes('4K')) {
-          <div class="absolute top-2 right-2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded">
-            4K
-          </div>
+          <div class="absolute right-2 top-2 rounded bg-black/80 px-2 py-1 text-[10px] font-bold text-white">4K</div>
         } @else if (movie.quality?.includes('1080p') || movie.quality?.includes('720p')) {
-          <div class="absolute top-2 right-2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded">
-            HD
-          </div>
+          <div class="absolute right-2 top-2 rounded bg-black/80 px-2 py-1 text-[10px] font-bold text-white">HD</div>
         }
 
-        <!-- Watch Progress Bar -->
+        <!-- Progress bar -->
         @if (progressPercent > 0) {
           <div class="absolute inset-x-0 bottom-0 h-1 bg-black/60">
-            <div
-              class="h-full bg-red-600"
-              [style.width.%]="progressPercent"
-            ></div>
+            <div class="h-full bg-[#800020]" [style.width.%]="progressPercent"></div>
           </div>
         }
       </div>
 
-      <!-- Movie Info - Always Visible -->
-      <div class="mt-2 space-y-1">
-        <!-- Title -->
-        <h3 class="text-[#24181b] dark:text-white text-sm font-medium line-clamp-2 leading-tight group-hover:text-[#5f1327] dark:group-hover:text-[#d6b87a] transition-colors min-h-[2.5rem]">
-          {{ movie.title }}
-        </h3>
-        
-        <!-- Meta Row -->
-        <div class="flex items-center gap-2 text-xs text-[#7e6a63] dark:text-gray-400">
-          <span>{{ movie.year }}</span>
-          
-          @if (movie.genre?.length > 0) {
-            <span class="text-[#9a857d] dark:text-gray-500">•</span>
-            <span class="truncate max-w-[100px]">{{ movie.genre[0] }}</span>
-          }
-        </div>
+      <!-- Title + year below card -->
+      <div class="px-3 py-2.5">
+        <p class="truncate text-[12px] font-semibold leading-tight text-[#f9f9f2]">{{ movie.title }}</p>
+        <p class="mt-0.5 text-[10px] text-[#a88a78]">{{ movie.year }}</p>
       </div>
     </div>
 

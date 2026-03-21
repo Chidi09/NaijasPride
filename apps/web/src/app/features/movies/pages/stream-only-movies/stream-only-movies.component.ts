@@ -2,7 +2,7 @@ import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { MovieCardComponent } from '../../../movies/components/movie-card/movie-card.component';
+import { MovieCardYoutubeComponent } from '../../../movies/components/movie-card-youtube/movie-card-youtube.component';
 import { MovieSummary } from '@naijaspride/types';
 import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
 import { WatchApiService } from '../../../watch/services/watch-api.service';
@@ -16,7 +16,7 @@ type StreamGenre = 'Nollywood' | 'Bollywood' | 'Hollywood';
 @Component({
   selector: 'app-stream-only-movies',
   standalone: true,
-  imports: [CommonModule, RouterLink, MovieCardComponent, PaginatorComponent],
+  imports: [CommonModule, RouterLink, MovieCardYoutubeComponent, PaginatorComponent],
   styles: [`
     @keyframes fade-in-up {
       from {
@@ -177,10 +177,14 @@ type StreamGenre = 'Nollywood' | 'Bollywood' | 'Hollywood';
         
         <!-- Loading State -->
         @if (isLoading()) {
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            @for (i of [1,2,3,4,5,6,7,8,9,10,11,12]; track i) {
-              <div class="animate-pulse">
-                <div class="aspect-[2/3] rounded-xl bg-white/5"></div>
+          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            @for (i of [1,2,3,4,5,6,7,8]; track i) {
+              <div class="animate-pulse rounded-xl overflow-hidden border border-white/5 bg-[#111]">
+                <div class="aspect-video bg-[#151515]"></div>
+                <div class="px-3 py-2.5 space-y-1.5">
+                  <div class="h-3 w-3/4 rounded bg-white/10"></div>
+                  <div class="h-2.5 w-1/4 rounded bg-white/5"></div>
+                </div>
               </div>
             }
           </div>
@@ -196,9 +200,9 @@ type StreamGenre = 'Nollywood' | 'Bollywood' | 'Hollywood';
               </h2>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               @for (movie of movies(); track movie.id) {
-                <app-movie-card [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
+                <app-movie-card-youtube [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
               }
             </div>
 
