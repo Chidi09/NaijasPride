@@ -88,6 +88,22 @@ type BookProgressResponse = {
                 <div class="np-cover-body">
                   <div class="np-cover-title">{{ book.title }}</div>
                   <div class="np-cover-meta">{{ book.author }} @if (book.year) { • {{ book.year }} }</div>
+                  <div class="mt-2 flex gap-1.5">
+                    <a
+                      [routerLink]="['/books/novel', book.slug, 'read']"
+                      (click)="$event.stopPropagation()"
+                      class="flex-1 text-center rounded-md bg-[#800020] px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-[#a3213a]"
+                    >Read</a>
+                    @if (book.downloadUrl) {
+                      <a
+                        [href]="book.downloadUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        (click)="$event.stopPropagation()"
+                        class="rounded-md border border-[#d4bcb1] px-2 py-1 text-[11px] font-semibold text-[#6f5952] transition hover:border-[#800020] hover:text-[#800020] dark:border-cinema-700 dark:text-gray-400 dark:hover:text-white"
+                      >↓</a>
+                    }
+                  </div>
                 </div>
               </a>
             </mat-card>

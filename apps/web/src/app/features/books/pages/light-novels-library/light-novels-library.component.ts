@@ -152,24 +152,50 @@ type BookProgressResponse = {
 
                   <div class="mt-3 grid gap-2">
                     @for (volume of visibleVolumes(item); track volume.id) {
-                      <a
-                        [routerLink]="['/books/novel', volume.slug]"
-                        class="group relative overflow-hidden flex items-center justify-between gap-2 rounded-lg border border-[#e6d7cc] px-3 py-2 transition hover:border-[#800020] hover:bg-[#fff6f2] dark:border-cinema-800 dark:hover:bg-cinema-900"
-                      >
-                        <span class="truncate text-sm text-[#24181b] dark:text-white">
-                          @if (volume.volumeNumber !== null) {
-                            <strong class="font-semibold">Vol {{ volume.volumeNumber }}:</strong>
-                          }
-                          {{ volume.title }}
-                        </span>
-                        <span class="shrink-0 text-xs text-[#8a756e] dark:text-gray-400">{{ volume.year }}</span>
+                      <div class="group relative overflow-hidden rounded-lg border border-[#e6d7cc] dark:border-cinema-800 transition hover:border-[#800020]">
+                        <div class="flex items-center gap-2 px-3 py-2">
+                          <a
+                            [routerLink]="['/books/novel', volume.slug]"
+                            class="min-w-0 flex-1 flex items-center gap-1"
+                          >
+                            <span class="truncate text-sm text-[#24181b] dark:text-white">
+                              @if (volume.volumeNumber !== null) {
+                                <strong class="font-semibold">Vol {{ volume.volumeNumber }}:</strong>
+                              }
+                              {{ volume.title }}
+                            </span>
+                            <span class="shrink-0 text-xs text-[#8a756e] dark:text-gray-400 ml-1">{{ volume.year }}</span>
+                          </a>
+
+                          <!-- Action buttons -->
+                          <div class="shrink-0 flex items-center gap-1">
+                            <a
+                              [routerLink]="['/books/novel', volume.slug, 'read']"
+                              class="inline-flex items-center gap-1 rounded-md bg-[#800020] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#a3213a]"
+                              title="Read online"
+                            >
+                              Read
+                            </a>
+                            @if (volume.downloadUrl) {
+                              <a
+                                [href]="volume.downloadUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center gap-1 rounded-md border border-[#d4bcb1] px-2.5 py-1 text-[11px] font-semibold text-[#6f5952] transition hover:border-[#800020] hover:text-[#800020] dark:border-cinema-700 dark:text-gray-400 dark:hover:border-[#800020] dark:hover:text-white"
+                                title="Download EPUB"
+                              >
+                                ↓
+                              </a>
+                            }
+                          </div>
+                        </div>
 
                         @if (getBookProgress(volume.slug); as progress) {
                           <div class="absolute inset-x-0 bottom-0 h-1 bg-black/25">
                             <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
                           </div>
                         }
-                      </a>
+                      </div>
                     }
 
                     @if (item.volumes.length > 3) {
