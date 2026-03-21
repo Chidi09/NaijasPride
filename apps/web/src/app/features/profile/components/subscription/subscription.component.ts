@@ -25,8 +25,11 @@ interface SubscriptionData {
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
         </div>
       } @else if (query.error()) {
-        <div class="text-red-400 text-center py-8">
-          Failed to load subscription. Please try again.
+        <div class="text-center py-8">
+          <p class="text-red-400 mb-3">Failed to load subscription.</p>
+          <button (click)="query.refetch()" class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold px-6 py-2 rounded transition-colors">
+            Retry
+          </button>
         </div>
       } @else {
         @if (data(); as subscription) {

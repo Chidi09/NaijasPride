@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -10,11 +10,12 @@ import { SubscriptionComponent } from '../../components/subscription/subscriptio
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
 import { MovieSummary } from '@naijaspride/types';
+import { ProfileStatsCardComponent, ProfileStat } from '../../../../shared/components/profile-stats-card/profile-stats-card.component';
 
 @Component({
     selector: 'app-profile-dashboard',
     standalone: true,
-    imports: [CommonModule, RouterLink, SubscriptionComponent],
+    imports: [CommonModule, RouterLink, SubscriptionComponent, ProfileStatsCardComponent],
     template: `
       <div class="container mx-auto px-4 py-12 text-[var(--text-primary)]">
         <!-- User Header -->
@@ -44,6 +45,13 @@ import { MovieSummary } from '@naijaspride/types';
             <a routerLink="/profile/settings" class="shrink-0 bg-cinema-500 hover:bg-cinema-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors">
               Create Account
             </a>
+          </div>
+        }
+
+        <!-- Stats Cards -->
+        @if (profileStats().length > 0) {
+          <div class="mb-8">
+            <app-profile-stats-card [stats]="profileStats()" />
           </div>
         }
 
@@ -97,8 +105,14 @@ import { MovieSummary } from '@naijaspride/types';
       }
 
       @if (query.isError()) {
-        <div class="text-center py-20 text-[#8a756e] dark:text-gray-500">
-          Failed to load profile. Please try again.
+        <div class="text-center py-20">
+          <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
+            <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <p class="text-[#8a756e] dark:text-gray-500 mb-4">Failed to load profile.</p>
+          <button (click)="query.refetch()" class="bg-cinema-500 hover:bg-cinema-400 text-white text-sm font-bold px-6 py-2 rounded-full transition-colors">
+            Retry
+          </button>
         </div>
       }
 
@@ -326,6 +340,34 @@ export class ProfileDashboardComponent implements OnInit {
   get continueWatching(): WatchHistoryItem[] {
     return this.continueWatchingSignal();
   }
+
+  // Profile stats derived from query data
+  profileStats = computed<ProfileStat[]>(() => {
+    const response = this.query.data();
+    if (!response?.data) return [];
+    const profile = response.data;
+    const user = this.auth.currentUser();
+    const stats: ProfileStat[] = [];
+
+    const watchCount = this.continueWatchingSignal().length;
+    if (watchCount > 0) {
+      stats.push({ label: 'In Progress', value: watchCount, icon: 'movie', accent: '#800020' });
+    }
+
+    const watchlistCount = profile.watchlist?.length ?? 0;
+    stats.push({ label: 'Watchlist', value: watchlistCount, icon: 'heart', accent: '#ef4444' });
+
+    const downloadCount = profile.downloadHistory?.length ?? 0;
+    if (downloadCount > 0) {
+      stats.push({ label: 'Downloads', value: downloadCount, icon: 'download', accent: '#3b82f6' });
+    }
+
+    if (user?.isPremium) {
+      stats.push({ label: 'Status', value: 'PRO', icon: 'star', accent: '#d4af37' });
+    }
+
+    return stats;
+  });
 
   ngOnInit() {
     const routePath = this.route.routeConfig?.path;

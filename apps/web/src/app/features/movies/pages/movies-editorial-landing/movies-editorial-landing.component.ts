@@ -6,6 +6,8 @@ import { Subject } from 'rxjs';
 import { MovieSummary } from '@naijaspride/types';
 import { WatchApiService } from '../../../watch/services/watch-api.service';
 import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
+import { MoodSelectorComponent } from '../../../../shared/components/mood-selector/mood-selector.component';
+import { UserPreferencesService } from '../../../../core/services/user-preferences.service';
 
 interface FeaturedResponse {
   success: boolean;
@@ -21,7 +23,7 @@ interface FeaturedResponse {
 @Component({
   selector: 'app-movies-editorial-landing',
   standalone: true,
-  imports: [CommonModule, RouterLink, MovieCardComponent],
+  imports: [CommonModule, RouterLink, MovieCardComponent, MoodSelectorComponent],
   styles: [`
     :host {
       display: block;
@@ -87,12 +89,31 @@ interface FeaturedResponse {
   template: `
     <main style="max-width:1600px; margin:0 auto; padding:32px 24px;">
 
+      <!-- ══════════ MOOD SELECTOR ══════════ -->
+      <div style="margin-bottom:28px;">
+        <app-mood-selector />
+      </div>
+
+      <!-- ══════════ ERROR RECOVERY ══════════ -->
+      @if (loadError()) {
+        <div style="text-align:center; padding:60px 20px;">
+          <div style="width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;">
+            <svg style="width:28px;height:28px;color:#f87171;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <p style="color:#6b5b54;margin-bottom:16px;">Couldn't load movies right now.</p>
+          <button (click)="retryLoad()" style="background:#800020;color:#fff;font-weight:700;font-size:13px;padding:10px 28px;border-radius:9999px;border:none;cursor:pointer;transition:background 0.2s;" onmouseenter="this.style.background='#a3213a'" onmouseleave="this.style.background='#800020'">
+            Retry
+          </button>
+        </div>
+      }
+
       <!-- ══════════ SECTION — STREAM CINEMA (Non-YouTube) ══════════ -->
       <section style="margin-bottom:52px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <h2 style="font-size:22px; font-weight:700; letter-spacing:-0.01em; margin:0; color:#f9f9f2;">Stream Cinema</h2>
           <a routerLink="/movies/library" class="view-all-btn">Browse Movies</a>
         </div>
+        <p style="font-size:13px; color:#6b5b54; margin:0 0 20px 0; font-style:italic;">Handpicked for your next binge</p>
 
         @if (isLoading() && streamOnly().length === 0) {
           <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;">
@@ -136,6 +157,7 @@ interface FeaturedResponse {
 export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private watchApi = inject(WatchApiService);
+  protected prefs = inject(UserPreferencesService);
   private destroy$ = new Subject<void>();
 
   heroMovie = signal<MovieSummary | null>(null);
@@ -143,6 +165,7 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
   downloadOnly = signal<MovieSummary[]>([]);
   movieProgressById = signal<Record<string, number>>({});
   isLoading = signal(true);
+  loadError = signal(false);
 
   // kept for compat
   trending = signal<MovieSummary[]>([]);
@@ -167,8 +190,14 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  retryLoad() {
+    this.loadError.set(false);
+    this.loadMovies();
+  }
+
   private loadMovies() {
     this.isLoading.set(true);
+    this.loadError.set(false);
 
     this.http.get<FeaturedResponse>('/api/v1/movies/featured').subscribe({
       next: (res) => {
@@ -178,7 +207,7 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
         if (hero) this.heroMovie.set(hero);
         this.isLoading.set(false);
       },
-      error: () => { this.isLoading.set(false); }
+      error: () => { this.isLoading.set(false); this.loadError.set(true); }
     });
 
     this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?youtubeOnly=false&sortBy=popular&limit=6').subscribe({

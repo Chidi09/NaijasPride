@@ -436,3 +436,31 @@ body.tv-mode html,
 }
 @media (min-width: 640px)  { .youtube-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1024px) { .youtube-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* ═══════════ High Contrast Mode ═══════════ */
+.high-contrast {
+  --border-color: #6b5850;
+  --text-muted: #5b4a46;
+  --scroll-thumb: #8a6e5f;
+
+  & * {
+    border-color: var(--border-color) !important;
+  }
+
+  &.dark {
+    --border-color: #888;
+    --text-muted: #b0b0b0;
+
+    & * {
+      border-color: #888 !important;
+    }
+  }
+
+  body, p, span, h1, h2, h3, h4, h5, h6, a, li, td, th, label {
+    font-weight: 500 !important;
+  }
+
+  img, video {
+    filter: contrast(1.1);
+  }
+}

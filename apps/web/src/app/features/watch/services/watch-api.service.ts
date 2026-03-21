@@ -1,5 +1,7 @@
 import { Injectable, inject } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
+import { tap } from "rxjs/operators";
+import { ToastService } from "../../../core/services/toast.service";
 
 export interface WatchHistoryItem {
   id: string;
@@ -18,11 +20,18 @@ export interface WatchHistoryItem {
 @Injectable({ providedIn: "root" })
 export class WatchApiService {
   private http = inject(HttpClient);
+  private toast = inject(ToastService);
+
+  // Throttle trust-layer toasts so they don't spam on every progress tick
+  private lastSyncToast = 0;
+  private readonly SYNC_TOAST_INTERVAL = 120_000; // 2 min between toasts
 
   saveProgress(movieId: string, progress: number, duration: number) {
     return this.http.post<{ status: string; message: string }>(
       "/api/v1/watch/progress",
       { movieId, progress, duration },
+    ).pipe(
+      tap(() => this.showSyncToast()),
     );
   }
 
@@ -65,5 +74,13 @@ export class WatchApiService {
         hasPrev: boolean;
       };
     }>(`/api/v1/watch/history${suffix}`);
+  }
+
+  private showSyncToast() {
+    const now = Date.now();
+    if (now - this.lastSyncToast > this.SYNC_TOAST_INTERVAL) {
+      this.lastSyncToast = now;
+      this.toast.info('Progress synced');
+    }
   }
 }

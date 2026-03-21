@@ -18,6 +18,10 @@ import { CookieConsentComponent } from './shared/components/cookie-consent/cooki
 import { BackButtonComponent } from './shared/components/back-button/back-button.component';
 import { MiniPlayerComponent } from './features/music/components/mini-player/mini-player.component';
 import { MusicPlayerService } from './features/music/services/music-player.service';
+import { MilestoneCelebrationComponent } from './shared/components/milestone-celebration/milestone-celebration.component';
+import { CinemaSplashComponent } from './shared/components/cinema-splash/cinema-splash.component';
+import { AccessibilityPanelComponent } from './shared/components/accessibility-panel/accessibility-panel.component';
+import { UserPreferencesService } from './core/services/user-preferences.service';
 import { filter } from 'rxjs/operators';
 
 @Component({
@@ -34,7 +38,10 @@ import { filter } from 'rxjs/operators';
     BottomNavComponent,
     AppHeaderComponent,
     SidePanelComponent,
-    PwaInstallPromptComponent
+    PwaInstallPromptComponent,
+    MilestoneCelebrationComponent,
+    CinemaSplashComponent,
+    AccessibilityPanelComponent
   ],
   template: `
     <div class="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300">
@@ -104,6 +111,13 @@ import { filter } from 'rxjs/operators';
 
       <app-toast-container />
       <app-cookie-consent />
+      <app-milestone-celebration />
+      <app-accessibility-panel #a11yPanel />
+
+      <!-- Cinema splash for first-time visitors -->
+      @if (showSplash) {
+        <app-cinema-splash (dismissed)="showSplash = false" />
+      }
 
       <!-- Global Mini-player: show only when there's an active track -->
       @if (musicPlayer.currentTrack()) {
@@ -117,17 +131,19 @@ export class AppComponent implements OnInit {
   private firebaseMessaging = inject(FirebaseMessagingService);
   protected pwaService = inject(PwaService);
   private router = inject(Router);
-  
+
   protected readerState = inject(ReaderStateService);
   protected musicPlayer = inject(MusicPlayerService);
   private authState = inject(AuthStateService);
   private adPolicy = inject(AdPolicyService);
   private adScriptService = inject(AdScriptService);
-  
+  private userPrefs = inject(UserPreferencesService);
+
   private sidePanel = viewChild<SidePanelComponent>('sidePanel');
   private bottomNav = viewChild<BottomNavComponent>('bottomNav');
-  
+
   hideBottomNav = false;
+  showSplash = !this.userPrefs.hasSeenOnboarding();
   private readonly defaultViewportContent = 'width=device-width, initial-scale=1';
   private readonly lockedViewportContent =
     'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
