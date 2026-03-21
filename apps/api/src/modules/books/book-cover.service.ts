@@ -31,6 +31,7 @@ type BookRecord = {
   publisher: string | null;
   downloadUrl: string | null;
   coverUrl: string | null;
+  author: string | null;
   status: string;
 };
 
@@ -38,6 +39,7 @@ type ExtractedCover = {
   buffer: Buffer;
   contentType: string;
   extension: string;
+  author?: string | null;
 };
 
 type BookCoverResult = {
@@ -297,6 +299,7 @@ export class BookCoverService {
         publisher: true,
         downloadUrl: true,
         coverUrl: true,
+        author: true,
         status: true,
       },
     });
@@ -341,11 +344,19 @@ export class BookCoverService {
         ? toPublicUrl(STORAGE_PUBLIC_BASE_URL, key)
         : `/api/v1/books/download?key=${encodeURIComponent(key)}`;
 
+      // Also update author if the current value is 'Unknown' and we found one in the EPUB
+      const needsAuthorFix = (!book.author || book.author.trim().toLowerCase() === 'unknown') && extracted.author;
       await this.prisma.book.update({
         where: { id: book.id },
-        data: { coverUrl },
+        data: {
+          coverUrl,
+          ...(needsAuthorFix ? { author: extracted.author! } : {}),
+        },
       });
 
+      if (needsAuthorFix) {
+        this.logger.info(`[BookCoverWorker] Author backfilled for book ${book.id}: ${extracted.author}`);
+      }
       this.logger.info(`[BookCoverWorker] Cover extracted for book ${book.id}`);
       return { updated: true, coverUrl, key };
     } finally {
@@ -467,6 +478,10 @@ export class BookCoverService {
         throw new Error('EPUB manifest contains no items');
       }
 
+      // Extract author from dc:creator while we have the OPF open
+      const rawAuthor = (opfXml('dc\\:creator, creator').first().text() || '').trim();
+      const author = rawAuthor && rawAuthor.toLowerCase() !== 'unknown' ? rawAuthor : null;
+
       const coverItem = pickEpubCoverItem(opfXml, items);
       if (!coverItem) {
         throw new Error('EPUB cover image not found in manifest');
@@ -485,6 +500,7 @@ export class BookCoverService {
         buffer: imageBuffer,
         contentType,
         extension,
+        author,
       };
     } catch (error) {
       throw new Error(`EPUB cover extraction failed: ${error instanceof Error ? error.message : String(error)}`);

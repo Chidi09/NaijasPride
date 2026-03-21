@@ -289,7 +289,10 @@ export const importElsciLightNovelsCatalog = async (
           create: payload,
           update: {
             title: payload.title,
-            author: payload.author,
+            // Only overwrite author if we resolved a real one — never degrade
+            // a known author back to 'Unknown' on a re-import where EPUB
+            // extraction failed (network error, timeout, etc.).
+            ...(payload.author !== 'Unknown' ? { author: payload.author } : {}),
             description: payload.description,
             year: payload.year,
             coverUrl: payload.coverUrl,
