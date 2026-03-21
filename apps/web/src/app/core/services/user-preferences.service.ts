@@ -24,6 +24,11 @@ export class UserPreferencesService {
   readonly highContrast = signal(DEFAULTS.highContrast);
   readonly fontScale = signal(DEFAULTS.fontScale);
   readonly hasSeenOnboarding = signal(DEFAULTS.hasSeenOnboarding);
+  readonly a11yPanelOpen = signal(false);
+
+  openAccessibilityPanel() {
+    this.a11yPanelOpen.set(true);
+  }
 
   constructor() {
     this.load();

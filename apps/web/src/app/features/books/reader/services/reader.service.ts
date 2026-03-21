@@ -5,12 +5,15 @@ import type { BookmarkEntry, HighlightEntry, ReaderSettings } from '../models/re
 import { ReaderStorageService } from './reader-storage.service';
 import { ReaderProgressService, type ServerBookProgress } from './reader-progress.service';
 import { ReaderHighlightsService } from './reader-highlights.service';
+import { MilestoneService } from '../../../../core/services/milestone.service';
 
 @Injectable()
 export class ReaderService {
   private storage = inject(ReaderStorageService);
   private progressApi = inject(ReaderProgressService);
   private highlightsApi = inject(ReaderHighlightsService);
+  private milestones = inject(MilestoneService);
+  private bookMilestoneTriggered = false;
 
   slug = signal<string | null>(null);
   settings = signal<ReaderSettings>(this.storage.loadSettings());
@@ -158,6 +161,13 @@ export class ReaderService {
   saveServerProgress(page: number): void {
     const slug = this.slug();
     if (!slug) return;
+
+    // Milestone: first book opened
+    if (!this.bookMilestoneTriggered && page > 1) {
+      this.bookMilestoneTriggered = true;
+      this.milestones.checkFirstBook();
+    }
+
     this.progressApi.saveProgress(slug, page).subscribe();
   }
 

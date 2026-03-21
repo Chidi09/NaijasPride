@@ -47,6 +47,7 @@
             <div class="absolute right-0 top-full mt-2 w-44 rounded-md border border-black/15 bg-white/95 dark:border-white/15 dark:bg-black/95 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
               <a routerLink="/profile" class="block px-4 py-3 text-sm text-black/75 hover:text-black hover:bg-black/5 dark:text-white/75 dark:hover:text-white dark:hover:bg-white/5">Profile</a>
               <a routerLink="/premium" class="block px-4 py-3 text-sm text-black/75 hover:text-black hover:bg-black/5 dark:text-white/75 dark:hover:text-white dark:hover:bg-white/5">Premium</a>
+              <button (click)="openAccessibility()" class="block w-full text-left px-4 py-3 text-sm text-black/75 hover:text-black hover:bg-black/5 dark:text-white/75 dark:hover:text-white dark:hover:bg-white/5">Accessibility</button>
               <div class="border-t border-black/10 dark:border-white/10"></div>
               <button (click)="auth.logout()" class="block w-full text-left px-4 py-3 text-sm text-red-700 hover:text-red-800 hover:bg-black/5 dark:text-red-300 dark:hover:text-red-200 dark:hover:bg-white/5">Sign Out</button>
             </div>
@@ -86,6 +87,7 @@
         @if (auth.currentUser()) {
           <a routerLink="/profile" (click)="closeMobileMenu()" class="px-2 py-3 hover:text-black dark:hover:text-white transition-colors">Profile</a>
           <a routerLink="/premium" (click)="closeMobileMenu()" class="px-2 py-3 hover:text-black dark:hover:text-white transition-colors">Premium</a>
+          <button (click)="openAccessibility(); closeMobileMenu()" class="text-left px-2 py-3 hover:text-black dark:hover:text-white transition-colors">Accessibility</button>
           <button (click)="auth.logout(); closeMobileMenu()" class="text-left px-2 py-3 text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200 transition-colors">Sign Out</button>
         } @else {
           <a routerLink="/login" (click)="closeMobileMenu()" class="px-2 py-3 hover:text-black dark:hover:text-white transition-colors">Sign In</a>

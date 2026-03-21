@@ -6,6 +6,8 @@ import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { BrandLogoComponent } from '../../../shared/components/brand-logo/brand-logo.component';
 import { ThemeToggleComponent } from '../../../shared/components/theme-toggle/theme-toggle.component';
+import { AccessibilityPanelComponent } from '../../../shared/components/accessibility-panel/accessibility-panel.component';
+import { UserPreferencesService } from '../../services/user-preferences.service';
 
 @Component({
   selector: 'app-navbar',
@@ -19,6 +21,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
 
   auth = inject(AuthService);
+  private userPrefs = inject(UserPreferencesService);
   searchInput = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
 
   searchForm = this.fb.group({
@@ -76,6 +79,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
       queryParams: query ? { q: query } : {},
     });
     this.showSearchOverlay.set(false);
+  }
+
+  openAccessibility() {
+    this.userPrefs.openAccessibilityPanel();
   }
 
   closeMobileMenu() {

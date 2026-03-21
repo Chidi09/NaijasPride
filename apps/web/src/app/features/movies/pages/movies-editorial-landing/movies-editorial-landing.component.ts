@@ -1,13 +1,13 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { MovieSummary } from '@naijaspride/types';
 import { WatchApiService } from '../../../watch/services/watch-api.service';
 import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
 import { MoodSelectorComponent } from '../../../../shared/components/mood-selector/mood-selector.component';
-import { UserPreferencesService } from '../../../../core/services/user-preferences.service';
+import { UserPreferencesService, FeedMood } from '../../../../core/services/user-preferences.service';
 
 interface FeaturedResponse {
   success: boolean;
@@ -180,9 +180,22 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
 
   skeletons = [1, 2, 3, 4, 5, 6];
 
+  private moodGenreMap: Record<FeedMood, string[]> = {
+    all: [],
+    chill: ['Romance', 'Comedy', 'Drama'],
+    intense: ['Action', 'Thriller', 'Horror'],
+    family: ['Family', 'Animation'],
+    nollywood: [],
+  };
+
+  private moodEffect = effect(() => {
+    const mood = this.prefs.feedMood();
+    this.loadStreamMovies(mood);
+  });
+
   ngOnInit() {
     this.loadWatchProgress();
-    this.loadMovies();
+    this.loadFeatured();
   }
 
   ngOnDestroy() {
@@ -192,10 +205,11 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
 
   retryLoad() {
     this.loadError.set(false);
-    this.loadMovies();
+    this.loadFeatured();
+    this.loadStreamMovies(this.prefs.feedMood());
   }
 
-  private loadMovies() {
+  private loadFeatured() {
     this.isLoading.set(true);
     this.loadError.set(false);
 
@@ -210,11 +224,27 @@ export class MoviesEditorialLandingComponent implements OnInit, OnDestroy {
       error: () => { this.isLoading.set(false); this.loadError.set(true); }
     });
 
-    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies?youtubeOnly=false&sortBy=popular&limit=6').subscribe({
+    this.downloadOnly.set([]);
+  }
+
+  private loadStreamMovies(mood: FeedMood) {
+    let params = new HttpParams()
+      .set('youtubeOnly', 'false')
+      .set('sortBy', 'popular')
+      .set('limit', '12');
+
+    if (mood === 'nollywood') {
+      params = params.set('nollywoodOnly', 'true');
+    } else {
+      const genres = this.moodGenreMap[mood];
+      for (const g of genres) {
+        params = params.append('genre', g);
+      }
+    }
+
+    this.http.get<{ success: boolean; data: MovieSummary[] }>('/api/v1/movies', { params }).subscribe({
       next: (res) => { this.streamOnly.set(res.data); }
     });
-
-    this.downloadOnly.set([]);
   }
 
   getPosterUrl(movie: MovieSummary): string | null {

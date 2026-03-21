@@ -22,6 +22,7 @@ import { BrandLogoComponent } from '../brand-logo/brand-logo.component';
 import { MovieSummary } from '@naijaspride/types';
 import { HttpClient } from '@angular/common/http';
 import { PwaService } from '../../../core/services/pwa.service';
+import { MilestoneService } from '../../../core/services/milestone.service';
 import { SymbolIconComponent } from '../symbol-icon/symbol-icon.component';
 
 interface SubtitleInfo {
@@ -330,6 +331,8 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   private watchApi = inject(WatchApiService);
   private anonymousWatch = inject(AnonymousWatchService);
   private authState = inject(AuthStateService);
+  private milestones = inject(MilestoneService);
+  private milestoneTriggered = false;
   private http = inject(HttpClient);
   protected pwaService = inject(PwaService);
   private destroy$ = new Subject<void>();
@@ -1087,7 +1090,13 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
   private saveProgress(progress: number) {
     if (!this.movieId || !this.config.saveProgress) return;
-    
+
+    // Milestone: first watch celebration
+    if (!this.milestoneTriggered && progress > 30) {
+      this.milestoneTriggered = true;
+      this.milestones.checkFirstWatch();
+    }
+
     if (this.isAuthenticated) {
       // Save to API for authenticated users
       this.watchApi.saveProgress(this.movieId, progress, Math.floor(this.duration)).subscribe({

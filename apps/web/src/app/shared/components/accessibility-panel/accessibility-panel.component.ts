@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { UserPreferencesService } from '../../../core/services/user-preferences.service';
 
 @Component({
@@ -62,7 +62,7 @@ import { UserPreferencesService } from '../../../core/services/user-preferences.
 })
 export class AccessibilityPanelComponent {
   prefs = inject(UserPreferencesService);
-  open = signal(false);
+  open = this.prefs.a11yPanelOpen;
 
   fontOptions = [
     { label: 'S', value: 0.875 },
