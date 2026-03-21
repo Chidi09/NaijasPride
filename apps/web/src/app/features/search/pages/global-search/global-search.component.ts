@@ -186,7 +186,7 @@ type TvResultCard = SearchSuggestion & {
 
             <button
               type="submit"
-              [disabled]="loading() || !hasValidQuery()"
+              [disabled]="loading() || !hasValidQuery"
               class="h-12 rounded-xl bg-[#800020] px-5 text-sm font-semibold text-white transition hover:bg-[#660019] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Search

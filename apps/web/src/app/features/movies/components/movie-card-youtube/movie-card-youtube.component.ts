@@ -2,6 +2,7 @@ import { Component, Input, OnChanges, SimpleChanges, computed, effect, inject, s
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { Router } from '@angular/router';
 import { MovieSummary } from '@naijaspride/types';
+import { normalizeYouTubeTitle } from '@naijaspride/utils';
 import { ProfileApiService } from '../../../profile/services/profile-api.service';
 import { AuthStateService } from '../../../../core/auth/auth-state.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
@@ -70,7 +71,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
         @if (movie.thumbnailUrl?.trim()) {
           <img
             [ngSrc]="movie.thumbnailUrl!"
-            [alt]="movie.title"
+            [alt]="displayTitle"
             fill
             sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             class="poster-img h-full w-full object-cover"
@@ -117,7 +118,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
 
       <!-- Title + year below card -->
       <div class="px-3 py-2.5">
-        <p class="truncate text-[12px] font-semibold leading-tight text-[#f9f9f2]">{{ movie.title }}</p>
+        <p class="truncate text-[12px] font-semibold leading-tight text-[#f9f9f2]">{{ displayTitle }}</p>
         <p class="mt-0.5 text-[10px] text-[#a88a78]">{{ movie.year }}</p>
       </div>
     </div>
@@ -191,6 +192,10 @@ export class MovieCardYoutubeComponent implements OnChanges {
     if (changes['movie']) {
       this.hydrateSavedState();
     }
+  }
+
+  get displayTitle(): string {
+    return normalizeYouTubeTitle(this.movie?.title ?? '');
   }
 
   get progressPercent() {

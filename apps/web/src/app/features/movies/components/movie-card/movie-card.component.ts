@@ -2,6 +2,7 @@ import { Component, Input, OnChanges, SimpleChanges, computed, effect, inject, s
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { Router } from '@angular/router';
 import { MovieSummary } from '@naijaspride/types';
+import { normalizeYouTubeTitle } from '@naijaspride/utils';
 import { ProfileApiService } from '../../../profile/services/profile-api.service';
 import { AuthStateService } from '../../../../core/auth/auth-state.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
@@ -48,7 +49,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
         @if (primaryImage(movie); as imageUrl) {
           <img 
             [ngSrc]="imageUrl" 
-            [alt]="movie.title"
+            [alt]="displayTitle"
             fill
             sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
             class="w-full h-full object-cover"
@@ -103,7 +104,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
         }
 
         <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-3">
-          <h3 class="font-semibold text-white text-sm leading-tight line-clamp-2">{{ movie.title }}</h3>
+          <h3 class="font-semibold text-white text-sm leading-tight line-clamp-2">{{ displayTitle }}</h3>
           <p class="mt-1 text-[11px] text-gray-200/90">{{ movie.year }} • {{ movie.genre?.[0] || 'Feature' }}</p>
           <div class="mt-2 flex items-center gap-2 text-[10px]">
             <span class="rounded-full bg-white/20 px-2 py-0.5 text-white">{{ movie.genre?.[0] || 'Movie' }}</span>
@@ -224,6 +225,10 @@ export class MovieCardComponent implements OnChanges {
     if (changes['movie']) {
       this.hydrateSavedState();
     }
+  }
+
+  get displayTitle(): string {
+    return normalizeYouTubeTitle(this.movie?.title ?? '');
   }
 
   get progressPercent() {

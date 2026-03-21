@@ -187,6 +187,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/profile/pages/account-settings/account-settings.component').then(m => m.AccountSettingsComponent)
   },
 
+  {
+    path: 'profile/plans',
+    loadComponent: () => import('./features/profile/components/plans/plans.component').then(m => m.PlansComponent)
+  },
+
   // ──────────────────────────────────────────────────────────────
   // 8. PREMIUM & PAYMENTS
   // ──────────────────────────────────────────────────────────────

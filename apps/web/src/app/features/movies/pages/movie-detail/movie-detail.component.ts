@@ -8,6 +8,7 @@ import { MoviesQueryService } from '../../services/movies-query.service';
 import { ProfileQueryService } from '../../../profile/services/profile-query.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { CastMember, Quality, Movie } from '@naijaspride/types';
+import { normalizeYouTubeTitle } from '@naijaspride/utils';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap } from 'rxjs';
 
@@ -56,7 +57,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
             </button>
              
              <div class="w-48 md:w-64 flex-shrink-0 rounded-sm shadow-2xl overflow-hidden border-2 border-white/10">
-               <img [src]="movie.posterUrl || movie.thumbnailUrl" [alt]="movie.title" class="w-full h-auto">
+               <img [src]="movie.posterUrl || movie.thumbnailUrl" [alt]="normalizeTitle(movie.title)" class="w-full h-auto">
              </div>
 
             <div class="flex-grow text-center md:text-left space-y-4">
@@ -71,7 +72,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
                 }
               </div>
 
-              <h1 class="text-3xl md:text-5xl font-serif font-bold leading-tight">{{ movie.title }}</h1>
+              <h1 class="text-3xl md:text-5xl font-serif font-bold leading-tight">{{ normalizeTitle(movie.title) }}</h1>
               @if (movie.tagline) {
                 <p class="text-base md:text-lg text-[#6f5b54] dark:text-gray-300 italic">{{ movie.tagline }}</p>
               }
@@ -320,7 +321,7 @@ import { catchError, map, of, switchMap } from 'rxjs';
                   </div>
                   
                   <div class="mt-2">
-                    <h3 class="text-sm font-medium text-[#24181b] dark:text-white line-clamp-1 group-hover:text-cinema-500 transition-colors">{{ movie.title }}</h3>
+                    <h3 class="text-sm font-medium text-[#24181b] dark:text-white line-clamp-1 group-hover:text-cinema-500 transition-colors">{{ normalizeTitle(movie.title) }}</h3>
                     <p class="text-xs text-[#9f7d73]">{{ movie.year }} • {{ movie.rating || '0' }}% Match</p>
                   </div>
                 </a>
@@ -362,6 +363,8 @@ export class MovieDetailComponent {
     { initialValue: [] as Movie[] }
   );
 
+  normalizeTitle = normalizeYouTubeTitle;
+
   // Notification subscription state
   notificationSubscribed = signal<boolean>(false);
   updatingNotification = signal<boolean>(false);
@@ -371,11 +374,13 @@ export class MovieDetailComponent {
     effect(() => {
       const movie = this.query.data()?.data;
       if (movie) {
+        const cleanTitle = normalizeYouTubeTitle(movie.title);
+
         // 1. Browser Title
-        this.title.setTitle(`${movie.title} (${movie.year}) | NaijasPride`);
+        this.title.setTitle(`${cleanTitle} (${movie.year}) | NaijasPride`);
 
         // 2. OpenGraph (Facebook/WhatsApp)
-        this.meta.updateTag({ property: 'og:title', content: movie.title });
+        this.meta.updateTag({ property: 'og:title', content: cleanTitle });
         this.meta.updateTag({ property: 'og:description', content: movie.description || 'Watch now on NaijasPride.' });
         this.meta.updateTag({ property: 'og:image', content: movie.thumbnailUrl || '' });
         this.meta.updateTag({ property: 'og:url', content: `https://naijaspride.com/movies/${movie.slug}` });
@@ -383,7 +388,7 @@ export class MovieDetailComponent {
 
         // 3. Twitter Card
         this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
-        this.meta.updateTag({ name: 'twitter:title', content: movie.title });
+        this.meta.updateTag({ name: 'twitter:title', content: cleanTitle });
         this.meta.updateTag({ name: 'twitter:description', content: movie.description || '' });
         this.meta.updateTag({ name: 'twitter:image', content: movie.thumbnailUrl || '' });
 
