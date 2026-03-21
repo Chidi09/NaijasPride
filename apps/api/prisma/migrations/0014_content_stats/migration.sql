@@ -1,0 +1,7 @@
+-- Add viewCount and likeCount to TvShow
+ALTER TABLE "TvShow" ADD COLUMN IF NOT EXISTS "viewCount" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "TvShow" ADD COLUMN IF NOT EXISTS "likeCount" INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS "TvShow_viewCount_idx" ON "TvShow"("viewCount");
+
+-- Add viewCount to Book
+ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "viewCount" INTEGER NOT NULL DEFAULT 0;

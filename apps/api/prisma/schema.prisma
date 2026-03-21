@@ -268,6 +268,8 @@ model TvShow {
   backdropUrl     String?
   trailerUrl      String?
   status          ContentStatus @default(active)
+  viewCount       Int           @default(0)
+  likeCount       Int           @default(0)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -277,6 +279,7 @@ model TvShow {
   @@index([slug])
   @@index([year])
   @@index([status])
+  @@index([viewCount])
 }
 
 model TvSeason {
@@ -482,6 +485,7 @@ model Book {
   rating        Float?
   publisher     String?
   downloadCount Int      @default(0)
+  viewCount     Int      @default(0)
   status        ContentStatus @default(active)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

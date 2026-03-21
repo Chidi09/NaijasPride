@@ -2599,6 +2599,12 @@ export const bookRoutes = async (
         });
       }
 
+      // Increment view count (fire-and-forget)
+      app.prisma.book.update({
+        where: { id: book.id },
+        data: { viewCount: { increment: 1 } },
+      }).catch(() => {});
+
       return reply.send({
         status: 'success',
         data: book

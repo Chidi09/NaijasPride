@@ -96,6 +96,24 @@ import { catchError, map, of, switchMap } from 'rxjs';
                 }
               </div>
 
+              <!-- Engagement stats -->
+              @if ((movie.viewCount ?? 0) > 0 || (movie.downloadCount ?? 0) > 0) {
+                <div class="flex flex-wrap gap-3 text-xs text-[#725f58] dark:text-gray-400 justify-center md:justify-start">
+                  @if ((movie.viewCount ?? 0) > 0) {
+                    <span class="inline-flex items-center gap-1">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      {{ formatCount(movie.viewCount ?? 0) }} views
+                    </span>
+                  }
+                  @if ((movie.downloadCount ?? 0) > 0) {
+                    <span class="inline-flex items-center gap-1">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                      {{ formatCount(movie.downloadCount ?? 0) }} downloads
+                    </span>
+                  }
+                </div>
+              }
+
                <!-- Action Buttons -->
                <div class="flex flex-wrap gap-3 pt-4">
                 @if (canWatch(movie)) {
@@ -446,6 +464,12 @@ export class MovieDetailComponent {
 
   getHeroBackdrop(movie: Movie) {
     return movie.backdropUrl || movie.coverUrl || movie.posterUrl || movie.thumbnailUrl || '';
+  }
+
+  formatCount(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
   }
 
   actorInitials(name: string): string {

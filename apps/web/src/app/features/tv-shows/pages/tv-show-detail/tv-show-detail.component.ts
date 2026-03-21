@@ -36,6 +36,9 @@ import { TvShowsQueryService } from '../../services/tv-shows-query.service';
                   <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ show()!.year }}</span>
                   <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ show()!.seasons.length }} seasons</span>
                   <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ totalEpisodeCount() }} episodes</span>
+                  @if ((show()!.viewCount ?? 0) > 0) {
+                    <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ formatCount(show()!.viewCount ?? 0) }} views</span>
+                  }
                   @for (tag of show()!.genre.slice(0, 3); track tag) {
                     <span class="rounded-full border border-white/20 px-2 py-1 text-white/80">{{ tag }}</span>
                   }
@@ -158,6 +161,12 @@ export class TvShowDetailComponent {
         episode: episodeNumber,
       },
     });
+  }
+
+  formatCount(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
   }
 
   watchFirstAvailableEpisode(): void {

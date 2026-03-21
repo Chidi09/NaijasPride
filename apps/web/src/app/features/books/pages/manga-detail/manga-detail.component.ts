@@ -122,6 +122,18 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                     <app-symbol-icon [name]="isFavorite() ? 'favorite' : 'add'" [size]="24" [fill]="isFavorite()"></app-symbol-icon>
                     {{ isFavorite() ? 'In My List' : 'Add to My List' }}
                   </button>
+                  @if (auth.currentUser() && manga.status && manga.status.toLowerCase() !== 'completed') {
+                    <button
+                      type="button"
+                      (click)="toggleChapterWatch()"
+                      class="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/[0.06] px-7 py-4 text-base font-semibold backdrop-blur-md transition hover:bg-white/[0.1]"
+                      [ngClass]="library.isWatchingManga(currentMangaId()) ? 'text-[#800020]' : 'text-white/90'"
+                      [title]="library.isWatchingManga(currentMangaId()) ? 'Stop chapter notifications' : 'Notify me when new chapters drop'"
+                    >
+                      <app-symbol-icon [name]="library.isWatchingManga(currentMangaId()) ? 'notifications_active' : 'notifications'" [size]="24" [fill]="library.isWatchingManga(currentMangaId())"></app-symbol-icon>
+                      {{ library.isWatchingManga(currentMangaId()) ? 'Notifying' : 'Notify Me' }}
+                    </button>
+                  }
                 </div>
               </div>
             </div>

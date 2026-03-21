@@ -33,6 +33,12 @@ import { AnimeApiService } from '../../services/anime-api.service';
                   @for (tag of (anime()!.genres || []).slice(0, 3); track tag) {
                     <span class="rounded-full border border-white/20 px-2 py-1 text-white/80">{{ tag }}</span>
                   }
+                  @if (anime()!.averageScore) {
+                    <span class="rounded-full bg-[#800020]/20 border border-[#800020]/40 px-2 py-1 text-[#f87171]">★ {{ anime()!.averageScore / 10 | number:'1.1-1' }}</span>
+                  }
+                  @if (anime()!.popularity) {
+                    <span class="rounded-full bg-white/10 px-2 py-1 text-white/80">{{ formatCount(anime()!.popularity) }} fans</span>
+                  }
                 </div>
 
                 <h1 class="text-3xl font-bold text-white md:text-4xl">{{ title() }}</h1>
@@ -103,6 +109,12 @@ export class AnimeDetailComponent {
     if (!total) return [];
     return Array.from({ length: total }, (_, index) => ({ id: `meta-${index + 1}`, number: index + 1 }));
   });
+
+  formatCount(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
+  }
 
   constructor() {
     this.route.paramMap.subscribe((params) => {

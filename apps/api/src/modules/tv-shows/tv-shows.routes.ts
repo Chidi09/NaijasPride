@@ -108,6 +108,12 @@ export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
+    // Increment view count (fire-and-forget)
+    fastify.prisma.tvShow.update({
+      where: { id: show.id },
+      data: { viewCount: { increment: 1 } },
+    }).catch(() => {});
+
     return reply.send({ success: true, data: show });
   });
 };
