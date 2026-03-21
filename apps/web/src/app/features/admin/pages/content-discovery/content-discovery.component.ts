@@ -2,6 +2,7 @@ import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { ToastService } from '../../../../core/services/toast.service';
 
 interface YouTubeVideo {
   youtubeId: string;
@@ -548,6 +549,7 @@ interface ChannelImportResult {
 })
 export class ContentDiscoveryComponent {
   private http = inject(HttpClient);
+  private toast = inject(ToastService);
 
   activeTab = signal<'my-channels' | 'channels' | 'search' | 'trending' | 'rss'>('my-channels');
 
@@ -663,7 +665,7 @@ export class ContentDiscoveryComponent {
         },
         error: (error) => {
           console.error('Error deleting channel:', error);
-          alert('Failed to delete channel');
+          this.toast.error('Failed to delete channel');
           this.deletingChannelIds.update(ids => {
             ids.delete(id);
             return new Set(ids);
@@ -694,7 +696,7 @@ export class ContentDiscoveryComponent {
       },
       error: (error) => {
         console.error('Error starting batch import:', error);
-        alert('Failed to start batch import');
+        this.toast.error('Failed to start batch import');
         this.batchImportingChannels.update(ids => {
           ids.delete(channelId);
           return new Set(ids);
@@ -854,7 +856,7 @@ export class ContentDiscoveryComponent {
       },
       error: (error) => {
         console.error('Error importing video:', error);
-        alert('Failed to import video');
+        this.toast.error('Failed to import video');
         this.importingVideoIds.update(ids => {
           ids.delete(video.youtubeId);
           return new Set(ids);

@@ -28,6 +28,7 @@ export class AuthStateService {
     if (!user) return false;
     return !!user.isPremium || user.subStatus === 'active';
   });
+  readonly isGuest = computed(() => !!this.currentUser()?.isGuest);
 
   getToken() {
     if (!this.canUseStorage()) return null;

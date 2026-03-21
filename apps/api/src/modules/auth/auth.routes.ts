@@ -102,6 +102,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  // POST /auth/logout — best-effort session teardown.
+  // Tokens are JWTs with no server-side blocklist, so this endpoint is a
+  // no-op today but is the right hook point for a future token blocklist.
+  app.post('/logout', {
+    preHandler: [app.authenticate],
+    config: { rateLimit: rateLimitByIp(30, '1 minute') },
+  }, async (_request, reply) => {
+    return reply.send({ success: true });
+  });
+
   app.post('/refresh', {
     schema: {
       body: refreshTokenSchema,

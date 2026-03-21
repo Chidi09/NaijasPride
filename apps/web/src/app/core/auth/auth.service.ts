@@ -42,6 +42,8 @@ export class AuthService {
   }
 
   logout() {
+    // Best-effort server-side teardown (future token blocklist hook).
+    this.http.post('/api/v1/auth/logout', {}).subscribe({ error: () => {} });
     this.authState.clearSession();
     this.router.navigate(['/login']);
   }

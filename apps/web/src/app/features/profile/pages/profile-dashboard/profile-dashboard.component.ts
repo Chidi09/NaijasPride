@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../../../core/auth/auth.service';
+import { AuthStateService } from '../../../../core/auth/auth-state.service';
 import { ProfileQueryService } from '../../services/profile-query.service';
 import { WatchApiService, WatchHistoryItem } from '../../../watch/services/watch-api.service';
 import { SubscriptionComponent } from '../../components/subscription/subscription.component';
@@ -27,8 +28,24 @@ import { MovieSummary } from '@naijaspride/types';
             @if (auth.currentUser()?.role === 'ADMIN') {
                <span class="text-xs bg-red-600 text-white px-2 py-0.5 rounded">ADMIN</span>
             }
+            @if (authState.isGuest()) {
+              <span class="text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">GUEST</span>
+            }
           </div>
         </div>
+
+        <!-- Guest Banner -->
+        @if (authState.isGuest()) {
+          <div class="mb-8 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <p class="text-[#24181b] dark:text-yellow-300 font-semibold text-sm">You're browsing as a guest</p>
+              <p class="text-[#725f58] dark:text-yellow-400/70 text-xs mt-0.5">Create a free account to save your watchlist, track history, and unlock more features.</p>
+            </div>
+            <a routerLink="/profile/settings" class="shrink-0 bg-cinema-500 hover:bg-cinema-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors">
+              Create Account
+            </a>
+          </div>
+        }
 
         <!-- Tabs -->
         <div class="border-b border-[#d8c2b8] dark:border-gray-800 mb-8 flex gap-8">
@@ -195,13 +212,17 @@ import { MovieSummary } from '@naijaspride/types';
                           <span class="bg-[#dcc5b8] dark:bg-gray-700 px-2 py-1 rounded text-xs">{{ item.quality }}</span>
                       </td>
                       <td class="p-4">
-                        <a 
-                          [href]="item.movie.fileUrls[item.quality]" 
-                          target="_blank"
-                          class="text-cinema-500 hover:text-cinema-400 text-sm"
-                        >
-                          Download Again →
-                        </a>
+                        @if (item.movie.fileUrls?.[item.quality]) {
+                          <a
+                            [href]="item.movie.fileUrls[item.quality]"
+                            target="_blank"
+                            class="text-cinema-500 hover:text-cinema-400 text-sm"
+                          >
+                            Download Again →
+                          </a>
+                        } @else {
+                          <span class="text-[#8a756e] dark:text-gray-600 text-sm">Unavailable</span>
+                        }
                       </td>
                     </tr>
                   }
@@ -279,6 +300,7 @@ import { MovieSummary } from '@naijaspride/types';
 })
 export class ProfileDashboardComponent implements OnInit {
   auth = inject(AuthService);
+  authState = inject(AuthStateService);
   profileService = inject(ProfileQueryService);
   watchApi = inject(WatchApiService);
   private http = inject(HttpClient);

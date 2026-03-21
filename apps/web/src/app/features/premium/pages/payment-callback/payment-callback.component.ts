@@ -1,7 +1,9 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { ProfileQueryService } from '../../../profile/services/profile-query.service';
+import { AuthService } from '../../../../core/auth/auth.service';
 
 @Component({
   selector: 'app-payment-callback',
@@ -24,11 +26,16 @@ import { HttpClient } from '@angular/common/http';
           </div>
           <h1 class="text-2xl font-serif font-bold text-[#24181b] dark:text-white">Payment Successful!</h1>
           <p class="text-[#725f58] dark:text-gray-400">
-            Your NaijasPride PRO membership is now active. Enjoy unlimited 4K streaming with no ads.
+            Your NaijasPride PRO membership is now active. Enjoy unlimited streaming with no ads.
           </p>
-          <a routerLink="/movies" class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-8 py-3 rounded-full transition-colors">
-            Start Watching
-          </a>
+          <div class="flex flex-col sm:flex-row gap-3 justify-center">
+            <a routerLink="/movies" class="inline-block bg-cinema-500 hover:bg-cinema-400 text-white font-bold px-8 py-3 rounded-full transition-colors">
+              Start Watching
+            </a>
+            <a routerLink="/profile" [queryParams]="{ tab: 'subscription' }" class="inline-block border border-cinema-500/60 text-cinema-500 font-bold px-6 py-3 rounded-full hover:bg-cinema-500/10 transition-colors">
+              View My Plan
+            </a>
+          </div>
         }
 
         @if (status === 'failed') {
@@ -57,8 +64,9 @@ import { HttpClient } from '@angular/common/http';
 })
 export class PaymentCallbackComponent implements OnInit {
   private route = inject(ActivatedRoute);
-  private router = inject(Router);
   private http = inject(HttpClient);
+  private profileQuery = inject(ProfileQueryService);
+  private auth = inject(AuthService);
 
   status: 'verifying' | 'success' | 'failed' = 'verifying';
   errorMessage: string | null = null;
@@ -73,13 +81,15 @@ export class PaymentCallbackComponent implements OnInit {
       return;
     }
 
-    // Verify the transaction reference with the API
     this.http.post('/api/v1/payments/verify', { reference }).subscribe({
       next: (res: any) => {
         if (res?.success) {
           this.status = 'success';
-          // Auto-redirect to browse after 3 seconds
-          setTimeout(() => this.router.navigate(['/movies']), 3000);
+          // Bust the subscription + profile caches so the UI reflects the new plan immediately.
+          this.profileQuery.invalidateSubscription();
+          this.profileQuery.invalidateProfile();
+          // Refresh the in-memory auth user so isPremium is updated.
+          this.auth.refreshUser().subscribe({ error: () => {} });
         } else {
           this.status = 'failed';
           this.errorMessage = res?.message || null;

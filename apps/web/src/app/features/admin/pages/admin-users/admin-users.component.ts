@@ -4,7 +4,8 @@ import { HttpClient } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { debounceTime, switchMap, startWith } from 'rxjs';
+import { debounceTime, startWith } from 'rxjs';
+import { ToastService } from '../../../../core/services/toast.service';
 
 interface User {
   id: string;
@@ -237,6 +238,7 @@ interface UserStats {
 export class AdminUsersComponent implements OnInit {
   private http = inject(HttpClient);
   private fb = inject(FormBuilder);
+  private toast = inject(ToastService);
 
   filterForm = this.fb.group({
     search: [''],
@@ -302,56 +304,71 @@ export class AdminUsersComponent implements OnInit {
   }
 
   updateRole(userId: string, event: Event) {
-    const role = (event.target as HTMLSelectElement).value as 'USER' | 'ADMIN';
-    this.updatingUser = userId;
+    const select = event.target as HTMLSelectElement;
+    const role = select.value as 'USER' | 'ADMIN';
+    const user = this.users.find((u) => u.id === userId);
+    const label = user?.name || user?.email || 'this user';
 
+    if (!confirm(`Change role of ${label} to ${role}?`)) {
+      // Reset the select to the previous value without patching.
+      select.value = user?.role ?? 'USER';
+      return;
+    }
+
+    this.updatingUser = userId;
     this.http.patch(`/api/v1/admin/users/${userId}`, { role }).subscribe({
       next: () => {
         this.updatingUser = null;
+        this.toast.success(`Role updated to ${role}`);
         this.loadUsers(this.meta?.page || 1);
       },
       error: (err) => {
         this.updatingUser = null;
-        alert(err.error?.message || 'Failed to update role');
+        select.value = user?.role ?? 'USER';
+        this.toast.error(err.error?.message || 'Failed to update role');
       },
     });
   }
 
   togglePremium(user: User) {
-    this.updatingUser = user.id;
+    const label = user.name || user.email;
+    const action = user.isPremium ? 'Remove PRO from' : 'Grant PRO to';
+    if (!confirm(`${action} ${label}?`)) return;
 
+    this.updatingUser = user.id;
     this.http.patch(`/api/v1/admin/users/${user.id}`, {
       isPremium: !user.isPremium,
       subStatus: user.isPremium ? 'inactive' : 'active',
     }).subscribe({
       next: () => {
         this.updatingUser = null;
+        this.toast.success(user.isPremium ? 'PRO removed' : 'PRO granted');
         this.loadUsers(this.meta?.page || 1);
         this.loadStats();
       },
       error: (err) => {
         this.updatingUser = null;
-        alert(err.error?.message || 'Failed to update subscription');
+        this.toast.error(err.error?.message || 'Failed to update subscription');
       },
     });
   }
 
   deleteUser(userId: string) {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return;
-    }
+    const user = this.users.find((u) => u.id === userId);
+    const label = user?.name || user?.email || 'this user';
+    if (!confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
 
     this.updatingUser = userId;
-
     this.http.delete(`/api/v1/admin/users/${userId}`).subscribe({
       next: () => {
         this.updatingUser = null;
+        this.toast.success('User deleted');
         this.loadUsers(this.meta?.page || 1);
         this.loadStats();
       },
       error: (err) => {
         this.updatingUser = null;
-        alert(err.error?.message || 'Failed to delete user');
+        this.toast.error(err.error?.message || 'Failed to delete user');
       },
     });
   }

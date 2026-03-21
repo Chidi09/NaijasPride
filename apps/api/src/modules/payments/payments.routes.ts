@@ -60,10 +60,10 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Verify a Paystack transaction reference (called from /payment/callback page)
+  // No auth required — user identity is extracted from Paystack metadata (userId embedded at payment init)
   fastify.post(
     '/verify',
     {
-      onRequest: [fastify.authenticate],
       schema: { body: verifyPaymentSchema },
     },
     async (req, reply) => {

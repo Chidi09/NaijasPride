@@ -36,4 +36,12 @@ export class ProfileQueryService {
       staleTime: 60 * 1000, // 1 minute
     }));
   }
+
+  invalidateSubscription() {
+    return this.queryClient.invalidateQueries({ queryKey: ['subscription'] });
+  }
+
+  invalidateProfile() {
+    return this.queryClient.invalidateQueries({ queryKey: ['profile'] });
+  }
 }

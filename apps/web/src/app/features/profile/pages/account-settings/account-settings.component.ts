@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/auth/auth.service';
+import { AuthStateService } from '../../../../core/auth/auth-state.service';
 
 @Component({
   selector: 'app-account-settings',
@@ -138,6 +139,68 @@ import { AuthService } from '../../../../core/auth/auth.service';
           </form>
         </div>
 
+        <!-- Guest Account Conversion -->
+        @if (authState.isGuest()) {
+          <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6 mb-6">
+            <div class="flex items-start gap-3 mb-4">
+              <svg class="w-6 h-6 text-yellow-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <div>
+                <h2 class="text-lg font-bold text-[#24181b] dark:text-white">Create Your Account</h2>
+                <p class="text-sm text-[#725f58] dark:text-gray-400 mt-0.5">You're on a guest account. Save your progress, watchlist, and history by creating a free account.</p>
+              </div>
+            </div>
+
+            <form [formGroup]="convertForm" (ngSubmit)="convertGuestAccount()">
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-[#725f58] dark:text-gray-400 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    formControlName="name"
+                    class="w-full px-4 py-2 bg-white dark:bg-cinema-900 border border-[#dcc5b8] dark:border-white/10 rounded-lg text-[#24181b] dark:text-white focus:border-cinema-500 focus:outline-none"
+                    placeholder="Your name"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-[#725f58] dark:text-gray-400 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    formControlName="email"
+                    class="w-full px-4 py-2 bg-white dark:bg-cinema-900 border border-[#dcc5b8] dark:border-white/10 rounded-lg text-[#24181b] dark:text-white focus:border-cinema-500 focus:outline-none"
+                    placeholder="your@email.com"
+                  />
+                  @if (convertForm.get('email')?.hasError('email') && convertForm.get('email')?.touched) {
+                    <p class="text-xs text-red-500 mt-1">Enter a valid email address</p>
+                  }
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-[#725f58] dark:text-gray-400 mb-1">Password</label>
+                  <input
+                    type="password"
+                    formControlName="password"
+                    class="w-full px-4 py-2 bg-white dark:bg-cinema-900 border border-[#dcc5b8] dark:border-white/10 rounded-lg text-[#24181b] dark:text-white focus:border-cinema-500 focus:outline-none"
+                    placeholder="Min 8 characters"
+                  />
+                  @if (convertForm.get('password')?.hasError('minlength') && convertForm.get('password')?.touched) {
+                    <p class="text-xs text-red-500 mt-1">Password must be at least 8 characters</p>
+                  }
+                </div>
+              </div>
+              <div class="mt-5 flex justify-end">
+                <button
+                  type="submit"
+                  [disabled]="converting || convertForm.invalid"
+                  class="bg-cinema-500 hover:bg-cinema-400 disabled:bg-cinema-700 disabled:cursor-not-allowed text-white font-medium px-6 py-2 rounded-lg transition-colors"
+                >
+                  {{ converting ? 'Creating account...' : 'Create Account' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        }
+
         <!-- Account Info -->
         <div class="bg-white dark:bg-cinema-800 rounded-xl shadow-sm border border-[#dcc5b8] dark:border-white/5 p-6">
           <h2 class="text-lg font-bold text-[#24181b] dark:text-white mb-4">Account Information</h2>
@@ -171,10 +234,12 @@ export class AccountSettingsComponent implements OnInit {
   private http = inject(HttpClient);
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
+  authState = inject(AuthStateService);
 
   currentUser = this.auth.currentUser;
   updating = false;
   changingPassword = false;
+  converting = false;
   successMessage: string | null = null;
   errorMessage: string | null = null;
 
@@ -188,6 +253,12 @@ export class AccountSettingsComponent implements OnInit {
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
     confirmPassword: ['', Validators.required],
   }, { validators: this.passwordMatchValidator });
+
+  convertForm = this.fb.group({
+    name: [''],
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(8)]],
+  });
 
   ngOnInit() {
     const user = this.currentUser();
@@ -243,6 +314,27 @@ export class AccountSettingsComponent implements OnInit {
       error: (err) => {
         this.changingPassword = false;
         this.errorMessage = err.error?.message || 'Failed to update password';
+      },
+    });
+  }
+
+  convertGuestAccount() {
+    if (this.convertForm.invalid) return;
+
+    this.converting = true;
+    this.clearMessages();
+
+    const { email, password, name } = this.convertForm.value;
+    this.auth.convertGuestAccount(email!, password!, name || undefined).subscribe({
+      next: () => {
+        this.converting = false;
+        this.successMessage = 'Account created! You can now log in with your email and password.';
+        this.convertForm.reset();
+        this.auth.refreshUser().subscribe({ error: () => {} });
+      },
+      error: (err) => {
+        this.converting = false;
+        this.errorMessage = err.error?.message || 'Failed to create account. Please try again.';
       },
     });
   }

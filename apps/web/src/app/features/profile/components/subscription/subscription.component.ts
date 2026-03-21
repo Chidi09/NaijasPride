@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { Router } from "@angular/router";
 import { ProfileQueryService } from "../../services/profile-query.service";
 
 interface SubscriptionData {
@@ -181,16 +182,27 @@ interface SubscriptionData {
           </ul>
         </div>
 
-        <div class="mt-8">
-          <button
-            class="w-full py-3 bg-red-600 hover:bg-red-700 rounded font-bold transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
-          >
-            @if (subscription.subscriptionPlan === "free") {
+        <div class="mt-8 space-y-3">
+          @if (subscription.subscriptionPlan === "free" || !subscription.isPremium) {
+            <button
+              (click)="goToPlans()"
+              class="w-full py-3 bg-red-600 hover:bg-red-700 rounded font-bold transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
+            >
               Upgrade Plan
-            } @else {
-              Manage Subscription
-            }
-          </button>
+            </button>
+          } @else {
+            <button
+              (click)="goToPlans()"
+              class="w-full py-3 bg-red-600 hover:bg-red-700 rounded font-bold transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
+            >
+              Change Plan
+            </button>
+          }
+          @if (subscription.subscriptionStatus === 'active') {
+            <p class="text-center text-xs text-gray-500">
+              Need help? <a href="mailto:support@naijaspride.com" class="text-red-400 hover:underline">Contact support</a> to cancel or modify your subscription.
+            </p>
+          }
         </div>
         }
       }
@@ -199,10 +211,15 @@ interface SubscriptionData {
 })
 export class SubscriptionComponent implements OnInit {
   private profileQueryService = inject(ProfileQueryService);
+  private router = inject(Router);
   query = this.profileQueryService.getSubscriptionQuery();
 
   data() {
     return this.query.data()?.data as SubscriptionData | undefined;
+  }
+
+  goToPlans() {
+    this.router.navigate(['/profile/plans']);
   }
 
   ngOnInit() {}
