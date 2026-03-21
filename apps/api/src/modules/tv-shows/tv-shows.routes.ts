@@ -46,6 +46,25 @@ export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true, message: 'TV progress saved' });
   });
 
+  app.get('/history', {
+    onRequest: [fastify.authenticate],
+  }, async (request) => {
+    const { limit } = request.query as { limit?: string };
+    const rows = await service.getHistory(request.user.userId, limit ? parseInt(limit) : 10);
+    return { success: true, data: rows };
+  });
+
+  app.get('/progress/:showId', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      params: z.object({ showId: z.string().uuid() }),
+    },
+  }, async (request) => {
+    const { showId } = request.params as { showId: string };
+    const progress = await service.getProgress(request.user.userId, showId);
+    return { success: true, data: progress };
+  });
+
   app.get('/:slug/embeds', {
     schema: {
       params: z.object({ slug: z.string().min(1) }),

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Hls from 'hls.js';
-import { AnimeApiService } from '../../services/anime-api.service';
+import { AnimeApiService, AnilistMedia } from '../../services/anime-api.service';
 import { PwaService } from '../../../../core/services/pwa.service';
 import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
 import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
@@ -277,15 +277,17 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   private hls: Hls | null = null;
   private mediaRecoveryAttempted = false;
+  private progressInterval: ReturnType<typeof setInterval> | null = null;
+  private lastSavedProgress = 0;
 
   animeId = signal(0);
   episodeNumber = signal(1);
   title = signal('Anime');
-  animeData = signal<any | null>(null);
+  animeData = signal<AnilistMedia | null>(null);
   loading = signal(true);
   error = signal<string | null>(null);
   playbackNotice = signal<string | null>(null);
-  episodes = signal<any[]>([]);
+  episodes = signal<Array<{ id: string; number: number; title?: string; image?: string }>>([]);
   sources = signal<Array<{ url: string; originalUrl?: string; quality?: string; isM3U8?: boolean; isEmbed?: boolean }>>([]);
   watchHeaders = signal<Record<string, string>>({});
   qualityOptions = signal<Array<{ value: string; label: string }>>([{ value: '-1', label: 'Auto' }]);
@@ -369,6 +371,8 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.saveCurrentProgress();
+    this.stopProgressTracking();
     this.destroyPlayer();
   }
 
@@ -432,8 +436,8 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
         const referer = this.pickReferer(headers);
 
         const sources = (res?.data?.sources || [])
-          .filter((entry: any) => !!entry?.url)
-          .map((entry: any) => {
+          .filter((entry) => !!entry?.url)
+          .map((entry) => {
             const originalUrl = String(entry.url);
             const sourceReferer = typeof entry.referer === 'string' && entry.referer.trim() ? entry.referer.trim() : referer;
             
@@ -579,11 +583,44 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
       this.hls.loadSource(url);
       this.hls.attachMedia(video);
+      this.startProgressTracking();
       return;
     }
 
     video.src = url;
     void video.play().catch(() => undefined);
+    this.startProgressTracking();
+  }
+
+  private startProgressTracking(): void {
+    this.stopProgressTracking();
+    this.progressInterval = setInterval(() => this.saveCurrentProgress(), 15_000);
+  }
+
+  private stopProgressTracking(): void {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+  }
+
+  private saveCurrentProgress(): void {
+    const video = this.videoRef?.nativeElement;
+    if (!video || !this.animeId() || !this.episodeNumber()) return;
+    const progress = Math.floor(video.currentTime);
+    const duration = Math.floor(video.duration || 0);
+    if (progress <= 5 || duration <= 0) return;
+    if (Math.abs(progress - this.lastSavedProgress) < 10) return;
+    this.lastSavedProgress = progress;
+
+    this.api.saveProgress({
+      anilistId: this.animeId(),
+      episodeNumber: this.episodeNumber(),
+      title: this.title(),
+      imageUrl: this.posterImage(),
+      progress,
+      duration,
+    }).subscribe();
   }
 
   private destroyPlayer(): void {

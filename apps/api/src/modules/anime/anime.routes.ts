@@ -1455,4 +1455,90 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
   });
+
+  // === Anime Watch Progress ===
+  app.post('/progress', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      body: z.object({
+        anilistId: z.number().int().positive(),
+        episodeNumber: z.number().int().positive(),
+        title: z.string().min(1),
+        imageUrl: z.string().optional(),
+        progress: z.number().int().min(0),
+        duration: z.number().int().min(0),
+      }),
+    },
+  }, async (request, reply) => {
+    const userId = request.user.userId;
+    const body = request.body as {
+      anilistId: number;
+      episodeNumber: number;
+      title: string;
+      imageUrl?: string;
+      progress: number;
+      duration: number;
+    };
+
+    await fastify.prisma.animeWatchHistory.upsert({
+      where: {
+        userId_anilistId_episodeNumber: {
+          userId,
+          anilistId: body.anilistId,
+          episodeNumber: body.episodeNumber,
+        },
+      },
+      update: {
+        progress: body.progress,
+        duration: body.duration,
+        title: body.title,
+        ...(body.imageUrl ? { imageUrl: body.imageUrl } : {}),
+      },
+      create: {
+        userId,
+        anilistId: body.anilistId,
+        episodeNumber: body.episodeNumber,
+        title: body.title,
+        imageUrl: body.imageUrl || null,
+        progress: body.progress,
+        duration: body.duration,
+      },
+    });
+
+    return reply.send({ success: true, message: 'Anime progress saved' });
+  });
+
+  app.get('/progress/:anilistId', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      params: z.object({ anilistId: z.coerce.number().int().positive() }),
+    },
+  }, async (request) => {
+    const userId = request.user.userId;
+    const { anilistId } = request.params as { anilistId: number };
+
+    const rows = await fastify.prisma.animeWatchHistory.findMany({
+      where: { userId, anilistId },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return { success: true, data: rows };
+  });
+
+  app.get('/history', {
+    onRequest: [fastify.authenticate],
+  }, async (request) => {
+    const userId = request.user.userId;
+    const { limit } = request.query as { limit?: string };
+    const take = Math.min(50, Math.max(1, parseInt(limit || '10') || 10));
+
+    const rows = await fastify.prisma.animeWatchHistory.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      take,
+      distinct: ['anilistId'],
+    });
+
+    return { success: true, data: rows };
+  });
 };

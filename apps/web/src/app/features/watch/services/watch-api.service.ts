@@ -3,6 +3,29 @@ import { HttpClient } from "@angular/common/http";
 import { tap } from "rxjs/operators";
 import { ToastService } from "../../../core/services/toast.service";
 
+export interface TvWatchProgressItem {
+  showId: string;
+  episodeId: string;
+  progress: number;
+  duration: number;
+  updatedAt: string;
+}
+
+export interface TvWatchHistoryItem {
+  showId: string;
+  title: string;
+  slug: string;
+  posterUrl: string | null;
+  episodeId: string;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  episodeTitle: string | null;
+  progress: number;
+  duration: number;
+  progressPercentage: number;
+  updatedAt: string;
+}
+
 export interface WatchHistoryItem {
   id: string;
   progress: number;
@@ -47,6 +70,20 @@ export class WatchApiService {
       '/api/v1/tv-shows/progress',
       payload,
     );
+  }
+
+  getTvProgress(showId: string) {
+    return this.http.get<{
+      success: boolean;
+      data: TvWatchProgressItem | null;
+    }>(`/api/v1/tv-shows/progress/${showId}`);
+  }
+
+  getTvHistory(limit = 10) {
+    return this.http.get<{
+      success: boolean;
+      data: TvWatchHistoryItem[];
+    }>(`/api/v1/tv-shows/history?limit=${limit}`);
   }
 
   getProgress(movieId: string) {

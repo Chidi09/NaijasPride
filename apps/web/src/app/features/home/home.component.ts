@@ -18,6 +18,52 @@ type BookProgressResponse = {
   } | null;
 };
 
+type ContinueReadingItem = {
+  bookId: string;
+  title: string;
+  author: string | null;
+  slug: string;
+  coverUrl: string | null;
+  page: number;
+  pageCount: number | null;
+  progressPercentage: number | null;
+  updatedAt: string;
+};
+
+type ContinueTvItem = {
+  showId: string;
+  title: string;
+  slug: string;
+  posterUrl: string | null;
+  episodeId: string;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  episodeTitle: string | null;
+  progress: number;
+  duration: number;
+  progressPercentage: number;
+  updatedAt: string;
+};
+
+type ContinueAnimeItem = {
+  id: string;
+  anilistId: number;
+  episodeNumber: number;
+  title: string;
+  imageUrl: string | null;
+  progress: number;
+  duration: number;
+  updatedAt: string;
+};
+
+type TrendingAnimeItem = {
+  id: number;
+  title?: { english?: string; romaji?: string; native?: string };
+  coverImage?: { large?: string; medium?: string; extraLarge?: string };
+  genres?: string[];
+  averageScore?: number;
+};
+
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -570,6 +616,103 @@ type BookProgressResponse = {
           </section>
         }
 
+        <!-- ── Continue Reading (Books) ─────────────────────────── -->
+        @if (continueReading().length > 0) {
+          <section>
+            <div class="section-head">
+              <h2 class="section-title">Continue Reading</h2>
+              <a routerLink="/books" class="section-link">Library</a>
+            </div>
+            <div class="hscroll">
+              @for (item of continueReading(); track item.bookId) {
+                <a [routerLink]="['/books/novel', item.slug, 'read']" class="cw-card">
+                  <div class="relative aspect-[2/3] overflow-hidden bg-[#181818]">
+                    <img [src]="getBookCover(item.slug, item.coverUrl)" [alt]="item.title"
+                         class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 pt-10">
+                      <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ item.title }}</p>
+                      <p class="text-[10px] text-white/50 mt-0.5">Page {{ item.page }}@if (item.progressPercentage) { · {{ item.progressPercentage }}% }</p>
+                    </div>
+                    @if (item.progressPercentage) {
+                      <div class="absolute inset-x-0 bottom-0 h-[3px] bg-black/60">
+                        <div class="h-full bg-[#800020]" [style.width.%]="item.progressPercentage"></div>
+                      </div>
+                    }
+                  </div>
+                </a>
+              }
+            </div>
+          </section>
+        }
+
+        <!-- ── Continue Watching TV ───────────────────────────────── -->
+        @if (continueTv().length > 0) {
+          <section>
+            <div class="section-head">
+              <h2 class="section-title">Continue Watching TV</h2>
+              <a routerLink="/tv-shows" class="section-link">All Shows</a>
+            </div>
+            <div class="hscroll">
+              @for (item of continueTv(); track item.showId) {
+                <a [routerLink]="['/tv-shows', item.slug, 'watch']" [queryParams]="{ season: item.seasonNumber, episode: item.episodeNumber }" class="cw-card">
+                  <div class="relative aspect-[2/3] overflow-hidden bg-[#181818]">
+                    <img [src]="item.posterUrl || ''" [alt]="item.title"
+                         class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 pt-10">
+                      <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ item.title }}</p>
+                      <p class="text-[10px] text-white/50 mt-0.5">S{{ item.seasonNumber }}E{{ item.episodeNumber }} · {{ item.progressPercentage }}%</p>
+                    </div>
+                    <div class="absolute inset-x-0 bottom-0 h-[3px] bg-black/60">
+                      <div class="h-full bg-[#800020]" [style.width.%]="item.progressPercentage"></div>
+                    </div>
+                    <div class="cw-play absolute inset-0 bg-black/45 flex items-center justify-center">
+                      <div class="h-10 w-10 rounded-full bg-[#800020] flex items-center justify-center shadow-lg">
+                        <svg class="h-4 w-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              }
+            </div>
+          </section>
+        }
+
+        <!-- ── Continue Watching Anime ────────────────────────────── -->
+        @if (continueAnime().length > 0) {
+          <section>
+            <div class="section-head">
+              <h2 class="section-title">Continue Watching Anime</h2>
+              <a routerLink="/anime" class="section-link">All Anime</a>
+            </div>
+            <div class="hscroll">
+              @for (item of continueAnime(); track item.anilistId) {
+                <a [routerLink]="['/anime', item.anilistId, 'watch', item.episodeNumber]" class="cw-card">
+                  <div class="relative aspect-[2/3] overflow-hidden bg-[#181818]">
+                    <img [src]="item.imageUrl || ''" [alt]="item.title"
+                         class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
+                    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 pt-10">
+                      <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ item.title }}</p>
+                      <p class="text-[10px] text-white/50 mt-0.5">Ep {{ item.episodeNumber }} · {{ getAnimeProgressPct(item) }}%</p>
+                    </div>
+                    <div class="absolute inset-x-0 bottom-0 h-[3px] bg-black/60">
+                      <div class="h-full bg-[#800020]" [style.width.%]="getAnimeProgressPct(item)"></div>
+                    </div>
+                    <div class="cw-play absolute inset-0 bg-black/45 flex items-center justify-center">
+                      <div class="h-10 w-10 rounded-full bg-[#800020] flex items-center justify-center shadow-lg">
+                        <svg class="h-4 w-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              }
+            </div>
+          </section>
+        }
+
         <!-- ── Trending Movies (portrait 2:3) ─────────────────────── -->
         @if (downloadMovies().length > 0 || isLoadingMovies()) {
           <section>
@@ -980,11 +1123,14 @@ export class HomeComponent implements OnInit, OnDestroy {
   downloadMovies = signal<MovieSummary[]>([]);
   /** Stream-only / YouTube movies — landscape 16:9 cards */
   streamMovies = signal<MovieSummary[]>([]);
-  trendingAnime = signal<any[]>([]);
+  trendingAnime = signal<TrendingAnimeItem[]>([]);
   books = signal<BookSummary[]>([]);
   musicTrending = signal<MusicFeaturedSections['trending']>([]);
   movieProgressById = signal<Record<string, number>>({});
   bookProgressBySlug = signal<Record<string, number>>({});
+  continueReading = signal<ContinueReadingItem[]>([]);
+  continueTv = signal<ContinueTvItem[]>([]);
+  continueAnime = signal<ContinueAnimeItem[]>([]);
 
   userName = signal('Guest');
   userInitials = signal('G');
@@ -1035,7 +1181,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     });
 
     // Trending Anime
-    this.http.get<{ success?: boolean; data?: { media?: any[] } }>('/api/v1/anime/search', {
+    this.http.get<{ success?: boolean; data?: { media?: TrendingAnimeItem[] } }>('/api/v1/anime/search', {
       params: { page: '1', perPage: '10', sort: 'TRENDING_DESC' },
     }).subscribe({
       next: (res) => {
@@ -1070,6 +1216,30 @@ export class HomeComponent implements OnInit, OnDestroy {
     // Music
     this.http.get<{ success: boolean; data: MusicFeaturedSections }>('/api/v1/music/featured').subscribe({
       next: (res) => this.musicTrending.set((res.data?.trending || []).slice(0, 5)),
+    });
+
+    // Continue Reading (Books)
+    this.http.get<{ status: string; data: ContinueReadingItem[] }>('/api/v1/books/progress/recent?limit=10').subscribe({
+      next: (res) => {
+        const rows = (res.data || []).filter((item) => item.page > 0);
+        this.continueReading.set(rows);
+      },
+    });
+
+    // Continue Watching TV
+    this.http.get<{ success: boolean; data: ContinueTvItem[] }>('/api/v1/tv-shows/history?limit=10').subscribe({
+      next: (res) => {
+        const rows = (res.data || []).filter((item) => item.progressPercentage > 0 && item.progressPercentage < 95);
+        this.continueTv.set(rows);
+      },
+    });
+
+    // Continue Watching Anime
+    this.http.get<{ success: boolean; data: ContinueAnimeItem[] }>('/api/v1/anime/history?limit=10').subscribe({
+      next: (res) => {
+        const rows = (res.data || []).filter((item) => item.progress > 0);
+        this.continueAnime.set(rows);
+      },
     });
   }
 
@@ -1114,6 +1284,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (coverUrl && coverUrl.trim().length > 0) return coverUrl;
     if (!slug) return '';
     return `/api/v1/books/cover/${encodeURIComponent(slug)}`;
+  }
+
+  getAnimeProgressPct(item: ContinueAnimeItem): number {
+    if (!item.duration || item.duration <= 0) return 0;
+    return Math.min(100, Math.round((item.progress / item.duration) * 100));
   }
 
   private loadBookProgress(slugs: string[]) {

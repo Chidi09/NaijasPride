@@ -1832,6 +1832,57 @@ export const bookRoutes = async (
     },
   });
 
+  // GET /progress/recent — Dashboard: recently-read books (for "Continue Reading")
+  app.get('/progress/recent', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { limit } = request.query as { limit?: string };
+        const take = Math.min(20, Math.max(1, parseInt(limit || '10') || 10));
+
+        const rows = await app.prisma.bookProgress.findMany({
+          where: { userId },
+          orderBy: { updatedAt: 'desc' },
+          take,
+          include: {
+            book: {
+              select: {
+                id: true,
+                title: true,
+                author: true,
+                slug: true,
+                coverUrl: true,
+                pageCount: true,
+              },
+            },
+          },
+        });
+
+        const data = rows.map((row) => ({
+          bookId: row.bookId,
+          title: row.book.title,
+          author: row.book.author,
+          slug: row.book.slug,
+          coverUrl: row.book.coverUrl,
+          page: row.page,
+          pageCount: row.book.pageCount,
+          progressPercentage: row.book.pageCount && row.book.pageCount > 0
+            ? Math.min(100, Math.round((row.page / row.book.pageCount) * 100))
+            : null,
+          updatedAt: row.updatedAt.toISOString(),
+        }));
+
+        return reply.send({ status: 'success', data });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to fetch recent progress',
+        });
+      }
+    },
+  });
+
   // === Book Reading Progress (server-side) ===
   // Stored in BookProgress.page (1-based). For EPUB we store locationIndex+1.
   app.get('/progress/:slug', {

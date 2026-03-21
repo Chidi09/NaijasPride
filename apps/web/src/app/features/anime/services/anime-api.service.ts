@@ -2,6 +2,85 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 
+export type AnimeWatchProgress = {
+  id: string;
+  anilistId: number;
+  episodeNumber: number;
+  title: string;
+  imageUrl: string | null;
+  progress: number;
+  duration: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AnilistTitle = {
+  english?: string;
+  romaji?: string;
+  native?: string;
+};
+
+type AnilistCoverImage = {
+  medium?: string;
+  large?: string;
+  extraLarge?: string;
+};
+
+type AnilistDate = {
+  year?: number;
+  month?: number;
+  day?: number;
+};
+
+export type AnilistMedia = {
+  id: number;
+  title?: AnilistTitle;
+  coverImage?: AnilistCoverImage;
+  bannerImage?: string;
+  description?: string;
+  genres?: string[];
+  averageScore?: number;
+  status?: string;
+  episodes?: number;
+  startDate?: AnilistDate;
+  endDate?: AnilistDate;
+  [key: string]: unknown;
+};
+
+type AnilistSearchResult = {
+  media?: AnilistMedia[];
+  pageInfo?: { total?: number; currentPage?: number; lastPage?: number; hasNextPage?: boolean };
+};
+
+type AnimeEpisode = {
+  id: string;
+  number: number;
+  title?: string;
+  image?: string;
+};
+
+type AnimeEpisodesResponse = {
+  episodes?: AnimeEpisode[];
+  provider?: string;
+  bridgeAvailable?: boolean;
+};
+
+type AnimeWatchSource = {
+  url: string;
+  quality?: string;
+  isM3U8?: boolean;
+  isEmbed?: boolean;
+  referer?: string;
+};
+
+type AnimeWatchResponse = {
+  animeId?: number;
+  sources?: AnimeWatchSource[];
+  headers?: Record<string, string>;
+  subtitles?: Array<{ url?: string; lang?: string }>;
+  download?: string | null;
+};
+
 type AnimeSearchParams = {
   q?: string;
   page?: number;
@@ -88,15 +167,15 @@ export class AnimeApiService {
       if (value === undefined || value === null || value === '') continue;
       query = query.set(key, String(value));
     }
-    return this.http.get<{ success: boolean; data: any }>('/api/v1/anime/search', { params: query });
+    return this.http.get<{ success: boolean; data: AnilistSearchResult }>('/api/v1/anime/search', { params: query });
   }
 
   getAnime(id: number) {
-    return this.http.get<{ success: boolean; data: any }>(`/api/v1/anime/${id}`);
+    return this.http.get<{ success: boolean; data: AnilistMedia }>(`/api/v1/anime/${id}`);
   }
 
   getEpisodes(id: number, provider = 'auto') {
-    return this.http.get<{ success: boolean; data: any }>(`/api/v1/anime/${id}/episodes`, {
+    return this.http.get<{ success: boolean; data: AnimeEpisodesResponse }>(`/api/v1/anime/${id}/episodes`, {
       params: new HttpParams().set('provider', provider),
     });
   }
@@ -106,8 +185,27 @@ export class AnimeApiService {
     if (server) {
       params = params.set('server', server);
     }
-    return this.http.get<{ success: boolean; data: any }>(`/api/v1/anime/${id}/watch/${episodeNumber}`, {
+    return this.http.get<{ success: boolean; data: AnimeWatchResponse }>(`/api/v1/anime/${id}/watch/${episodeNumber}`, {
       params,
     });
+  }
+
+  saveProgress(payload: {
+    anilistId: number;
+    episodeNumber: number;
+    title: string;
+    imageUrl?: string;
+    progress: number;
+    duration: number;
+  }) {
+    return this.http.post<{ success: boolean; message: string }>('/api/v1/anime/progress', payload);
+  }
+
+  getProgress(anilistId: number) {
+    return this.http.get<{ success: boolean; data: AnimeWatchProgress[] }>(`/api/v1/anime/progress/${anilistId}`);
+  }
+
+  getHistory(limit = 10) {
+    return this.http.get<{ success: boolean; data: AnimeWatchProgress[] }>(`/api/v1/anime/history?limit=${limit}`);
   }
 }

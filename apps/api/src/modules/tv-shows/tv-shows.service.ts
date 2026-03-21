@@ -214,6 +214,62 @@ export class TvShowsService {
     });
   }
 
+  async getProgress(userId: string, showId: string) {
+    return this.prisma.tvWatchHistory.findUnique({
+      where: { userId_showId: { userId, showId } },
+    });
+  }
+
+  async getHistory(userId: string, limit = 10) {
+    const rows = await this.prisma.tvWatchHistory.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      include: {
+        show: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            posterUrl: true,
+            thumbnailUrl: true,
+            seasons: {
+              select: {
+                seasonNumber: true,
+                episodes: {
+                  select: { id: true, episodeNumber: true, title: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return rows.map((row) => {
+      const season = row.show.seasons.find((s) =>
+        s.episodes.some((e) => e.id === row.episodeId),
+      );
+      const episode = season?.episodes.find((e) => e.id === row.episodeId);
+      const progressPct = row.duration > 0 ? Math.round((row.progress / row.duration) * 100) : 0;
+
+      return {
+        showId: row.showId,
+        title: row.show.title,
+        slug: row.show.slug,
+        posterUrl: row.show.posterUrl || row.show.thumbnailUrl,
+        episodeId: row.episodeId,
+        seasonNumber: season?.seasonNumber ?? null,
+        episodeNumber: episode?.episodeNumber ?? null,
+        episodeTitle: episode?.title ?? null,
+        progress: row.progress,
+        duration: row.duration,
+        progressPercentage: Math.min(100, progressPct),
+        updatedAt: row.updatedAt.toISOString(),
+      };
+    });
+  }
+
   private mapToSummary(
     row: Prisma.TvShowGetPayload<{
       include: {
