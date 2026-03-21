@@ -133,6 +133,8 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   private boundListener?: (event: MessageEvent) => void;
   private fallbackTimer: ReturnType<typeof setInterval> | null = null;
   private fallbackCurrentTime = 0;
+  private lastSavedTime = 0;
+  private lastKnownDuration = 0;
   private endedEmitted = false;
 
   providers = signal<EmbedProvider[]>([]);
@@ -151,10 +153,12 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
 
     if (!isPlatformBrowser(this.platformId)) return;
 
-    // Debounce progress saves
+    // Debounce progress saves — also track last known position for final flush on destroy
     this.progress$
       .pipe(debounceTime(5000), takeUntil(this.destroy$))
       .subscribe(({ currentTime, duration }) => {
+        this.lastSavedTime = currentTime;
+        this.lastKnownDuration = duration;
         this.persistProgress(currentTime, duration);
       });
 
@@ -175,6 +179,20 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   ngOnDestroy(): void {
+    // Flush any pending progress immediately before teardown.
+    // The debounce pipeline drops buffered values when destroy$ fires, so we
+    // save the fallback position or the most-recently-emitted Vidking position.
+    const finalTime = this.fallbackCurrentTime > this.lastSavedTime
+      ? this.fallbackCurrentTime
+      : 0; // Vidking: lastSavedTime already written; fallback: may be ahead
+    const hintedDuration = Math.max(0, Math.floor(this.durationHintSeconds || 0));
+    const finalDuration = this.lastKnownDuration > 0
+      ? this.lastKnownDuration
+      : hintedDuration > 0 ? hintedDuration : 0;
+    if (finalTime > 10 && finalDuration > 0 && finalTime > this.lastSavedTime) {
+      this.persistProgress(finalTime, finalDuration);
+    }
+
     this.stopFallbackTracking();
     this.destroy$.next();
     this.destroy$.complete();
