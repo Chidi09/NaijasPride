@@ -1,6 +1,16 @@
-import { Component, inject, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  Component,
+  inject,
+  effect,
+  signal,
+  OnDestroy,
+  PLATFORM_ID,
+  ElementRef,
+  ViewChild,
+} from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MusicPlayerService } from '../../services/music-player.service';
 import { MusicApiService } from '../../services/music-api.service';
 
@@ -14,8 +24,21 @@ import { MusicApiService } from '../../services/music-api.service';
         class="fixed left-0 right-0 z-[51] bg-gray-900/95 backdrop-blur-md border-t border-gray-700/50
                flex items-center gap-3 px-4 py-2 shadow-2xl
                bottom-[92px] md:bottom-0 md:left-20"
-        [class.pb-safe]="true"
       >
+        <!-- Hidden YouTube iframe — actual audio engine -->
+        @if (iframeSrc()) {
+          <iframe
+            #ytFrame
+            [src]="iframeSrc()!"
+            width="0"
+            height="0"
+            frameborder="0"
+            allow="autoplay; encrypted-media"
+            style="position:absolute;pointer-events:none;opacity:0;"
+            title="Music player"
+          ></iframe>
+        }
+
         <!-- Thumbnail + link to watch page -->
         <a
           [routerLink]="['/music', player.currentTrack()!.slug]"
@@ -54,7 +77,7 @@ import { MusicApiService } from '../../services/music-api.service';
 
           <!-- Play / Pause -->
           <button
-            (click)="player.togglePlay()"
+            (click)="togglePlay()"
             class="w-10 h-10 rounded-full bg-white flex items-center justify-center
                    hover:bg-gray-100 transition-colors shadow-md"
             [attr.aria-label]="player.isPlaying() ? 'Pause' : 'Play'"
@@ -87,9 +110,7 @@ import { MusicApiService } from '../../services/music-api.service';
           <button
             (click)="player.toggleShuffle()"
             class="w-8 h-8 rounded-full flex items-center justify-center transition-all hidden sm:flex"
-            [class.text-[#800020]]="player.isShuffle()"
-            [class.text-gray-500]="!player.isShuffle()"
-            [class.hover:text-white]="!player.isShuffle()"
+            [ngClass]="player.isShuffle() ? 'text-[#800020]' : 'text-gray-500 hover:text-white'"
             aria-label="Shuffle"
           >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -101,8 +122,7 @@ import { MusicApiService } from '../../services/music-api.service';
           <button
             (click)="player.cycleRepeat()"
             class="w-8 h-8 rounded-full flex items-center justify-center transition-all hidden sm:flex"
-            [class.text-[#800020]]="player.repeatMode() !== 'none'"
-            [class.text-gray-500]="player.repeatMode() === 'none'"
+            [ngClass]="player.repeatMode() !== 'none' ? 'text-[#800020]' : 'text-gray-500 hover:text-white'"
             aria-label="Repeat"
           >
             @if (player.repeatMode() === 'one') {
@@ -132,7 +152,109 @@ import { MusicApiService } from '../../services/music-api.service';
     }
   `
 })
-export class MiniPlayerComponent {
+export class MiniPlayerComponent implements OnDestroy {
+  @ViewChild('ytFrame') private ytFrame?: ElementRef<HTMLIFrameElement>;
+
   player = inject(MusicPlayerService);
   private musicApi = inject(MusicApiService);
+  private sanitizer = inject(DomSanitizer);
+  private platformId = inject(PLATFORM_ID);
+
+  iframeSrc = signal<SafeResourceUrl | null>(null);
+  private boundMessageHandler?: (e: MessageEvent) => void;
+  // Track the youtubeId currently loaded so we don't reload for play/pause
+  private loadedYoutubeId: string | null = null;
+
+  constructor() {
+    if (isPlatformBrowser(this.platformId)) {
+      this.boundMessageHandler = this.onYtMessage.bind(this);
+      window.addEventListener('message', this.boundMessageHandler);
+    }
+
+    // React to track changes — load new iframe src
+    effect(() => {
+      const track = this.player.currentTrack();
+      if (!track?.youtubeId || !isPlatformBrowser(this.platformId)) return;
+
+      if (this.loadedYoutubeId === track.youtubeId) {
+        // Same track — just play/pause
+        if (this.player.isPlaying()) {
+          this.sendCommand('playVideo');
+        } else {
+          this.sendCommand('pauseVideo');
+        }
+        return;
+      }
+
+      // New track — set iframe src (autoplay=1 starts playback immediately)
+      this.loadedYoutubeId = track.youtubeId;
+      const url = `https://www.youtube.com/embed/${track.youtubeId}?autoplay=1&enablejsapi=1&rel=0&modestbranding=1&origin=${encodeURIComponent(window.location.origin)}`;
+      this.iframeSrc.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
+      this.player.isPlaying.set(true);
+
+      // Fire play count
+      this.musicApi.incrementPlay(track.id).subscribe();
+    }, { allowSignalWrites: true });
+
+    // React to isPlaying changes when track is already loaded
+    effect(() => {
+      const playing = this.player.isPlaying();
+      const track = this.player.currentTrack();
+      if (!track || !isPlatformBrowser(this.platformId)) return;
+      if (this.loadedYoutubeId !== track.youtubeId) return; // let track-change effect handle it
+
+      if (playing) {
+        this.sendCommand('playVideo');
+      } else {
+        this.sendCommand('pauseVideo');
+      }
+    });
+  }
+
+  togglePlay(): void {
+    this.player.togglePlay();
+  }
+
+  ngOnDestroy(): void {
+    if (isPlatformBrowser(this.platformId) && this.boundMessageHandler) {
+      window.removeEventListener('message', this.boundMessageHandler);
+    }
+  }
+
+  private sendCommand(func: string): void {
+    const frame = this.ytFrame?.nativeElement;
+    if (!frame?.contentWindow) return;
+    frame.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func, args: '' }),
+      '*'
+    );
+  }
+
+  private onYtMessage(event: MessageEvent): void {
+    if (!event.origin.includes('youtube.com')) return;
+
+    let data: Record<string, unknown>;
+    try {
+      data = typeof event.data === 'string'
+        ? (JSON.parse(event.data) as Record<string, unknown>)
+        : (event.data as Record<string, unknown>);
+    } catch {
+      return;
+    }
+
+    if (data['event'] !== 'infoDelivery') return;
+
+    const info = data['info'] as Record<string, unknown> | undefined;
+    if (!info) return;
+
+    // playerState: 0 = ended, 1 = playing, 2 = paused
+    const state = info['playerState'];
+    if (state === 0) {
+      this.player.onTrackEnd();
+    } else if (state === 1) {
+      this.player.isPlaying.set(true);
+    } else if (state === 2) {
+      this.player.isPlaying.set(false);
+    }
+  }
 }
