@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AnimeApiService } from '../../services/anime-api.service';
 
@@ -9,7 +9,7 @@ import { AnimeApiService } from '../../services/anime-api.service';
   imports: [CommonModule, RouterLink],
   template: `
     <section class="mx-auto w-full max-w-7xl px-4 py-6 pb-24 md:px-6">
-      <a routerLink="/anime" class="text-sm text-white/60 hover:text-white">← Back to Anime</a>
+      <button type="button" (click)="goBack()" class="text-sm text-white/60 hover:text-white">← Back</button>
 
       @if (loading()) {
         <div class="py-16 text-center text-white/60">Loading anime...</div>
@@ -82,6 +82,9 @@ import { AnimeApiService } from '../../services/anime-api.service';
 export class AnimeDetailComponent {
   private route = inject(ActivatedRoute);
   private api = inject(AnimeApiService);
+  private location = inject(Location);
+
+  goBack(): void { this.location.back(); }
 
   provider = 'auto';
   loading = signal(true);

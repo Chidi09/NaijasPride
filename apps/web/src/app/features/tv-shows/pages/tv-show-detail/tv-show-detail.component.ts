@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { TvShowsQueryService } from '../../services/tv-shows-query.service';
 
@@ -19,7 +19,7 @@ import { TvShowsQueryService } from '../../services/tv-shows-query.service';
           <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent"></div>
 
           <div class="relative p-6 md:p-8">
-            <a routerLink="/tv-shows" class="text-sm text-white/60 hover:text-white">← Back to TV Shows</a>
+            <button type="button" (click)="goBack()" class="text-sm text-white/60 hover:text-white">← Back</button>
 
             <div class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr] md:items-end">
               <div class="overflow-hidden rounded-xl border border-white/10 bg-black/20">
@@ -107,6 +107,9 @@ export class TvShowDetailComponent {
   slug = input<string>('');
   private tvQuery = inject(TvShowsQueryService);
   private router = inject(Router);
+  private location = inject(Location);
+
+  goBack(): void { this.location.back(); }
 
   query = this.tvQuery.getShowDetailQuery(this.slug);
   show = computed(() => this.query.data()?.data || null);

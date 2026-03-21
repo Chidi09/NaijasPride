@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { Location } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -8,7 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 @Component({
   selector: 'app-reader-toolbar',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
   styles: [`
     .np-toolbar-wrap {
       background: linear-gradient(
@@ -85,7 +85,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       [class.-translate-y-full]="!show"
     >
       <div class="pointer-events-auto mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
-        <a [routerLink]="backLink" class="np-toolbar-back">Back</a>
+        <button type="button" class="np-toolbar-back" (click)="goBack()">Back</button>
 
         <div class="min-w-0 text-center">
           <p class="np-toolbar-title truncate text-sm font-semibold">{{ title || 'Loading...' }}</p>
@@ -106,11 +106,16 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   `,
 })
 export class ReaderToolbarComponent {
+  private location = inject(Location);
+
   @Input() show = true;
   @Input() title = '';
   @Input() subtitle = '';
-  @Input() backLink: string | any[] = '/books/all';
 
   @Output() fullscreen = new EventEmitter<void>();
   @Output() openPanel = new EventEmitter<void>();
+
+  goBack(): void {
+    this.location.back();
+  }
 }
