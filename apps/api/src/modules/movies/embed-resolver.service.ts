@@ -54,10 +54,16 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
     buildUrl: (imdbId) => (imdbId ? `https://vidsrc.xyz/embed/movie/${imdbId}` : null),
   },
   {
-    id: 'vidsrc-to',
+    id: 'vidsrc-cc',
     name: 'VidSrc Pro',
-    supportsProgressEvents: false,
-    buildUrl: (imdbId) => (imdbId ? `https://vidsrc.to/embed/movie/${imdbId}` : null),
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) => (tmdbId ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}` : null),
+  },
+  {
+    id: 'vidlink',
+    name: 'VidLink',
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) => (tmdbId ? `https://vidlink.pro/movie/${tmdbId}` : null),
   },
   {
     id: '2embed',
@@ -108,11 +114,18 @@ const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
       imdbId ? `https://vidsrc.xyz/embed/tv/${imdbId}/${season}-${episode}` : null,
   },
   {
-    id: 'vidsrc-to',
+    id: 'vidsrc-cc',
     name: 'VidSrc Pro',
-    supportsProgressEvents: false,
-    buildUrl: (imdbId, _tmdbId, season, episode) =>
-      imdbId ? `https://vidsrc.to/embed/tv/${imdbId}/${season}/${episode}` : null,
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId, season, episode) =>
+      tmdbId ? `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}` : null,
+  },
+  {
+    id: 'vidlink',
+    name: 'VidLink',
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId, season, episode) =>
+      tmdbId ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}` : null,
   },
   {
     id: '2embed',

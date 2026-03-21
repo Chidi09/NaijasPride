@@ -253,12 +253,21 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
       });
   }
 
-  /** Appends ?progress=X to Vidking URLs when we have a saved resume position. */
+  /** Appends resume position param to supported provider URLs. */
   private applyResumeToUrl(provider: EmbedProvider): EmbedProvider {
     const resumeAt = Math.floor(Math.max(0, this.startAt || 0));
-    if (resumeAt <= 5 || provider.id !== 'vidking') return provider;
+    if (resumeAt <= 5) return provider;
     const separator = provider.url.includes('?') ? '&' : '?';
-    return { ...provider, url: `${provider.url}${separator}progress=${resumeAt}` };
+    switch (provider.id) {
+      case 'vidking':
+        return { ...provider, url: `${provider.url}${separator}progress=${resumeAt}` };
+      case 'vidsrc-cc':
+        return { ...provider, url: `${provider.url}${separator}progress=${resumeAt}` };
+      case 'vidlink':
+        return { ...provider, url: `${provider.url}${separator}starttime=${resumeAt}` };
+      default:
+        return provider;
+    }
   }
 
   private configureTrackingForProvider(provider: EmbedProvider): void {
@@ -297,31 +306,33 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
   private onMessage(event: MessageEvent): void {
     const provider = this.activeProvider();
     if (!provider?.supportsProgressEvents) return;
+    if (!this.isAllowedOrigin(provider.id, event.origin || '')) return;
 
-    // Handle Vidking-style postMessage events
-    if (provider.id === 'vidking' && this.isAllowedVidkingOrigin(event.origin || '')) {
-      let parsed: any;
-      try {
-        parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-      } catch {
-        return;
-      }
+    let parsed: unknown;
+    try {
+      parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+    } catch {
+      return;
+    }
 
-      const payload = parsed?.type === 'PLAYER_EVENT' && parsed?.data ? parsed.data : parsed;
-      if (!payload || typeof payload !== 'object') return;
+    const data = parsed as Record<string, unknown> | null;
+    const payload = (data?.['type'] === 'PLAYER_EVENT' && data?.['data'])
+      ? data['data'] as Record<string, unknown>
+      : data;
+    if (!payload || typeof payload !== 'object') return;
 
-      const evtName = String(payload.event || payload.type || '').toLowerCase();
-      const currentTime = this.toFiniteNumber(payload.currentTime ?? payload.current ?? payload.time ?? payload.position);
-      const duration = this.toFiniteNumber(payload.duration ?? payload.totalDuration ?? payload.length);
+    const p = payload as Record<string, unknown>;
+    const evtName = String(p['event'] ?? p['type'] ?? '').toLowerCase();
+    const currentTime = this.toFiniteNumber(p['currentTime'] ?? p['current'] ?? p['time'] ?? p['position']);
+    const duration = this.toFiniteNumber(p['duration'] ?? p['totalDuration'] ?? p['length']);
 
-      if ((evtName === 'timeupdate' || evtName === 'time_update' || evtName === 'progress') && currentTime > 0 && duration > 0) {
-        this.progress$.next({ currentTime: Math.floor(currentTime), duration: Math.floor(duration) });
-      }
+    if ((evtName === 'timeupdate' || evtName === 'time_update' || evtName === 'progress' || evtName === 'time') && currentTime > 0 && duration > 0) {
+      this.progress$.next({ currentTime: Math.floor(currentTime), duration: Math.floor(duration) });
+    }
 
-      if ((evtName === 'ended' || evtName === 'complete' || evtName === 'finished') && duration > 0) {
-        this.persistProgress(Math.floor(duration), Math.floor(duration));
-        this.emitPlaybackEnded();
-      }
+    if ((evtName === 'ended' || evtName === 'complete' || evtName === 'finished') && duration > 0) {
+      this.persistProgress(Math.floor(duration), Math.floor(duration));
+      this.emitPlaybackEnded();
     }
   }
 
@@ -331,11 +342,20 @@ export class EmbedPlayerComponent implements OnInit, OnDestroy, OnChanges {
     this.playbackEnded.emit();
   }
 
-  private isAllowedVidkingOrigin(origin: string): boolean {
+  private isAllowedOrigin(providerId: string, origin: string): boolean {
     if (!origin) return false;
     try {
       const host = new URL(origin).hostname.toLowerCase();
-      return host === 'vidking.net' || host === 'www.vidking.net' || host.endsWith('.vidking.net');
+      switch (providerId) {
+        case 'vidking':
+          return host === 'vidking.net' || host === 'www.vidking.net' || host.endsWith('.vidking.net');
+        case 'vidsrc-cc':
+          return host === 'vidsrc.cc' || host === 'www.vidsrc.cc' || host.endsWith('.vidsrc.cc');
+        case 'vidlink':
+          return host === 'vidlink.pro' || host === 'www.vidlink.pro';
+        default:
+          return false;
+      }
     } catch {
       return false;
     }
