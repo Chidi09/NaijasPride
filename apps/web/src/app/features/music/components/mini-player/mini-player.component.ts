@@ -437,7 +437,8 @@ export class MiniPlayerComponent implements OnDestroy {
   onThumbnailLoad(img: HTMLImageElement): void {
     if (!isPlatformBrowser(this.platformId)) return;
     try {
-      const ct = new ColorThief();
+      type CTCtor = new () => { getColor(img: HTMLImageElement): [number, number, number] };
+      const ct = new (ColorThief as unknown as CTCtor)();
       const [r, g, b] = ct.getColor(img);
       // Ensure the extracted color is not too dark/desaturated — fall back to brand crimson if so
       const luminance = 0.299 * r + 0.587 * g + 0.114 * b;

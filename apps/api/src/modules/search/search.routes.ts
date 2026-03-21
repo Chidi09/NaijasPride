@@ -5,10 +5,12 @@ import { MoviesService } from '../movies/movies.service';
 import { BooksService } from '../books/books.service';
 import { MusicService } from '../music/music.service';
 import { MangaService } from '../books/manga.service';
+import { TvShowsService } from '../tv-shows/tv-shows.service';
 
 const globalSearchSchema = z.object({
   q: z.string().trim().min(2),
   movieLimit: z.coerce.number().int().min(1).max(24).default(12),
+  tvLimit: z.coerce.number().int().min(1).max(24).default(8),
   bookLimit: z.coerce.number().int().min(1).max(24).default(8),
   musicLimit: z.coerce.number().int().min(1).max(24).default(8),
   mangaLimit: z.coerce.number().int().min(1).max(24).default(12),
@@ -17,6 +19,7 @@ const globalSearchSchema = z.object({
 export const searchRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
   const moviesService = new MoviesService(fastify.prisma);
+  const tvShowsService = new TvShowsService(fastify.prisma);
   const booksService = new BooksService(fastify.prisma);
   const musicService = new MusicService(fastify.prisma);
   const mangaService = new MangaService(fastify.prisma);
@@ -62,7 +65,7 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Each arm has its own .catch() so a single service failure (e.g. manga
       // scraper hitting a Cloudflare block) doesn't kill the whole response.
-      const [moviesInitial, booksInitial, musicInitial, mangaInitial] = await Promise.all([
+      const [moviesInitial, tvShowsInitial, booksInitial, musicInitial, mangaInitial] = await Promise.all([
         moviesService.search({
           q: query.q,
           page: 1,
@@ -71,6 +74,15 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
         }).catch((error: unknown) => {
           fastify.log.error({ error }, 'Movie search failed');
           return { data: [], total: 0 };
+        }),
+        tvShowsService.search({
+          q: query.q,
+          page: 1,
+          limit: query.tvLimit,
+          sortBy: 'trending',
+        }).catch((error: unknown) => {
+          fastify.log.error({ error }, 'TV show search failed');
+          return { data: [], meta: { total: 0, page: 1, limit: query.tvLimit, totalPages: 0, hasNext: false, hasPrev: false } };
         }),
         booksService.search({
           q: query.q,
@@ -95,24 +107,31 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
       ]);
 
       let movies = moviesInitial.data || [];
+      let tvShows = tvShowsInitial.data || [];
       let books = booksInitial.data || [];
       let music = musicInitial.videos || [];
       let manga = mangaInitial || [];
 
-      const totalInitial = movies.length + books.length + music.length + manga.length;
+      const totalInitial = movies.length + tvShows.length + books.length + music.length + manga.length;
 
       // Fuzzy fallback when direct query yields little/no results (typos / imperfect input).
       if (totalInitial < 4) {
         const fuzzyTerms = tokenizeFuzzy(query.q);
         if (fuzzyTerms.length > 0) {
           for (const term of fuzzyTerms) {
-            const [m2, b2, mu2, ma2] = await Promise.all([
+            const [m2, tv2, b2, mu2, ma2] = await Promise.all([
               moviesService.search({
                 q: term,
                 page: 1,
                 limit: query.movieLimit,
                 sortBy: 'popular',
               }).catch(() => ({ data: [], total: 0 })),
+              tvShowsService.search({
+                q: term,
+                page: 1,
+                limit: query.tvLimit,
+                sortBy: 'trending',
+              }).catch(() => ({ data: [], meta: { total: 0 } })),
               booksService.search({
                 q: term,
                 page: 1,
@@ -127,11 +146,12 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
             ]);
 
             movies = uniqueById([...movies, ...(m2.data || [])]).slice(0, query.movieLimit);
+            tvShows = uniqueById([...tvShows, ...(tv2.data || [])]).slice(0, query.tvLimit);
             books = uniqueById([...books, ...(b2.data || [])]).slice(0, query.bookLimit);
             music = uniqueById([...music, ...(mu2.videos || [])]).slice(0, query.musicLimit);
             manga = uniqueById([...manga, ...(ma2 || [])]).slice(0, query.mangaLimit);
 
-            if (movies.length + books.length + music.length + manga.length >= 8) {
+            if (movies.length + tvShows.length + books.length + music.length + manga.length >= 8) {
               break;
             }
           }
@@ -142,6 +162,7 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
         success: true,
         data: {
           movies,
+          tvShows,
           books,
           music,
           manga,
@@ -150,6 +171,7 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
           query: query.q,
           counts: {
             movies: movies.length,
+            tvShows: tvShows.length,
             books: books.length,
             music: music.length,
             manga: manga.length,

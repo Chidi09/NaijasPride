@@ -203,7 +203,7 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                     <a
                       class="group flex items-center gap-3 border-b border-white/5 px-4 py-3 transition-all duration-200 last:border-0 hover:bg-white/5"
                       [routerLink]="['/tv-shows', item.slug]"
-                      (mousedown)="onSuggestionSelect()"
+                      (click)="onSuggestionSelect()"
                     >
                       <div class="relative h-12 w-9 overflow-hidden rounded-md bg-white/5">
                         <img 

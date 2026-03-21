@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { BookSummary, MovieSummary, MusicVideoSummary } from '@naijaspride/types';
+import { BookSummary, MovieSummary, MusicVideoSummary, TvShowSummary } from '@naijaspride/types';
 import { PwaService } from '../../../../core/services/pwa.service';
 import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
 import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-group.directive';
@@ -230,6 +230,30 @@ type TvResultCard = SearchSuggestion & {
 
             <section>
               <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-lg font-semibold">TV Shows</h2>
+                <a routerLink="/tv-shows" class="text-sm text-[#800020] hover:underline">Browse TV Shows</a>
+              </div>
+              @if (tvShows().length > 0) {
+                <div class="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
+                  @for (show of tvShows(); track show.id) {
+                    <a [routerLink]="['/tv-shows', show.slug]" class="group block overflow-hidden rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)]">
+                      <div class="aspect-[2/3] overflow-hidden bg-[var(--bg-secondary)]">
+                        <img [src]="show.posterUrl || show.thumbnailUrl || ''" [alt]="show.title" class="h-full w-full object-cover transition group-hover:scale-105" referrerpolicy="no-referrer" />
+                      </div>
+                      <div class="p-2">
+                        <p class="truncate text-xs font-medium">{{ show.title }}</p>
+                        <p class="text-[10px] text-[var(--text-muted)]">{{ show.year }}</p>
+                      </div>
+                    </a>
+                  }
+                </div>
+              } @else {
+                <div class="rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-4 text-sm text-[var(--text-muted)]">No TV shows found.</div>
+              }
+            </section>
+
+            <section>
+              <div class="mb-3 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Books</h2>
                 <a routerLink="/books" class="text-sm text-[#800020] hover:underline">Browse Books</a>
               </div>
@@ -316,6 +340,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
   books = signal<BookSummary[]>([]);
   music = signal<MusicVideoSummary[]>([]);
   manga = signal<MangaResult[]>([]);
+  tvShows = signal<TvShowSummary[]>([]);
   suggestions = signal<SearchSuggestion[]>([]);
   suggestionLoading = signal(false);
   private suggestionRequestToken = 0;
@@ -331,7 +356,11 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
     ],
   ];
 
-  hasValidQuery = computed(() => this.query.trim().length >= 2);
+  // Plain getter — this.query is a regular string (not a signal), so computed()
+  // would evaluate once and never update. A getter re-evaluates on every CD cycle.
+  get hasValidQuery(): boolean {
+    return this.query.trim().length >= 2;
+  }
   showSuggestions = computed(() => this.query.trim().length >= 2 && (this.suggestionLoading() || this.suggestions().length > 0));
   tvResults = computed<TvResultCard[]>(() => [
     ...this.movies().map((movie) => ({
@@ -341,6 +370,14 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
       coverUrl: movie.thumbnailUrl || movie.posterUrl || movie.coverUrl || null,
       link: ['/movies', movie.slug || movie.id],
       badge: 'Movie',
+    })),
+    ...this.tvShows().map((show) => ({
+      key: `tv:${show.id}`,
+      title: show.title,
+      subtitle: [show.year, 'TV Show'].filter(Boolean).join(' • '),
+      coverUrl: show.posterUrl || show.thumbnailUrl || null,
+      link: ['/tv-shows', show.slug],
+      badge: 'TV Show',
     })),
     ...this.books().map((book) => ({
       key: `book:${book.id}`,
@@ -366,7 +403,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
       link: ['/music', track.slug],
       badge: 'Music',
     })),
-  ].slice(0, 12));
+  ].slice(0, 16));
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe((params) => {
@@ -396,6 +433,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
 
     if (q.length < 2) {
       this.movies.set([]);
+      this.tvShows.set([]);
       this.books.set([]);
       this.music.set([]);
       this.manga.set([]);
@@ -459,6 +497,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
   clearQuery(): void {
     this.query = '';
     this.movies.set([]);
+    this.tvShows.set([]);
     this.books.set([]);
     this.music.set([]);
     this.manga.set([]);
@@ -480,6 +519,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
         success?: boolean;
         data?: {
           movies?: MovieSummary[];
+          tvShows?: TvShowSummary[];
           books?: BookSummary[];
           music?: MusicVideoSummary[];
           manga?: MangaResult[];
@@ -488,6 +528,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
         params: {
           q,
           movieLimit: '12',
+          tvLimit: '8',
           bookLimit: '8',
           musicLimit: '8',
           mangaLimit: '12',
@@ -496,16 +537,18 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
       .subscribe({
       next: (result) => {
         const movies = result.data?.movies || [];
+        const tvShows = result.data?.tvShows || [];
         const books = result.data?.books || [];
         const music = result.data?.music || [];
         const manga = result.data?.manga || [];
 
         this.movies.set(movies);
+        this.tvShows.set(tvShows);
         this.books.set(books);
         this.music.set(music);
         this.manga.set(manga);
 
-        if (movies.length + books.length + music.length + manga.length === 0) {
+        if (movies.length + tvShows.length + books.length + music.length + manga.length === 0) {
           this.searchHint.set('No matches yet. Try a different title, artist, or keyword.');
         } else {
           this.searchHint.set('');
@@ -514,6 +557,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.movies.set([]);
+        this.tvShows.set([]);
         this.books.set([]);
         this.music.set([]);
         this.manga.set([]);
@@ -538,10 +582,11 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
       }>('/api/v1/search', {
         params: {
           q,
-          movieLimit: '4',
-          bookLimit: '3',
-          musicLimit: '3',
-          mangaLimit: '4',
+          movieLimit: '3',
+          tvLimit: '3',
+          bookLimit: '2',
+          musicLimit: '2',
+          mangaLimit: '3',
         },
       })
       .subscribe({
@@ -549,6 +594,7 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
           if (token !== this.suggestionRequestToken) return;
 
           const movies = result.data?.movies || [];
+          const tvShows = (result.data as Record<string, unknown> & { tvShows?: TvShowSummary[] })?.tvShows || [];
           const books = result.data?.books || [];
           const music = result.data?.music || [];
           const manga = result.data?.manga || [];
@@ -560,6 +606,13 @@ export class GlobalSearchComponent implements OnInit, OnDestroy {
               subtitle: `Movie${movie.year ? ` - ${movie.year}` : ''}`,
               coverUrl: movie.thumbnailUrl || movie.posterUrl || movie.coverUrl || null,
               link: ['/movies', movie.slug || movie.id],
+            })),
+            ...tvShows.map((show) => ({
+              key: `tv:${show.id}`,
+              title: show.title,
+              subtitle: `TV Show${show.year ? ` - ${show.year}` : ''}`,
+              coverUrl: show.posterUrl || show.thumbnailUrl || null,
+              link: ['/tv-shows', show.slug],
             })),
             ...books.map((book) => ({
               key: `book:${book.id}`,
