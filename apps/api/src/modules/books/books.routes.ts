@@ -17,6 +17,7 @@ import {
   type ElsciRequestedFormat,
 } from './external/elsci/elsci-lightnovels';
 import { importElsciLightNovelsCatalog } from './external/elsci/importer';
+import { enrichBookFromGoogleBooks } from './external/google-books.service';
 import { QueueService, bookImportQueue } from '../../shared/services/queue.service';
 import { getPushService } from '../../shared/services/push-notification.service';
 import { HeadObjectCommand } from '@aws-sdk/client-s3';
@@ -1714,6 +1715,58 @@ export const bookRoutes = async (
         return reply.status(500).send({
           status: 'error',
           message: error instanceof Error ? error.message : 'Failed to import Elsci light novels',
+        });
+      }
+    },
+  });
+
+  // POST /api/books/import/enrich-authors - Re-enrich books with author='Unknown' via Google Books (Admin only)
+  app.post('/import/enrich-authors', {
+    preHandler: [app.authenticate],
+    handler: async (request, reply) => {
+      try {
+        if (request.user.role !== 'ADMIN') {
+          return reply.status(403).send({ status: 'error', message: 'Forbidden: Admin access required' });
+        }
+
+        const unknownBooks = await app.prisma.book.findMany({
+          where: { author: 'Unknown', status: 'active' },
+          select: { id: true, title: true, year: true },
+          take: 200,
+        });
+
+        let updated = 0;
+        let failed = 0;
+
+        for (const book of unknownBooks) {
+          try {
+            const enrichment = await enrichBookFromGoogleBooks(book.title, undefined, book.year);
+            const resolvedAuthor = enrichment.author?.trim();
+            if (resolvedAuthor && resolvedAuthor.toLowerCase() !== 'unknown') {
+              await app.prisma.book.update({
+                where: { id: book.id },
+                data: {
+                  author: resolvedAuthor,
+                  ...(enrichment.coverUrl && { coverUrl: enrichment.coverUrl }),
+                  ...(enrichment.description && enrichment.description.length >= 32 && { description: enrichment.description }),
+                },
+              });
+              updated++;
+            } else {
+              failed++;
+            }
+          } catch {
+            failed++;
+          }
+          // Avoid hammering Google Books API
+          await new Promise(r => setTimeout(r, 120));
+        }
+
+        return reply.send({ status: 'success', data: { total: unknownBooks.length, updated, failed } });
+      } catch (error) {
+        return reply.status(500).send({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to enrich book authors',
         });
       }
     },
