@@ -137,100 +137,111 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
       </section>
     } @else {
     <section class="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
-      <!-- Animated Background -->
-      <div class="pointer-events-none fixed inset-0 z-0">
-        <div class="absolute inset-0 bg-gradient-to-br from-[#800020]/5 via-transparent to-[#1a0a0a]/50"></div>
-        <div class="absolute -left-1/4 -top-1/4 h-[600px] w-[600px] rounded-full bg-[#800020]/10 blur-[120px] animate-pulse-slow"></div>
-        <div class="absolute -bottom-1/4 -right-1/4 h-[800px] w-[800px] rounded-full bg-[#4a0015]/20 blur-[150px] animate-pulse-slow-delayed"></div>
-        <!-- Grid Pattern -->
-        <div class="absolute inset-0 opacity-[0.02]" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 60px 60px;"></div>
-      </div>
 
-      <!-- Hero Section -->
-      <div class="relative z-10 border-b border-white/5">
-        <div class="mx-auto max-w-7xl px-4 py-12 md:px-6 md:py-16">
-          <div class="animate-fade-in-up">
-            <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-[#800020]/30 bg-[#800020]/10 px-4 py-1.5">
-              <span class="h-2 w-2 animate-pulse rounded-full bg-[#800020]"></span>
-              <span class="text-xs font-medium tracking-wider text-[#800020] uppercase">TV Series Collection</span>
-            </div>
-            <h1 class="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-4xl font-bold text-transparent md:text-5xl lg:text-6xl">
-              TV Shows
-            </h1>
-            <p class="mt-4 max-w-2xl text-lg text-white/50">
-              Discover trending series, latest releases, and award-winning television from around the world.
-            </p>
+      <!-- Hero with featured show backdrop -->
+      <div class="relative z-10 overflow-hidden border-b border-white/5" style="min-height:68vh">
+
+        <!-- Backdrop image -->
+        @if (featuredShow()?.thumbnailUrl || featuredShow()?.posterUrl) {
+          <div class="absolute inset-0 bg-cover bg-center scale-105 transition-all duration-1000"
+               [style.background-image]="tvHeroBackground()">
           </div>
+        } @else {
+          <!-- Fallback animated blobs -->
+          <div class="absolute inset-0 bg-gradient-to-br from-[#800020]/5 via-transparent to-[#1a0a0a]/50"></div>
+          <div class="absolute -left-1/4 -top-1/4 h-[600px] w-[600px] rounded-full bg-[#800020]/10 blur-[120px] animate-pulse-slow"></div>
+          <div class="absolute -bottom-1/4 -right-1/4 h-[800px] w-[800px] rounded-full bg-[#4a0015]/20 blur-[150px] animate-pulse-slow-delayed"></div>
+        }
 
-          <!-- Search Bar -->
-          <div class="animate-fade-in-up animation-delay-200 mt-8">
-            <div class="relative mx-auto max-w-xl">
-              <div class="group relative">
-                <div class="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-[#800020]/50 to-[#a00030]/50 opacity-0 blur transition duration-500 group-focus-within:opacity-100"></div>
-                <div class="relative flex items-center">
-                  <svg class="pointer-events-none absolute left-4 h-5 w-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                  </svg>
-                  <input
-                    type="text"
-                    class="w-full rounded-xl border border-white/10 bg-black/60 px-12 py-4 text-white backdrop-blur-sm transition-all duration-300 placeholder:text-white/30 focus:border-[#800020]/50 focus:bg-black/80 focus:outline-none focus:ring-2 focus:ring-[#800020]/20"
-                    placeholder="Search shows, genres, or actors..."
-                    [ngModel]="q()"
-                    (ngModelChange)="onSearchInput($event || '')"
-                    (focus)="searchFocused.set(true)"
-                    (blur)="onSearchBlur()"
-                  />
-                  @if (q()) {
-                    <button 
-                      class="absolute right-4 rounded-full p-1 text-white/40 transition hover:bg-white/10 hover:text-white"
-                      (click)="q.set(''); onSearchInput('')"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                      </svg>
-                    </button>
-                  }
-                </div>
+        <!-- Gradient overlay -->
+        <div class="absolute inset-0 pointer-events-none"
+             style="background:linear-gradient(90deg,rgba(10,10,10,0.97) 0%,rgba(10,10,10,0.65) 55%,rgba(10,10,10,0.2) 100%),linear-gradient(0deg,rgba(10,10,10,1) 0%,rgba(10,10,10,0.4) 40%,rgba(10,10,10,0) 100%)">
+        </div>
+
+        <!-- Content -->
+        <div class="relative z-10 flex min-h-[68vh] flex-col justify-end max-w-7xl mx-auto px-4 md:px-6 pb-12 pt-24">
+          @if (featuredShow(); as show) {
+            <div class="max-w-2xl animate-fade-in-up">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-[#800020] font-semibold mb-3">TV Series Collection</p>
+              <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-none mb-3">{{ show.title }}</h1>
+              <p class="text-white/50 text-sm mb-6">
+                {{ show.year }}
+                @if (show.seasonCount) { <span class="mx-1.5 text-white/20">·</span> {{ show.seasonCount }} season{{ show.seasonCount === 1 ? '' : 's' }} }
+                @if (show.episodeCount) { <span class="mx-1.5 text-white/20">·</span> {{ show.episodeCount }} episodes }
+              </p>
+              <div class="flex flex-wrap gap-3">
+                <a [routerLink]="['/tv-shows', show.slug]"
+                   class="flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-100 active:scale-95 transition">
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  Watch
+                </a>
+                <a [routerLink]="['/tv-shows', show.slug]"
+                   class="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/15 text-white font-bold text-sm hover:bg-white/25 active:scale-95 transition backdrop-blur-sm">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  Details
+                </a>
               </div>
-
-              @if (showSuggestions()) {
-                <div class="animate-scale-in absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-white/10 bg-[#0f0f0f]/95 shadow-2xl shadow-black/50 backdrop-blur-xl">
-                  @if (suggestionLoading()) {
-                    <div class="flex items-center gap-3 px-4 py-4">
-                      <div class="h-4 w-4 animate-spin rounded-full border-2 border-[#800020] border-t-transparent"></div>
-                      <span class="text-sm text-white/50">Searching...</span>
-                    </div>
-                  }
-
-                  @if (!suggestionLoading() && suggestions().length === 0) {
-                    <div class="px-4 py-4 text-sm text-white/50">No matches found</div>
-                  }
-
-                  @for (item of suggestions(); track item.id) {
-                    <a
-                      class="group flex items-center gap-3 border-b border-white/5 px-4 py-3 transition-all duration-200 last:border-0 hover:bg-white/5"
-                      [routerLink]="['/tv-shows', item.slug]"
-                      (click)="onSuggestionSelect()"
-                    >
-                      <div class="relative h-12 w-9 overflow-hidden rounded-md bg-white/5">
-                        <img 
-                          [src]="item.posterUrl || item.thumbnailUrl || '/assets/images/poster-placeholder.svg'" 
-                          [alt]="item.title" 
-                          class="h-full w-full object-cover transition duration-300 group-hover:scale-110"
-                        />
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-medium text-white transition group-hover:text-[#800020]">{{ item.title }}</p>
-                        <p class="truncate text-xs text-white/40">{{ item.year }} • {{ item.seasonCount }} seasons</p>
-                      </div>
-                      <svg class="h-4 w-4 text-white/20 transition group-hover:translate-x-1 group-hover:text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                      </svg>
-                    </a>
-                  }
-                </div>
-              }
             </div>
+          } @else {
+            <div class="max-w-xl animate-fade-in-up">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-[#800020] font-semibold mb-2">TV Series Collection</p>
+              <h1 class="text-4xl font-bold text-white md:text-5xl lg:text-6xl tracking-tight">TV Shows</h1>
+              <p class="mt-3 text-base text-white/50">Discover trending series, latest releases, and award-winning television.</p>
+            </div>
+          }
+
+          <!-- Search bar -->
+          <div class="mt-8 max-w-lg">
+            <div class="relative group">
+              <div class="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-[#800020]/50 to-[#a00030]/50 opacity-0 blur transition duration-500 group-focus-within:opacity-100"></div>
+              <div class="relative flex items-center">
+                <svg class="pointer-events-none absolute left-4 h-5 w-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                  type="text"
+                  class="w-full rounded-xl border border-white/10 bg-black/60 px-12 py-3.5 text-white backdrop-blur-sm transition-all placeholder:text-white/30 focus:border-[#800020]/50 focus:bg-black/80 focus:outline-none"
+                  placeholder="Search shows, genres, or actors..."
+                  [ngModel]="q()"
+                  (ngModelChange)="onSearchInput($event || '')"
+                  (focus)="searchFocused.set(true)"
+                  (blur)="onSearchBlur()"
+                  (keydown.enter)="scrollToFullList()"
+                />
+                @if (q()) {
+                  <button class="absolute right-4 rounded-full p-1 text-white/40 transition hover:text-white" (click)="q.set(''); onSearchInput('')">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                }
+              </div>
+            </div>
+
+            @if (showSuggestions()) {
+              <div class="animate-scale-in absolute z-50 mt-2 w-full max-w-lg overflow-hidden rounded-xl border border-white/10 bg-[#0f0f0f]/95 shadow-2xl backdrop-blur-xl">
+                @if (suggestionLoading()) {
+                  <div class="flex items-center gap-3 px-4 py-4">
+                    <div class="h-4 w-4 animate-spin rounded-full border-2 border-[#800020] border-t-transparent"></div>
+                    <span class="text-sm text-white/50">Searching...</span>
+                  </div>
+                }
+                @if (!suggestionLoading() && suggestions().length === 0) {
+                  <div class="px-4 py-4 text-sm text-white/50">No matches found</div>
+                }
+                @for (item of suggestions(); track item.id) {
+                  <a class="group flex items-center gap-3 border-b border-white/5 px-4 py-3 transition last:border-0 hover:bg-white/5"
+                     [routerLink]="['/tv-shows', item.slug]" (click)="onSuggestionSelect()">
+                    <div class="relative h-12 w-9 overflow-hidden rounded-md bg-white/5">
+                      <img [src]="item.posterUrl || item.thumbnailUrl || '/assets/images/poster-placeholder.svg'" [alt]="item.title" class="h-full w-full object-cover transition duration-300 group-hover:scale-110"/>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-medium text-white transition group-hover:text-[#800020]">{{ item.title }}</p>
+                      <p class="truncate text-xs text-white/40">{{ item.year }} • {{ item.seasonCount }} seasons</p>
+                    </div>
+                    <svg class="h-4 w-4 text-white/20 transition group-hover:translate-x-1 group-hover:text-[#800020]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                  </a>
+                }
+              </div>
+            }
           </div>
         </div>
       </div>

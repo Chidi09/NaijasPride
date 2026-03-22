@@ -1,5 +1,6 @@
 import { Component, DestroyRef, effect, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { MoviesQueryService } from '../../services/movies-query.service';
@@ -237,18 +238,81 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
         <div class="absolute inset-0 opacity-[0.02]" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 60px 60px;"></div>
       </div>
 
-      <!-- Hero Section -->
-      <div class="relative z-10 border-b border-white/5">
-        <div class="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-14">
-          <div class="animate-fade-in-up">
-            <p class="text-[11px] uppercase tracking-[0.28em] text-[#800020] font-semibold mb-2">Cinema Collection</p>
-            <h1 class="text-4xl font-bold text-white md:text-5xl lg:text-6xl tracking-tight">
-              Movies
-            </h1>
-            <p class="mt-3 max-w-xl text-base text-white/50">
-              Blockbusters, award-winners, and hidden gems — all in one place.
-            </p>
+      <!-- Auto-play Hero -->
+      <div class="relative z-10 overflow-hidden border-b border-white/5" style="min-height:68vh">
+
+        <!-- YouTube background iframe -->
+        @if (heroYoutubeUrl()) {
+          <iframe
+            [src]="heroYoutubeUrl()!"
+            class="hero-yt-iframe absolute inset-0 w-[300%] h-[300%] -left-[100%] -top-[100%] pointer-events-none border-0"
+            allow="autoplay; encrypted-media"
+            [attr.allowfullscreen]="false"
+          ></iframe>
+        } @else if (heroFeature()?.backdropUrl || heroFeature()?.thumbnailUrl) {
+          <div class="absolute inset-0 bg-cover bg-center scale-105 transition-all duration-1000"
+               [style.background-image]="'url(' + (heroFeature()!.backdropUrl || heroFeature()!.thumbnailUrl) + ')'">
           </div>
+        }
+
+        <!-- Gradient overlays -->
+        <div class="absolute inset-0 pointer-events-none"
+             style="background:linear-gradient(90deg,rgba(10,10,10,0.97) 0%,rgba(10,10,10,0.65) 55%,rgba(10,10,10,0.15) 100%),linear-gradient(0deg,rgba(10,10,10,1) 0%,rgba(10,10,10,0.4) 40%,rgba(10,10,10,0) 100%)">
+        </div>
+
+        <!-- Content -->
+        <div class="relative z-10 flex min-h-[68vh] flex-col justify-end max-w-7xl mx-auto px-4 md:px-6 pb-12 pt-24">
+          @if (heroFeature(); as m) {
+            <div class="max-w-2xl animate-fade-in-up">
+              <div class="flex items-center gap-2.5 mb-3">
+                <p class="text-[11px] uppercase tracking-[0.28em] text-[#800020] font-semibold">Featured</p>
+                @if (m.youtubeId) {
+                  <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                  <span class="text-[11px] text-white/35 uppercase tracking-wider">Now Playing</span>
+                }
+              </div>
+              <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-none mb-3">{{ m.title }}</h1>
+              <p class="text-white/50 text-sm mb-6">
+                {{ m.year }}
+                @if (m.genre?.[0]) { <span class="mx-1.5 text-white/20">·</span> {{ m.genre[0] }} }
+                @if (m.durationMinutes) { <span class="mx-1.5 text-white/20">·</span> {{ m.durationMinutes }} min }
+              </p>
+              <div class="flex flex-wrap items-center gap-3">
+                @if (m.youtubeId || m.canStream) {
+                  <a [routerLink]="['/watch', m.slug || m.id]"
+                     class="flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-100 active:scale-95 transition">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    Watch
+                  </a>
+                }
+                <a [routerLink]="['/movies', m.slug || m.id]"
+                   class="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/15 text-white font-bold text-sm hover:bg-white/25 active:scale-95 transition backdrop-blur-sm">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  Details
+                </a>
+                @if (m.youtubeId) {
+                  <button
+                    type="button"
+                    (click)="toggleHeroMute()"
+                    class="p-2.5 rounded-full border border-white/20 text-white hover:bg-white/10 active:scale-95 transition"
+                    [attr.aria-label]="heroMuted() ? 'Unmute' : 'Mute'"
+                  >
+                    @if (heroMuted()) {
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+                    } @else {
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M12 6v12m-3.536-9.536a5 5 0 000 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                    }
+                  </button>
+                }
+              </div>
+            </div>
+          } @else {
+            <div class="max-w-xl animate-fade-in-up">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-[#800020] font-semibold mb-2">Cinema Collection</p>
+              <h1 class="text-4xl font-bold text-white md:text-5xl lg:text-6xl tracking-tight">Movies</h1>
+              <p class="mt-3 text-base text-white/50">Blockbusters, award-winners, and hidden gems.</p>
+            </div>
+          }
         </div>
       </div>
 
@@ -467,9 +531,9 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
 })
 export class MovieListComponent {
   sectionKeys: MovieSectionKey[] = ['trending', 'latest-2026', 'latest-2025', 'highest-rated', 'award-winning'];
-  
-  searchParams = signal<MovieSearchParams>({ 
-    page: 1, 
+
+  searchParams = signal<MovieSearchParams>({
+    page: 1,
     limit: 30,
     sortBy: 'trending',
     youtubeOnly: false,
@@ -485,6 +549,11 @@ export class MovieListComponent {
   private destroyRef = inject(DestroyRef);
   private http = inject(HttpClient);
   protected pwaService = inject(PwaService);
+  private sanitizer = inject(DomSanitizer);
+
+  // Hero auto-play
+  heroMuted = signal(true);
+  private heroMovieIndex = signal(Math.floor(Math.random() * 5));
 
   private syncingFromUrl = false;
 
@@ -516,6 +585,35 @@ export class MovieListComponent {
   });
 
   featuredMovie = computed(() => (this.trendingQuery.data()?.data || [])[0] || null);
+
+  heroFeature = computed((): MovieSummary | null => {
+    const movies = this.trendingQuery.data()?.data || [];
+    if (!movies.length) return null;
+    const withYt = movies.filter(m => m.youtubeId);
+    const pool = withYt.length ? withYt : movies;
+    return pool[this.heroMovieIndex() % pool.length] || null;
+  });
+
+  heroYoutubeUrl = computed((): SafeResourceUrl | null => {
+    const id = this.heroFeature()?.youtubeId;
+    if (!id) return null;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&loop=1&playlist=${id}&modestbranding=1&iv_load_policy=3&enablejsapi=1&origin=${origin}`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  });
+
+  toggleHeroMute(): void {
+    const iframe = typeof document !== 'undefined'
+      ? (document.querySelector('.hero-yt-iframe') as HTMLIFrameElement | null)
+      : null;
+    if (iframe?.contentWindow) {
+      const cmd = this.heroMuted()
+        ? '{"event":"command","func":"unMute","args":[]}'
+        : '{"event":"command","func":"mute","args":[]}';
+      iframe.contentWindow.postMessage(cmd, '*');
+    }
+    this.heroMuted.update(v => !v);
+  }
 
   useLivingRoomShell(): boolean {
     if (this.pwaService.isTV()) return true;
