@@ -400,12 +400,14 @@ export class CommentSectionComponent implements OnInit {
   }
 
   userInitial(user: CommentUser): string {
+    if (!user) return '?';
     const name = user.username || user.email || '?';
     return name[0]?.toUpperCase() ?? '?';
   }
 
   displayName(user: CommentUser): string {
-    return user.username || user.email.split('@')[0];
+    if (!user) return 'Unknown';
+    return user.username || user.email?.split('@')[0] || 'User';
   }
 
   renderBody(body: string): string {

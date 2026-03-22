@@ -437,10 +437,24 @@ export class BooksService {
       });
     }
 
-    // Show all books that have any download URL (mirrored to R2, proxied,
-    // or still pointing at the external source while mirroring is pending).
-    // Magnet-only entries (no downloadUrl at all) are still excluded.
-    filters.push({ downloadUrl: { not: null } });
+    // Only show books that have a downloadUrl AND are either:
+    // 1. Not from Anna's Archive (any publisher/source is fine if they have a URL), OR
+    // 2. From Anna's Archive but already mirrored to R2 (downloadUrl starts with /api/v1)
+    // This prevents broken external Anna's Archive links from showing in the frontend.
+    filters.push({
+      AND: [
+        { downloadUrl: { not: null } },
+        {
+          OR: [
+            // Not an Anna's Archive book at all
+            { publisher: null },
+            { publisher: { not: { contains: "Anna's Archive" } } },
+            // Is Anna's Archive but already mirrored to R2
+            { downloadUrl: { startsWith: '/api/v1' } },
+          ],
+        },
+      ],
+    });
 
     const where: Prisma.BookWhereInput = {
       status: 'active',
