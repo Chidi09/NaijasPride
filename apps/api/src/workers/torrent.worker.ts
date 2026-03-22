@@ -822,10 +822,32 @@ const worker = new Worker(
           fileUrls,
           fileSizes: Object.keys(fileSizes).length > 0 ? fileSizes : undefined,
         },
-        select: { slug: true },
+        select: { slug: true, title: true },
       });
       movieSlug = activeMovie.slug;
       await invalidateMovieCaches(movieSlug);
+
+      // Notify users who requested this download
+      prisma.downloadRequest.findMany({
+        where: { movieId, status: 'QUEUED' },
+        select: { id: true, userId: true },
+      }).then(async (requests) => {
+        if (!requests.length) return;
+        await prisma.notification.createMany({
+          data: requests.map(r => ({
+            userId: r.userId,
+            type: 'DOWNLOAD_READY' as const,
+            title: 'Download ready!',
+            body: `"${activeMovie.title}" is now available to download.`,
+            data: { movieId, slug: activeMovie.slug },
+          })),
+          skipDuplicates: true,
+        });
+        await prisma.downloadRequest.updateMany({
+          where: { movieId, status: 'QUEUED' },
+          data: { status: 'COMPLETED' },
+        });
+      }).catch(() => {});
 
       console.log(`[Worker] Job ${job.id} SUCCESS`);
       console.log(`[Worker]   MP4: ${mp4Key || 'N/A'}`);

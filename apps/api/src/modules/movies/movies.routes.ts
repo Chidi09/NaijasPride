@@ -302,6 +302,11 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
         error: { code: 'NOT_FOUND', message: 'Movie not found' }
       });
     }
+    // Fire-and-forget view count increment
+    fastify.prisma.movie.update({
+      where: { slug: request.params.slug },
+      data: { viewCount: { increment: 1 } },
+    }).catch(() => {});
     return { success: true, data: movie };
   });
 

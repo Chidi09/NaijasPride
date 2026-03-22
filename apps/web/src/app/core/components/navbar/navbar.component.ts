@@ -8,11 +8,12 @@ import { BrandLogoComponent } from '../../../shared/components/brand-logo/brand-
 import { ThemeToggleComponent } from '../../../shared/components/theme-toggle/theme-toggle.component';
 import { AccessibilityPanelComponent } from '../../../shared/components/accessibility-panel/accessibility-panel.component';
 import { UserPreferencesService } from '../../services/user-preferences.service';
+import { NotificationBellComponent } from '../../../shared/components/notification-bell/notification-bell.component';
 
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, ReactiveFormsModule, BrandLogoComponent, ThemeToggleComponent],
+  imports: [CommonModule, RouterLink, RouterLinkActive, ReactiveFormsModule, BrandLogoComponent, ThemeToggleComponent, NotificationBellComponent],
   templateUrl: './navbar.component.html',
 })
 export class NavbarComponent implements OnInit, OnDestroy {

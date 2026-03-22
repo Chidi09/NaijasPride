@@ -11,11 +11,12 @@ import { CastMember, Quality, Movie } from '@naijaspride/types';
 import { normalizeYouTubeTitle } from '@naijaspride/utils';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap } from 'rxjs';
+import { CommentSectionComponent } from '../../../../shared/components/comment-section/comment-section.component';
 
 @Component({
   selector: 'app-movie-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, CommentSectionComponent],
   template: `
     @if (query.isPending()) {
       <div class="animate-pulse">
@@ -176,6 +177,27 @@ import { catchError, map, of, switchMap } from 'rxjs';
                       }
                     }
                   </button>
+
+                  <!-- Request Download -->
+                  <button
+                    (click)="requestDownload(movie.id)"
+                    [disabled]="downloadRequestStatus() === 'PENDING' || downloadRequestStatus() === 'SEARCHING' || downloadRequestStatus() === 'QUEUED'"
+                    class="inline-flex items-center gap-2 border border-white/30 text-white px-5 py-3 rounded-full font-bold hover:bg-white/10 transition-colors disabled:opacity-60"
+                    [title]="downloadRequestLabel()"
+                  >
+                    @if (downloadRequestStatus() === 'PENDING' || downloadRequestStatus() === 'SEARCHING' || downloadRequestStatus() === 'QUEUED') {
+                      <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    } @else if (downloadRequestStatus() === 'COMPLETED') {
+                      <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    } @else {
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                      </svg>
+                    }
+                    {{ downloadRequestLabel() }}
+                  </button>
                 }
               </div>
             </div>
@@ -296,14 +318,14 @@ import { catchError, map, of, switchMap } from 'rxjs';
         @if (similarMoviesSignal() && similarMoviesSignal().length > 0) {
           <div class="mt-12 border-t border-[#d9c4b7] dark:border-white/5 pt-8">
             <h2 class="text-2xl font-serif font-bold text-[#24181b] dark:text-white mb-6">More Like This</h2>
-            
+
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               @for (movie of similarMoviesSignal(); track movie.id) {
                 <a [routerLink]="['/movies', movie.slug]" class="group block">
                   <div class="relative aspect-[2/3] rounded-lg overflow-hidden bg-[#e5d2c6] dark:bg-cinema-800">
                     @if (movie.posterUrl || movie.thumbnailUrl) {
-                      <img 
-                        [src]="movie.posterUrl || movie.thumbnailUrl" 
+                      <img
+                        [src]="movie.posterUrl || movie.thumbnailUrl"
                         [alt]="movie.title"
                         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
@@ -314,12 +336,12 @@ import { catchError, map, of, switchMap } from 'rxjs';
                         </svg>
                       </div>
                     }
-                    
+
                     @if (movie.isStreamOnly) {
                       <span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">STREAM</span>
                     }
                   </div>
-                  
+
                   <div class="mt-2">
                     <h3 class="text-sm font-medium text-[#24181b] dark:text-white line-clamp-1 group-hover:text-cinema-500 transition-colors">{{ normalizeTitle(movie.title) }}</h3>
                     <p class="text-xs text-[#9f7d73]">{{ movie.year }} • {{ movie.rating || '0' }}% Match</p>
@@ -329,6 +351,11 @@ import { catchError, map, of, switchMap } from 'rxjs';
             </div>
           </div>
         }
+
+        <!-- Comments Section -->
+        <div class="container mx-auto px-4 pb-12">
+          <app-comment-section [movieId]="movie.id" />
+        </div>
       }
     }
   `
@@ -368,6 +395,9 @@ export class MovieDetailComponent {
   // Notification subscription state
   notificationSubscribed = signal<boolean>(false);
   updatingNotification = signal<boolean>(false);
+
+  // Download request state
+  downloadRequestStatus = signal<string | null>(null);
 
   constructor() {
     // Automatically update SEO tags and check notification status when data arrives
@@ -504,6 +534,25 @@ export class MovieDetailComponent {
       if (clean.endsWith('.mp4') || clean.endsWith('.m3u8')) return true;
       return /^https?:\/\//i.test(raw);
     }
+  }
+
+  requestDownload(movieId: string) {
+    const status = this.downloadRequestStatus();
+    if (status === 'PENDING' || status === 'SEARCHING' || status === 'QUEUED') return;
+    this.downloadRequestStatus.set('PENDING');
+    this.http.post<{ data: { status: string } }>('/api/v1/download-requests', { movieId }).subscribe({
+      next: (res) => this.downloadRequestStatus.set(res.data.status),
+      error: () => this.downloadRequestStatus.set(null),
+    });
+  }
+
+  downloadRequestLabel(): string {
+    const s = this.downloadRequestStatus();
+    if (s === 'PENDING' || s === 'SEARCHING') return 'Searching…';
+    if (s === 'QUEUED') return 'In Queue';
+    if (s === 'COMPLETED') return 'Download Ready';
+    if (s === 'FAILED') return 'Retry Request';
+    return 'Request Download';
   }
 
   canWatch(movie: Movie): boolean {

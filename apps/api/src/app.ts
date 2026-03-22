@@ -32,6 +32,9 @@ import { adminMusicRoutes } from "./modules/music/admin-music.routes";
 import { AutoLibraryDiscoveryService } from "./modules/books/auto-library-discovery.service";
 import { wrappedRoutes } from "./modules/wrapped/wrapped.routes";
 import { searchRoutes } from "./modules/search/search.routes";
+import { commentsRoutes } from "./modules/comments/comments.routes";
+import { notificationsRoutes } from "./modules/notifications/notifications.routes";
+import { downloadRequestRoutes } from "./modules/downloads/download-requests.routes";
 import { tvShowRoutes } from "./modules/tv-shows/tv-shows.routes";
 import { animeRoutes } from "./modules/anime/anime.routes";
 import { TvTmdbSyncService } from "./modules/tv-shows/tv-tmdb-sync.service";
@@ -304,6 +307,9 @@ const buildServer = async () => {
   await app.register(searchRoutes, { prefix: `${apiPrefix}/search` });
   await app.register(adminMusicRoutes, { prefix: `${apiPrefix}/admin/music` });
   await app.register(wrappedRoutes, { prefix: `${apiPrefix}/wrapped` });
+  await app.register(commentsRoutes, { prefix: `${apiPrefix}/comments` });
+  await app.register(notificationsRoutes, { prefix: `${apiPrefix}/notifications` });
+  await app.register(downloadRequestRoutes, { prefix: `${apiPrefix}/download-requests` });
 
   return app;
 };

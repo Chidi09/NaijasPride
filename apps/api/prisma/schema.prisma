@@ -88,6 +88,20 @@ enum SubscriptionStatus {
   past_due
 }
 
+enum NotificationType {
+  COMMENT_REPLY
+  COMMENT_MENTION
+  DOWNLOAD_READY
+}
+
+enum DownloadRequestStatus {
+  PENDING
+  SEARCHING
+  QUEUED
+  COMPLETED
+  FAILED
+}
+
 // Models
 model Movie {
   id              String        @id @default(uuid())
@@ -126,12 +140,14 @@ model Movie {
   publishedAt     DateTime?
   
   // Relations
-  watchlistedBy   User[]         @relation("UserWatchlist")
-  downloads       Download[]
-  watchHistory    WatchHistory[]
-  notifications   MovieNotification[]
-  offlineSaved    OfflineSavedContent[]
-  cast            Cast[]
+  watchlistedBy    User[]               @relation("UserWatchlist")
+  downloads        Download[]
+  watchHistory     WatchHistory[]
+  notifications    MovieNotification[]
+  offlineSaved     OfflineSavedContent[]
+  cast             Cast[]
+  comments         Comment[]
+  downloadRequests DownloadRequest[]
 
   @@index([slug])
   @@index([year])
@@ -220,6 +236,9 @@ model User {
   musicPlaylists       MusicPlaylist[]
   wrappedStats         UserWrappedStats[]
   transactions         Transaction[]
+  comments             Comment[]
+  appNotifications     Notification[]
+  downloadRequests     DownloadRequest[]
 
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -273,8 +292,10 @@ model TvShow {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  seasons         TvSeason[]
-  watchHistory    TvWatchHistory[]
+  seasons          TvSeason[]
+  watchHistory     TvWatchHistory[]
+  comments         Comment[]
+  downloadRequests DownloadRequest[]
 
   @@index([slug])
   @@index([year])
@@ -804,4 +825,70 @@ model YouTubeChannel {
   updatedAt     DateTime @updatedAt
 
   @@index([isActive])
+}
+
+// ─── COMMENTS ───────────────────────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  movieId   String?
+  showId    String?
+  parentId  String?
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie   Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  show    TvShow?  @relation(fields: [showId], references: [id], onDelete: Cascade)
+  parent  Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([movieId, createdAt])
+  @@index([showId, createdAt])
+  @@index([parentId])
+  @@index([userId])
+}
+
+// ─── IN-APP NOTIFICATIONS ───────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+// ─── DOWNLOAD REQUESTS ──────────────────────────────────────────────────────
+
+model DownloadRequest {
+  id         String                @id @default(uuid())
+  userId     String
+  movieId    String?
+  showId     String?
+  status     DownloadRequestStatus @default(PENDING)
+  magnetLink String?
+  errorMsg   String?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  user  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie?  @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  show  TvShow? @relation(fields: [showId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, movieId])
+  @@unique([userId, showId])
+  @@index([status])
+  @@index([movieId])
+  @@index([showId])
 }
