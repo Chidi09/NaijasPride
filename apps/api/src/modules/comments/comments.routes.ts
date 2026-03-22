@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { NotificationType } from '@prisma/client';
 
 const BODY_MAX_LEN = 2000;
 
@@ -137,7 +138,7 @@ async function notifyAfterComment(
   comment: { id: string; userId: string; parentId: string | null; body: string; movieId: string | null; showId: string | null },
   actorId: string,
 ) {
-  const notifications: Array<{ userId: string; type: string; title: string; body: string; data: object }> = [];
+  const notifications: Array<{ userId: string; type: NotificationType; title: string; body: string; data: object }> = [];
 
   // 1. Notify parent comment author on reply
   if (comment.parentId) {
@@ -148,7 +149,7 @@ async function notifyAfterComment(
     if (parent && parent.userId !== actorId) {
       notifications.push({
         userId: parent.userId,
-        type: 'COMMENT_REPLY',
+        type: NotificationType.COMMENT_REPLY,
         title: 'New reply to your comment',
         body: comment.body.slice(0, 100),
         data: { commentId: comment.id, movieId: comment.movieId, showId: comment.showId },
@@ -167,7 +168,7 @@ async function notifyAfterComment(
       if (u.id !== actorId) {
         notifications.push({
           userId: u.id,
-          type: 'COMMENT_MENTION',
+          type: NotificationType.COMMENT_MENTION,
           title: 'You were mentioned in a comment',
           body: comment.body.slice(0, 100),
           data: { commentId: comment.id, movieId: comment.movieId, showId: comment.showId },

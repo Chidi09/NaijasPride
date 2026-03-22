@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { NotificationType } from '@prisma/client';
 
 interface YtsTorrent { hash: string; quality: string; seeds: number; }
 interface YtsMovie { title: string; torrents: YtsTorrent[]; }
@@ -123,7 +124,7 @@ export async function processDownloadRequest(
       await prisma.notification.create({
         data: {
           userId: req.userId,
-          type: 'DOWNLOAD_READY',
+          type: NotificationType.DOWNLOAD_READY,
           title: 'Download request unavailable',
           body: `We couldn't find a download for "${contentTitle}". We'll keep checking.`,
           data: { movieId: req.movieId, showId: req.showId },
@@ -156,7 +157,7 @@ export async function processDownloadRequest(
       await prisma.notification.create({
         data: {
           userId: req.userId,
-          type: 'DOWNLOAD_READY',
+          type: NotificationType.DOWNLOAD_READY,
           title: 'Download located!',
           body: `We found "${contentTitle}" and it's in the queue. You'll be notified when it's ready.`,
           data: { movieId: req.movieId, showId: req.showId },
