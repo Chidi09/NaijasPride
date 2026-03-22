@@ -1,7 +1,9 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { ProfileQueryService } from '../../services/profile-query.service';
+import { AuthStateService } from '../../../../core/auth/auth-state.service';
 
 interface ApiPlan {
   id: string;
@@ -191,6 +193,8 @@ interface ApiPlan {
 })
 export class PlansComponent implements OnInit {
   private http = inject(HttpClient);
+  private router = inject(Router);
+  private authState = inject(AuthStateService);
   private profileQuery = inject(ProfileQueryService);
   private subscriptionQuery = this.profileQuery.getSubscriptionQuery();
 
@@ -256,6 +260,11 @@ export class PlansComponent implements OnInit {
   }
 
   subscribe(plan: ApiPlan) {
+    if (!this.authState.isAuthenticated()) {
+      this.router.navigate(['/register'], { queryParams: { redirect: '/profile/plans' } });
+      return;
+    }
+
     this.loading.set(plan.slug);
     this.error.set(null);
 
