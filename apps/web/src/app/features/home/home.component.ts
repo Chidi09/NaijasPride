@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { WatchApiService, WatchHistoryItem } from '../watch/services/watch-api.service';
 import { BookSummary, MusicFeaturedSections, MovieSummary } from '@naijaspride/types';
+import { normalizeYouTubeTitle } from '@naijaspride/utils';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReaderStateService } from '../../core/services/reader-state.service';
 import { PwaService } from '../../core/services/pwa.service';
@@ -593,7 +594,7 @@ type TrendingAnimeItem = {
                            class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
                       <!-- Gradient overlay with title -->
                       <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 pt-10">
-                        <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ item.movie.title }}</p>
+                        <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ normalizeTitle(item.movie.title) }}</p>
                         <p class="text-[10px] text-white/50 mt-0.5">{{ item.progressPercentage | number:'1.0-0' }}% watched</p>
                       </div>
                       <!-- Progress bar -->
@@ -743,7 +744,7 @@ type TrendingAnimeItem = {
                            class="poster-img h-full w-full object-cover" referrerpolicy="no-referrer">
                       <!-- Always-visible gradient with title -->
                       <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-2.5 pt-12">
-                        <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ movie.title }}</p>
+                        <p class="truncate text-[11px] font-semibold text-white leading-tight">{{ normalizeTitle(movie.title) }}</p>
                         <div class="flex items-center gap-1.5 mt-1">
                           <span class="text-[10px] text-white/50">{{ movie.year }}</span>
                           @if (movie.genre?.[0]) {
@@ -845,7 +846,7 @@ type TrendingAnimeItem = {
                     </div>
                     <!-- Title below card (always visible) -->
                     <div class="px-3 py-2.5">
-                      <p class="truncate text-[12px] font-semibold text-[#f9f9f2] leading-tight">{{ movie.title }}</p>
+                      <p class="truncate text-[12px] font-semibold text-[#f9f9f2] leading-tight">{{ normalizeTitle(movie.title) }}</p>
                       <p class="text-[10px] text-[#a88a78] mt-0.5">{{ movie.year }}</p>
                     </div>
                   </a>
@@ -1107,6 +1108,8 @@ type TrendingAnimeItem = {
   `
 })
 export class HomeComponent implements OnInit, OnDestroy {
+  normalizeTitle = normalizeYouTubeTitle;
+
   private http = inject(HttpClient);
   private router = inject(Router);
   private watchApi = inject(WatchApiService);
