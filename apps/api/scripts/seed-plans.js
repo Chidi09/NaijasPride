@@ -10,40 +10,28 @@ const { PrismaClient } = require('@prisma/client');
 
 const plans = [
   {
-    name: 'Mobile',
-    slug: 'mobile',
-    price: 1500,        // ₦1,500/mo
+    name: 'Monthly',
+    slug: 'monthly',
+    price: 1500,        // ₦1,500/month
     currency: 'NGN',
     durationDays: 30,
     maxScreens: 1,
-    maxQuality: '480p',
+    maxQuality: '1080p',
     download: false,
-    ads: true,
+    ads: false,
     priority: 1,
   },
   {
-    name: 'Standard',
-    slug: 'standard',
-    price: 2500,        // ₦2,500/mo
+    name: 'Annual',
+    slug: 'annual',
+    price: 12000,       // ₦12,000/year
     currency: 'NGN',
-    durationDays: 30,
-    maxScreens: 2,
+    durationDays: 365,
+    maxScreens: 1,
     maxQuality: '1080p',
-    download: true,
+    download: false,
     ads: false,
     priority: 2,
-  },
-  {
-    name: 'Family',
-    slug: 'family',
-    price: 4000,        // ₦4,000/mo
-    currency: 'NGN',
-    durationDays: 30,
-    maxScreens: 4,
-    maxQuality: '4K',
-    download: true,
-    ads: false,
-    priority: 3,
   },
 ];
 

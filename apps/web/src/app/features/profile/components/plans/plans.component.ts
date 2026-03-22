@@ -25,9 +25,9 @@ interface ApiPlan {
   imports: [CommonModule],
   template: `
     <div class="bg-black min-h-screen py-20 px-4 text-white font-sans">
-      <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-4xl font-bold mb-4">Choose the plan that's right for you</h2>
-        <p class="text-gray-400">Downgrade or cancel at any time.</p>
+      <div class="text-center max-w-2xl mx-auto mb-16">
+        <h2 class="text-4xl font-bold mb-4">Go ad-free on NaijasPride</h2>
+        <p class="text-gray-400">Watch everything without interruptions. Cancel anytime.</p>
       </div>
 
       @if (isSubscribed()) {
@@ -51,15 +51,15 @@ interface ApiPlan {
       } @else if (plansError()) {
         <p class="text-red-400 text-center">{{ plansError() }}</p>
       } @else {
-        <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div class="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
           @for (plan of plans(); track plan.slug) {
             <div
-              class="rounded-xl p-8 transition duration-300 relative"
-              [ngClass]="isPopular(plan) ? 'border-2 border-red-600 scale-105 shadow-2xl bg-zinc-900' : 'border border-gray-700 bg-zinc-900/50'"
+              class="rounded-2xl p-8 transition duration-300 relative"
+              [ngClass]="isAnnual(plan) ? 'border-2 border-red-600 shadow-2xl bg-zinc-900' : 'border border-gray-700 bg-zinc-900/50'"
             >
-              @if (isPopular(plan)) {
-                <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 px-4 py-1 rounded-full text-xs font-bold tracking-wider">
-                  MOST POPULAR
+              @if (isAnnual(plan)) {
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600 px-4 py-1 rounded-full text-xs font-bold tracking-wider whitespace-nowrap">
+                  BEST VALUE
                 </div>
               }
 
@@ -68,64 +68,55 @@ interface ApiPlan {
                   CURRENT PLAN
                 </div>
               }
+
+              <h3 class="text-xl font-bold text-white mb-1">{{ plan.name }}</h3>
+              <p class="text-gray-500 text-sm mb-6">{{ isAnnual(plan) ? 'Billed once a year' : 'Billed every month' }}</p>
+
+              <div class="mb-6">
+                <span class="text-4xl font-bold text-white">{{ formatPrice(plan.price) }}</span>
+                <span class="text-gray-500 ml-1">{{ isAnnual(plan) ? '/year' : '/month' }}</span>
+                @if (isAnnual(plan)) {
+                  <div class="mt-1 text-sm text-red-400 font-medium">Save ₦3,000 vs monthly</div>
+                }
+              </div>
+
+              <ul class="space-y-3 text-sm text-gray-300 mb-8">
+                <li class="flex gap-2 items-center">
+                  <svg class="w-5 h-5 flex-shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  No ads — ever
+                </li>
+                <li class="flex gap-2 items-center">
+                  <svg class="w-5 h-5 flex-shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  Full access to all movies, music & books
+                </li>
+                <li class="flex gap-2 items-center">
+                  <svg class="w-5 h-5 flex-shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  Cancel anytime
+                </li>
+              </ul>
+
               @if (isCurrentPlan(plan) && renewalDate()) {
-                <div class="mb-3 mt-1 rounded-lg bg-green-900/20 border border-green-700/30 px-3 py-2 text-xs text-green-400/80">
+                <div class="mb-4 rounded-lg bg-green-900/20 border border-green-700/30 px-3 py-2 text-xs text-green-400/80 text-center">
                   Active until {{ renewalDate() }}
                 </div>
               }
 
-              <h3 class="text-xl font-bold" [class.text-white]="isPopular(plan)" [class.text-gray-400]="!isPopular(plan)">
-                {{ plan.name }}
-              </h3>
-
-              <div class="my-4">
-                <span [class.text-4xl]="isPopular(plan)" [class.text-3xl]="!isPopular(plan)" class="font-bold">
-                  {{ formatPrice(plan.price) }}
-                </span>
-                <span class="text-gray-500">/mo</span>
-              </div>
-
-              <ul class="space-y-3 text-sm text-gray-300 mb-8">
-                <li class="flex gap-2 items-start">
-                  <svg class="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Stream in {{ plan.maxQuality }}
-                </li>
-                <li class="flex gap-2 items-start">
-                  <svg class="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  {{ plan.maxScreens }} screen{{ plan.maxScreens > 1 ? 's' : '' }} at a time
-                </li>
-                @if (plan.download) {
-                  <li class="flex gap-2 items-start">
-                    <svg class="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                    </svg>
-                    Download for offline
-                  </li>
-                }
-                <li class="flex gap-2 items-start">
-                  <svg class="w-5 h-5 flex-shrink-0 mt-0.5" [class.text-green-400]="!plan.ads" [class.text-gray-600]="plan.ads" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="!plan.ads ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"/>
-                  </svg>
-                  <span [class.text-green-400]="!plan.ads" [class.text-gray-500]="plan.ads">
-                    {{ plan.ads ? 'Includes ads' : 'No ads' }}
-                  </span>
-                </li>
-              </ul>
-
               <button
-                class="w-full py-3 rounded font-bold transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                [ngClass]="isPopular(plan) ? 'bg-white text-red-600 hover:bg-gray-200' : 'bg-red-600 hover:bg-red-700'"
+                class="w-full py-3 rounded-xl font-bold transition focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                [ngClass]="isAnnual(plan) ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-white'"
                 [disabled]="loading() === plan.slug || isCurrentPlan(plan)"
                 (click)="subscribe(plan)"
               >
                 @if (loading() === plan.slug) { Redirecting... }
                 @else if (isCurrentPlan(plan)) { Current Plan }
                 @else if (isSubscribed()) { Switch to {{ plan.name }} }
-                @else { Subscribe }
+                @else { Get {{ plan.name }} }
               </button>
             </div>
           }
@@ -134,59 +125,6 @@ interface ApiPlan {
         @if (error()) {
           <p class="text-red-400 text-sm text-center mt-6">{{ error() }}</p>
         }
-
-        <!-- Dynamic Compare Table -->
-        <div class="max-w-6xl mx-auto mt-20">
-          <h3 class="text-2xl font-bold text-center mb-8">Compare Plans</h3>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="border-b border-gray-800">
-                  <th class="py-4 px-4">Feature</th>
-                  @for (plan of plans(); track plan.slug) {
-                    <th class="py-4 px-4 text-center">{{ plan.name }}</th>
-                  }
-                </tr>
-              </thead>
-              <tbody class="text-gray-400">
-                <tr class="border-b border-gray-800">
-                  <td class="py-4 px-4">Price</td>
-                  @for (plan of plans(); track plan.slug) {
-                    <td class="py-4 px-4 text-center">{{ formatPrice(plan.price) }}/mo</td>
-                  }
-                </tr>
-                <tr class="border-b border-gray-800">
-                  <td class="py-4 px-4">Video Quality</td>
-                  @for (plan of plans(); track plan.slug) {
-                    <td class="py-4 px-4 text-center">{{ plan.maxQuality }}</td>
-                  }
-                </tr>
-                <tr class="border-b border-gray-800">
-                  <td class="py-4 px-4">Screens</td>
-                  @for (plan of plans(); track plan.slug) {
-                    <td class="py-4 px-4 text-center">{{ plan.maxScreens }}</td>
-                  }
-                </tr>
-                <tr class="border-b border-gray-800">
-                  <td class="py-4 px-4">Downloads</td>
-                  @for (plan of plans(); track plan.slug) {
-                    <td class="py-4 px-4 text-center" [class.text-red-500]="plan.download">
-                      {{ plan.download ? '✓' : '✗' }}
-                    </td>
-                  }
-                </tr>
-                <tr class="border-b border-gray-800">
-                  <td class="py-4 px-4">Ads</td>
-                  @for (plan of plans(); track plan.slug) {
-                    <td class="py-4 px-4 text-center" [class.text-green-400]="!plan.ads">
-                      {{ plan.ads ? 'Yes' : 'None' }}
-                    </td>
-                  }
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
       }
     </div>
   `,
@@ -238,8 +176,8 @@ export class PlansComponent implements OnInit {
     return this.currentPlanSlug === plan.slug;
   }
 
-  isPopular(plan: ApiPlan): boolean {
-    return plan.slug === 'standard';
+  isAnnual(plan: ApiPlan): boolean {
+    return plan.durationDays >= 365;
   }
 
   ngOnInit() {
