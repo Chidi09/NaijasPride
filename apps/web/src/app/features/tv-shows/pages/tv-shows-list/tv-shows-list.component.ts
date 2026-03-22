@@ -52,7 +52,13 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                       (ngModelChange)="onSearchInput($event || '')"
                       (focus)="searchFocused.set(true)"
                       (blur)="onSearchBlur()"
+                      (keydown.enter)="scrollToFullList()"
                     />
+                    @if (q()) {
+                      <button type="button" class="text-white/40 hover:text-white" (click)="q.set(''); onSearchInput('')">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    }
                   </div>
                   <div class="flex gap-3">
                     <select class="rounded-2xl border border-white/15 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none" [ngModel]="genre()" (ngModelChange)="onGenreChange($event)">
@@ -61,6 +67,7 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                         <option [value]="entry">{{ entry }}</option>
                       }
                     </select>
+                    <button type="button" (click)="searchAndScroll()" class="rounded-2xl bg-[#800020] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#a00030]">Search</button>
                     <button type="button" (click)="resetFilters()" class="rounded-2xl border border-white/15 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]">Reset</button>
                   </div>
                 </div>
@@ -880,7 +887,11 @@ export class TvShowsListComponent implements OnInit {
     });
   }
 
-  private scrollToFullList(): void {
+  searchAndScroll(): void {
+    this.scrollToFullList();
+  }
+
+  scrollToFullList(): void {
     if (typeof document === 'undefined') return;
     const target = document.getElementById('tv-full-list');
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });

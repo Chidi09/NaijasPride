@@ -117,20 +117,49 @@ type SourceDiscoverResponse = {
                 <h2 class="text-2xl font-bold text-white">Books</h2>
                 <a routerLink="/books/all" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">See all</a>
               </div>
-              <div class="flex gap-5 overflow-x-auto pb-2">
-                @for (book of books().slice(0, 10); track book.id) {
-                  <a [routerLink]="['/books/novel', book.slug]" class="group block w-44 flex-shrink-0">
-                    <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
-                      <img [src]="getBookCover(book.slug, book.coverUrl)" [alt]="book.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer">
-                      @if (getBookProgress(book.slug); as progress) {
-                        <div class="absolute inset-x-0 bottom-0 h-1.5 bg-white/10"><div class="h-full bg-[#d0a97a]" [style.width.%]="getBookProgressWidth(progress)"></div></div>
-                      }
-                    </div>
-                    <p class="mt-3 truncate text-sm font-semibold text-white">{{ book.title }}</p>
-                    <p class="truncate text-xs text-white/50">{{ book.author || 'Book' }}</p>
-                  </a>
-                }
+              @if (isBooksLoading()) {
+                <div class="flex gap-5"><div class="w-44 flex-shrink-0 aspect-[2/3] rounded-[1.6rem] bg-white/[0.04] animate-pulse"></div><div class="w-44 flex-shrink-0 aspect-[2/3] rounded-[1.6rem] bg-white/[0.04] animate-pulse"></div><div class="w-44 flex-shrink-0 aspect-[2/3] rounded-[1.6rem] bg-white/[0.04] animate-pulse"></div></div>
+              } @else if (books().length === 0) {
+                <p class="text-sm text-white/35 italic">Books are being added to the library — check back soon.</p>
+              } @else {
+                <div class="flex gap-5 overflow-x-auto pb-2">
+                  @for (book of books().slice(0, 10); track book.id) {
+                    <a [routerLink]="['/books/novel', book.slug]" class="group block w-44 flex-shrink-0">
+                      <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                        <img [src]="getBookCover(book.slug, book.coverUrl)" [alt]="book.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer">
+                        @if (getBookProgress(book.slug); as progress) {
+                          <div class="absolute inset-x-0 bottom-0 h-1.5 bg-white/10"><div class="h-full bg-[#d0a97a]" [style.width.%]="getBookProgressWidth(progress)"></div></div>
+                        }
+                      </div>
+                      <p class="mt-3 truncate text-sm font-semibold text-white">{{ book.title }}</p>
+                      <p class="truncate text-xs text-white/50">{{ book.author || 'Book' }}</p>
+                    </a>
+                  }
+                </div>
+              }
+            </section>
+
+            <section>
+              <div class="mb-5 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">Light Novels</h2>
+                <a routerLink="/books/light-novels" class="text-sm font-medium text-[#d0a97a] hover:text-[#ead9bf]">Browse series</a>
               </div>
+              @if (isLightNovelsLoading()) {
+                <div class="flex gap-5"><div class="w-44 flex-shrink-0 aspect-[2/3] rounded-[1.6rem] bg-white/[0.04] animate-pulse"></div><div class="w-44 flex-shrink-0 aspect-[2/3] rounded-[1.6rem] bg-white/[0.04] animate-pulse"></div><div class="w-44 flex-shrink-0 aspect-[2/3] rounded-[1.6rem] bg-white/[0.04] animate-pulse"></div></div>
+              } @else {
+                <div class="flex gap-5 overflow-x-auto pb-2">
+                  @for (series of lightNovelSeries().slice(0, 10); track series.seriesKey) {
+                    <a [routerLink]="['/books/light-novels']" [queryParams]="{ q: series.seriesTitle }" class="group block w-44 flex-shrink-0">
+                      <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
+                        @if (series.coverUrl) { <img [src]="series.coverUrl" [alt]="series.seriesTitle" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer"> }
+                        @else { <div class="absolute inset-0 flex items-center justify-center text-4xl">📝</div> }
+                      </div>
+                      <p class="mt-3 truncate text-sm font-semibold text-white">{{ series.seriesTitle }}</p>
+                      <p class="truncate text-xs text-white/50">{{ series.totalVolumes }} vol{{ series.totalVolumes !== 1 ? 's' : '' }}</p>
+                    </a>
+                  }
+                </div>
+              }
             </section>
 
             <section>

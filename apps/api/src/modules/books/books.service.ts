@@ -437,23 +437,10 @@ export class BooksService {
       });
     }
 
-    // Only show books that are streamable via our API routes.
-    // This excludes raw magnet links and other external URLs that cannot be
-    // opened by /api/v1/books/:slug/file in production.
-    filters.push({
-      downloadUrl: { not: null },
-      OR: [
-        // Canonical mirrored storage route
-        { downloadUrl: { contains: '/books/download?key=' } },
-        // Proxied file routes (e.g. /api/v1/books/:slug/file, Elsci proxy)
-        {
-          AND: [
-            { downloadUrl: { contains: '/books/' } },
-            { downloadUrl: { contains: '/file' } },
-          ],
-        },
-      ],
-    });
+    // Show all books that have any download URL (mirrored to R2, proxied,
+    // or still pointing at the external source while mirroring is pending).
+    // Magnet-only entries (no downloadUrl at all) are still excluded.
+    filters.push({ downloadUrl: { not: null } });
 
     const where: Prisma.BookWhereInput = {
       status: 'active',
