@@ -3,6 +3,15 @@ import { google, youtube_v3 } from 'googleapis';
 import { getRedis } from '../../../shared/services/redis.service';
 
 /** Mirrors shared-utils normalizeYouTubeTitle — inlined to avoid cross-workspace import. */
+function applyTitleCase(s: string): string {
+  const letters = s.replace(/[^a-zA-Z]/g, '');
+  if (letters.length < 4) return s;
+  const ratio = (letters.match(/[A-Z]/g) || []).length / letters.length;
+  if (ratio > 0.6)
+    return s.toLowerCase().replace(/(?:^|(?<=[\s(\-\u2013\u2014]))[a-z]/g, (ch) => ch.toUpperCase());
+  return s;
+}
+
 function looksLikeActorList(s: string): boolean {
   const trimmed = s.trim();
   if (!trimmed.includes(',')) return false;
@@ -13,55 +22,48 @@ function looksLikeActorList(s: string): boolean {
 
 function normalizeYouTubeTitle(raw: string): string {
   if (!raw) return raw;
+  // Village Nigerian channel template: "(FULL MOVIE) - New Released Movie Today (TITLE) Village..."
+  const villageTemplate = raw.match(
+    /^\s*\([^)]*\)\s*[-\u2013]?\s*(?:new\s+released?\s+movie\s+today\s+)?\(([^)]{3,40})\)\s*(?:village|nigerian|nollywood)/i,
+  );
+  if (villageTemplate?.[1]) return applyTitleCase(villageTemplate[1].trim());
+
   const isNoise = (s: string) =>
     /\b(full\s+movie|full\s+film|official\s+movie|nollywood|hollywood|bollywood|yoruba|igbo|hausa|african|naija|4k|uhd|fhd|hd|1080p|720p|latest\s+movie|latest\s+film|nigerian\s+movie|nigerian\s+film|village\s+nigerian)\b/i.test(s);
-  const strongSegments = raw.split(/\s*[|~–—]\s*/);
+  const strongSegments = raw.split(/\s*[|~\u2013\u2014]\s*/);
   const strongCandidate =
     strongSegments.find((seg) => seg.trim().length > 0 && !isNoise(seg.trim())) ?? strongSegments[0];
   let title = strongCandidate.trim();
-  const dashParts = title.split(/\s+-\s+/);
+  const dashParts = title.split(/\s*--\s*|\s+-\s+/);
   if (dashParts.length > 1) {
+    const head = dashParts[0].trim();
     const afterFirst = dashParts.slice(1).join(' - ');
-    if (isNoise(afterFirst) || looksLikeActorList(afterFirst)) title = dashParts[0].trim();
+    const headClean = head.replace(/\bfull\s+(?:movie|film)\b/gi, '').replace(/[()[\]\s]/g, '');
+    if (headClean.length >= 3 && (isNoise(afterFirst) || looksLikeActorList(afterFirst)))
+      title = head;
   }
-  title = title.replace(
-    /^(?:latest|new|best|top)\s+(?:nollywood|yoruba|igbo|hausa|african|naija|hollywood|bollywood)?\s*(?:full\s+)?(?:movies?|films?)?\s*[-–—]?\s*/gi, '',
-  );
-  title = title.replace(/,\s*(?:[A-Z][a-z]+\.?\s+){1,3}[A-Z][a-zA-Z]+.*$/, '').trim();
-  title = title.replace(/\{[^}]*\}/g, '');
-  title = title.replace(/#\w+/g, '');
-  const noisePhrases = [
-    /\bfull\s+(?:hd\s+)?(?:movie|film)\b/gi,
-    /\bofficial\s+(?:full\s+)?(?:movie|film)\b/gi,
-    /\bnollywood\s+(?:movies?|films?)?\b/gi,
-    /\bhollywood\s+(?:movies?|films?)?\b/gi,
-    /\bbolly\s*wood\s+(?:movies?|films?)?\b/gi,
-    /\byoruba\s+(?:movies?|films?)?\b/gi,
-    /\bigbo\s+(?:movies?|films?)?\b/gi,
-    /\bhausa\s+(?:movies?|films?)?\b/gi,
-    /\bafrican\s+(?:movies?|films?)?\b/gi,
-    /\bnaija\s+(?:movies?|films?)?\b/gi,
-    /\bnigerian\s+(?:movies?|films?|epic)?\b/gi,
-    /\bvillage\s+nigerian\b/gi,
-    /\blatest\s+nigerian\b/gi,
-    /\b(?:latest|new)\s+(?:movies?|films?|releases?)\b/gi,
-    /\b(?:4k|uhd|fhd|full\s+hd|1080p|720p|480p|hd)\b/gi,
-    /\bnew\s+released?\s+movie\s+today\b/gi,
-  ];
-  for (const re of noisePhrases) title = title.replace(re, '');
+  title = title.replace(/\s*\/\s*[A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+.*$/, '');
+  title = title.replace(/^(?:latest|new|best|top)\s+(?:nollywood|yoruba|igbo|hausa|african|naija|hollywood|bollywood)?\s*(?:full\s+)?(?:movies?|films?)?\s*[-\u2013\u2014]?\s*/gi, '');
+  title = title.replace(/^\s*\(?\s*full\s+(?:movie|film)\s*\)?\s*[-\u2013\u2014]?\s*/gi, '');
+  title = title.replace(/,\s*(?:[A-Za-z][a-zA-Z]+\.?\s+){1,3}[A-Za-z][a-zA-Z]+.*$/, '').trim();
+  title = title.replace(/\{[^}]*\}/g, '').replace(/#\w+/g, '');
+  [/\bfull\s+(?:hd\s+)?(?:movie|film)\b/gi, /\bofficial\s+(?:full\s+)?(?:movie|film)\b/gi,
+   /\bnollywood\s+(?:movies?|films?)?\b/gi, /\bhollywood\s+(?:movies?|films?)?\b/gi,
+   /\bbolly\s*wood\s+(?:movies?|films?)?\b/gi, /\byoruba\s+(?:movies?|films?)?\b/gi,
+   /\bigbo\s+(?:movies?|films?)?\b/gi, /\bhausa\s+(?:movies?|films?)?\b/gi,
+   /\bafrican\s+(?:movies?|films?)?\b/gi, /\bnaija\s+(?:movies?|films?)?\b/gi,
+   /\bnigerian\s+(?:movies?|films?|epic)?\b/gi, /\bvillage\s+nigerian\b/gi,
+   /\blatest\s+nigerian\b/gi, /\b(?:latest|new)\s+(?:movies?|films?|releases?)\b/gi,
+   /\b(?:4k|uhd|fhd|full\s+hd|1080p|720p|480p|hd)\b/gi,
+   /\bnew\s+released?\s+movie\s+today\b/gi, /\ba\s+must\s+watch\b/gi,
+  ].forEach((re) => { title = title.replace(re, ''); });
   title = title.replace(/[\[(]\s*(?:19|20)\d{2}\s*[\])]/g, '');
   title = title.replace(/\b(?:19|20)\d{2}\b/g, '');
   title = title.replace(/[\[(]\s*[a-z]{2,5}\s*[\])]/gi, '');
   title = title.replace(/[\[(]\s*[\])]/g, '');
   title = title.replace(/\s{2,}/g, ' ').trim();
-  title = title.replace(/^[-–—:,.\s]+|[-–—:,.\s]+$/g, '').trim();
-  const letters = title.replace(/[^a-zA-Z]/g, '');
-  if (letters.length > 3) {
-    const upperRatio = (letters.match(/[A-Z]/g) || []).length / letters.length;
-    if (upperRatio > 0.6)
-      title = title.toLowerCase().replace(/(?:^|\s|[-–—(])\S/g, (ch) => ch.toUpperCase());
-  }
-  return title || raw.trim();
+  title = title.replace(/^[-\u2013\u2014:,.\s]+|[-\u2013\u2014:,.\s]+$/g, '').trim();
+  return applyTitleCase(title) || raw.trim();
 }
 
 // Lazy YouTube client
