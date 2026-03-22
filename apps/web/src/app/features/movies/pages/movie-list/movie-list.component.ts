@@ -239,17 +239,14 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
 
       <!-- Hero Section -->
       <div class="relative z-10 border-b border-white/5">
-        <div class="mx-auto max-w-7xl px-4 py-12 md:px-6 md:py-16">
+        <div class="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-14">
           <div class="animate-fade-in-up">
-            <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-[#800020]/30 bg-[#800020]/10 px-4 py-1.5">
-              <span class="h-2 w-2 animate-pulse rounded-full bg-[#800020]"></span>
-              <span class="text-xs font-medium tracking-wider text-[#800020] uppercase">Cinema Collection</span>
-            </div>
-            <h1 class="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-4xl font-bold text-transparent md:text-5xl lg:text-6xl">
+            <p class="text-[11px] uppercase tracking-[0.28em] text-[#800020] font-semibold mb-2">Cinema Collection</p>
+            <h1 class="text-4xl font-bold text-white md:text-5xl lg:text-6xl tracking-tight">
               Movies
             </h1>
-            <p class="mt-4 max-w-2xl text-lg text-white/50">
-              Discover the latest blockbusters, trending films, and cinematic masterpieces from around the world.
+            <p class="mt-3 max-w-xl text-base text-white/50">
+              Blockbusters, award-winners, and hidden gems — all in one place.
             </p>
           </div>
         </div>
@@ -309,66 +306,46 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
               }
             </div>
 
-            <!-- Section Cards Grid -->
-            <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <!-- Netflix-style horizontal scroll rows -->
+            <div class="space-y-10">
               @for (key of sectionKeys; track key) {
-                <div class="animate-fade-in-up group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-1 transition-all duration-500 hover:border-[#800020]/30 hover:shadow-2xl hover:shadow-[#800020]/10">
-                  <div class="relative overflow-hidden rounded-xl bg-black/40 p-4">
-                    <!-- Section Header -->
-                    <div class="mb-4 flex items-center justify-between">
-                      <div class="flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#800020] to-[#600018] text-lg shadow-lg shadow-[#800020]/30">
-                          @switch (key) {
-                            @case ('trending') { 🔥 }
-                            @case ('latest-2026') { 🆕 }
-                            @case ('latest-2025') { 🎬 }
-                            @case ('highest-rated') { ⭐ }
-                            @case ('award-winning') { 🏆 }
-                          }
-                        </div>
-                        <div>
-                          <h3 class="text-base font-semibold text-white">{{ sectionLabel(key) }}</h3>
-                          <p class="text-xs text-white/40">{{ sectionQuery(key).data()?.data?.length || 0 }} movies</p>
-                        </div>
-                      </div>
-                      <button 
-                        class="group/btn flex items-center gap-1 rounded-full bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition-all duration-300 hover:bg-[#800020] hover:text-white"
-                        (click)="applySection(key)"
-                      >
-                        View all
-                        <svg class="h-3 w-3 transition-transform duration-300 group-hover/btn:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                        </svg>
-                      </button>
-                    </div>
+                <div>
+                  <div class="mb-3 flex items-center justify-between">
+                    <h3 class="flex items-center gap-2 text-lg font-bold text-white">
+                      @switch (key) {
+                        @case ('trending') { <span>🔥</span> }
+                        @case ('latest-2026') { <span>🆕</span> }
+                        @case ('latest-2025') { <span>🎬</span> }
+                        @case ('highest-rated') { <span>⭐</span> }
+                        @case ('award-winning') { <span>🏆</span> }
+                      }
+                      {{ sectionLabel(key) }}
+                    </h3>
+                    <button
+                      class="flex items-center gap-1 text-sm font-medium text-white/50 transition hover:text-white"
+                      (click)="applySection(key)"
+                    >
+                      See all
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </button>
+                  </div>
 
-                    <!-- Mini Cards Grid -->
+                  <div class="flex gap-3 overflow-x-auto pb-3" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
                     @if (sectionQuery(key).isLoading()) {
-                      <div class="grid grid-cols-3 gap-2">
-                        @for (i of [1,2,3,4,5,6]; track i) {
-                          <div class="animate-pulse aspect-[2/3] rounded-lg bg-white/5"></div>
-                        }
-                      </div>
+                      @for (i of [1,2,3,4,5,6,7,8]; track i) {
+                        <div class="w-[140px] flex-shrink-0 animate-pulse">
+                          <div class="aspect-[2/3] rounded-xl bg-white/5"></div>
+                          <div class="mt-2 h-3 w-4/5 rounded bg-white/5"></div>
+                        </div>
+                      }
                     } @else {
-                      <div class="grid grid-cols-3 gap-2">
-                        @for (movie of (sectionQuery(key).data()?.data || []).slice(0, 6); track movie.id) {
-                          <a 
-                            [routerLink]="['/movies', movie.slug]"
-                            class="group/card relative aspect-[2/3] overflow-hidden rounded-lg transition-all duration-300 hover:z-10 hover:scale-105 hover:shadow-xl"
-                          >
-                            <img 
-                              [src]="movie.posterUrl || movie.thumbnailUrl || '/assets/images/poster-placeholder.svg'"
-                              [alt]="movie.title"
-                              class="h-full w-full object-cover transition duration-500 group-hover/card:scale-110"
-                              loading="lazy"
-                            />
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 transition duration-300 group-hover/card:opacity-100"></div>
-                            <div class="absolute bottom-0 left-0 right-0 p-2 opacity-0 transition duration-300 group-hover/card:opacity-100">
-                              <p class="line-clamp-2 text-[10px] font-medium text-white">{{ movie.title }}</p>
-                            </div>
-                          </a>
-                        }
-                      </div>
+                      @for (movie of (sectionQuery(key).data()?.data || []).slice(0, 10); track movie.id) {
+                        <div class="w-[140px] flex-shrink-0">
+                          <app-movie-card [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
+                        </div>
+                      }
                     }
                   </div>
                 </div>

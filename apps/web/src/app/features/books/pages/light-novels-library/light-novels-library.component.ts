@@ -55,144 +55,189 @@ type BookProgressResponse = {
   selector: 'app-light-novels-library',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, PaginatorComponent],
+  styles: [`
+    .ln-card-overlay { opacity: 0; transition: opacity 0.25s ease; }
+    .ln-card:hover .ln-card-overlay { opacity: 1; }
+    .ln-card:hover .ln-cover-img { transform: scale(1.06); }
+    .ln-cover-img { transition: transform 0.35s ease; }
+    .ln-glow:hover { box-shadow: 0 0 0 1.5px rgba(128,0,32,0.6), 0 8px 32px rgba(128,0,32,0.18); }
+  `],
   template: `
-    <div class="mx-auto w-full max-w-6xl px-3 py-6 sm:px-4 sm:py-8 books-theme">
-      <div class="mb-6 rounded-3xl border border-[#e6d7cc] bg-[linear-gradient(135deg,#fff9f6_0%,#fff3ec_40%,#fde9de_100%)] p-4 shadow-sm dark:border-cinema-700 dark:bg-[linear-gradient(135deg,#161116_0%,#20151b_40%,#2c1821_100%)] sm:p-6">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-          <div class="min-w-0">
-            <p class="text-[11px] uppercase tracking-[0.24em] text-[#8a756e] dark:text-gray-400">Library</p>
-            <h1 class="mt-1 text-2xl font-serif text-[#24181b] dark:text-white sm:text-3xl">Light Novels</h1>
-            <p class="mt-2 max-w-2xl text-sm text-[#7d6660] dark:text-gray-300">
-              Read by series, jump between volumes, and continue your story without leaving NaijasPride.
-            </p>
+    <div class="min-h-screen bg-[#0a0a0a] books-theme">
+
+      <!-- ── Hero ──────────────────────────────────────────────── -->
+      <div class="relative overflow-hidden bg-[#0d0d0d] border-b border-white/[0.06]">
+        <div class="absolute inset-0 pointer-events-none"
+             style="background:radial-gradient(ellipse 80% 60% at 10% 0%,rgba(128,0,32,0.13) 0%,transparent 65%)"></div>
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 pt-12 pb-10">
+
+          <!-- breadcrumb nav -->
+          <div class="flex flex-wrap gap-2 mb-6">
+            <a routerLink="/books" class="px-3 py-1 rounded-full bg-white/[0.07] text-gray-400 text-xs font-medium hover:bg-white/10 hover:text-white transition">Hub</a>
+            <a routerLink="/books/all" class="px-3 py-1 rounded-full bg-white/[0.07] text-gray-400 text-xs font-medium hover:bg-white/10 hover:text-white transition">Books</a>
+            <a routerLink="/books/comics" class="px-3 py-1 rounded-full bg-white/[0.07] text-gray-400 text-xs font-medium hover:bg-white/10 hover:text-white transition">Comics</a>
+            <a routerLink="/books/manga" class="px-3 py-1 rounded-full bg-white/[0.07] text-gray-400 text-xs font-medium hover:bg-white/10 hover:text-white transition">Manga</a>
           </div>
 
-          <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-            <a mat-stroked-button color="primary" routerLink="/books">Hub</a>
-            <a mat-stroked-button color="primary" routerLink="/books/all">Books</a>
-            <a mat-stroked-button color="primary" routerLink="/books/comics">Comics</a>
-            <a mat-stroked-button color="primary" routerLink="/books/manga">Manga</a>
-          </div>
-        </div>
+          <p class="text-[11px] uppercase tracking-[0.28em] text-[#800020] font-semibold mb-2">Library</p>
+          <h1 class="text-4xl sm:text-5xl font-bold text-white tracking-tight mb-2">Light Novels</h1>
+          <p class="text-gray-500 text-sm max-w-md mb-7">Read by series, continue between volumes, no interruptions.</p>
 
-        <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-          <input
-            [(ngModel)]="searchQuery"
-            (keyup.enter)="applySearch()"
-            type="text"
-            placeholder="Search series, title, or volume"
-            class="h-11 rounded-xl border border-[#d8c2b8] bg-white/80 px-4 text-[#24181b] outline-none transition focus:border-[#800020] dark:border-cinema-700 dark:bg-cinema-900/80 dark:text-white"
-          >
-          <button mat-flat-button color="primary" class="h-11" (click)="applySearch()">Search</button>
-          @if (searchQuery.trim() || appliedQuery) {
-            <button mat-stroked-button color="primary" class="h-11" (click)="clearSearch()">Clear</button>
-          }
+          <!-- Search -->
+          <div class="flex gap-2 max-w-lg">
+            <div class="relative flex-1">
+              <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none"
+                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+              </svg>
+              <input
+                [(ngModel)]="searchQuery"
+                (keyup.enter)="applySearch()"
+                type="text"
+                placeholder="Search series or title…"
+                class="w-full h-11 rounded-xl bg-white/[0.07] border border-white/10 text-white text-sm pl-10 pr-4 placeholder:text-gray-600 focus:outline-none focus:border-[#800020] focus:bg-white/[0.09] transition"
+              >
+            </div>
+            <button
+              (click)="applySearch()"
+              class="h-11 px-5 rounded-xl bg-[#800020] text-white text-sm font-semibold hover:bg-[#a0002a] active:bg-[#600018] transition shrink-0"
+            >Search</button>
+            @if (searchQuery.trim() || appliedQuery) {
+              <button
+                (click)="clearSearch()"
+                class="h-11 px-4 rounded-xl border border-white/10 text-gray-400 text-sm hover:border-white/25 hover:text-white transition shrink-0"
+              >Clear</button>
+            }
+          </div>
         </div>
       </div>
 
-      @if (isLoading()) {
-        <div class="grid gap-4 sm:grid-cols-2">
-          @for (i of [1,2,3,4]; track i) {
-            <mat-card class="np-surface-card animate-pulse p-4">
-              <div class="h-6 w-2/5 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
-              <div class="mt-3 h-4 w-4/5 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
-              <div class="mt-3 h-4 w-3/5 rounded bg-[#e5d2c6] dark:bg-cinema-800"></div>
-            </mat-card>
-          }
-        </div>
-      }
+      <!-- ── Content ─────────────────────────────────────────── -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-8 sm:py-10">
 
-      @if (!isLoading() && series().length === 0) {
-        <div class="rounded-2xl border border-dashed border-[#d4bcb1] bg-white/70 px-4 py-16 text-center text-[#8a756e] dark:border-cinema-700 dark:bg-cinema-900/50 dark:text-gray-400">
-          <span class="text-5xl">📚</span>
-          <p class="mt-4 text-lg font-serif text-[#24181b] dark:text-white">No light novel series found.</p>
-          <p class="text-[#9a857d] dark:text-gray-500">Try a different search keyword or run the Elsci import again.</p>
-        </div>
-      }
+        @if (appliedQuery) {
+          <p class="text-gray-500 text-sm mb-6">
+            Results for "<span class="text-white font-medium">{{ appliedQuery }}</span>"
+            <span class="text-gray-600"> · {{ meta()?.total ?? series().length }} series</span>
+          </p>
+        }
 
-      @if (!isLoading() && series().length > 0) {
-        <div class="grid gap-4 sm:gap-5 lg:grid-cols-2">
-          @for (item of series(); track item.seriesKey) {
-            <mat-card class="overflow-hidden rounded-2xl border border-[#ecdcd3] bg-[var(--bg-card)] shadow-sm dark:border-cinema-800">
-              <div class="flex gap-0">
-                <!-- Fixed-size cover — never stretches with volume list height -->
-                <div class="relative h-48 w-32 flex-shrink-0 overflow-hidden bg-[#d9c4b7] dark:bg-cinema-900">
+        <!-- Loading skeletons -->
+        @if (isLoading()) {
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+            @for (i of [1,2,3,4,5,6,7,8,9,10]; track i) {
+              <div class="animate-pulse">
+                <div class="aspect-[2/3] rounded-xl bg-white/[0.06]"></div>
+                <div class="mt-2.5 h-3 rounded-md bg-white/[0.06] w-4/5"></div>
+                <div class="mt-1.5 h-2.5 rounded-md bg-white/[0.04] w-1/2"></div>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Empty state -->
+        @if (!isLoading() && series().length === 0) {
+          <div class="py-28 text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/[0.05] text-3xl mb-5">📚</div>
+            <p class="text-lg font-semibold text-white mb-1">No series found</p>
+            <p class="text-gray-500 text-sm">Try a different search term or check back later.</p>
+          </div>
+        }
+
+        <!-- Grid -->
+        @if (!isLoading() && series().length > 0) {
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+            @for (item of series(); track item.seriesKey) {
+              <div class="flex flex-col">
+
+                <!-- Poster card -->
+                <div
+                  class="ln-card ln-glow relative aspect-[2/3] rounded-xl overflow-hidden bg-[#181818] cursor-pointer"
+                  (click)="toggleExpand(item.seriesKey)"
+                >
                   @if (item.coverUrl) {
-                    <img [src]="item.coverUrl" [alt]="item.seriesTitle" class="h-full w-full object-cover" loading="lazy" referrerpolicy="no-referrer">
+                    <img
+                      [src]="item.coverUrl"
+                      [alt]="item.seriesTitle"
+                      class="ln-cover-img absolute inset-0 h-full w-full object-cover"
+                      loading="lazy"
+                      referrerpolicy="no-referrer"
+                    >
                   } @else {
-                    <div class="flex h-full w-full items-center justify-center text-4xl">📘</div>
+                    <div class="absolute inset-0 flex items-center justify-center text-5xl select-none">📘</div>
                   }
 
-                  <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-white/85">
-                    Series
+                  <!-- Permanent bottom fade -->
+                  <div class="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
+                       style="background:linear-gradient(to top,rgba(0,0,0,0.72) 0%,transparent 100%)"></div>
+
+                  <!-- Hover overlay -->
+                  <div class="ln-card-overlay absolute inset-0 bg-black/50 flex flex-col justify-end p-3 gap-2">
+                    <a
+                      [routerLink]="['/books/novel', item.volumes[0]?.slug, 'read']"
+                      class="block text-center py-1.5 rounded-lg bg-[#800020] text-white text-xs font-bold hover:bg-[#a0002a] transition"
+                      (click)="$event.stopPropagation()"
+                    >▶ Read</a>
+                    <button
+                      type="button"
+                      class="text-center py-1.5 rounded-lg bg-white/15 text-white text-xs font-semibold hover:bg-white/25 transition"
+                      (click)="$event.stopPropagation(); toggleExpand(item.seriesKey)"
+                    >{{ isExpanded(item.seriesKey) ? 'Hide volumes' : 'All volumes' }}</button>
                   </div>
 
-                  @if (getSeriesProgress(item.volumes); as progress) {
-                    <div class="absolute inset-x-0 bottom-0 h-1 bg-black/55">
-                      <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                  <!-- Volume badge -->
+                  <div class="absolute top-2 right-2 rounded-md bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-bold text-white/75 tabular-nums">
+                    {{ item.totalVolumes }}v
+                  </div>
+
+                  <!-- Progress bar -->
+                  @if (getSeriesProgress(item.volumes); as pct) {
+                    <div class="absolute inset-x-0 bottom-0 h-[3px] bg-black/40">
+                      <div class="h-full bg-[#800020]" [style.width.%]="pct"></div>
                     </div>
                   }
                 </div>
 
-                <div class="min-w-0 flex-1 p-3 sm:p-4">
-                  <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <h2 class="text-lg font-serif leading-tight text-[#24181b] dark:text-white sm:text-xl">{{ item.seriesTitle }}</h2>
-                    <p class="text-xs uppercase tracking-[0.14em] text-[#8a756e] dark:text-gray-400">
-                      {{ item.totalVolumes }} Volumes • {{ item.latestYear }}
-                    </p>
-                  </div>
-
-                  <p class="mt-1 text-xs uppercase tracking-[0.12em] text-[#8a756e] dark:text-gray-400">
-                    {{ seriesAuthor(item) }}
+                <!-- Title row -->
+                <div class="mt-2 px-0.5">
+                  <h3 class="text-[13px] font-semibold text-white leading-snug line-clamp-2">{{ item.seriesTitle }}</h3>
+                  <p class="mt-0.5 text-[11px] text-gray-600">
+                    {{ seriesAuthor(item) !== 'Author unavailable' ? seriesAuthor(item) : '' }}
+                    @if (seriesAuthor(item) !== 'Author unavailable') { · }
+                    {{ item.totalVolumes }} vol{{ item.totalVolumes === 1 ? '' : 's' }} · {{ item.latestYear }}
                   </p>
+                </div>
 
-                  @if (seriesBlurb(item); as blurb) {
-                    <p class="mt-2 line-clamp-2 text-sm text-[#6f5952] dark:text-gray-300">{{ blurb }}</p>
-                  }
-
-                  <div class="mt-3 grid gap-2">
+                <!-- Expanded volume list -->
+                @if (isExpanded(item.seriesKey)) {
+                  <div class="mt-2 rounded-xl bg-[#141414] border border-white/[0.07] overflow-hidden">
                     @for (volume of visibleVolumes(item); track volume.id) {
-                      <div class="group relative overflow-hidden rounded-lg border border-[#e6d7cc] dark:border-cinema-800 transition hover:border-[#800020]">
-                        <div class="flex items-center gap-2 px-3 py-2">
+                      <div class="relative border-b border-white/[0.05] last:border-0">
+                        <div class="flex items-center gap-2 px-3 py-2.5">
                           <a
                             [routerLink]="['/books/novel', volume.slug]"
-                            class="min-w-0 flex-1 flex items-center gap-1"
+                            class="flex-1 min-w-0"
+                            (click)="$event.stopPropagation()"
                           >
-                            <span class="truncate text-sm text-[#24181b] dark:text-white">
+                            <span class="block truncate text-[12px] text-gray-300 leading-tight">
                               @if (volume.volumeNumber !== null) {
-                                <strong class="font-semibold">Vol {{ volume.volumeNumber }}:</strong>
+                                <span class="text-[#c0304a] font-bold">Vol {{ volume.volumeNumber }}</span>
+                                <span class="text-gray-600"> · </span>
                               }
                               {{ volume.title }}
                             </span>
-                            <span class="shrink-0 text-xs text-[#8a756e] dark:text-gray-400 ml-1">{{ volume.year }}</span>
+                            <span class="text-[10px] text-gray-600">{{ volume.year }}</span>
                           </a>
-
-                          <!-- Action buttons -->
-                          <div class="shrink-0 flex items-center gap-1">
-                            <a
-                              [routerLink]="['/books/novel', volume.slug, 'read']"
-                              class="inline-flex items-center gap-1 rounded-md bg-[#800020] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#a3213a]"
-                              title="Read online"
-                            >
-                              Read
-                            </a>
-                            @if (volume.downloadUrl) {
-                              <a
-                                [href]="volume.downloadUrl"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="inline-flex items-center gap-1 rounded-md border border-[#d4bcb1] px-2.5 py-1 text-[11px] font-semibold text-[#6f5952] transition hover:border-[#800020] hover:text-[#800020] dark:border-cinema-700 dark:text-gray-400 dark:hover:border-[#800020] dark:hover:text-white"
-                                title="Download EPUB"
-                              >
-                                ↓
-                              </a>
-                            }
-                          </div>
+                          <a
+                            [routerLink]="['/books/novel', volume.slug, 'read']"
+                            class="shrink-0 px-2.5 py-1 rounded-lg bg-[#800020] text-[11px] font-bold text-white hover:bg-[#a0002a] transition"
+                            (click)="$event.stopPropagation()"
+                          >Read</a>
                         </div>
-
-                        @if (getBookProgress(volume.slug); as progress) {
-                          <div class="absolute inset-x-0 bottom-0 h-1 bg-black/25">
-                            <div class="h-full bg-[#8a1c1c] transition-all duration-300" [style.width.%]="progress"></div>
+                        @if (getBookProgress(volume.slug); as pct) {
+                          <div class="absolute inset-x-0 bottom-0 h-[2px] bg-black/30">
+                            <div class="h-full bg-[#800020]" [style.width.%]="pct"></div>
                           </div>
                         }
                       </div>
@@ -201,27 +246,31 @@ type BookProgressResponse = {
                     @if (item.volumes.length > 3) {
                       <button
                         type="button"
-                        class="mt-1 rounded-lg border border-dashed border-[#d4bcb1] px-3 py-1.5 text-xs text-[#8a756e] transition hover:border-[#800020] hover:text-[#800020] dark:border-cinema-700 dark:text-gray-400 dark:hover:border-[#800020]"
+                        class="w-full py-2.5 text-xs text-[#800020] hover:text-[#c03050] transition font-semibold"
                         (click)="toggleExpand(item.seriesKey)"
                       >
-                        {{ isExpanded(item.seriesKey) ? 'Show less' : 'Show all ' + item.volumes.length + ' volumes' }}
+                        {{ isExpanded(item.seriesKey) ? '↑ Show less' : '↓ Show all ' + item.volumes.length + ' volumes' }}
                       </button>
                     }
                   </div>
-                </div>
-              </div>
-            </mat-card>
-          }
-        </div>
+                }
 
-        @if (meta()) {
-          <app-paginator
-            [currentPage]="meta()!.page"
-            [totalPages]="meta()!.totalPages"
-            (pageChange)="onPageChange($event)"
-          />
+              </div>
+            }
+          </div>
+
+          @if (meta()) {
+            <div class="mt-12 pb-4">
+              <app-paginator
+                [currentPage]="meta()!.page"
+                [totalPages]="meta()!.totalPages"
+                (pageChange)="onPageChange($event)"
+              />
+            </div>
+          }
         }
-      }
+
+      </div>
     </div>
   `,
 })
