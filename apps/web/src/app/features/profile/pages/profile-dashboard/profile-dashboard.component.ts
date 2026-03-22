@@ -42,7 +42,7 @@ import { ProfileStatsCardComponent, ProfileStat } from '../../../../shared/compo
               <p class="text-[#24181b] dark:text-yellow-300 font-semibold text-sm">You're browsing as a guest</p>
               <p class="text-[#725f58] dark:text-yellow-400/70 text-xs mt-0.5">Create a free account to save your watchlist, track history, and unlock more features.</p>
             </div>
-            <a routerLink="/profile/settings" class="shrink-0 bg-cinema-500 hover:bg-cinema-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors">
+            <a routerLink="/register" class="shrink-0 bg-cinema-500 hover:bg-cinema-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors">
               Create Account
             </a>
           </div>
