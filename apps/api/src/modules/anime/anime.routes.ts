@@ -1129,6 +1129,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           const result = await getSourcesMultiProvider(titles.slice(0, 4), episodeNumber, {
             preferredProvider: provider === 'auto' ? undefined : provider as ProviderType,
             type: type || 'sub',
+            anilistId: id,
           });
 
           if (result.sources && result.sources.length > 0) {
@@ -1263,7 +1264,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       if (provider === 'embed' && isEmbedProviderAvailable()) {
         try {
           const titles = await getAnilistTitles();
-          const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub');
+          const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub', id);
           if (embedResult.sources.length > 0) {
             pushResolutionEvent(resolutionTrace, {
               stage: 'embed-provider',
@@ -1543,7 +1544,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         if (provider !== 'embed' && isEmbedProviderAvailable()) {
           try {
             const titles = await getAnilistTitles();
-            const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub');
+            const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub', id);
             if (embedResult.sources.length > 0) {
               pushResolutionEvent(resolutionTrace, {
                 stage: 'embed-last-resort',

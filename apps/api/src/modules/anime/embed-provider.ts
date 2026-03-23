@@ -1,51 +1,95 @@
 // apps/api/src/modules/anime/embed-provider.ts
 // Fallback provider that returns iframe-embeddable sources from free embed APIs.
 // These APIs accept TMDB IDs, so we map AniList title → TMDB TV ID first.
+// Mappings are persisted in Redis (permanent) so each AniList ID is resolved once.
 
 import type { ProviderSource } from './anime-provider-manager';
+import { getRedis } from '../../shared/services/redis.service';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.TMDB_KEY || '';
+const REDIS_PREFIX = 'anilist-tmdb:';
 
-// ── TMDB ID cache (in-memory, title → { tmdbId, ts }) ─────────────────────
-const tmdbCache = new Map<string, { tmdbId: number | null; ts: number }>();
-const TMDB_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — IDs never change
+// ── In-memory fallback cache (used when Redis is unavailable) ───────────────
+const memCache = new Map<number, number | null>();
 
 /**
- * Search TMDB for an anime TV show by title and return its numeric ID.
+ * Resolve AniList ID → TMDB ID.
+ * 1. Check Redis (permanent, survives restarts)
+ * 2. Check in-memory fallback
+ * 3. Search TMDB with title variants, store result in Redis
  */
-async function resolveTmdbId(title: string): Promise<number | null> {
-  const cacheKey = title.toLowerCase().trim();
-  const cached = tmdbCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < TMDB_CACHE_TTL_MS) return cached.tmdbId;
+async function resolveTmdbIdForAnilist(
+  anilistId: number,
+  titles: string[],
+): Promise<number | null> {
+  // 1. Redis lookup
+  const redis = getRedis();
+  if (redis) {
+    try {
+      const cached = await redis.get(`${REDIS_PREFIX}${anilistId}`);
+      if (cached !== null) {
+        const id = cached === 'null' ? null : Number(cached);
+        return id;
+      }
+    } catch {
+      // Redis unavailable — continue
+    }
+  }
 
+  // 2. In-memory fallback
+  if (memCache.has(anilistId)) {
+    return memCache.get(anilistId)!;
+  }
+
+  // 3. Search TMDB
   if (!TMDB_API_KEY) {
     console.warn('[EmbedProvider] No TMDB_API_KEY configured — embed fallback disabled');
     return null;
   }
 
-  try {
-    const url = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&include_adult=false`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
-    if (!res.ok) return null;
+  let tmdbId: number | null = null;
 
-    const json = (await res.json()) as { results?: Array<{ id: number; name: string; first_air_date?: string }> };
-    const match = json.results?.[0];
-    const tmdbId = match?.id ?? null;
+  for (const title of titles.slice(0, 4)) {
+    if (!title?.trim()) continue;
+    try {
+      const url = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&include_adult=false`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
+      if (!res.ok) continue;
 
-    tmdbCache.set(cacheKey, { tmdbId, ts: Date.now() });
-    if (tmdbId) console.log(`[EmbedProvider] Mapped "${title}" → TMDB ${tmdbId}`);
-    return tmdbId;
-  } catch {
-    return null;
+      const json = (await res.json()) as {
+        results?: Array<{ id: number; name: string; first_air_date?: string }>;
+      };
+      const match = json.results?.[0];
+      if (match?.id) {
+        tmdbId = match.id;
+        console.log(`[EmbedProvider] Mapped AniList ${anilistId} "${title}" → TMDB ${tmdbId}`);
+        break;
+      }
+    } catch {
+      // Title variant failed — try next
+    }
   }
+
+  // Persist in Redis (even null results to avoid re-searching)
+  if (redis) {
+    try {
+      // null results expire after 6 hours (anime might get added to TMDB later)
+      // positive results are permanent (IDs never change)
+      if (tmdbId) {
+        await redis.set(`${REDIS_PREFIX}${anilistId}`, String(tmdbId));
+      } else {
+        await redis.set(`${REDIS_PREFIX}${anilistId}`, 'null', 'EX', 6 * 3600);
+      }
+    } catch {
+      // Redis write failed — still cache in memory
+    }
+  }
+
+  memCache.set(anilistId, tmdbId);
+  return tmdbId;
 }
 
 // ── Embed source definitions ───────────────────────────────────────────────
-//
-// Each source builds a URL from (tmdbId, season, episode, type).
-// `sub` is the default; for `dub` we append a hint where the API supports it.
-// Most of these embed APIs auto-detect language/audio track, but some
-// (2Embed, SmashyStream) expose a subtitle vs dub toggle.
 
 interface EmbedDef {
   name: string;
@@ -86,42 +130,43 @@ const EMBED_SOURCES: EmbedDef[] = [
 ];
 
 /**
- * Probe a single embed URL to verify it doesn't 404/5xx.
- * Returns true if the page is likely a working player.
- */
-async function probeEmbed(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method: 'HEAD',
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(6_000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Main entry point — returns embed sources for a given anime.
  *
- * @param titles  Array of AniList title variants (english, romaji, synonyms)
- * @param season  Season number (almost always 1 for anime)
- * @param episode Episode number
- * @param type    'sub' or 'dub'
+ * @param titles     Array of AniList title variants (english, romaji, native)
+ * @param season     Season number (almost always 1 for anime)
+ * @param episode    Episode number
+ * @param type       'sub' or 'dub'
+ * @param anilistId  Optional AniList ID for Redis-backed caching
  */
 export async function getEmbedSources(
   titles: string[],
   season: number,
   episode: number,
   type: 'sub' | 'dub' = 'sub',
+  anilistId?: number,
 ): Promise<{ sources: ProviderSource[]; tmdbId: number | null }> {
-  // Try each title variant until we get a TMDB hit
   let tmdbId: number | null = null;
-  for (const title of titles.slice(0, 4)) {
-    tmdbId = await resolveTmdbId(title);
-    if (tmdbId) break;
+
+  if (anilistId) {
+    // Use Redis-backed lookup keyed by AniList ID
+    tmdbId = await resolveTmdbIdForAnilist(anilistId, titles);
+  } else {
+    // Fallback: search TMDB directly with titles
+    for (const title of titles.slice(0, 4)) {
+      if (!title?.trim() || !TMDB_API_KEY) continue;
+      try {
+        const url = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&include_adult=false`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
+        if (!res.ok) continue;
+        const json = (await res.json()) as { results?: Array<{ id: number }> };
+        if (json.results?.[0]?.id) {
+          tmdbId = json.results[0].id;
+          break;
+        }
+      } catch {
+        // continue
+      }
+    }
   }
 
   if (!tmdbId) {
@@ -129,17 +174,9 @@ export async function getEmbedSources(
   }
 
   // Build all embed URLs
-  const candidates = EMBED_SOURCES.map((def) => ({
-    name: def.name,
+  const sources: ProviderSource[] = EMBED_SOURCES.map((def) => ({
     url: def.buildUrl(tmdbId!, season, episode, type),
-  }));
-
-  // For sub: return all sources directly (most embed players default to sub)
-  // For dub: we label sources with "(Dub)" so the user knows which to try.
-  // Most of these embed players let the user switch audio track internally.
-  const sources: ProviderSource[] = candidates.map((c) => ({
-    url: c.url,
-    quality: type === 'dub' ? `${c.name} (Dub)` : c.name,
+    quality: type === 'dub' ? `${def.name} (Dub)` : def.name,
     isM3U8: false,
     isEmbed: true,
   }));

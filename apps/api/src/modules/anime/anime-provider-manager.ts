@@ -243,6 +243,7 @@ export async function getSourcesMultiProvider(
   options: {
     preferredProvider?: ProviderType;
     type?: 'sub' | 'dub';
+    anilistId?: number;
   } = {}
 ): Promise<{
   provider: ProviderType;
@@ -251,7 +252,7 @@ export async function getSourcesMultiProvider(
   episode?: ProviderEpisode;
   error?: string;
 }> {
-  const { preferredProvider, type = 'sub' } = options;
+  const { preferredProvider, type = 'sub', anilistId } = options;
   
   // Try each provider
   const providersToTry = preferredProvider 
@@ -263,7 +264,7 @@ export async function getSourcesMultiProvider(
 
   for (const provider of providersToTry) {
     try {
-      const result = await getSourcesFromProvider(primaryQuery, episodeNumber, provider, type, queryTitles);
+      const result = await getSourcesFromProvider(primaryQuery, episodeNumber, provider, type, queryTitles, anilistId);
 
       if (result.sources && result.sources.length > 0) {
         return result;
@@ -289,6 +290,7 @@ async function getSourcesFromProvider(
   provider: ProviderType,
   type: 'sub' | 'dub',
   titleVariants?: string[],
+  anilistId?: number,
 ): Promise<{
   provider: ProviderType;
   sources: ProviderSource[];
@@ -344,7 +346,7 @@ async function getSourcesFromProvider(
     
     case 'embed': {
       if (!isEmbedProviderAvailable()) return { provider, sources: [] };
-      const embedResult = await getEmbedSources(titleVariants || [animeQuery], 1, episodeNumber, type);
+      const embedResult = await getEmbedSources(titleVariants || [animeQuery], 1, episodeNumber, type, anilistId);
       if (embedResult.sources.length === 0) return { provider, sources: [] };
       return {
         provider,
