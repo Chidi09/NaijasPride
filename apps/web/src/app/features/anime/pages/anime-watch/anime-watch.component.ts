@@ -93,21 +93,25 @@ import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-gr
                   <h3 class="text-lg font-bold text-white">Episodes</h3>
                   <span class="text-xs uppercase tracking-[0.18em] text-white/45">{{ episodes().length }} total</span>
                 </div>
-                <div class="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-                  @for (ep of episodes(); track ep.id) {
-                    <a [routerLink]="['/anime', animeId(), 'watch', ep.number]" class="group block rounded-[1.5rem] border p-3 transition"
-                      [class]="ep.number === episodeNumber() ? 'border-[#800020]/60 bg-[#800020]/15' : 'border-white/10 bg-white/[0.03] hover:border-[#800020]/40 hover:bg-[#800020]/10'">
-                      <div class="flex gap-3">
-                        <div class="relative aspect-video w-28 overflow-hidden rounded-xl">
-                          <img [src]="ep.image || posterImage()" alt="Episode artwork" class="h-full w-full object-cover" />
-                        </div>
-                        <div class="min-w-0 flex-1">
-                          <h4 class="truncate font-semibold text-white">Episode {{ ep.number }}</h4>
-                          <p class="truncate text-sm text-white/60">{{ ep.title || 'Untitled Episode' }}</p>
-                        </div>
-                      </div>
-                    </a>
-                  }
+                @if (episodeRanges().length > 0) {
+                  <div class="mb-3 flex flex-wrap gap-1.5">
+                    @for (range of episodeRanges(); track range.index) {
+                      <button type="button" (click)="setEpisodePage(range.index)" class="rounded-lg px-2.5 py-1 text-xs font-semibold transition"
+                        [class]="episodePage() === range.index ? 'bg-[#800020] text-white' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'">
+                        {{ range.label }}
+                      </button>
+                    }
+                  </div>
+                }
+                <div class="max-h-[28rem] overflow-y-auto pr-1">
+                  <div class="grid grid-cols-5 gap-1.5">
+                    @for (ep of paginatedEpisodes(); track ep.id) {
+                      <a [routerLink]="['/anime', animeId(), 'watch', ep.number]" class="flex h-10 items-center justify-center rounded-lg text-sm font-semibold transition"
+                        [class]="ep.number === episodeNumber() ? 'bg-[#800020] text-white ring-1 ring-[#800020]/60' : 'bg-white/[0.06] text-white/70 hover:bg-[#800020]/30 hover:text-white'">
+                        {{ ep.number }}
+                      </a>
+                    }
+                  </div>
                 </div>
               </div>
             </aside>
@@ -236,19 +240,22 @@ import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-gr
                 <span class="text-xs text-white/50">{{ episodes().length }} Episodes Available</span>
               </div>
 
-              <div class="space-y-3">
-                @for (ep of episodes(); track ep.id) {
-                  <a [routerLink]="['/anime', animeId(), 'watch', ep.number]" class="group block rounded-xl border p-3 transition"
-                    [class]="ep.number === episodeNumber() ? 'border-[#800020]/60 bg-[#800020]/15' : 'border-white/10 bg-white/[0.03] hover:border-[#800020]/40 hover:bg-[#800020]/10'">
-                    <div class="flex flex-col gap-3 md:flex-row">
-                      <div class="relative aspect-video w-full overflow-hidden rounded-lg md:w-56">
-                        <img [src]="ep.image || posterImage()" alt="Episode artwork" class="h-full w-full object-cover" />
-                      </div>
-                      <div class="flex-1">
-                        <h4 class="font-semibold text-white">Episode {{ ep.number }}: {{ ep.title || 'Untitled Episode' }}</h4>
-                        <p class="mt-1 text-sm text-white/60">Tap to watch this episode.</p>
-                      </div>
-                    </div>
+              @if (episodeRanges().length > 0) {
+                <div class="mb-4 flex flex-wrap gap-2">
+                  @for (range of episodeRanges(); track range.index) {
+                    <button type="button" (click)="setEpisodePage(range.index)" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                      [class]="episodePage() === range.index ? 'bg-[#800020] text-white' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'">
+                      {{ range.label }}
+                    </button>
+                  }
+                </div>
+              }
+
+              <div class="grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-10">
+                @for (ep of paginatedEpisodes(); track ep.id) {
+                  <a [routerLink]="['/anime', animeId(), 'watch', ep.number]" class="flex h-11 items-center justify-center rounded-lg text-sm font-semibold transition"
+                    [class]="ep.number === episodeNumber() ? 'bg-[#800020] text-white ring-1 ring-[#800020]/60' : 'bg-white/[0.06] text-white/70 hover:bg-[#800020]/30 hover:text-white'">
+                    {{ ep.number }}
                   </a>
                 }
               </div>
@@ -285,6 +292,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   private mediaRecoveryAttempted = false;
   private progressInterval: ReturnType<typeof setInterval> | null = null;
   private lastSavedProgress = 0;
+  private embedStartTime = 0;
 
   animeId = signal(0);
   episodeNumber = signal(1);
@@ -305,6 +313,27 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   server = signal('');
   audioType = signal<'sub' | 'dub'>('sub');
   showAdvanced = signal(false);
+  episodePage = signal(0);
+  readonly EPISODES_PER_PAGE = 30;
+
+  episodeRanges = computed(() => {
+    const eps = this.episodes();
+    if (eps.length <= this.EPISODES_PER_PAGE) return [];
+    const ranges: Array<{ label: string; index: number }> = [];
+    for (let i = 0; i < eps.length; i += this.EPISODES_PER_PAGE) {
+      const start = i + 1;
+      const end = Math.min(i + this.EPISODES_PER_PAGE, eps.length);
+      ranges.push({ label: `${start}-${end}`, index: Math.floor(i / this.EPISODES_PER_PAGE) });
+    }
+    return ranges;
+  });
+
+  paginatedEpisodes = computed(() => {
+    const eps = this.episodes();
+    if (eps.length <= this.EPISODES_PER_PAGE) return eps;
+    const start = this.episodePage() * this.EPISODES_PER_PAGE;
+    return eps.slice(start, start + this.EPISODES_PER_PAGE);
+  });
 
   selectedSource = computed(() => this.sources().find((entry) => entry.url === this.activeSourceUrl()) || null);
   selectedSourceIndex = computed(() => this.sources().findIndex((entry) => entry.url === this.activeSourceUrl()));
@@ -358,6 +387,8 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
       if (!animeId || !episodeNumber) return;
       this.animeId.set(animeId);
       this.episodeNumber.set(episodeNumber);
+      // Auto-select the correct episode range page
+      this.episodePage.set(Math.floor((episodeNumber - 1) / this.EPISODES_PER_PAGE));
     });
 
     this.route.queryParamMap.subscribe((query) => {
@@ -385,6 +416,10 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.destroyPlayer();
   }
 
+  setEpisodePage(page: number): void {
+    this.episodePage.set(page);
+  }
+
   selectSource(url: string, index?: number): void {
     this.activeSourceUrl.set(url);
     this.playbackNotice.set(null);
@@ -394,6 +429,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
     if (source.isEmbed) {
       this.destroyPlayer();
+      this.startEmbedProgressTracking();
       return;
     }
 
@@ -436,12 +472,24 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
         const anime = res?.data;
         this.animeData.set(anime || null);
         this.title.set(anime?.title?.english || anime?.title?.romaji || anime?.title?.native || 'Anime');
+        // If episodes are still empty after bridge failed, generate from metadata
+        if (this.episodes().length === 0 && anime?.episodes) {
+          this.generateFallbackEpisodes();
+        }
       },
     });
 
     this.api.getEpisodes(this.animeId(), this.provider()).subscribe({
-      next: (res) => this.episodes.set(res?.data?.episodes || []),
-      error: () => this.episodes.set([]),
+      next: (res) => {
+        const bridgeEps = res?.data?.episodes || [];
+        if (bridgeEps.length > 0) {
+          this.episodes.set(bridgeEps);
+        } else {
+          // Generate placeholder episodes from AniList metadata
+          this.generateFallbackEpisodes();
+        }
+      },
+      error: () => this.generateFallbackEpisodes(),
     });
 
     this.api.getWatchSources(this.animeId(), this.episodeNumber(), this.provider(), this.server() || undefined, this.audioType()).pipe(
@@ -622,6 +670,12 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   }
 
   private saveCurrentProgress(): void {
+    // For embeds, use time-on-page tracking instead
+    if (this.selectedSourceIsEmbed() && this.embedStartTime > 0) {
+      this.saveEmbedProgress();
+      return;
+    }
+
     const video = this.videoRef?.nativeElement;
     if (!video || !this.animeId() || !this.episodeNumber()) return;
     const progress = Math.floor(video.currentTime);
@@ -637,6 +691,56 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
       imageUrl: this.posterImage(),
       progress,
       duration,
+    }).subscribe();
+  }
+
+  private generateFallbackEpisodes(): void {
+    const total = Math.max(0, Number(this.animeData()?.episodes || 0));
+    if (!total) {
+      this.episodes.set([]);
+      return;
+    }
+    const fallback = Array.from({ length: total }, (_, i) => ({
+      id: `meta-${i + 1}`,
+      number: i + 1,
+      title: undefined as string | undefined,
+      image: undefined as string | undefined,
+    }));
+    this.episodes.set(fallback);
+  }
+
+  private startEmbedProgressTracking(): void {
+    this.stopProgressTracking();
+    this.embedStartTime = Date.now();
+    // Save initial "started watching" entry
+    if (this.animeId() && this.episodeNumber()) {
+      this.api.saveProgress({
+        anilistId: this.animeId(),
+        episodeNumber: this.episodeNumber(),
+        title: this.title(),
+        imageUrl: this.posterImage(),
+        progress: 1,
+        duration: 1440, // ~24 min typical episode
+      }).subscribe();
+    }
+    // Update progress every 30 seconds based on time on page
+    this.progressInterval = setInterval(() => this.saveEmbedProgress(), 30_000);
+  }
+
+  private saveEmbedProgress(): void {
+    if (!this.animeId() || !this.episodeNumber() || !this.embedStartTime) return;
+    const elapsed = Math.floor((Date.now() - this.embedStartTime) / 1000);
+    if (elapsed < 10) return;
+    if (Math.abs(elapsed - this.lastSavedProgress) < 20) return;
+    this.lastSavedProgress = elapsed;
+    const estimatedDuration = 1440; // ~24 min
+    this.api.saveProgress({
+      anilistId: this.animeId(),
+      episodeNumber: this.episodeNumber(),
+      title: this.title(),
+      imageUrl: this.posterImage(),
+      progress: Math.min(elapsed, estimatedDuration),
+      duration: estimatedDuration,
     }).subscribe();
   }
 
