@@ -238,7 +238,7 @@ async function getEpisodesFromProvider(
  * Get watch sources from the best available provider
  */
 export async function getSourcesMultiProvider(
-  animeQuery: string,
+  animeQuery: string | string[],
   episodeNumber: number,
   options: {
     preferredProvider?: ProviderType;
@@ -258,10 +258,13 @@ export async function getSourcesMultiProvider(
     ? [preferredProvider, ...DEFAULT_PROVIDER_ORDER.filter(p => p !== preferredProvider)]
     : DEFAULT_PROVIDER_ORDER;
   
+  const queryTitles = Array.isArray(animeQuery) ? animeQuery : [animeQuery];
+  const primaryQuery = queryTitles[0] || '';
+
   for (const provider of providersToTry) {
     try {
-      const result = await getSourcesFromProvider(animeQuery, episodeNumber, provider, type);
-      
+      const result = await getSourcesFromProvider(primaryQuery, episodeNumber, provider, type, queryTitles);
+
       if (result.sources && result.sources.length > 0) {
         return result;
       }
@@ -270,70 +273,13 @@ export async function getSourcesMultiProvider(
     }
   }
   
-  // If all providers failed, try ScrapingBee proxy service
-  console.log(`[MultiProvider] All direct providers failed, trying ScrapingBee proxy...`);
-  try {
-    // Build a search URL for the anime episode
-    const searchQuery = encodeURIComponent(`${animeQuery} episode ${episodeNumber}`);
-    const proxyResult = await scrapeWithProxies(`https://9anime.to/search?keyword=${searchQuery}`, {
-      retryWithStealth: true
-    });
-    
-    if (proxyResult.sources.length > 0) {
-      console.log(`[MultiProvider] Found ${proxyResult.sources.length} sources via ${proxyResult.method}`);
-      return {
-        provider: 'nineanime',
-        sources: proxyResult.sources.map((s: ProxySource) => ({
-          url: s.url,
-          quality: s.quality,
-          isM3U8: s.isM3U8,
-          isEmbed: s.isEmbed,
-          referer: 'https://9anime.to/',
-        })),
-        episode: {
-          id: `proxy-ep-${episodeNumber}`,
-          number: episodeNumber,
-          title: `Episode ${episodeNumber}`,
-        },
-      };
-    }
-  } catch (error) {
-    console.error('[MultiProvider] ScrapingBee proxy failed:', error);
-  }
-  
-  // Last resort: try stealth browser
-  console.log(`[MultiProvider] Trying stealth browser as last resort...`);
-  try {
-    const stealthResult = await scrapeWithStealth(`https://9anime.to/search?keyword=${encodeURIComponent(animeQuery)}`, {
-      waitForVideo: true,
-      timeout: 60000,
-    });
-    
-    if (stealthResult.sources.length > 0) {
-      console.log(`[MultiProvider] Found ${stealthResult.sources.length} sources via stealth browser`);
-      return {
-        provider: 'nineanime',
-        sources: stealthResult.sources.map((s: ScrapedSource) => ({
-          url: s.url,
-          quality: s.quality,
-          isM3U8: s.isM3U8,
-          referer: s.referer || 'https://9anime.to/',
-        })),
-        episode: {
-          id: `stealth-ep-${episodeNumber}`,
-          number: episodeNumber,
-          title: stealthResult.title || `Episode ${episodeNumber}`,
-        },
-      };
-    }
-  } catch (error) {
-    console.error('[MultiProvider] Stealth browser failed:', error);
-  }
-  
+  // All direct providers failed — return immediately instead of trying
+  // slow ScrapingBee/stealth browser which are unreliable
+  console.log(`[MultiProvider] All providers exhausted, returning empty`);
   return {
     provider: providersToTry[0]!,
     sources: [],
-    error: 'No playable sources found from any provider (direct, proxy, or stealth)',
+    error: 'No playable sources found from any provider',
   };
 }
 
@@ -341,7 +287,8 @@ async function getSourcesFromProvider(
   animeQuery: string,
   episodeNumber: number,
   provider: ProviderType,
-  type: 'sub' | 'dub'
+  type: 'sub' | 'dub',
+  titleVariants?: string[],
 ): Promise<{
   provider: ProviderType;
   sources: ProviderSource[];
@@ -397,7 +344,7 @@ async function getSourcesFromProvider(
     
     case 'embed': {
       if (!isEmbedProviderAvailable()) return { provider, sources: [] };
-      const embedResult = await getEmbedSources([animeQuery], 1, episodeNumber, type);
+      const embedResult = await getEmbedSources(titleVariants || [animeQuery], 1, episodeNumber, type);
       if (embedResult.sources.length === 0) return { provider, sources: [] };
       return {
         provider,

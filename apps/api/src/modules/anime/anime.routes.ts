@@ -1122,62 +1122,74 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         return anilistTitlesCache;
       };
 
-      // Try multi-provider system first (9anime, aniwatch, etc.)
+      // Try multi-provider system first (embed, gogoanime-by, etc.)
       if (provider === 'auto' || provider === 'nineanime' || provider === 'aniwatch') {
         try {
           const titles = await getAnilistTitles();
-          
-          for (const title of titles.slice(0, 3)) {
-            const result = await getSourcesMultiProvider(title, episodeNumber, {
-              preferredProvider: provider === 'auto' ? undefined : provider as ProviderType,
-              type: type || 'sub',
+          const result = await getSourcesMultiProvider(titles.slice(0, 4), episodeNumber, {
+            preferredProvider: provider === 'auto' ? undefined : provider as ProviderType,
+            type: type || 'sub',
+          });
+
+          if (result.sources && result.sources.length > 0) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'multi-provider-watch',
+              provider: result.provider,
+              outcome: 'success',
             });
-            
-            if (result.sources && result.sources.length > 0) {
-              pushResolutionEvent(resolutionTrace, {
-                stage: 'multi-provider-watch',
-                provider: result.provider,
-                outcome: 'success',
-              });
-              logResolutionTrace(request, resolutionTrace);
-              return sendWatchSuccess({
-                success: true,
-                data: {
-                  animeId: id,
-                  episode: {
-                    id: result.episode?.id || `ep-${episodeNumber}`,
-                    number: episodeNumber,
-                    title: result.episode?.title || null,
-                    image: result.episode?.image || null,
-                    url: null,
-                    isFiller: false,
-                  },
-                  provider: result.provider,
-                  requestedProvider: provider,
-                  server: server || null,
-                  sources: result.sources.map(s => ({
-                    url: s.url,
-                    quality: s.quality,
-                    isM3U8: s.isM3U8,
-                    isEmbed: s.isEmbed,
-                  })),
-                  subtitles: result.subtitles || [],
-                  headers: result.sources[0]?.referer ? { Referer: result.sources[0].referer } : {},
-                  download: null,
-                  resolutionTrace,
-                  resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-                  animepaheRuntime: getAnimepaheRuntimeStats(),
+            logResolutionTrace(request, resolutionTrace);
+            return sendWatchSuccess({
+              success: true,
+              data: {
+                animeId: id,
+                episode: {
+                  id: result.episode?.id || `ep-${episodeNumber}`,
+                  number: episodeNumber,
+                  title: result.episode?.title || null,
+                  image: result.episode?.image || null,
+                  url: null,
+                  isFiller: false,
                 },
-              });
-            }
+                provider: result.provider,
+                requestedProvider: provider,
+                server: server || null,
+                sources: result.sources.map(s => ({
+                  url: s.url,
+                  quality: s.quality,
+                  isM3U8: s.isM3U8,
+                  isEmbed: s.isEmbed,
+                })),
+                subtitles: result.subtitles || [],
+                headers: result.sources[0]?.referer ? { Referer: result.sources[0].referer } : {},
+                download: null,
+                resolutionTrace,
+                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                animepaheRuntime: getAnimepaheRuntimeStats(),
+              },
+            });
           }
-          
+
           pushResolutionEvent(resolutionTrace, {
             stage: 'multi-provider-watch',
             provider: 'multi',
             outcome: 'miss',
             detail: 'No sources found from any provider',
           });
+
+          // If multi-provider tried embed+gogoanime-by and failed,
+          // skip slow bridge providers for 'auto' — they are unreliable
+          if (provider === 'auto') {
+            logResolutionTrace(request, resolutionTrace);
+            return reply.status(404).send({
+              success: false,
+              data: {
+                animeId: id,
+                error: 'No playable sources found. Try switching providers manually.',
+                resolutionTrace,
+                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+              },
+            });
+          }
         } catch (err) {
           pushResolutionEvent(resolutionTrace, {
             stage: 'multi-provider-watch',

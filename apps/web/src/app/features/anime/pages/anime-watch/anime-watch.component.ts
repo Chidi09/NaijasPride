@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Hls from 'hls.js';
+import { timeout } from 'rxjs';
 import { AnimeApiService, AnilistMedia } from '../../services/anime-api.service';
 import { PwaService } from '../../../../core/services/pwa.service';
 import { SymbolIconComponent } from '../../../../shared/components/symbol-icon/symbol-icon.component';
@@ -443,7 +444,9 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
       error: () => this.episodes.set([]),
     });
 
-    this.api.getWatchSources(this.animeId(), this.episodeNumber(), this.provider(), this.server() || undefined, this.audioType()).subscribe({
+    this.api.getWatchSources(this.animeId(), this.episodeNumber(), this.provider(), this.server() || undefined, this.audioType()).pipe(
+      timeout(20_000),
+    ).subscribe({
       next: (res) => {
         const headers = (res?.data?.headers || {}) as Record<string, string>;
         this.watchHeaders.set(headers);
