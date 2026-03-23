@@ -2,6 +2,12 @@ import axios from 'axios';
 
 const GOOGLE_BOOKS_API_BASE = 'https://www.googleapis.com/books/v1/volumes';
 
+/** Google Books API returns http:// URLs — upgrade to https to avoid mixed content. */
+function httpsUrl(url: string | undefined | null): string | null {
+  if (!url) return null;
+  return url.replace(/^http:\/\//, 'https://');
+}
+
 export interface GoogleBooksVolume {
   id: string;
   volumeInfo: {
@@ -123,7 +129,7 @@ export async function fetchGoogleBooksCover(
       imageLinks.thumbnail ||
       imageLinks.smallThumbnail;
 
-    return coverUrl || null;
+    return httpsUrl(coverUrl);
   } catch (error) {
     console.error('[GoogleBooks] Failed to fetch cover:', error);
     return null;
@@ -218,7 +224,7 @@ export async function enrichBookFromGoogleBooks(
 
     return {
       author: info.authors?.[0] || null,
-      coverUrl,
+      coverUrl: httpsUrl(coverUrl),
       description: info.description || null,
       pageCount: info.pageCount || null,
       categories: info.categories || null,

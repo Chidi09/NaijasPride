@@ -55,6 +55,7 @@ type LoginWindow = Window & {
               <input
                 formControlName="email"
                 type="email"
+                autocomplete="email"
                 required
                 class="block w-full rounded-lg border border-[#d8b7a8] dark:border-[#5f1327] bg-white dark:bg-[#1b1014] px-4 py-3 text-[#2a1c1f] dark:text-[#f7eee7] placeholder-[#8e756b] dark:placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
                 placeholder="Email address"
@@ -65,6 +66,7 @@ type LoginWindow = Window & {
               <input
                 formControlName="password"
                 type="password"
+                autocomplete="current-password"
                 required
                 class="block w-full rounded-lg border border-[#d8b7a8] dark:border-[#5f1327] bg-white dark:bg-[#1b1014] px-4 py-3 text-[#2a1c1f] dark:text-[#f7eee7] placeholder-[#8e756b] dark:placeholder-[#a88a78] outline-none transition focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/50"
                 placeholder="Password"
