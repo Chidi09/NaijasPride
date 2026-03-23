@@ -10,8 +10,9 @@ import {
 } from './nineanime-provider';
 import { scrapeWithProxies, type ProxySource } from './proxy-scraper';
 import { scrapeWithStealth, type ScrapedSource } from './stealth-browser';
+import { getEmbedSources, isEmbedProviderAvailable } from './embed-provider';
 
-export type ProviderType = 'aniwatch' | 'nineanime' | 'animepahe' | 'gogoanime' | 'zoro';
+export type ProviderType = 'aniwatch' | 'nineanime' | 'animepahe' | 'gogoanime' | 'zoro' | 'embed';
 
 export type ProviderEpisode = {
   id: string;
@@ -318,6 +319,28 @@ export async function getSourcesMultiProvider(
     console.error('[MultiProvider] Stealth browser failed:', error);
   }
   
+  // Final fallback: embed provider (iframe-based, uses TMDB ID)
+  if (isEmbedProviderAvailable()) {
+    console.log(`[MultiProvider] Trying embed provider fallback for "${animeQuery}" ep ${episodeNumber}...`);
+    try {
+      const embedResult = await getEmbedSources([animeQuery], 1, episodeNumber, type);
+      if (embedResult.sources.length > 0) {
+        console.log(`[MultiProvider] Embed provider returned ${embedResult.sources.length} sources (TMDB ${embedResult.tmdbId})`);
+        return {
+          provider: 'embed' as ProviderType,
+          sources: embedResult.sources,
+          episode: {
+            id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
+            number: episodeNumber,
+            title: `Episode ${episodeNumber}`,
+          },
+        };
+      }
+    } catch (error) {
+      console.error('[MultiProvider] Embed provider failed:', error);
+    }
+  }
+
   return {
     provider: providersToTry[0]!,
     sources: [],
@@ -398,6 +421,7 @@ export async function getProvidersHealth(): Promise<Record<ProviderType, { healt
     animepahe: { healthy: false, message: 'Often blocks requests' },
     gogoanime: { healthy: false, message: 'API deprecated/broken' },
     zoro: { healthy: false, message: 'API deprecated/broken' },
+    embed: { healthy: isEmbedProviderAvailable(), message: isEmbedProviderAvailable() ? 'TMDB key configured' : 'No TMDB key' },
   };
   
   // Check 9anime

@@ -144,6 +144,11 @@ import { TvFocusGroupDirective } from '../../../../shared/directives/tv-focus-gr
 
         <section class="mt-5 rounded-2xl border border-white/10 bg-black/40 p-4 md:p-5">
           <div class="mb-3 flex flex-wrap items-center gap-2">
+            <div class="inline-flex rounded-full border border-white/15 overflow-hidden">
+              <button type="button" class="px-3 py-1.5 text-xs font-semibold transition-colors" [class]="audioType() === 'sub' ? 'bg-[#800020] text-white' : 'bg-black/40 text-white/60 hover:text-white'" (click)="onAudioTypeChange('sub')">SUB</button>
+              <button type="button" class="px-3 py-1.5 text-xs font-semibold transition-colors" [class]="audioType() === 'dub' ? 'bg-[#800020] text-white' : 'bg-black/40 text-white/60 hover:text-white'" (click)="onAudioTypeChange('dub')">DUB</button>
+            </div>
+
             <button
               type="button"
               class="rounded-full border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white hover:bg-white/10"
@@ -293,10 +298,11 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   qualityOptions = signal<Array<{ value: string; label: string }>>([{ value: '-1', label: 'Auto' }]);
   selectedQualityLevel = signal(-1);
   activeSourceUrl = signal<string | null>(null);
-  readonly providers = signal<string[]>(['auto', 'gogoanime', 'zoro', 'animepahe']);
+  readonly providers = signal<string[]>(['auto', 'gogoanime', 'zoro', 'animepahe', 'embed']);
   readonly serverOptions = signal<string[]>(['vidstreaming', 'gogocdn', 'streamsb']);
   provider = signal('auto');
   server = signal('');
+  audioType = signal<'sub' | 'dub'>('sub');
   showAdvanced = signal(false);
 
   selectedSource = computed(() => this.sources().find((entry) => entry.url === this.activeSourceUrl()) || null);
@@ -356,8 +362,10 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.route.queryParamMap.subscribe((query) => {
       const provider = (query.get('provider') || 'auto').trim();
       const server = (query.get('server') || '').trim();
+      const type = (query.get('type') || '').trim();
       this.provider.set(provider || 'auto');
       this.server.set(server);
+      if (type === 'sub' || type === 'dub') this.audioType.set(type);
       if (this.animeId() && this.episodeNumber()) {
         this.load();
       }
@@ -403,6 +411,12 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.updateQueryParams({ provider: this.provider(), server: value || null });
   }
 
+  onAudioTypeChange(type: 'sub' | 'dub'): void {
+    if (this.audioType() === type) return;
+    this.audioType.set(type);
+    this.updateQueryParams({ provider: this.provider(), server: this.server() || null, type });
+  }
+
   onQualityChange(event: Event): void {
     const value = Number((event.target as HTMLSelectElement | null)?.value ?? -1);
     this.selectedQualityLevel.set(Number.isFinite(value) ? value : -1);
@@ -429,7 +443,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
       error: () => this.episodes.set([]),
     });
 
-    this.api.getWatchSources(this.animeId(), this.episodeNumber(), this.provider(), this.server() || undefined).subscribe({
+    this.api.getWatchSources(this.animeId(), this.episodeNumber(), this.provider(), this.server() || undefined, this.audioType()).subscribe({
       next: (res) => {
         const headers = (res?.data?.headers || {}) as Record<string, string>;
         this.watchHeaders.set(headers);
@@ -479,7 +493,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     });
   }
 
-  private updateQueryParams(queryParams: { provider: string; server: string | null }): void {
+  private updateQueryParams(queryParams: { provider: string; server: string | null; type?: string }): void {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams,
@@ -516,7 +530,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
 
   private labelSource(source: { quality?: string; isM3U8?: boolean; isEmbed?: boolean }, index: number): string {
     const quality = (source.quality || '').trim();
-    if (source.isEmbed) return `Server ${index + 1}`;
+    if (source.isEmbed) return quality || `Server ${index + 1}`;
     if (/^\d{3,4}p$/i.test(quality)) return quality.toUpperCase();
     if (/\bm3u8\b/i.test(quality)) return `HLS ${index + 1}`;
     if (/\b(auto|default)\b/i.test(quality)) return `Auto ${index + 1}`;

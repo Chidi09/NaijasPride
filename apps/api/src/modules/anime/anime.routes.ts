@@ -12,12 +12,13 @@ import {
   type ResolutionTraceEvent,
 } from './anime-resolution-observability';
 import { searchAniWatch, getAniWatchEpisodes, getAniWatchSources } from './aniwatch-provider';
-import { 
-  getEpisodesMultiProvider, 
+import {
+  getEpisodesMultiProvider,
   getSourcesMultiProvider,
   getProvidersHealth,
-  type ProviderType 
+  type ProviderType
 } from './anime-provider-manager';
+import { getEmbedSources, isEmbedProviderAvailable } from './embed-provider';
 
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 const ANILIST_TIMEOUT_MS = 12_000;
@@ -1244,6 +1245,66 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // ── Embed provider (iframe-based, TMDB ID) ───────────────────────────
+      // When explicitly requested OR as an additional fallback before bridge
+      if (provider === 'embed' && isEmbedProviderAvailable()) {
+        try {
+          const titles = await getAnilistTitles();
+          const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub');
+          if (embedResult.sources.length > 0) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'embed-provider',
+              provider: 'embed',
+              outcome: 'success',
+              detail: `TMDB ${embedResult.tmdbId} → ${embedResult.sources.length} embeds`,
+            });
+            logResolutionTrace(request, resolutionTrace);
+            return sendWatchSuccess({
+              success: true,
+              data: {
+                animeId: id,
+                episode: {
+                  id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
+                  number: episodeNumber,
+                  title: null,
+                  image: null,
+                  url: null,
+                  isFiller: false,
+                },
+                provider: 'embed',
+                requestedProvider: provider,
+                server: server || null,
+                sources: embedResult.sources.map(s => ({
+                  url: s.url,
+                  quality: s.quality,
+                  isM3U8: s.isM3U8,
+                  isEmbed: s.isEmbed,
+                })),
+                subtitles: [],
+                headers: {},
+                download: null,
+                resolutionTrace,
+                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                animepaheRuntime: getAnimepaheRuntimeStats(),
+              },
+            });
+          }
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'embed-provider',
+            provider: 'embed',
+            outcome: 'miss',
+            detail: 'No TMDB match found',
+          });
+        } catch (err) {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'embed-provider',
+            provider: 'embed',
+            outcome: 'error',
+            detail: err instanceof Error ? err.message : 'Embed provider error',
+          });
+        }
+      }
+
       let resolvedProvider: string | null = null;
       let episode: ReturnType<typeof mapEpisodes>[number] | null = null;
       let watch: BridgeWatchResponse | null = null;
@@ -1406,6 +1467,58 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (!episode || !watch || !resolvedProvider) {
+        // Last-resort: embed provider (iframe fallback before giving up)
+        if (provider !== 'embed' && isEmbedProviderAvailable()) {
+          try {
+            const titles = await getAnilistTitles();
+            const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub');
+            if (embedResult.sources.length > 0) {
+              pushResolutionEvent(resolutionTrace, {
+                stage: 'embed-last-resort',
+                provider: 'embed',
+                outcome: 'success',
+                detail: `TMDB ${embedResult.tmdbId} → ${embedResult.sources.length} embeds`,
+              });
+              logResolutionTrace(request, resolutionTrace);
+              return sendWatchSuccess({
+                success: true,
+                data: {
+                  animeId: id,
+                  episode: episode || {
+                    id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
+                    number: episodeNumber,
+                    title: null,
+                    image: null,
+                    url: null,
+                    isFiller: false,
+                  },
+                  provider: 'embed',
+                  requestedProvider: provider,
+                  server: server || null,
+                  sources: embedResult.sources.map(s => ({
+                    url: s.url,
+                    quality: s.quality,
+                    isM3U8: s.isM3U8,
+                    isEmbed: s.isEmbed,
+                  })),
+                  subtitles: [],
+                  headers: {},
+                  download: null,
+                  resolutionTrace,
+                  resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                  animepaheRuntime: getAnimepaheRuntimeStats(),
+                },
+              });
+            }
+          } catch {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'embed-last-resort',
+              provider: 'embed',
+              outcome: 'error',
+            });
+          }
+        }
+
         logResolutionTrace(request, resolutionTrace);
         return reply.status(404).send({
           success: false,

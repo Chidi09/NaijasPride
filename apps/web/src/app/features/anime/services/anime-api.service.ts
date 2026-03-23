@@ -180,8 +180,8 @@ export class AnimeApiService {
     });
   }
 
-  getWatchSources(id: number, episodeNumber: number, provider = 'auto', server?: string) {
-    let params = new HttpParams().set('provider', provider);
+  getWatchSources(id: number, episodeNumber: number, provider = 'auto', server?: string, type: 'sub' | 'dub' = 'sub') {
+    let params = new HttpParams().set('provider', provider).set('type', type);
     if (server) {
       params = params.set('server', server);
     }
