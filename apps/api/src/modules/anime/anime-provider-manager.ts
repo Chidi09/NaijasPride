@@ -11,8 +11,9 @@ import {
 import { scrapeWithProxies, type ProxySource } from './proxy-scraper';
 import { scrapeWithStealth, type ScrapedSource } from './stealth-browser';
 import { getEmbedSources, isEmbedProviderAvailable } from './embed-provider';
+import { resolveGoGoAnimeByEpisode, checkGoGoAnimeByHealth } from './gogoanime-by-provider';
 
-export type ProviderType = 'aniwatch' | 'nineanime' | 'animepahe' | 'gogoanime' | 'zoro' | 'embed';
+export type ProviderType = 'aniwatch' | 'nineanime' | 'animepahe' | 'gogoanime' | 'gogoanime-by' | 'zoro' | 'embed';
 
 export type ProviderEpisode = {
   id: string;
@@ -44,7 +45,10 @@ export type ProviderResult = {
 };
 
 // Provider priority order - most reliable first
+// embed and gogoanime-by are the working providers; legacy scrapers are fallbacks
 const DEFAULT_PROVIDER_ORDER: ProviderType[] = [
+  'embed',
+  'gogoanime-by',
   'nineanime',
   'aniwatch',
   'animepahe',
@@ -74,6 +78,13 @@ async function isProviderHealthy(provider: ProviderType): Promise<boolean> {
     case 'animepahe':
       // AnimePahe often blocks - mark as unhealthy by default
       healthy = false;
+      break;
+    case 'embed':
+      healthy = isEmbedProviderAvailable();
+      break;
+    case 'gogoanime-by':
+      const gogoHealth = await checkGoGoAnimeByHealth();
+      healthy = gogoHealth.healthy;
       break;
     default:
       healthy = false;
@@ -319,28 +330,6 @@ export async function getSourcesMultiProvider(
     console.error('[MultiProvider] Stealth browser failed:', error);
   }
   
-  // Final fallback: embed provider (iframe-based, uses TMDB ID)
-  if (isEmbedProviderAvailable()) {
-    console.log(`[MultiProvider] Trying embed provider fallback for "${animeQuery}" ep ${episodeNumber}...`);
-    try {
-      const embedResult = await getEmbedSources([animeQuery], 1, episodeNumber, type);
-      if (embedResult.sources.length > 0) {
-        console.log(`[MultiProvider] Embed provider returned ${embedResult.sources.length} sources (TMDB ${embedResult.tmdbId})`);
-        return {
-          provider: 'embed' as ProviderType,
-          sources: embedResult.sources,
-          episode: {
-            id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
-            number: episodeNumber,
-            title: `Episode ${episodeNumber}`,
-          },
-        };
-      }
-    } catch (error) {
-      console.error('[MultiProvider] Embed provider failed:', error);
-    }
-  }
-
   return {
     provider: providersToTry[0]!,
     sources: [],
@@ -406,6 +395,36 @@ async function getSourcesFromProvider(
       };
     }
     
+    case 'embed': {
+      if (!isEmbedProviderAvailable()) return { provider, sources: [] };
+      const embedResult = await getEmbedSources([animeQuery], 1, episodeNumber, type);
+      if (embedResult.sources.length === 0) return { provider, sources: [] };
+      return {
+        provider,
+        sources: embedResult.sources,
+        episode: {
+          id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
+          number: episodeNumber,
+          title: `Episode ${episodeNumber}`,
+        },
+      };
+    }
+
+    case 'gogoanime-by': {
+      const gogoResult = await resolveGoGoAnimeByEpisode(animeQuery, episodeNumber, type);
+      if (gogoResult.sources.length === 0) return { provider, sources: [] };
+      return {
+        provider,
+        sources: gogoResult.sources,
+        subtitles: gogoResult.subtitles,
+        episode: {
+          id: `gogo-by-${episodeNumber}`,
+          number: episodeNumber,
+          title: `Episode ${episodeNumber}`,
+        },
+      };
+    }
+
     default:
       return { provider, sources: [] };
   }
@@ -420,16 +439,21 @@ export async function getProvidersHealth(): Promise<Record<ProviderType, { healt
     nineanime: { healthy: false, message: 'Not checked' },
     animepahe: { healthy: false, message: 'Often blocks requests' },
     gogoanime: { healthy: false, message: 'API deprecated/broken' },
+    'gogoanime-by': { healthy: false, message: 'Not checked' },
     zoro: { healthy: false, message: 'API deprecated/broken' },
     embed: { healthy: isEmbedProviderAvailable(), message: isEmbedProviderAvailable() ? 'TMDB key configured' : 'No TMDB key' },
   };
-  
+
   // Check 9anime
   const nineHealth = await checkNineAnimeHealth();
   health.nineanime = {
     healthy: nineHealth.healthy,
     message: nineHealth.message,
   };
-  
+
+  // Check gogoanime.by
+  const gogoHealth = await checkGoGoAnimeByHealth();
+  health['gogoanime-by'] = gogoHealth;
+
   return health;
 }

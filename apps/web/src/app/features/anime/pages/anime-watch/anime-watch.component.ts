@@ -298,7 +298,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   qualityOptions = signal<Array<{ value: string; label: string }>>([{ value: '-1', label: 'Auto' }]);
   selectedQualityLevel = signal(-1);
   activeSourceUrl = signal<string | null>(null);
-  readonly providers = signal<string[]>(['auto', 'gogoanime', 'zoro', 'animepahe', 'embed']);
+  readonly providers = signal<string[]>(['auto', 'embed', 'gogoanime-by', 'gogoanime', 'zoro', 'animepahe']);
   readonly serverOptions = signal<string[]>(['vidstreaming', 'gogocdn', 'streamsb']);
   provider = signal('auto');
   server = signal('');

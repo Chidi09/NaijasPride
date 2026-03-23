@@ -19,6 +19,7 @@ import {
   type ProviderType
 } from './anime-provider-manager';
 import { getEmbedSources, isEmbedProviderAvailable } from './embed-provider';
+import { resolveGoGoAnimeByEpisode } from './gogoanime-by-provider';
 
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 const ANILIST_TIMEOUT_MS = 12_000;
@@ -1301,6 +1302,65 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             provider: 'embed',
             outcome: 'error',
             detail: err instanceof Error ? err.message : 'Embed provider error',
+          });
+        }
+      }
+
+      // ── GoGoAnime.by provider (FlareSolverr scraper) ──────────────────────
+      if (provider === 'gogoanime-by') {
+        try {
+          const titles = await getAnilistTitles();
+          const gogoResult = await resolveGoGoAnimeByEpisode(titles[0] || String(id), episodeNumber, type || 'sub');
+          if (gogoResult.sources.length > 0) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: 'gogoanime-by',
+              provider: 'gogoanime-by',
+              outcome: 'success',
+              detail: `${gogoResult.sources.length} sources from gogoanime.by`,
+            });
+            logResolutionTrace(request, resolutionTrace);
+            return sendWatchSuccess({
+              success: true,
+              data: {
+                animeId: id,
+                episode: {
+                  id: `gogo-by-${episodeNumber}`,
+                  number: episodeNumber,
+                  title: null,
+                  image: null,
+                  url: gogoResult.episodeUrl || null,
+                  isFiller: false,
+                },
+                provider: 'gogoanime-by',
+                requestedProvider: provider,
+                server: server || null,
+                sources: gogoResult.sources.map(s => ({
+                  url: s.url,
+                  quality: s.quality,
+                  isM3U8: s.isM3U8,
+                  isEmbed: s.isEmbed,
+                })),
+                subtitles: gogoResult.subtitles || [],
+                headers: {},
+                download: null,
+                resolutionTrace,
+                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                animepaheRuntime: getAnimepaheRuntimeStats(),
+              },
+            });
+          }
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'gogoanime-by',
+            provider: 'gogoanime-by',
+            outcome: 'miss',
+            detail: 'No sources found',
+          });
+        } catch (err) {
+          pushResolutionEvent(resolutionTrace, {
+            stage: 'gogoanime-by',
+            provider: 'gogoanime-by',
+            outcome: 'error',
+            detail: err instanceof Error ? err.message : 'GoGoAnime.by error',
           });
         }
       }
