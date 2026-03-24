@@ -186,7 +186,7 @@ type SearchResponse = {
                       @if (comic.coverUrl) {
                         <img [src]="comic.coverUrl" [alt]="comic.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                       } @else {
-                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
+                        <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">library_books</span></div>
                       }
                     </div>
                     <div class="np-cover-body">
@@ -213,7 +213,7 @@ type SearchResponse = {
                         @if (comic.coverUrl) {
                           <img [src]="comic.coverUrl" [alt]="comic.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                         } @else {
-                          <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
+                          <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">library_books</span></div>
                         }
                       </div>
                       <div class="np-cover-body">

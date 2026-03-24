@@ -259,10 +259,10 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                   [ngModel]="sortBy()" 
                   (ngModelChange)="onSortChange($event)"
                 >
-                  <option value="trending">🔥 Trending</option>
-                  <option value="latest">🆕 Latest</option>
-                  <option value="popular">⭐ Popular</option>
-                  <option value="title">🔤 A-Z</option>
+                  <option value="trending">Trending</option>
+                  <option value="latest">Latest</option>
+                  <option value="popular">Popular</option>
+                  <option value="title">A-Z</option>
                 </select>
                 <svg class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -276,7 +276,7 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                   [ngModel]="genre()" 
                   (ngModelChange)="onGenreChange($event)"
                 >
-                  <option value="">🎭 All Genres</option>
+                  <option value="">All Genres</option>
                   @for (entry of genreOptions; track entry) {
                     <option [value]="entry">{{ entry }}</option>
                   }
@@ -370,11 +370,11 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
               <div class="mb-3 flex items-center justify-between">
                 <h3 class="flex items-center gap-2 text-lg font-bold text-white">
                   @switch (key) {
-                    @case ('trending') { <span>🔥</span> }
-                    @case ('latest-2026') { <span>🆕</span> }
-                    @case ('latest-2025') { <span>📺</span> }
-                    @case ('highest-rated') { <span>⭐</span> }
-                    @case ('award-winning') { <span>🏆</span> }
+                    @case ('trending') { <span class="material-symbols-outlined" aria-hidden="true">local_fire_department</span> }
+                    @case ('latest-2026') { <span class="material-symbols-outlined" aria-hidden="true">new_releases</span> }
+                    @case ('latest-2025') { <span class="material-symbols-outlined" aria-hidden="true">tv</span> }
+                    @case ('highest-rated') { <span class="material-symbols-outlined" aria-hidden="true">star</span> }
+                    @case ('award-winning') { <span class="material-symbols-outlined" aria-hidden="true">emoji_events</span> }
                   }
                   {{ sectionLabel(key) }}
                 </h3>

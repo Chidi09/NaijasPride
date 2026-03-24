@@ -139,7 +139,7 @@ type BookProgressResponse = {
         <!-- Empty state -->
         @if (!isLoading() && series().length === 0) {
           <div class="py-28 text-center">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/[0.05] text-3xl mb-5">📚</div>
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/[0.05] mb-5"><span class="material-symbols-outlined text-3xl" aria-hidden="true">menu_book</span></div>
             <p class="text-lg font-semibold text-white mb-1">No series found</p>
             <p class="text-gray-500 text-sm">Try a different search term or check back later.</p>
           </div>
@@ -165,7 +165,7 @@ type BookProgressResponse = {
                       referrerpolicy="no-referrer"
                     >
                   } @else {
-                    <div class="absolute inset-0 flex items-center justify-center text-5xl select-none">📘</div>
+                    <div class="absolute inset-0 flex items-center justify-center select-none"><span class="material-symbols-outlined text-5xl" aria-hidden="true">auto_stories</span></div>
                   }
 
                   <!-- Permanent bottom fade -->

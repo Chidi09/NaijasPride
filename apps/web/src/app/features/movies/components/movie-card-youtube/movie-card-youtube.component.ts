@@ -78,7 +78,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
           >
         } @else {
           <div class="poster-img flex h-full w-full items-center justify-center bg-[#181818]">
-            <span class="text-4xl">🎬</span>
+            <span class="material-symbols-outlined text-4xl" aria-hidden="true">movie</span>
           </div>
         }
 

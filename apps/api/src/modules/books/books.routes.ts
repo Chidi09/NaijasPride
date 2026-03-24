@@ -2209,7 +2209,14 @@ export const bookRoutes = async (
         }
 
         if (book.coverUrl && book.coverUrl.trim()) {
-          return reply.redirect(book.coverUrl.trim());
+          const normalizedCoverUrl = book.coverUrl.trim().replace(/^http:\/\//i, 'https://');
+          if (normalizedCoverUrl !== book.coverUrl.trim()) {
+            await app.prisma.book.update({
+              where: { id: book.id },
+              data: { coverUrl: normalizedCoverUrl },
+            });
+          }
+          return reply.redirect(normalizedCoverUrl);
         }
 
         const candidateKeys = [
@@ -2382,6 +2389,10 @@ export const bookRoutes = async (
 
         const key = extractDownloadKeyFromUrl(book.downloadUrl);
         if (!key) {
+          const normalizedExternalUrl = (book.downloadUrl || '').trim().replace(/^http:\/\//i, 'https://');
+          if (normalizedExternalUrl.startsWith('https://')) {
+            return reply.redirect(normalizedExternalUrl);
+          }
           return reply.status(400).send({
             status: 'error',
             message: 'Unsupported download URL format for streaming',

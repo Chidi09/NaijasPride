@@ -19,7 +19,7 @@ const STORAGE_KEY = 'np_cookie_consent';
         <div class="max-w-7xl mx-auto px-4 py-4 md:py-5 flex flex-col md:flex-row items-start md:items-center gap-4">
           <!-- Icon + text -->
           <div class="flex items-start gap-3 flex-1">
-            <span class="text-2xl mt-0.5 flex-shrink-0" aria-hidden="true">🍪</span>
+            <span class="material-symbols-outlined text-2xl mt-0.5 flex-shrink-0" aria-hidden="true">cookie</span>
             <div>
               <p class="text-sm text-[#f0e8e0] leading-relaxed">
                 We use essential cookies to keep you signed in and to remember your preferences.

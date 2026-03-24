@@ -91,7 +91,7 @@ const VolumeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="1
               </div>
             } @else {
               <div class="w-full aspect-video bg-[var(--music-surface)] flex items-center justify-center video-mask">
-                <span class="text-6xl">🎵</span>
+                <span class="material-symbols-outlined text-6xl" aria-hidden="true">music_note</span>
               </div>
             }
           </div>

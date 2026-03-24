@@ -152,7 +152,7 @@ type SourceDiscoverResponse = {
                     <a [routerLink]="['/books/light-novels']" [queryParams]="{ q: series.seriesTitle }" class="group block w-44 flex-shrink-0">
                       <div class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]">
                         @if (series.coverUrl) { <img [src]="series.coverUrl" [alt]="series.seriesTitle" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" referrerpolicy="no-referrer"> }
-                        @else { <div class="absolute inset-0 flex items-center justify-center text-4xl">📝</div> }
+                        @else { <div class="absolute inset-0 flex items-center justify-center"><app-symbol-icon name="edit_note" [size]="40"></app-symbol-icon></div> }
                       </div>
                       <p class="mt-3 truncate text-sm font-semibold text-white">{{ series.seriesTitle }}</p>
                       <p class="truncate text-xs text-white/50">{{ series.totalVolumes }} vol{{ series.totalVolumes !== 1 ? 's' : '' }}</p>
@@ -217,7 +217,7 @@ type SourceDiscoverResponse = {
               <a [routerLink]="featured().book?.slug ? ['/books/novel', featured().book!.slug] : null" class="block">
                 <mat-card class="np-surface-card overflow-hidden transition-all hover:scale-[1.01]">
                 <div class="p-4 border-b border-cinema-700">
-                  <span class="text-xs font-bold tracking-wider text-blue-400 uppercase">📚 Popular Book</span>
+                  <span class="text-xs font-bold tracking-wider text-blue-400 uppercase inline-flex items-center gap-1"><app-symbol-icon name="menu_book" [size]="16"></app-symbol-icon> Popular Book</span>
                 </div>
                 <div class="p-4 flex gap-4">
                   <div class="w-24 h-36 flex-shrink-0 rounded overflow-hidden relative">
@@ -252,7 +252,7 @@ type SourceDiscoverResponse = {
               <a [routerLink]="featured().comic?.id ? ['/books/comics', toRouteParam(featured().comic!.id)] : ['/books/comics']" class="block">
                 <mat-card class="np-surface-card overflow-hidden transition-all hover:scale-[1.01]">
                 <div class="p-4 border-b border-cinema-700">
-                  <span class="text-xs font-bold tracking-wider text-purple-400 uppercase">📖 Popular Comic</span>
+                  <span class="text-xs font-bold tracking-wider text-purple-400 uppercase inline-flex items-center gap-1"><app-symbol-icon name="library_books" [size]="16"></app-symbol-icon> Popular Comic</span>
                 </div>
                 <div class="p-4 flex gap-4">
                   @if (featured().comic?.coverUrl) {
@@ -268,7 +268,7 @@ type SourceDiscoverResponse = {
                     </div>
                   } @else {
                     <div class="w-24 h-36 flex-shrink-0 bg-[#dcc4b8] dark:bg-cinema-700 rounded flex items-center justify-center">
-                      <span class="text-2xl">📖</span>
+                      <app-symbol-icon name="library_books" [size]="24"></app-symbol-icon>
                     </div>
                   }
                   <div class="flex-1 min-w-0">
@@ -285,7 +285,7 @@ type SourceDiscoverResponse = {
               <a [routerLink]="featured().manga?.id ? ['/books/manga', toRouteParam(featured().manga!.id)] : null" class="block">
                 <mat-card class="np-surface-card overflow-hidden transition-all hover:scale-[1.01]">
                 <div class="p-4 border-b border-cinema-700">
-                  <span class="text-xs font-bold tracking-wider text-pink-400 uppercase">🎌 Trending Manga</span>
+                  <span class="text-xs font-bold tracking-wider text-pink-400 uppercase inline-flex items-center gap-1"><app-symbol-icon name="collections_bookmark" [size]="16"></app-symbol-icon> Trending Manga</span>
                 </div>
                 <div class="p-4 flex gap-4">
                   @if (featured().manga?.coverUrl) {
@@ -303,7 +303,7 @@ type SourceDiscoverResponse = {
                     </div>
                   } @else {
                     <div class="w-24 h-36 flex-shrink-0 bg-[#dcc4b8] dark:bg-cinema-700 rounded flex items-center justify-center">
-                      <span class="text-2xl">🎌</span>
+                      <app-symbol-icon name="collections_bookmark" [size]="24"></app-symbol-icon>
                     </div>
                   }
                   <div class="flex-1 min-w-0">
@@ -330,7 +330,7 @@ type SourceDiscoverResponse = {
         <section>
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-              <span class="text-2xl">📚</span>
+              <app-symbol-icon name="menu_book" [size]="24"></app-symbol-icon>
               <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Books</h2>
             </div>
             <a routerLink="/books/all" mat-button color="primary">
@@ -379,7 +379,7 @@ type SourceDiscoverResponse = {
             </div>
           } @else {
             <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
-              <span class="text-4xl">📚</span>
+              <app-symbol-icon name="menu_book" [size]="40"></app-symbol-icon>
               <p class="text-[var(--text-muted)] mt-2">No books available yet</p>
             </mat-card>
           }
@@ -389,7 +389,7 @@ type SourceDiscoverResponse = {
         <section>
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-              <span class="text-2xl">📝</span>
+              <app-symbol-icon name="edit_note" [size]="24"></app-symbol-icon>
               <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Light Novels</h2>
             </div>
             <a routerLink="/books/light-novels" mat-button color="primary">
@@ -424,7 +424,7 @@ type SourceDiscoverResponse = {
                           referrerpolicy="no-referrer"
                         >
                       } @else {
-                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📝</div>
+                        <div class="absolute inset-0 flex items-center justify-center"><app-symbol-icon name="edit_note" [size]="40"></app-symbol-icon></div>
                       }
                     </div>
                     <div class="np-cover-body">
@@ -437,7 +437,7 @@ type SourceDiscoverResponse = {
             </div>
           } @else {
             <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
-              <span class="text-4xl">📝</span>
+              <app-symbol-icon name="edit_note" [size]="40"></app-symbol-icon>
               <p class="text-[var(--text-muted)] mt-2">No light novels available yet</p>
             </mat-card>
           }
@@ -447,7 +447,7 @@ type SourceDiscoverResponse = {
         <section>
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-              <span class="text-2xl">📖</span>
+              <app-symbol-icon name="library_books" [size]="24"></app-symbol-icon>
               <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Comics</h2>
             </div>
             <a routerLink="/books/comics" mat-button color="primary">
@@ -482,7 +482,7 @@ type SourceDiscoverResponse = {
                           referrerpolicy="no-referrer"
                         >
                       } @else {
-                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📖</div>
+                        <div class="absolute inset-0 flex items-center justify-center"><app-symbol-icon name="library_books" [size]="40"></app-symbol-icon></div>
                       }
                     </div>
                     <div class="np-cover-body">
@@ -495,7 +495,7 @@ type SourceDiscoverResponse = {
             </div>
           } @else {
             <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
-              <span class="text-4xl">📖</span>
+              <app-symbol-icon name="library_books" [size]="40"></app-symbol-icon>
               <p class="text-[var(--text-muted)] mt-2">No comics available yet</p>
             </mat-card>
           }
@@ -505,7 +505,7 @@ type SourceDiscoverResponse = {
         <section>
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-              <span class="text-2xl">🎌</span>
+              <app-symbol-icon name="collections_bookmark" [size]="24"></app-symbol-icon>
               <h2 class="text-2xl font-serif text-[#24181b] dark:text-white">Manga</h2>
             </div>
             <a routerLink="/books/manga" mat-button color="primary">
@@ -540,7 +540,7 @@ type SourceDiscoverResponse = {
                           referrerpolicy="no-referrer"
                         >
                       } @else {
-                        <div class="absolute inset-0 flex items-center justify-center text-4xl">🎌</div>
+                        <div class="absolute inset-0 flex items-center justify-center"><app-symbol-icon name="collections_bookmark" [size]="40"></app-symbol-icon></div>
                       }
                     </div>
                     <div class="np-cover-body">
@@ -556,7 +556,7 @@ type SourceDiscoverResponse = {
             </div>
           } @else {
             <mat-card class="p-8 text-center" style="background: var(--bg-card); border: 1px solid var(--border-color);">
-              <span class="text-4xl">🎌</span>
+              <app-symbol-icon name="collections_bookmark" [size]="40"></app-symbol-icon>
               <p class="text-[var(--text-muted)] mt-2">No manga available</p>
             </mat-card>
           }

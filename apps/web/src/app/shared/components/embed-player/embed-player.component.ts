@@ -81,7 +81,7 @@ interface EmbedResponse {
       @if (hasError() && !isLoading()) {
         <div class="absolute inset-0 flex items-center justify-center p-8">
           <div class="text-center max-w-sm">
-            <div class="text-4xl mb-3">🎬</div>
+            <div class="mb-3"><span class="material-symbols-outlined text-4xl" aria-hidden="true">movie</span></div>
             <h3 class="text-white text-sm font-semibold mb-1">No embed sources available</h3>
             <p class="text-white/40 text-xs">This movie doesn't have an IMDB or TMDB ID, so no streaming providers can be resolved.</p>
           </div>

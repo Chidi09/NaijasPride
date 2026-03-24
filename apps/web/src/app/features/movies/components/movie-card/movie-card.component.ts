@@ -56,7 +56,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
           >
         } @else {
           <div class="w-full h-full flex items-center justify-center bg-[#dfc8bb] dark:bg-cinema-700">
-            <span class="text-4xl text-cinema-500">🎬</span>
+            <span class="material-symbols-outlined text-4xl text-cinema-500" aria-hidden="true">movie</span>
           </div>
         }
         

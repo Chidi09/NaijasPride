@@ -121,6 +121,13 @@ const parseSeriesFromSlug = (slug: string): string | null => {
   return cleanWhitespace(match[1].replace(/-/g, ' '));
 };
 
+const normalizeCoverUrl = (value: string | null): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/^http:\/\//i, 'https://');
+};
+
 const pickLatestSeriesCover = (volumes: LightNovelVolumeSummary[]): string | null => {
   if (volumes.length === 0) return null;
 
@@ -206,7 +213,7 @@ export class BooksService {
       slug: book.slug,
       author: book.author,
       year: book.year,
-      coverUrl: book.coverUrl,
+      coverUrl: normalizeCoverUrl(book.coverUrl),
       format: book.format,
       downloadUrl: BooksService.sanitizeElsciDownloadUrl(book.downloadUrl),
       fileSize: book.fileSize,
@@ -226,6 +233,7 @@ export class BooksService {
     const books = await this.prisma.book.findMany({
       where: {
         status: 'active',
+        downloadUrl: { startsWith: '/api/v1/books/download' },
         AND: [
           {
             OR: [
@@ -273,7 +281,7 @@ export class BooksService {
       if (!existing) {
         grouped.set(meta.seriesKey, {
           seriesTitle: meta.seriesTitle,
-          coverUrl: book.coverUrl,
+          coverUrl: normalizeCoverUrl(book.coverUrl),
           latestYear: book.year,
           latestUpdatedAt: book.updatedAt.getTime(),
           volumes: [volume],
@@ -282,7 +290,7 @@ export class BooksService {
       }
 
       existing.volumes.push(volume);
-      if (!existing.coverUrl && book.coverUrl) existing.coverUrl = book.coverUrl;
+      if (!existing.coverUrl && book.coverUrl) existing.coverUrl = normalizeCoverUrl(book.coverUrl);
       if (book.year > existing.latestYear) existing.latestYear = book.year;
       if (book.updatedAt.getTime() > existing.latestUpdatedAt) {
         existing.latestUpdatedAt = book.updatedAt.getTime();
@@ -335,7 +343,11 @@ export class BooksService {
 
   async getLightNovelSeriesBySlug(slug: string): Promise<LightNovelSeriesDetail | null> {
     const current = await this.prisma.book.findFirst({
-      where: { slug, status: 'active' },
+      where: {
+        slug,
+        status: 'active',
+        downloadUrl: { startsWith: '/api/v1/books/download' },
+      },
       select: {
         id: true,
         title: true,
@@ -362,6 +374,7 @@ export class BooksService {
     const candidates = await this.prisma.book.findMany({
       where: {
         status: 'active',
+        downloadUrl: { startsWith: '/api/v1/books/download' },
         OR: [
           { genre: { has: 'Light Novel' } },
           { publisher: { contains: 'elsci', mode: Prisma.QueryMode.insensitive } },
@@ -437,23 +450,9 @@ export class BooksService {
       });
     }
 
-    // Only show books that have a downloadUrl AND are either:
-    // 1. Not from Anna's Archive (any publisher/source is fine if they have a URL), OR
-    // 2. From Anna's Archive but already mirrored to R2 (downloadUrl starts with /api/v1)
-    // This prevents broken external Anna's Archive links from showing in the frontend.
+    // Frontend should only surface files mirrored to our storage-backed download endpoint.
     filters.push({
-      AND: [
-        { downloadUrl: { not: null } },
-        {
-          OR: [
-            // Not an Anna's Archive book at all
-            { publisher: null },
-            { publisher: { not: { contains: "Anna's Archive" } } },
-            // Is Anna's Archive but already mirrored to R2
-            { downloadUrl: { startsWith: '/api/v1' } },
-          ],
-        },
-      ],
+      downloadUrl: { startsWith: '/api/v1/books/download' },
     });
 
     const where: Prisma.BookWhereInput = {
@@ -474,6 +473,7 @@ export class BooksService {
     return {
       data: books.map((book) => ({
         ...book,
+        coverUrl: normalizeCoverUrl(book.coverUrl),
         createdAt: book.createdAt.toISOString(),
         updatedAt: book.updatedAt.toISOString(),
       })) as Book[],
@@ -495,6 +495,7 @@ export class BooksService {
     if (!book) return null;
     return {
       ...book,
+      coverUrl: normalizeCoverUrl(book.coverUrl),
       downloadUrl: BooksService.sanitizeElsciDownloadUrl(book.downloadUrl),
       createdAt: book.createdAt.toISOString(),
       updatedAt: book.updatedAt.toISOString(),

@@ -160,8 +160,8 @@ type StreamGenre = 'Nollywood' | 'Bollywood' | 'Hollywood';
                   class="appearance-none rounded-full border border-white/10 bg-white/5 px-4 py-2 pr-10 text-sm text-white transition-all duration-300 hover:border-[#800020]/50 hover:bg-white/10 focus:border-[#800020] focus:outline-none"
                 >
                   <option value="latest" class="bg-[#0a0a0a]">🆕 Latest Added</option>
-                  <option value="popular" class="bg-[#0a0a0a]">🔥 Most Viewed</option>
-                  <option value="newest" class="bg-[#0a0a0a]">📅 Release Year</option>
+                  <option value="popular" class="bg-[#0a0a0a]">Most Viewed</option>
+                  <option value="newest" class="bg-[#0a0a0a]">Release Year</option>
                 </select>
                 <svg class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -248,7 +248,7 @@ type StreamGenre = 'Nollywood' | 'Bollywood' | 'Hollywood';
         @if (!isLoading() && movies().length === 0) {
           <div class="flex flex-col items-center justify-center py-20 text-center">
             <div class="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-white/5">
-              <span class="text-4xl">🎬</span>
+              <span class="material-symbols-outlined text-4xl" aria-hidden="true">movie</span>
             </div>
             <h3 class="text-xl font-semibold text-white">No YouTube movies yet</h3>
             <p class="mt-2 max-w-md text-sm text-white/40">

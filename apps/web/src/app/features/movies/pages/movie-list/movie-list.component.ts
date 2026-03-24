@@ -377,11 +377,11 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
                   <div class="mb-3 flex items-center justify-between">
                     <h3 class="flex items-center gap-2 text-lg font-bold text-white">
                       @switch (key) {
-                        @case ('trending') { <span>🔥</span> }
-                        @case ('latest-2026') { <span>🆕</span> }
-                        @case ('latest-2025') { <span>🎬</span> }
-                        @case ('highest-rated') { <span>⭐</span> }
-                        @case ('award-winning') { <span>🏆</span> }
+                        @case ('trending') { <span class="material-symbols-outlined" aria-hidden="true">local_fire_department</span> }
+                        @case ('latest-2026') { <span class="material-symbols-outlined" aria-hidden="true">new_releases</span> }
+                        @case ('latest-2025') { <span class="material-symbols-outlined" aria-hidden="true">movie</span> }
+                        @case ('highest-rated') { <span class="material-symbols-outlined" aria-hidden="true">star</span> }
+                        @case ('award-winning') { <span class="material-symbols-outlined" aria-hidden="true">emoji_events</span> }
                       }
                       {{ sectionLabel(key) }}
                     </h3>
@@ -465,7 +465,7 @@ const MOVIE_SECTION_LABELS: Record<MovieSectionKey, string> = {
           } @else if (streamMovies().length === 0) {
             <!-- Empty State -->
             <div class="flex flex-col items-center justify-center py-20 text-center">
-              <div class="mb-4 text-6xl">🎬</div>
+              <div class="mb-4"><span class="material-symbols-outlined text-6xl" aria-hidden="true">movie</span></div>
               <h3 class="text-xl font-semibold text-white">No movies found</h3>
               <p class="mt-2 max-w-md text-sm text-white/40">Try adjusting your filters or search for something else.</p>
               <button 

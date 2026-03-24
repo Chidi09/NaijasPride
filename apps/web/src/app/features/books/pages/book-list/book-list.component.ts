@@ -76,7 +76,7 @@ type BookProgressResponse = {
                       referrerpolicy="no-referrer"
                     >
                   } @else {
-                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📚</div>
+                    <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">menu_book</span></div>
                   }
 
                   @if (getBookProgress(book.slug); as progress) {
@@ -121,7 +121,7 @@ type BookProgressResponse = {
 
       @if (!isLoading() && books().length === 0) {
         <div class="text-center py-24 text-[#8a756e] dark:text-gray-400">
-          <span class="text-6xl">📚</span>
+          <span class="material-symbols-outlined text-6xl" aria-hidden="true">menu_book</span>
           <p class="text-lg font-serif text-[#24181b] dark:text-white mt-4">No books available yet.</p>
           <p class="text-[#9a857d] dark:text-gray-500">Check back soon for our growing library.</p>
         </div>
@@ -150,7 +150,7 @@ type BookProgressResponse = {
                           referrerpolicy="no-referrer"
                         >
                       } @else {
-                        <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                        <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
                       }
                     </div>
                     <div class="np-cover-body">

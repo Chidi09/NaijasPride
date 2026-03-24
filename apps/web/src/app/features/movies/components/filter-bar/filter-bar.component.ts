@@ -246,7 +246,7 @@ import { MoviesApiService } from '../../services/movies-api.service';
                     <img [src]="imageUrl" [alt]="movie.title" referrerpolicy="no-referrer"
                          style="width:36px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;">
                   } @else {
-                    <div style="width:36px;height:48px;border-radius:6px;background:rgba(128,0,32,0.15);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎬</div>
+                    <div style="width:36px;height:48px;border-radius:6px;background:rgba(128,0,32,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span class="material-symbols-outlined" aria-hidden="true" style="font-size:16px;line-height:1;">movie</span></div>
                   }
                   <div style="min-width:0;">
                     <p style="margin:0;font-size:13px;font-weight:600;color:#f9f9f2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ movie.title }}</p>

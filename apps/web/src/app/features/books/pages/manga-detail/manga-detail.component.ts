@@ -228,7 +228,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
               @if (manga.coverUrl) {
                 <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
               } @else {
-                <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
               }
             </div>
           </mat-card>
@@ -305,7 +305,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                   (click)="toggleChapterWatch()"
                   [title]="library.isWatchingManga(currentMangaId()) ? 'Stop notifications for new chapters' : 'Notify me when new chapters drop'"
                 >
-                  {{ library.isWatchingManga(currentMangaId()) ? '🔔 Watching' : '🔕 Watch Chapters' }}
+                  {{ library.isWatchingManga(currentMangaId()) ? 'Watching' : 'Watch Chapters' }}
                 </button>
               }
 
@@ -578,7 +578,7 @@ const parseSourceEntityId = (entityId: string): { sourceId: string; rawId: strin
                         @if (item.coverUrl) {
                           <img [src]="item.coverUrl" [alt]="item.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                         } @else {
-                          <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                          <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
                         }
                       </div>
                       <div class="np-cover-body">

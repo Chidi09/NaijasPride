@@ -165,7 +165,7 @@ import { ProfileStatsCardComponent, ProfileStat } from '../../../../shared/compo
               
               @if (continueWatching.length === 0) {
                 <div class="col-span-full text-center py-20 text-[#8a756e] dark:text-gray-500">
-                  <div class="mb-4 text-6xl">🎬</div>
+                  <div class="mb-4"><span class="material-symbols-outlined text-6xl" aria-hidden="true">movie</span></div>
                   <p class="text-lg mb-4">No movies in progress.</p>
                   <a routerLink="/movies" class="text-cinema-500 hover:text-cinema-400">Start watching something →</a>
                 </div>
@@ -283,7 +283,7 @@ import { ProfileStatsCardComponent, ProfileStat } from '../../../../shared/compo
                         >
                       } @else {
                         <div class="w-full aspect-[2/3] flex items-center justify-center bg-[#dfc8bb] dark:bg-cinema-700">
-                          <span class="text-3xl">🎬</span>
+                          <span class="material-symbols-outlined text-3xl" aria-hidden="true">movie</span>
                         </div>
                       }
                       <div class="p-2">

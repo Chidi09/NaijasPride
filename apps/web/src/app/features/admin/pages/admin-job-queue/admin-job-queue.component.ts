@@ -135,7 +135,7 @@ interface QueueJob {
         </div>
       } @else if (!loading && !error) {
         <div class="text-center py-12 bg-white dark:bg-cinema-800 rounded-xl border border-[#dcc5b8] dark:border-gray-700">
-          <div class="text-5xl mb-4">📊</div>
+          <div class="mb-4"><span class="material-symbols-outlined text-5xl" aria-hidden="true">monitoring</span></div>
           <h3 class="text-lg font-medium text-[#24181b] dark:text-white mb-2">No queues configured</h3>
           <p class="text-[#7b6660] dark:text-gray-400">Redis is not configured or no queues are active.</p>
         </div>

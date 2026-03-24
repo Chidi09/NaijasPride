@@ -53,7 +53,7 @@ type LightNovelSeriesDetail = {
               } @else {
                 <mat-card class="np-cover-card">
                   <div class="np-cover-media">
-                    <div class="absolute inset-0 flex items-center justify-center text-6xl">📚</div>
+                    <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-6xl" aria-hidden="true">menu_book</span></div>
                   </div>
                 </mat-card>
               }

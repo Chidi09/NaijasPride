@@ -56,7 +56,7 @@ import { ToastService } from '../../../../core/services/toast.service';
       @if (error()) {
         <div class="min-h-screen flex items-center justify-center px-6">
           <div class="text-center max-w-sm space-y-6">
-            <div class="text-6xl">📭</div>
+            <div><span class="material-symbols-outlined text-6xl" aria-hidden="true">inbox</span></div>
             <h1 class="font-['Cinzel'] text-2xl font-bold">Wrapped Not Ready</h1>
             <p class="text-[#a88a78]">{{ error() }}</p>
             
@@ -114,7 +114,7 @@ import { ToastService } from '../../../../core/services/toast.service';
           @if (showSwipeHint()) {
             <div class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-bounce">
               <p class="text-sm text-[#a88a78] bg-[#120a0d]/80 px-4 py-2 rounded-full">
-                👆 Swipe to explore
+                <span class="material-symbols-outlined align-middle mr-1" aria-hidden="true">swipe_up</span>Swipe to explore
               </p>
             </div>
           }

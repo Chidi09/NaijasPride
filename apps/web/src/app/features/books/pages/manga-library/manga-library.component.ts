@@ -430,7 +430,7 @@ type MangaSourceHealth = {
                                   @if (manga.coverUrl) {
                                     <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                                   } @else {
-                                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                                    <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
                                   }
                                 </div>
                                 <div class="np-cover-body">
@@ -461,7 +461,7 @@ type MangaSourceHealth = {
                                   @if (manga.coverUrl) {
                                     <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                                   } @else {
-                                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                                    <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
                                   }
                                 </div>
                                 <div class="np-cover-body">
@@ -492,7 +492,7 @@ type MangaSourceHealth = {
                                   @if (manga.coverUrl) {
                                     <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                                   } @else {
-                                    <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                                    <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
                                   }
                                 </div>
                                 <div class="np-cover-body">
@@ -541,7 +541,7 @@ type MangaSourceHealth = {
                             @if (manga.coverUrl) {
                               <img [src]="manga.coverUrl" [alt]="manga.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                             } @else {
-                              <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                              <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
                             }
                           </div>
                           <div class="np-cover-body">
@@ -579,7 +579,7 @@ type MangaSourceHealth = {
                         @if (fav.coverUrl) {
                           <img [src]="fav.coverUrl" [alt]="fav.title" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                         } @else {
-                          <div class="absolute inset-0 flex items-center justify-center text-4xl">📘</div>
+                          <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-4xl" aria-hidden="true">auto_stories</span></div>
                         }
                       </div>
                       <div class="np-cover-body">

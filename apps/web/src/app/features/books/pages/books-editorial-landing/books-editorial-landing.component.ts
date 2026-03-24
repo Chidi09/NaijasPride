@@ -259,7 +259,7 @@ type MangaHistoryResponse = {
                     >
                   } @else {
                     <div class="w-full h-full flex items-center justify-center">
-                      <span class="text-6xl">📚</span>
+                      <span class="material-symbols-outlined text-6xl" aria-hidden="true">menu_book</span>
                     </div>
                   }
                   
@@ -303,7 +303,7 @@ type MangaHistoryResponse = {
                     >
                   } @else {
                     <div class="w-full h-full flex items-center justify-center">
-                      <span class="text-6xl">📖</span>
+                      <span class="material-symbols-outlined text-6xl" aria-hidden="true">library_books</span>
                     </div>
                   }
                   
@@ -352,7 +352,7 @@ type MangaHistoryResponse = {
                     >
                   } @else {
                     <div class="w-full h-full flex items-center justify-center">
-                      <span class="text-6xl">🎌</span>
+                      <span class="material-symbols-outlined text-6xl" aria-hidden="true">collections_bookmark</span>
                     </div>
                   }
                   
@@ -418,7 +418,7 @@ type MangaHistoryResponse = {
                   @if (book.coverUrl) {
                     <img [src]="book.coverUrl" [alt]="book.title" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
-                    <div class="w-full h-full flex items-center justify-center text-3xl">📚</div>
+                    <div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-3xl" aria-hidden="true">menu_book</span></div>
                   }
 
                   @if (getBookProgress(book.slug); as progress) {
@@ -454,7 +454,7 @@ type MangaHistoryResponse = {
                 @if (series.coverUrl) {
                   <img [src]="series.coverUrl" [alt]="series.seriesTitle" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                 } @else {
-                  <div class="w-full h-full flex items-center justify-center text-3xl">📘</div>
+                  <div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-3xl" aria-hidden="true">auto_stories</span></div>
                 }
 
                 @if (getSeriesProgress(series.volumes); as progress) {
@@ -499,7 +499,7 @@ type MangaHistoryResponse = {
                   @if (comic.coverUrl) {
                     <img [src]="comic.coverUrl" [alt]="comic.title" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
-                    <div class="w-full h-full flex items-center justify-center text-3xl">📖</div>
+                    <div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-3xl" aria-hidden="true">library_books</span></div>
                   }
                   @if (comic.latestChapter) {
                     <div class="absolute bottom-2 left-2 bg-[var(--books-bg)] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ comic.latestChapter }}</div>
@@ -546,7 +546,7 @@ type MangaHistoryResponse = {
                   @if (m.coverUrl) {
                     <img [src]="m.coverUrl" [alt]="m.title" class="w-full h-full object-cover image-zoom" loading="lazy" referrerpolicy="no-referrer">
                   } @else {
-                    <div class="w-full h-full flex items-center justify-center text-3xl">🎌</div>
+                    <div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-3xl" aria-hidden="true">collections_bookmark</span></div>
                   }
                   @if (m.latestChapter) {
                     <div class="absolute bottom-2 left-2 bg-[var(--books-bg)] px-2 py-0.5 text-[10px] tracking-wider">CH. {{ m.latestChapter }}</div>
