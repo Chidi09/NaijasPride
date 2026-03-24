@@ -315,7 +315,7 @@ export class BooksService {
           coverUrl:
             pickLatestSeriesCover(sortedVolumes) ||
             entry.coverUrl ||
-            (sortedVolumes[0]?.slug ? `/api/v1/books/cover/${encodeURIComponent(sortedVolumes[0].slug)}` : null),
+            null,
           volumes: sortedVolumes,
           latestUpdatedAt: entry.latestUpdatedAt,
         };
@@ -403,7 +403,7 @@ export class BooksService {
     const latestYear = sameSeries.reduce((acc, item) => Math.max(acc, item.year), 0);
     const coverUrl =
       sameSeries.find((item) => !!item.coverUrl)?.coverUrl ||
-      (sameSeries[0]?.slug ? `/api/v1/books/cover/${encodeURIComponent(sameSeries[0].slug)}` : null);
+      null;
 
     return {
       seriesKey: targetMeta.seriesKey,
