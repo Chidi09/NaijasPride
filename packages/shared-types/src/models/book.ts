@@ -16,6 +16,7 @@ export interface Book {
   rating: number | null;
   publisher: string | null;
   downloadCount: number;
+  viewCount: number;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -31,4 +32,5 @@ export interface BookSummary {
   genre: string[];
   rating: number | null;
   pageCount: number | null;
+  viewCount?: number;
 }

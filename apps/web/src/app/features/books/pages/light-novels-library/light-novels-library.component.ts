@@ -19,6 +19,7 @@ type LightNovelVolume = {
   format: string;
   downloadUrl: string | null;
   fileSize: number | null;
+  viewCount: number;
   publisher: string | null;
   description?: string | null;
   createdAt: string;
@@ -206,6 +207,7 @@ type BookProgressResponse = {
                     {{ seriesAuthor(item) !== 'Author unavailable' ? seriesAuthor(item) : '' }}
                     @if (seriesAuthor(item) !== 'Author unavailable') { · }
                     {{ item.totalVolumes }} vol{{ item.totalVolumes === 1 ? '' : 's' }} · {{ item.latestYear }}
+                    @if (seriesViews(item) > 0) { · {{ formatCompactNumber(seriesViews(item)) }} views }
                   </p>
                 </div>
 
@@ -369,6 +371,16 @@ export class LightNovelsLibraryComponent {
       return 'Author unavailable';
     }
     return author;
+  }
+
+  seriesViews(series: LightNovelSeries): number {
+    return series.volumes.reduce((sum, volume) => sum + (volume.viewCount || 0), 0);
+  }
+
+  formatCompactNumber(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return String(value);
   }
 
   seriesBlurb(series: LightNovelSeries): string {

@@ -119,7 +119,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
       <!-- Title + year below card -->
       <div class="px-3 py-2.5">
         <p class="truncate text-[12px] font-semibold leading-tight text-[#f9f9f2]">{{ displayTitle }}</p>
-        <p class="mt-0.5 text-[10px] text-[#a88a78]">{{ movie.year }}</p>
+        <p class="mt-0.5 text-[10px] text-[#a88a78]">{{ movie.year }} · {{ formatCount(movie.viewCount ?? 0) }} views</p>
       </div>
     </div>
 
@@ -203,6 +203,12 @@ export class MovieCardYoutubeComponent implements OnChanges {
       return 0;
     }
     return Math.max(0, Math.min(100, this.progress));
+  }
+
+  formatCount(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return String(value);
   }
 
   shouldWatchMovie() {

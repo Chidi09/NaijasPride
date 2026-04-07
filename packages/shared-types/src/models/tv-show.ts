@@ -32,6 +32,7 @@ export interface TvShow {
   posterUrl: string | null;
   backdropUrl: string | null;
   trailerUrl: string | null;
+  viewCount: number;
   status: ContentStatus;
   createdAt: string;
   updatedAt: string;
@@ -52,4 +53,5 @@ export interface TvShowSummary {
   canStream: boolean;
   seasonCount: number;
   episodeCount: number;
+  viewCount: number;
 }

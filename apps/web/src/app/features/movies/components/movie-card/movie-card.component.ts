@@ -105,7 +105,7 @@ import { ProfileQueryService } from '../../../profile/services/profile-query.ser
 
         <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-3">
           <h3 class="font-semibold text-white text-sm leading-tight line-clamp-2">{{ displayTitle }}</h3>
-          <p class="mt-1 text-[11px] text-gray-200/90">{{ movie.year }} • {{ movie.genre?.[0] || 'Feature' }}</p>
+          <p class="mt-1 text-[11px] text-gray-200/90">{{ movie.year }} • {{ movie.genre?.[0] || 'Feature' }} • {{ formatCount(movie.viewCount ?? 0) }} views</p>
           <div class="mt-2 flex items-center gap-2 text-[10px]">
             <span class="rounded-full bg-white/20 px-2 py-0.5 text-white">{{ movie.genre?.[0] || 'Movie' }}</span>
             @if (shouldWatchMovie()) {
@@ -236,6 +236,12 @@ export class MovieCardComponent implements OnChanges {
       return 0;
     }
     return Math.max(0, Math.min(100, this.progress));
+  }
+
+  formatCount(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return String(value);
   }
 
   primaryImage(movie: MovieSummary): string | null {

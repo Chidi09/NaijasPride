@@ -66,6 +66,15 @@ import { TvShowFavoritesService } from '../../services/tv-show-favorites.service
               </svg>
               <span class="text-xs">{{ show.episodeCount }} Episodes</span>
             </div>
+
+            @if ((show.viewCount ?? 0) > 0) {
+              <div class="mt-1 flex items-center gap-1 text-white/70">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.55-2.28A1 1 0 0121 8.62v6.76a1 1 0 01-1.45.9L15 14m-9 3h6a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                </svg>
+                <span class="text-xs">{{ formatCount(show.viewCount ?? 0) }} views</span>
+              </div>
+            }
           </div>
         </div>
 
@@ -86,6 +95,9 @@ import { TvShowFavoritesService } from '../../services/tv-show-favorites.service
             <span class="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-white/50">{{ genre }}</span>
           }
         </div>
+        @if ((show.viewCount ?? 0) > 0) {
+          <p class="mt-1 text-[10px] text-white/45">{{ formatCount(show.viewCount ?? 0) }} views</p>
+        }
       </div>
     </a>
   `,
@@ -147,5 +159,11 @@ export class TvShowCardComponent {
 
     image.src = this.placeholder;
     image.classList.add('loaded');
+  }
+
+  formatCount(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return String(value);
   }
 }

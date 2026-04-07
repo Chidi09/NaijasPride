@@ -87,7 +87,11 @@ type BookProgressResponse = {
                 </div>
                 <div class="np-cover-body">
                   <div class="np-cover-title">{{ book.title }}</div>
-                  <div class="np-cover-meta">{{ book.author }} @if (book.year) { • {{ book.year }} }</div>
+                  <div class="np-cover-meta">
+                    {{ book.author }}
+                    @if (book.year) { • {{ book.year }} }
+                    @if ((book.viewCount ?? 0) > 0) { • {{ formatCompactCount(book.viewCount ?? 0) }} views }
+                  </div>
                   <div class="mt-2 flex gap-1.5">
                     <a
                       [routerLink]="['/books/novel', book.slug, 'read']"
@@ -242,6 +246,12 @@ export class BookListComponent {
 
   toRouteParam(value: string) {
     return encodeURIComponent(value);
+  }
+
+  formatCompactCount(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return String(value);
   }
 
   getBookProgress(slug?: string): number | null {

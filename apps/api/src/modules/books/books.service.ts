@@ -26,6 +26,7 @@ export type LightNovelVolumeSummary = Pick<
   | 'downloadUrl'
   | 'fileSize'
   | 'publisher'
+  | 'viewCount'
   | 'description'
   | 'createdAt'
   | 'updatedAt'
@@ -201,6 +202,7 @@ export class BooksService {
     downloadUrl: string | null;
     fileSize: number | null;
     publisher: string | null;
+    viewCount: number;
     createdAt: Date;
     updatedAt: Date;
     description: string | null;
@@ -218,6 +220,7 @@ export class BooksService {
       downloadUrl: BooksService.sanitizeElsciDownloadUrl(book.downloadUrl),
       fileSize: book.fileSize,
       publisher: book.publisher,
+      viewCount: book.viewCount,
       description: book.description,
       createdAt: book.createdAt.toISOString(),
       updatedAt: book.updatedAt.toISOString(),

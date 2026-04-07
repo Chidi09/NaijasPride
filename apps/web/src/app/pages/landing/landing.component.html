@@ -113,6 +113,7 @@
             <span *ngIf="movie.rating" class="text-green-400">{{ movie.rating }}% Match</span>
             <span>{{ movie.year }}</span>
             <span *ngIf="movie.genre?.length">• {{ movie.genre[0] }}</span>
+            <span>• {{ formatCount(movie.viewCount ?? 0) }} views</span>
           </div>
         </div>
       </div>
@@ -153,6 +154,7 @@
             <span *ngIf="movie.rating" class="text-green-400">{{ movie.rating }}% Match</span>
             <span>{{ movie.year }}</span>
             <span *ngIf="movie.genre?.length">• {{ movie.genre[0] }}</span>
+            <span>• {{ formatCount(movie.viewCount ?? 0) }} views</span>
           </div>
         </div>
       </a>
@@ -199,7 +201,7 @@
           </div>
         </div>
         <p class="mt-2 text-[#24181b] dark:text-white text-xs font-medium line-clamp-1 group-hover:text-[#800020] dark:group-hover:text-[#d6b87a] transition">{{ movie.title }}</p>
-        <p class="text-[#8a756e] dark:text-gray-500 text-[11px]">{{ movie.year }} • {{ movie.genre?.[0] }}</p>
+        <p class="text-[#8a756e] dark:text-gray-500 text-[11px]">{{ movie.year }} • {{ movie.genre?.[0] }} • {{ formatCount(movie.viewCount ?? 0) }} views</p>
       </a>
     </div>
 

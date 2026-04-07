@@ -299,6 +299,7 @@ export class TvShowsService {
       canStream: !!row.imdbId || !!row.tmdbId,
       seasonCount,
       episodeCount,
+      viewCount: row.viewCount,
     };
   }
 
@@ -317,6 +318,7 @@ export class TvShowsService {
       posterUrl: row.posterUrl,
       backdropUrl: row.backdropUrl,
       trailerUrl: row.trailerUrl,
+      viewCount: row.viewCount,
       status: row.status as unknown as ContentStatus,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

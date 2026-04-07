@@ -176,6 +176,9 @@ type LightNovelSeriesDetail = {
               @if (book.language) {
                 <span>• {{ book.language }}</span>
               }
+              @if ((book.viewCount ?? 0) > 0) {
+                <span>• {{ formatCompactCount(book.viewCount ?? 0) }} views</span>
+              }
             </div>
             
             @if (book.genre?.length) {
@@ -367,5 +370,11 @@ export class BookDetailComponent implements OnInit {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  formatCompactCount(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return String(value);
   }
 }

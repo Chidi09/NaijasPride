@@ -102,7 +102,10 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                           <img [src]="show.posterUrl || show.thumbnailUrl || '/assets/images/poster-placeholder.svg'" [alt]="show.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
                         </div>
                         <p class="mt-3 line-clamp-2 text-sm font-semibold text-white">{{ show.title }}</p>
-                        <p class="text-xs text-white/50">{{ show.seasonCount }} seasons • {{ show.episodeCount }} episodes</p>
+                        <p class="text-xs text-white/50">
+                          {{ show.seasonCount }} seasons • {{ show.episodeCount }} episodes
+                          @if ((show.viewCount ?? 0) > 0) { • {{ formatCount(show.viewCount ?? 0) }} views }
+                        </p>
                       </a>
                     }
                   </div>
@@ -168,6 +171,7 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                 {{ show.year }}
                 @if (show.seasonCount) { <span class="mx-1.5 text-white/20">·</span> {{ show.seasonCount }} season{{ show.seasonCount === 1 ? '' : 's' }} }
                 @if (show.episodeCount) { <span class="mx-1.5 text-white/20">·</span> {{ show.episodeCount }} episodes }
+                @if ((show.viewCount ?? 0) > 0) { <span class="mx-1.5 text-white/20">·</span> {{ formatCount(show.viewCount ?? 0) }} views }
               </p>
               <div class="flex flex-wrap gap-3">
                 <a [routerLink]="['/tv-shows', show.slug]"
@@ -886,5 +890,11 @@ export class TvShowsListComponent implements OnInit {
     if (typeof document === 'undefined') return;
     const target = document.getElementById('tv-full-list');
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  formatCount(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return String(value);
   }
 }
