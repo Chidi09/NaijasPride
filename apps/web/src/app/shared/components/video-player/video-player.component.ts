@@ -11,19 +11,20 @@ import {
   inject,
   Output,
   EventEmitter,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { Subject } from 'rxjs';
-import { debounceTime, takeUntil } from 'rxjs/operators';
-import { WatchApiService } from '../../../features/watch/services/watch-api.service';
-import { AnonymousWatchService } from '../../../core/services/anonymous-watch.service';
-import { AuthStateService } from '../../../core/auth/auth-state.service';
-import { BrandLogoComponent } from '../brand-logo/brand-logo.component';
-import { MovieSummary } from '@naijaspride/types';
-import { HttpClient } from '@angular/common/http';
-import { PwaService } from '../../../core/services/pwa.service';
-import { MilestoneService } from '../../../core/services/milestone.service';
-import { SymbolIconComponent } from '../symbol-icon/symbol-icon.component';
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { Subject } from "rxjs";
+import { debounceTime, takeUntil } from "rxjs/operators";
+import { WatchApiService } from "../../../features/watch/services/watch-api.service";
+import { AnonymousWatchService } from "../../../core/services/anonymous-watch.service";
+import { AuthStateService } from "../../../core/auth/auth-state.service";
+import { BrandLogoComponent } from "../brand-logo/brand-logo.component";
+import { MovieSummary } from "@naijaspride/types";
+import { HttpClient } from "@angular/common/http";
+import { PwaService } from "../../../core/services/pwa.service";
+import { MilestoneService } from "../../../core/services/milestone.service";
+import { SymbolIconComponent } from "../symbol-icon/symbol-icon.component";
+import { CheckIconComponent } from "../icons/check-icon.component";
 
 interface SubtitleInfo {
   language: string;
@@ -55,15 +56,21 @@ type YouTubeWindow = Window & {
 };
 
 @Component({
-  selector: 'app-video-player',
+  selector: "app-video-player",
   standalone: true,
-  imports: [CommonModule, BrandLogoComponent, SymbolIconComponent],
+  imports: [
+    CommonModule,
+    BrandLogoComponent,
+    SymbolIconComponent,
+    CheckIconComponent,
+  ],
   template: `
-    <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group"
-         tabindex="0"
-         (keydown)="onKeydown($event)"
-         #playerContainer>
-      
+    <div
+      class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group"
+      tabindex="0"
+      (keydown)="onKeydown($event)"
+      #playerContainer
+    >
       @if (youtubeId) {
         <div class="relative w-full h-full">
           <div #youtubeContainer class="w-full h-full"></div>
@@ -72,226 +79,301 @@ type YouTubeWindow = Window & {
 
       @if (videoUrl && !youtubeId) {
         <div class="relative w-full h-full">
-           <video 
-              #videoPlayer
-              [attr.src]="nativeVideoSrc" 
-              class="w-full h-full object-contain"
-              controls
-              controlsList="nodownload"
-              aria-label="Video player"
-              (timeupdate)="onTimeUpdate()"
-              (loadedmetadata)="onMetadataLoaded()"
-              (play)="onPlay()"
-              (pause)="onPause()"
-              (waiting)="onBufferingStart()"
-              (playing)="onBufferingEnd()"
-              (canplay)="onBufferingEnd()">
-             
-             <!-- Subtitle Track -->
-             @if (subtitleTrackUrl) {
-               <track 
-                 kind="subtitles" 
-                 [src]="subtitleTrackUrl" 
-                 srclang="en" 
-                 label="Subtitles"
-                 [default]="showSubtitles">
-             }
-            </video>
+          <video
+            #videoPlayer
+            [attr.src]="nativeVideoSrc"
+            class="w-full h-full object-contain"
+            controls
+            controlsList="nodownload"
+            aria-label="Video player"
+            (timeupdate)="onTimeUpdate()"
+            (loadedmetadata)="onMetadataLoaded()"
+            (play)="onPlay()"
+            (pause)="onPause()"
+            (waiting)="onBufferingStart()"
+            (playing)="onBufferingEnd()"
+            (canplay)="onBufferingEnd()"
+          >
+            <!-- Subtitle Track -->
+            @if (subtitleTrackUrl) {
+              <track
+                kind="subtitles"
+                [src]="subtitleTrackUrl"
+                srclang="en"
+                label="Subtitles"
+                [default]="showSubtitles"
+              />
+            }
+          </video>
 
-            @if (pwaService.isTV() && movie) {
-              <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between bg-gradient-to-b from-black/80 via-black/20 to-transparent px-6 py-5 md:px-8">
-                <div>
-                  <p class="text-[11px] uppercase tracking-[0.24em] text-[#d0a97a]">Now Playing</p>
-                  <h2 class="mt-2 text-2xl font-black text-white md:text-4xl">{{ movie.title }}</h2>
+          @if (pwaService.isTV() && movie) {
+            <div
+              class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between bg-gradient-to-b from-black/80 via-black/20 to-transparent px-6 py-5 md:px-8"
+            >
+              <div>
+                <p
+                  class="text-[11px] uppercase tracking-[0.24em] text-[#d0a97a]"
+                >
+                  Now Playing
+                </p>
+                <h2 class="mt-2 text-2xl font-black text-white md:text-4xl">
+                  {{ movie.title }}
+                </h2>
+              </div>
+              @if (movie.year) {
+                <div
+                  class="rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/70 backdrop-blur-sm"
+                >
+                  {{ movie.year }}
                 </div>
-                @if (movie.year) {
-                  <div class="rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/70 backdrop-blur-sm">{{ movie.year }}</div>
-                }
-              </div>
-            }
-            
-            <!-- Quality Selector Overlay (HLS only) -->
-            @if (showQualitySelector && qualityLevels.length > 1) {
-              <div class="absolute top-4 left-4 z-20">
-                <div class="relative group/quality">
-                 <button 
-                   (click)="toggleQualityMenu()"
-                   aria-label="Video quality"
-                   class="bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded backdrop-blur-sm transition-colors text-sm font-medium flex items-center gap-2">
-                   <span>{{ selectedQualityLabel }}</span>
-                    <app-symbol-icon name="expand_more" [size]="18"></app-symbol-icon>
-                  </button>
-                 
-                 @if (qualityMenuOpen) {
-                   <div class="absolute top-full left-0 mt-1 bg-black/90 rounded-lg overflow-hidden min-w-[140px] shadow-xl">
-                     @for (level of qualityLevels; track level.level) {
-                       <button
-                         (click)="setQualityLevel(level.level)"
-                         class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors"
-                         [class.text-white]="currentLevel !== level.level"
-                         [class.text-red-400]="currentLevel === level.level"
-                         [class.font-medium]="currentLevel === level.level">
-                         {{ level.label }}
-                         @if (currentLevel === level.level) {
-                           <span class="ml-2">✓</span>
-                         }
-                       </button>
-                     }
-                     <div class="border-t border-white/10"></div>
-                     <button
-                       (click)="setAutoQuality()"
-                       class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors"
-                       [class.text-white]="!autoQualityEnabled"
-                       [class.text-red-400]="autoQualityEnabled"
-                       [class.font-medium]="autoQualityEnabled">
-                       Auto
-                       @if (autoQualityEnabled) {
-                         <span class="ml-2">✓</span>
-                       }
-                     </button>
-                   </div>
-                 }
-               </div>
-             </div>
-           }
-           
-           <!-- Skip Buttons Overlay -->
-           @if (config.showSkipButtons && showControls) {
-             <div class="absolute inset-0 flex items-center justify-between px-8 pointer-events-none">
-               <!-- Rewind Button -->
-                <button 
-                  (click)="skip(-10)"
-                  aria-label="Rewind 10 seconds"
-                  class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
-                  <div class="flex flex-col items-center">
-                    <app-symbol-icon name="replay_10" [size]="pwaService.isTV() ? 42 : 32"></app-symbol-icon>
-                    <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">-10s</span>
-                  </div>
+              }
+            </div>
+          }
+
+          <!-- Quality Selector Overlay (HLS only) -->
+          @if (showQualitySelector && qualityLevels.length > 1) {
+            <div class="absolute top-4 left-4 z-20">
+              <div class="relative group/quality">
+                <button
+                  (click)="toggleQualityMenu()"
+                  aria-label="Video quality"
+                  class="bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded backdrop-blur-sm transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <span>{{ selectedQualityLabel }}</span>
+                  <app-symbol-icon
+                    name="expand_more"
+                    [size]="18"
+                  ></app-symbol-icon>
                 </button>
 
-               <!-- Forward Button -->
-                <button 
-                  (click)="skip(30)"
-                  aria-label="Skip forward 30 seconds"
-                  class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip">
-                  <div class="flex flex-col items-center">
-                    <app-symbol-icon name="forward_30" [size]="pwaService.isTV() ? 42 : 32"></app-symbol-icon>
-                    <span class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity">+30s</span>
-                  </div>
-                </button>
-             </div>
-           }
-
-            <!-- Buffering Spinner -->
-            @if (isBuffering) {
-              <div class="absolute inset-0 flex items-center justify-center bg-black/30 z-20 pointer-events-none">
-                <div class="animate-spin rounded-full h-16 w-16 border-4 border-white/30 border-t-white"></div>
-              </div>
-            }
-
-            <!-- Fullscreen Button -->
-            @if (showControls) {
-              <div class="absolute bottom-20 left-4 z-10">
-                <button 
-                  (click)="toggleFullscreen()"
-                  aria-label="Toggle fullscreen"
-                  class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors">
-                  @if (isFullscreen) {
-                    <app-symbol-icon name="fullscreen_exit" [size]="24"></app-symbol-icon>
-                  } @else {
-                    <app-symbol-icon name="fullscreen" [size]="24"></app-symbol-icon>
-                  }
-                </button>
-              </div>
-            }
-
-            <!-- CC Button & Subtitle Upload -->
-            @if (showControls) {
-              <div class="absolute bottom-20 right-4 z-10">
-                <div class="relative group/cc">
-                  <button 
-                    (click)="toggleSubtitles()"
-                    aria-label="Toggle subtitles"
-                    class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors"
-                    [class.text-red-500]="showSubtitles && subtitleTrackUrl">
-                    <app-symbol-icon name="subtitles" [size]="22"></app-symbol-icon>
-                  </button>
-                  
-                  <div class="absolute bottom-12 right-0 bg-black/90 p-2 rounded hidden group-hover/cc:block min-w-[220px]">
-                    <!-- Search Subtitles Button -->
-                    <button
-                      (click)="searchOpenSubtitles()"
-                      [disabled]="searchingSubtitles"
-                      class="cursor-pointer text-xs text-white hover:bg-white/10 block p-2 w-full text-left">
-                      @if (searchingSubtitles) {
-                        <span class="flex items-center gap-2">
-                          <span class="animate-spin h-3 w-3 border-2 border-white/30 border-t-white rounded-full"></span>
-                          Searching...
-                        </span>
-                      } @else {
-                        Search OpenSubtitles
-                      }
-                    </button>
-                    
-                    <div class="border-t border-white/10 my-1"></div>
-                    
-                    <!-- Available Subtitles -->
-                    @if (availableSubtitles.length > 0) {
-                      <div class="mb-2">
-                        <p class="text-xs text-gray-400 px-2 py-1">Available Subtitles:</p>
-                        @for (sub of availableSubtitles; track sub.url) {
-                          <button
-                            (click)="loadSubtitle(sub)"
-                            class="text-xs text-gray-300 hover:text-white hover:bg-white/10 block p-2 w-full text-left">
-                            {{ sub.language }} - {{ sub.name }}
-                          </button>
-                        }
-                      </div>
-                      <div class="border-t border-white/10 my-1"></div>
-                    }
-                    
-                    <label class="cursor-pointer text-xs text-gray-300 hover:text-white block p-2">
-                      Upload Subtitle (.vtt, .srt)
-                      <input
-                        type="file"
-                        accept=".vtt,.srt"
-                        (change)="onSubtitleSelected($event)"
-                        class="hidden"
-                        aria-label="Upload subtitle file"
+                @if (qualityMenuOpen) {
+                  <div
+                    class="absolute top-full left-0 mt-1 bg-black/90 rounded-lg overflow-hidden min-w-[140px] shadow-xl"
+                  >
+                    @for (level of qualityLevels; track level.level) {
+                      <button
+                        (click)="setQualityLevel(level.level)"
+                        class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+                        [class.text-white]="currentLevel !== level.level"
+                        [class.text-red-400]="currentLevel === level.level"
+                        [class.font-medium]="currentLevel === level.level"
                       >
-                    </label>
-                    @if (subtitleTrackUrl) {
-                      <button 
-                        (click)="clearSubtitles()"
-                        class="text-xs text-red-400 hover:text-red-300 block p-2 w-full text-left">
-                        Clear Subtitles
+                        {{ level.label }}
+                        @if (currentLevel === level.level) {
+                          <app-check-icon
+                            className="ml-2"
+                            [size]="14"
+                            fillColor="#f87171"
+                          />
+                        }
                       </button>
                     }
+                    <div class="border-t border-white/10"></div>
+                    <button
+                      (click)="setAutoQuality()"
+                      class="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+                      [class.text-white]="!autoQualityEnabled"
+                      [class.text-red-400]="autoQualityEnabled"
+                      [class.font-medium]="autoQualityEnabled"
+                    >
+                      Auto
+                      @if (autoQualityEnabled) {
+                        <app-check-icon
+                          className="ml-2"
+                          [size]="14"
+                          fillColor="#f87171"
+                        />
+                      }
+                    </button>
                   </div>
+                }
+              </div>
+            </div>
+          }
+
+          <!-- Skip Buttons Overlay -->
+          @if (config.showSkipButtons && showControls) {
+            <div
+              class="absolute inset-0 flex items-center justify-between px-8 pointer-events-none"
+            >
+              <!-- Rewind Button -->
+              <button
+                (click)="skip(-10)"
+                aria-label="Rewind 10 seconds"
+                class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip"
+              >
+                <div class="flex flex-col items-center">
+                  <app-symbol-icon
+                    name="replay_10"
+                    [size]="pwaService.isTV() ? 42 : 32"
+                  ></app-symbol-icon>
+                  <span
+                    class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity"
+                    >-10s</span
+                  >
+                </div>
+              </button>
+
+              <!-- Forward Button -->
+              <button
+                (click)="skip(30)"
+                aria-label="Skip forward 30 seconds"
+                class="pointer-events-auto bg-black/60 hover:bg-black/80 text-white p-4 rounded-full transition-all transform hover:scale-110 backdrop-blur-sm group/skip"
+              >
+                <div class="flex flex-col items-center">
+                  <app-symbol-icon
+                    name="forward_30"
+                    [size]="pwaService.isTV() ? 42 : 32"
+                  ></app-symbol-icon>
+                  <span
+                    class="text-xs mt-1 opacity-0 group-hover/skip:opacity-100 transition-opacity"
+                    >+30s</span
+                  >
+                </div>
+              </button>
+            </div>
+          }
+
+          <!-- Buffering Spinner -->
+          @if (isBuffering) {
+            <div
+              class="absolute inset-0 flex items-center justify-center bg-black/30 z-20 pointer-events-none"
+            >
+              <div
+                class="animate-spin rounded-full h-16 w-16 border-4 border-white/30 border-t-white"
+              ></div>
+            </div>
+          }
+
+          <!-- Fullscreen Button -->
+          @if (showControls) {
+            <div class="absolute bottom-20 left-4 z-10">
+              <button
+                (click)="toggleFullscreen()"
+                aria-label="Toggle fullscreen"
+                class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors"
+              >
+                @if (isFullscreen) {
+                  <app-symbol-icon
+                    name="fullscreen_exit"
+                    [size]="24"
+                  ></app-symbol-icon>
+                } @else {
+                  <app-symbol-icon
+                    name="fullscreen"
+                    [size]="24"
+                  ></app-symbol-icon>
+                }
+              </button>
+            </div>
+          }
+
+          <!-- CC Button & Subtitle Upload -->
+          @if (showControls) {
+            <div class="absolute bottom-20 right-4 z-10">
+              <div class="relative group/cc">
+                <button
+                  (click)="toggleSubtitles()"
+                  aria-label="Toggle subtitles"
+                  class="bg-black/60 hover:bg-black/80 text-white p-2 rounded backdrop-blur-sm transition-colors"
+                  [class.text-red-500]="showSubtitles && subtitleTrackUrl"
+                >
+                  <app-symbol-icon
+                    name="subtitles"
+                    [size]="22"
+                  ></app-symbol-icon>
+                </button>
+
+                <div
+                  class="absolute bottom-12 right-0 bg-black/90 p-2 rounded hidden group-hover/cc:block min-w-[220px]"
+                >
+                  <!-- Search Subtitles Button -->
+                  <button
+                    (click)="searchOpenSubtitles()"
+                    [disabled]="searchingSubtitles"
+                    class="cursor-pointer text-xs text-white hover:bg-white/10 block p-2 w-full text-left"
+                  >
+                    @if (searchingSubtitles) {
+                      <span class="flex items-center gap-2">
+                        <span
+                          class="animate-spin h-3 w-3 border-2 border-white/30 border-t-white rounded-full"
+                        ></span>
+                        Searching...
+                      </span>
+                    } @else {
+                      Search OpenSubtitles
+                    }
+                  </button>
+
+                  <div class="border-t border-white/10 my-1"></div>
+
+                  <!-- Available Subtitles -->
+                  @if (availableSubtitles.length > 0) {
+                    <div class="mb-2">
+                      <p class="text-xs text-gray-400 px-2 py-1">
+                        Available Subtitles:
+                      </p>
+                      @for (sub of availableSubtitles; track sub.url) {
+                        <button
+                          (click)="loadSubtitle(sub)"
+                          class="text-xs text-gray-300 hover:text-white hover:bg-white/10 block p-2 w-full text-left"
+                        >
+                          {{ sub.language }} - {{ sub.name }}
+                        </button>
+                      }
+                    </div>
+                    <div class="border-t border-white/10 my-1"></div>
+                  }
+
+                  <label
+                    class="cursor-pointer text-xs text-gray-300 hover:text-white block p-2"
+                  >
+                    Upload Subtitle (.vtt, .srt)
+                    <input
+                      type="file"
+                      accept=".vtt,.srt"
+                      (change)="onSubtitleSelected($event)"
+                      class="hidden"
+                      aria-label="Upload subtitle file"
+                    />
+                  </label>
+                  @if (subtitleTrackUrl) {
+                    <button
+                      (click)="clearSubtitles()"
+                      class="text-xs text-red-400 hover:text-red-300 block p-2 w-full text-left"
+                    >
+                      Clear Subtitles
+                    </button>
+                  }
                 </div>
               </div>
-            }
-
+            </div>
+          }
         </div>
       }
 
       <!-- Resume Dialog (works for both MP4 and YouTube) -->
       @if (showResumeDialog && savedProgress > 0) {
-        <div class="absolute inset-0 flex items-center justify-center bg-black/70 z-50">
+        <div
+          class="absolute inset-0 flex items-center justify-center bg-black/70 z-50"
+        >
           <div class="bg-gray-900 p-6 rounded-lg max-w-md text-center">
             <h3 class="text-white text-xl font-bold mb-2">Resume Watching?</h3>
             <p class="text-gray-400 mb-4">
-              You left off at {{ formatTime(savedProgress) }}. Would you like to resume?
+              You left off at {{ formatTime(savedProgress) }}. Would you like to
+              resume?
             </p>
             <div class="flex gap-4 justify-center">
-              <button 
+              <button
                 (click)="resumeFromSaved()"
-                class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-medium transition-colors">
+                class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-medium transition-colors"
+              >
                 Resume
               </button>
-              <button 
+              <button
                 (click)="startFromBeginning()"
-                class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-full font-medium transition-colors">
+                class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-full font-medium transition-colors"
+              >
                 Start Over
               </button>
             </div>
@@ -300,19 +382,29 @@ type YouTubeWindow = Window & {
       }
 
       <!-- Brand Watermark -->
-      <div class="absolute top-4 right-4 bg-black/45 text-white text-[10px] font-bold px-2 py-1 rounded-md opacity-60 hover:opacity-100 transition-opacity pointer-events-none flex items-center gap-1.5 backdrop-blur-sm border border-white/10">
-        <app-brand-logo variant="mark" alt="NaijasPride" className="h-4 w-auto object-contain" />
+      <div
+        class="absolute top-4 right-4 bg-black/45 text-white text-[10px] font-bold px-2 py-1 rounded-md opacity-60 hover:opacity-100 transition-opacity pointer-events-none flex items-center gap-1.5 backdrop-blur-sm border border-white/10"
+      >
+        <app-brand-logo
+          variant="mark"
+          alt="NaijasPride"
+          className="h-4 w-auto object-contain"
+        />
         <span>STREAM</span>
       </div>
     </div>
   `,
-  styles: [`
-    :host {
-      display: block;
-    }
-  `]
+  styles: [
+    `
+      :host {
+        display: block;
+      }
+    `,
+  ],
 })
-export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
+export class VideoPlayerComponent
+  implements OnInit, OnChanges, AfterViewInit, OnDestroy
+{
   @Input() youtubeId?: string | null;
   @Input() videoUrl?: string | null;
   @Input() movieId?: string;
@@ -320,13 +412,13 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   @Input() config: VideoPlayerConfig = {
     showSkipButtons: true,
     autoResume: true,
-    saveProgress: true
+    saveProgress: true,
   };
   @Output() playerReady = new EventEmitter<void>();
 
-  @ViewChild('videoPlayer') videoRef!: ElementRef<HTMLVideoElement>;
-  @ViewChild('youtubeContainer') youtubeContainer?: ElementRef<HTMLDivElement>;
-  @ViewChild('playerContainer') playerContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild("videoPlayer") videoRef!: ElementRef<HTMLVideoElement>;
+  @ViewChild("youtubeContainer") youtubeContainer?: ElementRef<HTMLDivElement>;
+  @ViewChild("playerContainer") playerContainer!: ElementRef<HTMLDivElement>;
 
   private watchApi = inject(WatchApiService);
   private anonymousWatch = inject(AnonymousWatchService);
@@ -352,7 +444,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   isPlaying = false;
   isBuffering = false;
   isFullscreen = false;
-  
+
   // Subtitle state
   subtitleTrackUrl: string | null = null;
   showSubtitles = true;
@@ -371,15 +463,14 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   }
 
   ngOnInit() {
-    this.progressUpdate.pipe(
-      debounceTime(5000),
-      takeUntil(this.destroy$)
-    ).subscribe(progress => {
-      this.saveProgress(progress);
-    });
+    this.progressUpdate
+      .pipe(debounceTime(5000), takeUntil(this.destroy$))
+      .subscribe((progress) => {
+        this.saveProgress(progress);
+      });
 
     // Listen for fullscreen changes
-    document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    document.addEventListener("fullscreenchange", this.onFullscreenChange);
   }
 
   private onFullscreenChange = () => {
@@ -392,26 +483,26 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     }
 
     switch (event.key) {
-      case ' ':
-      case 'Spacebar':
+      case " ":
+      case "Spacebar":
         event.preventDefault();
         this.togglePlayPause();
         break;
-      case 'ArrowLeft':
+      case "ArrowLeft":
         event.preventDefault();
         this.skip(-10);
         break;
-      case 'ArrowRight':
+      case "ArrowRight":
         event.preventDefault();
         this.skip(30);
         break;
-      case 'f':
-      case 'F':
+      case "f":
+      case "F":
         event.preventDefault();
         this.toggleFullscreen();
         break;
-      case 'm':
-      case 'M':
+      case "m":
+      case "M":
         event.preventDefault();
         this.toggleMute();
         break;
@@ -472,9 +563,12 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
   searchOpenSubtitles() {
     if (!this.movieId || this.searchingSubtitles) return;
-    
+
     this.searchingSubtitles = true;
-    this.http.get<{ success: boolean; data?: SubtitleInfo[] }>(`/api/v1/movies/${this.movieId}/subtitles`)
+    this.http
+      .get<{ success: boolean; data?: SubtitleInfo[] }>(
+        `/api/v1/movies/${this.movieId}/subtitles`,
+      )
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
@@ -483,14 +577,14 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
             this.availableSubtitles = response.data;
             if (this.availableSubtitles.length === 0) {
               // Show a toast or message - for now just log
-              console.log('No subtitles found for this movie');
+              console.log("No subtitles found for this movie");
             }
           }
         },
         error: (err) => {
           this.searchingSubtitles = false;
-          console.error('Failed to search subtitles:', err);
-        }
+          console.error("Failed to search subtitles:", err);
+        },
       });
   }
 
@@ -499,24 +593,24 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     if (this.subtitleTrackUrl) {
       URL.revokeObjectURL(this.subtitleTrackUrl);
     }
-    
+
     this.subtitleTrackUrl = subtitle.url;
     this.showSubtitles = true;
-    
+
     // Force show subtitles on the video
     setTimeout(() => {
       if (this.videoRef?.nativeElement) {
         const video = this.videoRef.nativeElement;
         const tracks = video.textTracks;
         if (tracks.length > 0) {
-          tracks[0].mode = 'showing';
+          tracks[0].mode = "showing";
         }
       }
     }, 100);
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['youtubeId']) {
+    if (changes["youtubeId"]) {
       // YouTube needs JS API for progress tracking and resume.
       this.setupYouTubePlayer();
       if (this.youtubeId) {
@@ -524,11 +618,11 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
       }
     }
 
-    if (changes['videoUrl']) {
+    if (changes["videoUrl"]) {
       void this.setupHlsIfNeeded();
     }
 
-    if (changes['movieId'] && this.movieId && this.config.autoResume) {
+    if (changes["movieId"] && this.movieId && this.config.autoResume) {
       this.loadSavedProgress();
     }
   }
@@ -541,7 +635,11 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   ngOnDestroy() {
     this.destroyHls();
     this.stopYouTubePolling();
-    if (this.videoRef?.nativeElement && this.config.saveProgress && this.movieId) {
+    if (
+      this.videoRef?.nativeElement &&
+      this.config.saveProgress &&
+      this.movieId
+    ) {
       const currentTime = this.videoRef.nativeElement.currentTime;
       if (currentTime > 0) {
         this.saveProgress(Math.floor(currentTime));
@@ -550,7 +648,9 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
     if (this.youtubePlayer && this.config.saveProgress && this.movieId) {
       try {
-        const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
+        const current = Math.floor(
+          Number(this.youtubePlayer.getCurrentTime?.() || 0),
+        );
         if (current > 0) {
           this.saveProgress(current);
         }
@@ -568,10 +668,10 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
     this.destroy$.next();
     this.destroy$.complete();
-    
+
     // Clean up event listeners
-    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
-    
+    document.removeEventListener("fullscreenchange", this.onFullscreenChange);
+
     // Clean up subtitle object URL
     if (this.subtitleTrackUrl) {
       URL.revokeObjectURL(this.subtitleTrackUrl);
@@ -583,39 +683,39 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
   get nativeVideoSrc(): string | null {
     if (this.youtubeId) return null;
-    const url = (this.videoUrl || '').trim();
+    const url = (this.videoUrl || "").trim();
     if (!url) return null;
     if (!this.isHlsUrl(url)) return url;
     return this.canPlayHlsNatively() ? url : null;
   }
 
   get selectedQualityLabel(): string {
-    if (this.autoQualityEnabled) return 'Auto';
-    const level = this.qualityLevels.find(l => l.level === this.currentLevel);
-    return level?.label || 'Auto';
+    if (this.autoQualityEnabled) return "Auto";
+    const level = this.qualityLevels.find((l) => l.level === this.currentLevel);
+    return level?.label || "Auto";
   }
 
   private isHlsUrl(url: string): boolean {
-    const raw = (url || '').trim();
+    const raw = (url || "").trim();
     if (!raw) return false;
 
-    const withoutHash = raw.split('#')[0] || raw;
+    const withoutHash = raw.split("#")[0] || raw;
     try {
-      const parsed = new URL(withoutHash, 'http://localhost');
-      const key = parsed.searchParams.get('key');
-      const target = (key || parsed.pathname || '').toLowerCase();
-      return target.endsWith('.m3u8');
+      const parsed = new URL(withoutHash, "http://localhost");
+      const key = parsed.searchParams.get("key");
+      const target = (key || parsed.pathname || "").toLowerCase();
+      return target.endsWith(".m3u8");
     } catch {
-      const clean = (withoutHash.split('?')[0] || '').toLowerCase();
-      return clean.endsWith('.m3u8');
+      const clean = (withoutHash.split("?")[0] || "").toLowerCase();
+      return clean.endsWith(".m3u8");
     }
   }
 
   private canPlayHlsNatively(): boolean {
     try {
-      const video = document.createElement('video');
-      const a = video.canPlayType('application/vnd.apple.mpegurl');
-      const b = video.canPlayType('application/x-mpegURL');
+      const video = document.createElement("video");
+      const a = video.canPlayType("application/vnd.apple.mpegurl");
+      const b = video.canPlayType("application/x-mpegURL");
       return !!(a || b);
     } catch {
       return false;
@@ -624,7 +724,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
   private async setupHlsIfNeeded(): Promise<void> {
     if (this.youtubeId) return;
-    const url = (this.videoUrl || '').trim();
+    const url = (this.videoUrl || "").trim();
     if (!url) {
       this.destroyHls();
       return;
@@ -653,10 +753,10 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     const seq = ++this.hlsInitSeq;
 
     try {
-      const { default: Hls } = await import('hls.js');
+      const { default: Hls } = await import("hls.js");
       if (seq !== this.hlsInitSeq) return;
       if (!Hls?.isSupported?.()) {
-        console.warn('[VideoPlayer] HLS.js not supported in this browser');
+        console.warn("[VideoPlayer] HLS.js not supported in this browser");
         return;
       }
 
@@ -680,20 +780,27 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
             bitrate: level.bitrate,
             label: this.getQualityLabel(level.height, level.bitrate),
           }));
-          console.log('[VideoPlayer] Quality levels available:', this.qualityLevels.length);
+          console.log(
+            "[VideoPlayer] Quality levels available:",
+            this.qualityLevels.length,
+          );
         }
       });
 
       // Listen for level switches
       hls.on(Hls.Events.LEVEL_SWITCHED, (_event: any, data: any) => {
         this.currentLevel = data.level;
-        console.log('[VideoPlayer] Quality changed to level:', data.level);
+        console.log("[VideoPlayer] Quality changed to level:", data.level);
       });
 
       hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
         if (!data) return;
         if (data.fatal) {
-          console.error('[VideoPlayer] HLS fatal error:', data.type, data.details);
+          console.error(
+            "[VideoPlayer] HLS fatal error:",
+            data.type,
+            data.details,
+          );
           try {
             hls.destroy();
           } catch {
@@ -714,17 +821,17 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
         }
       });
     } catch (error) {
-      console.error('[VideoPlayer] Failed to load HLS.js', error);
+      console.error("[VideoPlayer] Failed to load HLS.js", error);
     }
   }
 
   private getQualityLabel(height: number, bitrate: number): string {
-    if (height >= 2160) return '4K';
-    if (height >= 1440) return '1440p';
-    if (height >= 1080) return '1080p';
-    if (height >= 720) return '720p';
-    if (height >= 480) return '480p';
-    if (height >= 360) return '360p';
+    if (height >= 2160) return "4K";
+    if (height >= 1440) return "1440p";
+    if (height >= 1080) return "1080p";
+    if (height >= 720) return "720p";
+    if (height >= 480) return "480p";
+    if (height >= 360) return "360p";
     return `${height}p`;
   }
 
@@ -733,19 +840,19 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     if (this.qualityMenuOpen) {
       // Close menu when clicking outside
       setTimeout(() => {
-        document.addEventListener('click', this.handleOutsideClick);
+        document.addEventListener("click", this.handleOutsideClick);
       }, 0);
     }
   }
 
   closeQualityMenu() {
     this.qualityMenuOpen = false;
-    document.removeEventListener('click', this.handleOutsideClick);
+    document.removeEventListener("click", this.handleOutsideClick);
   }
 
   private handleOutsideClick = (event: MouseEvent) => {
     const target = event.target as HTMLElement;
-    if (!target.closest('.group\\/quality')) {
+    if (!target.closest(".group\\/quality")) {
       this.closeQualityMenu();
     }
   };
@@ -754,7 +861,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     if (this.hls) {
       this.hls.currentLevel = level;
       this.autoQualityEnabled = false;
-      console.log('[VideoPlayer] Manual quality set to level:', level);
+      console.log("[VideoPlayer] Manual quality set to level:", level);
     }
     this.closeQualityMenu();
   }
@@ -763,7 +870,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     if (this.hls) {
       this.hls.currentLevel = -1; // -1 = auto
       this.autoQualityEnabled = true;
-      console.log('[VideoPlayer] Auto quality enabled');
+      console.log("[VideoPlayer] Auto quality enabled");
     }
     this.closeQualityMenu();
   }
@@ -793,18 +900,18 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
       if (this.subtitleTrackUrl) {
         URL.revokeObjectURL(this.subtitleTrackUrl);
       }
-      
+
       const url = URL.createObjectURL(file);
       this.subtitleTrackUrl = url;
       this.showSubtitles = true;
-      
+
       // Force show subtitles on the video
       setTimeout(() => {
         if (this.videoRef?.nativeElement) {
           const video = this.videoRef.nativeElement;
           const tracks = video.textTracks;
           if (tracks.length > 0) {
-            tracks[0].mode = 'showing';
+            tracks[0].mode = "showing";
           }
         }
       }, 100);
@@ -813,14 +920,14 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
   toggleSubtitles() {
     if (!this.subtitleTrackUrl) return;
-    
+
     this.showSubtitles = !this.showSubtitles;
-    
+
     if (this.videoRef?.nativeElement) {
       const video = this.videoRef.nativeElement;
       const tracks = video.textTracks;
       if (tracks.length > 0) {
-        tracks[0].mode = this.showSubtitles ? 'showing' : 'hidden';
+        tracks[0].mode = this.showSubtitles ? "showing" : "hidden";
       }
     }
   }
@@ -836,17 +943,18 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
   // Progress & Resume Methods
   private loadSavedProgress() {
     if (!this.movieId || !this.config.autoResume) return;
-    
+
     if (this.isAuthenticated) {
       // Use API for authenticated users
-      this.watchApi.getProgress(this.movieId).pipe(
-        takeUntil(this.destroy$)
-      ).subscribe(response => {
-        if (response.data && response.data.progress > 30) {
-          this.savedProgress = response.data.progress;
-          this.showResumeDialog = true;
-        }
-      });
+      this.watchApi
+        .getProgress(this.movieId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe((response) => {
+          if (response.data && response.data.progress > 30) {
+            this.savedProgress = response.data.progress;
+            this.showResumeDialog = true;
+          }
+        });
     } else {
       // Use localStorage for anonymous users
       const progress = this.anonymousWatch.getProgress(this.movieId);
@@ -894,7 +1002,10 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
       try {
         const current = Number(this.youtubePlayer.getCurrentTime?.() || 0);
         const duration = Number(this.youtubePlayer.getDuration?.() || 0);
-        const next = Math.max(0, Math.min(current + seconds, duration || current + seconds));
+        const next = Math.max(
+          0,
+          Math.min(current + seconds, duration || current + seconds),
+        );
         this.youtubePlayer.seekTo?.(next, true);
       } catch {
         // ignore
@@ -904,13 +1015,16 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
     if (!this.videoRef?.nativeElement) return;
     const video = this.videoRef.nativeElement;
-    const newTime = Math.max(0, Math.min(video.currentTime + seconds, video.duration || 0));
+    const newTime = Math.max(
+      0,
+      Math.min(video.currentTime + seconds, video.duration || 0),
+    );
     video.currentTime = newTime;
   }
 
   onTimeUpdate() {
     if (!this.videoRef?.nativeElement || !this.config.saveProgress) return;
-    
+
     const video = this.videoRef.nativeElement;
     const currentTime = Math.floor(video.currentTime);
     this.progressUpdate.next(currentTime);
@@ -958,7 +1072,7 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
       this.youtubePlayer = null;
 
       const container = this.youtubeContainer.nativeElement;
-      container.innerHTML = '';
+      container.innerHTML = "";
 
       const win = window as YouTubeWindow;
       const YT = win.YT;
@@ -972,12 +1086,15 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
-          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+          origin:
+            typeof window !== "undefined" ? window.location.origin : undefined,
         },
         events: {
           onReady: () => {
             try {
-              this.duration = Math.floor(Number(this.youtubePlayer.getDuration?.() || 0));
+              this.duration = Math.floor(
+                Number(this.youtubePlayer.getDuration?.() || 0),
+              );
             } catch {
               this.duration = 0;
             }
@@ -993,7 +1110,9 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
               this.isPlaying = false;
               this.stopYouTubePolling();
               try {
-                const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
+                const current = Math.floor(
+                  Number(this.youtubePlayer.getCurrentTime?.() || 0),
+                );
                 if (current > 0) {
                   this.saveProgress(current);
                 }
@@ -1004,7 +1123,9 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
               this.isPlaying = false;
               this.stopYouTubePolling();
               try {
-                const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
+                const current = Math.floor(
+                  Number(this.youtubePlayer.getCurrentTime?.() || 0),
+                );
                 if (current > 0) {
                   this.saveProgress(current);
                 }
@@ -1029,8 +1150,12 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
         return;
       }
       try {
-        const current = Math.floor(Number(this.youtubePlayer.getCurrentTime?.() || 0));
-        const duration = Math.floor(Number(this.youtubePlayer.getDuration?.() || 0));
+        const current = Math.floor(
+          Number(this.youtubePlayer.getCurrentTime?.() || 0),
+        );
+        const duration = Math.floor(
+          Number(this.youtubePlayer.getDuration?.() || 0),
+        );
         if (duration > 0) {
           this.duration = duration;
         }
@@ -1061,7 +1186,9 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     }
 
     win.__npYoutubeApiPromise = new Promise<void>((resolve) => {
-      const existing = document.querySelector('script[data-np-youtube-iframe-api="1"]') as HTMLScriptElement | null;
+      const existing = document.querySelector(
+        'script[data-np-youtube-iframe-api="1"]',
+      ) as HTMLScriptElement | null;
       if (existing) {
         // If script already exists, wait for callback.
         const prev = win.onYouTubeIframeAPIReady;
@@ -1072,11 +1199,11 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
         return;
       }
 
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
       script.async = true;
       script.defer = true;
-      script.dataset['npYoutubeIframeApi'] = '1';
+      script.dataset["npYoutubeIframeApi"] = "1";
       const prev = win.onYouTubeIframeAPIReady;
       win.onYouTubeIframeAPIReady = () => {
         prev?.();
@@ -1099,14 +1226,23 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
 
     if (this.isAuthenticated) {
       // Save to API for authenticated users
-      this.watchApi.saveProgress(this.movieId, progress, Math.floor(this.duration)).subscribe({
-        error: (err) => console.error('Failed to save progress:', err)
-      });
+      this.watchApi
+        .saveProgress(this.movieId, progress, Math.floor(this.duration))
+        .subscribe({
+          error: (err) => console.error("Failed to save progress:", err),
+        });
     } else if (this.movie) {
       // Save to localStorage for anonymous users
-      const percentage = this.duration > 0 ? (progress / this.duration) * 100 : 0;
+      const percentage =
+        this.duration > 0 ? (progress / this.duration) * 100 : 0;
       const completed = percentage >= 95;
-      this.anonymousWatch.saveProgress(this.movie, percentage, progress, Math.floor(this.duration), completed);
+      this.anonymousWatch.saveProgress(
+        this.movie,
+        percentage,
+        progress,
+        Math.floor(this.duration),
+        completed,
+      );
     }
   }
 
@@ -1114,10 +1250,10 @@ export class VideoPlayerComponent implements OnInit, OnChanges, AfterViewInit, O
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    
+
     if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
     }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   }
 }

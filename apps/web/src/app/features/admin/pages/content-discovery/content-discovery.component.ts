@@ -1,8 +1,9 @@
-import { Component, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
-import { FormsModule } from '@angular/forms';
-import { ToastService } from '../../../../core/services/toast.service';
+import { Component, inject, signal, computed } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { HttpClient } from "@angular/common/http";
+import { FormsModule } from "@angular/forms";
+import { ToastService } from "../../../../core/services/toast.service";
+import { CheckIconComponent } from "../../../../shared/components/icons/check-icon.component";
 
 interface YouTubeVideo {
   youtubeId: string;
@@ -44,7 +45,7 @@ interface BatchImportProgress {
   failed: number;
   currentBatch: number;
   totalBatches: number;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: "pending" | "running" | "completed" | "failed";
   errors: string[];
 }
 
@@ -69,65 +70,113 @@ interface ChannelImportResult {
 }
 
 @Component({
-  selector: 'app-content-discovery',
+  selector: "app-content-discovery",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CheckIconComponent],
   template: `
     <div class="p-6 max-w-6xl mx-auto text-[#24181b] dark:text-white">
       <div class="mb-6 flex justify-between items-end gap-4 flex-wrap">
         <div>
-          <h2 class="text-2xl font-serif text-[#24181b] dark:text-white mb-2">Content Scout</h2>
-          <p class="text-[#7b6660] dark:text-gray-400 text-sm">Automate discovery and ingestion of Nigerian movies from YouTube.</p>
+          <h2 class="text-2xl font-serif text-[#24181b] dark:text-white mb-2">
+            Content Scout
+          </h2>
+          <p class="text-[#7b6660] dark:text-gray-400 text-sm">
+            Automate discovery and ingestion of Nigerian movies from YouTube.
+          </p>
         </div>
-        
-        <div class="bg-blue-100/70 border border-blue-300 rounded-lg px-4 py-3 flex items-center gap-3 max-w-md dark:bg-blue-900/10 dark:border-blue-500/20">
-          <svg class="w-5 h-5 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <p class="text-[11px] text-blue-900/80 leading-tight dark:text-blue-200/60">
-            <strong>How it works:</strong> Add a channel URL to monitor it. Our workers check for new uploads every 6 hours. You can also manually trigger a scan to catch up on old videos.
+
+        <div
+          class="bg-blue-100/70 border border-blue-300 rounded-lg px-4 py-3 flex items-center gap-3 max-w-md dark:bg-blue-900/10 dark:border-blue-500/20"
+        >
+          <svg
+            class="w-5 h-5 text-blue-400 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <p
+            class="text-[11px] text-blue-900/80 leading-tight dark:text-blue-200/60"
+          >
+            <strong>How it works:</strong> Add a channel URL to monitor it. Our
+            workers check for new uploads every 6 hours. You can also manually
+            trigger a scan to catch up on old videos.
           </p>
         </div>
       </div>
 
       <!-- Tab buttons -->
-      <div class="flex gap-2 mb-8 border-b border-[#dcc5b8] pb-4 flex-wrap dark:border-[#5f1327]/40">
+      <div
+        class="flex gap-2 mb-8 border-b border-[#dcc5b8] pb-4 flex-wrap dark:border-[#5f1327]/40"
+      >
         <button
           (click)="activeTab.set('my-channels')"
-          [class]="activeTab() === 'my-channels'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
-        >My Channels</button>
+          [class]="
+            activeTab() === 'my-channels'
+              ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+              : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'
+          "
+        >
+          My Channels
+        </button>
         <button
           (click)="activeTab.set('channels')"
-          [class]="activeTab() === 'channels'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
-        >Add Channels (Bulk)</button>
+          [class]="
+            activeTab() === 'channels'
+              ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+              : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'
+          "
+        >
+          Add Channels (Bulk)
+        </button>
         <button
           (click)="activeTab.set('search')"
-          [class]="activeTab() === 'search'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
-        >Search by Title</button>
+          [class]="
+            activeTab() === 'search'
+              ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+              : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'
+          "
+        >
+          Search by Title
+        </button>
         <button
           (click)="activeTab.set('trending')"
-          [class]="activeTab() === 'trending'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
-        >Trending</button>
+          [class]="
+            activeTab() === 'trending'
+              ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+              : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'
+          "
+        >
+          Trending
+        </button>
         <button
           (click)="activeTab.set('rss')"
-          [class]="activeTab() === 'rss'
-            ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
-            : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'"
-        >RSS Feed</button>
+          [class]="
+            activeTab() === 'rss'
+              ? 'bg-[#800020] text-white px-4 py-2 rounded text-sm font-semibold'
+              : 'bg-transparent text-[#7b6660] hover:text-[#24181b] px-4 py-2 rounded text-sm border border-[#dcc5b8] dark:text-gray-400 dark:hover:text-white dark:border-gray-700'
+          "
+        >
+          RSS Feed
+        </button>
       </div>
 
       <!-- ============ MY CHANNELS TAB ============ -->
-      @if (activeTab() === 'my-channels') {
+      @if (activeTab() === "my-channels") {
         <div class="space-y-6">
           <!-- Add New Channel -->
-          <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#5f1327]">
-            <h3 class="text-[#5f1327] font-bold mb-3 dark:text-[#d6b87a]">Add New Channel</h3>
+          <div
+            class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#5f1327]"
+          >
+            <h3 class="text-[#5f1327] font-bold mb-3 dark:text-[#d6b87a]">
+              Add New Channel
+            </h3>
             <div class="flex gap-3">
               <input
                 type="url"
@@ -135,14 +184,16 @@ interface ChannelImportResult {
                 (ngModelChange)="newChannelUrl.set($event)"
                 placeholder="https://www.youtube.com/@channelname"
                 class="flex-1 rounded-lg border border-[#dcc5b8] bg-white px-4 py-2 text-[#24181b] placeholder-[#8a756e] outline-none focus:border-[#800020] dark:border-[#5f1327] dark:bg-[#0d0d0d] dark:text-white dark:placeholder-gray-500"
-              >
+              />
               <button
                 (click)="addChannel()"
                 [disabled]="isAddingChannel() || !newChannelUrl().trim()"
                 class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
               >
                 @if (isAddingChannel()) {
-                  <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                  <span
+                    class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"
+                  ></span>
                 }
                 Add Channel
               </button>
@@ -153,11 +204,18 @@ interface ChannelImportResult {
           </div>
 
           <!-- Backfill from existing movies -->
-          <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#5f1327]/60">
+          <div
+            class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#5f1327]/60"
+          >
             <div class="flex items-start justify-between gap-4 mb-3">
               <div>
-                <h3 class="text-[#5f1327] font-bold mb-1 dark:text-[#d6b87a]">Recover Channels from Existing Movies</h3>
-                <p class="text-[#7b6660] dark:text-gray-400 text-sm">If you already have YouTube movies imported, this will look up their channels and register them here automatically.</p>
+                <h3 class="text-[#5f1327] font-bold mb-1 dark:text-[#d6b87a]">
+                  Recover Channels from Existing Movies
+                </h3>
+                <p class="text-[#7b6660] dark:text-gray-400 text-sm">
+                  If you already have YouTube movies imported, this will look up
+                  their channels and register them here automatically.
+                </p>
               </div>
               <button
                 (click)="backfillChannels()"
@@ -165,7 +223,9 @@ interface ChannelImportResult {
                 class="shrink-0 bg-[#3a1020] hover:bg-[#4a1428] border border-[#800020] text-[#d6b87a] px-4 py-2 rounded text-sm font-semibold disabled:opacity-50 transition whitespace-nowrap"
               >
                 @if (isBackfilling()) {
-                  <span class="inline-block w-4 h-4 border-2 border-[#d6b87a]/30 border-t-[#d6b87a] rounded-full animate-spin mr-2"></span>
+                  <span
+                    class="inline-block w-4 h-4 border-2 border-[#d6b87a]/30 border-t-[#d6b87a] rounded-full animate-spin mr-2"
+                  ></span>
                   Scanning...
                 } @else {
                   Scan Existing Movies
@@ -174,30 +234,41 @@ interface ChannelImportResult {
             </div>
             @if (backfillProgress(); as bp) {
               <div class="space-y-2">
-                @if (bp.status === 'running' || bp.status === 'pending') {
-                  <div class="flex justify-between text-xs text-[#7b6660] dark:text-gray-400">
+                @if (bp.status === "running" || bp.status === "pending") {
+                  <div
+                    class="flex justify-between text-xs text-[#7b6660] dark:text-gray-400"
+                  >
                     <span>Scanning movies...</span>
                     <span>{{ bp.processed }} / {{ bp.total }}</span>
                   </div>
-                  <div class="w-full bg-white/90 rounded-full h-2 dark:bg-[#0d0d0d]">
+                  <div
+                    class="w-full bg-white/90 rounded-full h-2 dark:bg-[#0d0d0d]"
+                  >
                     <div
                       class="bg-[#d6b87a] h-2 rounded-full transition-all"
-                      [style.width.%]="bp.total > 0 ? (bp.processed / bp.total) * 100 : 0"
+                      [style.width.%]="
+                        bp.total > 0 ? (bp.processed / bp.total) * 100 : 0
+                      "
                     ></div>
                   </div>
                 }
-                @if (bp.status === 'completed') {
+                @if (bp.status === "completed") {
                   <p class="text-green-400 text-sm">
-                    Done &mdash; {{ bp.channelsCreated }} channel(s) registered, {{ bp.moviesTagged }} movie(s) tagged
+                    Done &mdash; {{ bp.channelsCreated }} channel(s) registered,
+                    {{ bp.moviesTagged }} movie(s) tagged
                   </p>
                 }
-                @if (bp.status === 'failed') {
+                @if (bp.status === "failed") {
                   <p class="text-red-400 text-sm">Backfill failed</p>
                 }
                 @if (bp.errors.length > 0) {
                   <details class="text-xs">
-                    <summary class="text-yellow-400 cursor-pointer">{{ bp.errors.length }} warning(s)</summary>
-                      <div class="mt-1 text-[#8a756e] max-h-20 overflow-y-auto dark:text-gray-500">
+                    <summary class="text-yellow-400 cursor-pointer">
+                      {{ bp.errors.length }} warning(s)
+                    </summary>
+                    <div
+                      class="mt-1 text-[#8a756e] max-h-20 overflow-y-auto dark:text-gray-500"
+                    >
                       @for (err of bp.errors.slice(0, 5); track err) {
                         <p>{{ err }}</p>
                       }
@@ -212,16 +283,28 @@ interface ChannelImportResult {
           @if (channels().length === 0) {
             <div class="text-center py-12 text-[#8a756e] dark:text-gray-500">
               <p class="text-lg mb-2">No channels configured yet</p>
-              <p class="text-sm">Add a YouTube channel above, or click "Scan Existing Movies" to recover channels from your imported movies</p>
+              <p class="text-sm">
+                Add a YouTube channel above, or click "Scan Existing Movies" to
+                recover channels from your imported movies
+              </p>
             </div>
           } @else {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @for (channel of channels(); track channel.id) {
-                <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 hover:border-[#800020]/40 transition dark:bg-[#120a0d] dark:border-[#5f1327]/40 dark:hover:border-[#800020]/60">
+                <div
+                  class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-4 hover:border-[#800020]/40 transition dark:bg-[#120a0d] dark:border-[#5f1327]/40 dark:hover:border-[#800020]/60"
+                >
                   <div class="flex items-start justify-between mb-3">
                     <div>
-                      <h3 class="text-[#24181b] font-bold dark:text-white">{{ channel.name }}</h3>
-                      <a [href]="channel.url" target="_blank" class="text-xs text-[#d6b87a] hover:underline">{{ channel.channelId }}</a>
+                      <h3 class="text-[#24181b] font-bold dark:text-white">
+                        {{ channel.name }}
+                      </h3>
+                      <a
+                        [href]="channel.url"
+                        target="_blank"
+                        class="text-xs text-[#d6b87a] hover:underline"
+                        >{{ channel.channelId }}</a
+                      >
                     </div>
                     <div class="flex gap-2">
                       <button
@@ -236,7 +319,9 @@ interface ChannelImportResult {
                         class="text-xs px-3 py-1.5 rounded bg-red-900/30 text-red-400 hover:bg-red-900/50 transition"
                       >
                         @if (isDeletingChannel(channel.id)) {
-                          <span class="inline-block w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin"></span>
+                          <span
+                            class="inline-block w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin"
+                          ></span>
                         } @else {
                           Delete
                         }
@@ -246,24 +331,50 @@ interface ChannelImportResult {
 
                   <!-- Stats -->
                   <div class="grid grid-cols-3 gap-2 mb-3">
-                    <div class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]">
-                      <div class="text-lg font-bold text-[#24181b] dark:text-white">{{ channel.stats.totalVideos }}</div>
-                      <div class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500">Total</div>
+                    <div
+                      class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]"
+                    >
+                      <div
+                        class="text-lg font-bold text-[#24181b] dark:text-white"
+                      >
+                        {{ channel.stats.totalVideos }}
+                      </div>
+                      <div
+                        class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500"
+                      >
+                        Total
+                      </div>
                     </div>
-                    <div class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]">
-                      <div class="text-lg font-bold text-green-400">{{ channel.stats.importedCount }}</div>
-                      <div class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500">Imported</div>
+                    <div
+                      class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]"
+                    >
+                      <div class="text-lg font-bold text-green-400">
+                        {{ channel.stats.importedCount }}
+                      </div>
+                      <div
+                        class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500"
+                      >
+                        Imported
+                      </div>
                     </div>
-                    <div class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]">
-                      <div class="text-lg font-bold text-[#d6b87a]">{{ channel.stats.remainingCount }}</div>
-                      <div class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500">Remaining</div>
+                    <div
+                      class="bg-white rounded p-2 text-center dark:bg-[#0d0d0d]"
+                    >
+                      <div class="text-lg font-bold text-[#d6b87a]">
+                        {{ channel.stats.remainingCount }}
+                      </div>
+                      <div
+                        class="text-[10px] text-[#8a756e] uppercase dark:text-gray-500"
+                      >
+                        Remaining
+                      </div>
                     </div>
                   </div>
 
                   <!-- Last Synced -->
                   @if (channel.lastSyncedAt) {
                     <p class="text-xs text-[#8a756e] mb-3 dark:text-gray-500">
-                      Last synced: {{ channel.lastSyncedAt | date:'medium' }}
+                      Last synced: {{ channel.lastSyncedAt | date: "medium" }}
                     </p>
                   }
 
@@ -275,10 +386,13 @@ interface ChannelImportResult {
                       class="w-full bg-[#800020] hover:bg-[#660019] text-white py-2 rounded text-sm font-semibold disabled:opacity-50 transition"
                     >
                       @if (isBatchImporting(channel.channelId)) {
-                        <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                        <span
+                          class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"
+                        ></span>
                         Importing...
                       } @else {
-                        Import All Remaining ({{ channel.stats.remainingCount }} videos)
+                        Import All Remaining ({{ channel.stats.remainingCount }}
+                        videos)
                       }
                     </button>
                   }
@@ -286,26 +400,50 @@ interface ChannelImportResult {
                   <!-- Progress Bar -->
                   @if (batchImportProgress(channel.channelId); as progress) {
                     <div class="mt-3 space-y-2">
-                      <div class="flex justify-between text-xs text-[#7b6660] dark:text-gray-400">
-                        <span>Batch {{ progress.currentBatch }} of {{ progress.totalBatches }}</span>
-                        <span>{{ progress.processed }} / {{ progress.total }}</span>
+                      <div
+                        class="flex justify-between text-xs text-[#7b6660] dark:text-gray-400"
+                      >
+                        <span
+                          >Batch {{ progress.currentBatch }} of
+                          {{ progress.totalBatches }}</span
+                        >
+                        <span
+                          >{{ progress.processed }} / {{ progress.total }}</span
+                        >
                       </div>
-                      <div class="w-full bg-white rounded-full h-2 dark:bg-[#0d0d0d]">
-                        <div 
+                      <div
+                        class="w-full bg-white rounded-full h-2 dark:bg-[#0d0d0d]"
+                      >
+                        <div
                           class="bg-[#d6b87a] h-2 rounded-full transition-all"
-                          [style.width.%]="(progress.processed / progress.total) * 100"
+                          [style.width.%]="
+                            (progress.processed / progress.total) * 100
+                          "
                         ></div>
                       </div>
                       <div class="flex gap-4 text-xs">
-                        <span class="text-green-400">{{ progress.imported }} imported</span>
-                        <span class="text-yellow-400">{{ progress.skipped }} skipped</span>
-                        <span class="text-red-400">{{ progress.failed }} failed</span>
+                        <span class="text-green-400"
+                          >{{ progress.imported }} imported</span
+                        >
+                        <span class="text-yellow-400"
+                          >{{ progress.skipped }} skipped</span
+                        >
+                        <span class="text-red-400"
+                          >{{ progress.failed }} failed</span
+                        >
                       </div>
                       @if (progress.errors.length > 0) {
                         <details class="text-xs">
-                          <summary class="text-red-400 cursor-pointer">{{ progress.errors.length }} errors</summary>
-                          <div class="mt-1 text-[#8a756e] max-h-20 overflow-y-auto dark:text-gray-500">
-                            @for (error of progress.errors.slice(0, 5); track error) {
+                          <summary class="text-red-400 cursor-pointer">
+                            {{ progress.errors.length }} errors
+                          </summary>
+                          <div
+                            class="mt-1 text-[#8a756e] max-h-20 overflow-y-auto dark:text-gray-500"
+                          >
+                            @for (
+                              error of progress.errors.slice(0, 5);
+                              track error
+                            ) {
                               <p>{{ error }}</p>
                             }
                           </div>
@@ -320,11 +458,17 @@ interface ChannelImportResult {
 
           <!-- Batch Import All Channels -->
           @if (channels().length > 0 && totalRemaining() > 0) {
-            <div class="bg-[#fff7f0] border border-[#d6b87a]/50 rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#800020]">
+            <div
+              class="bg-[#fff7f0] border border-[#d6b87a]/50 rounded-lg p-4 dark:bg-[#1b1014] dark:border-[#800020]"
+            >
               <div class="flex items-center justify-between">
                 <div>
-                  <h3 class="text-[#24181b] font-bold dark:text-white">Bulk Import All Channels</h3>
-                  <p class="text-[#7b6660] dark:text-gray-400 text-sm">{{ totalRemaining() }} videos remaining across all channels</p>
+                  <h3 class="text-[#24181b] font-bold dark:text-white">
+                    Bulk Import All Channels
+                  </h3>
+                  <p class="text-[#7b6660] dark:text-gray-400 text-sm">
+                    {{ totalRemaining() }} videos remaining across all channels
+                  </p>
                 </div>
                 <button
                   (click)="importAllChannels()"
@@ -332,7 +476,9 @@ interface ChannelImportResult {
                   class="bg-[#800020] hover:bg-[#660019] text-white px-6 py-2 rounded text-sm font-semibold disabled:opacity-50 transition"
                 >
                   @if (isImportingAll()) {
-                    <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                    <span
+                      class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"
+                    ></span>
                     Importing...
                   } @else {
                     Import All
@@ -346,13 +492,23 @@ interface ChannelImportResult {
 
       <!-- ============ CHANNEL DETAIL MODAL ============ -->
       @if (selectedChannel(); as channel) {
-        <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div class="bg-[#fffdf8] border border-[#dcc5b8] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col dark:bg-[#120a0d] dark:border-[#5f1327]">
+        <div
+          class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+        >
+          <div
+            class="bg-[#fffdf8] border border-[#dcc5b8] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col dark:bg-[#120a0d] dark:border-[#5f1327]"
+          >
             <!-- Header -->
-            <div class="p-4 border-b border-[#dcc5b8] flex items-center justify-between dark:border-[#5f1327]">
+            <div
+              class="p-4 border-b border-[#dcc5b8] flex items-center justify-between dark:border-[#5f1327]"
+            >
               <div>
-                <h3 class="text-[#24181b] font-bold text-lg dark:text-white">{{ channel.name }}</h3>
-                <p class="text-[#7b6660] dark:text-gray-400 text-sm">{{ channelVideos().length }} videos loaded</p>
+                <h3 class="text-[#24181b] font-bold text-lg dark:text-white">
+                  {{ channel.name }}
+                </h3>
+                <p class="text-[#7b6660] dark:text-gray-400 text-sm">
+                  {{ channelVideos().length }} videos loaded
+                </p>
               </div>
               <div class="flex items-center gap-3">
                 @if (selectedChannelRemaining() > 0) {
@@ -362,7 +518,9 @@ interface ChannelImportResult {
                     class="bg-[#800020] hover:bg-[#660019] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
                   >
                     @if (isImportingSelected()) {
-                      <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                      <span
+                        class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"
+                      ></span>
                     }
                     Import {{ selectedChannelRemaining() }} Remaining
                   </button>
@@ -377,24 +535,38 @@ interface ChannelImportResult {
             </div>
 
             <!-- Filter Tabs -->
-            <div class="flex gap-2 p-4 border-b border-[#dcc5b8] bg-white dark:border-[#5f1327] dark:bg-[#0d0d0d]">
+            <div
+              class="flex gap-2 p-4 border-b border-[#dcc5b8] bg-white dark:border-[#5f1327] dark:bg-[#0d0d0d]"
+            >
               <button
                 (click)="videoFilter.set('all')"
-                [class]="videoFilter() === 'all' ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white' : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'"
+                [class]="
+                  videoFilter() === 'all'
+                    ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white'
+                    : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'
+                "
                 class="px-3 py-1 text-sm transition"
               >
                 All ({{ channelVideos().length }})
               </button>
               <button
                 (click)="videoFilter.set('not-imported')"
-                [class]="videoFilter() === 'not-imported' ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white' : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'"
+                [class]="
+                  videoFilter() === 'not-imported'
+                    ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white'
+                    : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'
+                "
                 class="px-3 py-1 text-sm transition"
               >
                 Not Imported ({{ selectedChannelRemaining() }})
               </button>
               <button
                 (click)="videoFilter.set('imported')"
-                [class]="videoFilter() === 'imported' ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white' : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'"
+                [class]="
+                  videoFilter() === 'imported'
+                    ? 'text-[#24181b] border-b-2 border-[#800020] dark:text-white'
+                    : 'text-[#7b6660] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white'
+                "
                 class="px-3 py-1 text-sm transition"
               >
                 Imported ({{ importedChannelVideosCount() }})
@@ -405,31 +577,55 @@ interface ChannelImportResult {
             <div class="flex-1 overflow-y-auto p-4">
               @if (isLoadingChannelVideos()) {
                 <div class="text-center py-12">
-                  <span class="inline-block w-8 h-8 border-2 border-[#800020] border-t-transparent rounded-full animate-spin"></span>
-                  <p class="text-[#7b6660] dark:text-gray-400 mt-2">Loading videos...</p>
+                  <span
+                    class="inline-block w-8 h-8 border-2 border-[#800020] border-t-transparent rounded-full animate-spin"
+                  ></span>
+                  <p class="text-[#7b6660] dark:text-gray-400 mt-2">
+                    Loading videos...
+                  </p>
                 </div>
               } @else if (filteredChannelVideos().length === 0) {
                 <div class="text-center py-12 text-gray-500">
                   <p>No videos to display</p>
                 </div>
               } @else {
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  @for (video of filteredChannelVideos(); track video.youtubeId) {
-                    <div class="bg-[#fff7f0] border rounded-lg overflow-hidden flex flex-col dark:bg-[#1b1014]"
-                         [class.border-green-800]="video.isImported"
-                         [class.border-[#5f1327]]="!video.isImported">
+                <div
+                  class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
+                  @for (
+                    video of filteredChannelVideos();
+                    track video.youtubeId
+                  ) {
+                    <div
+                      class="bg-[#fff7f0] border rounded-lg overflow-hidden flex flex-col dark:bg-[#1b1014]"
+                      [class.border-green-800]="video.isImported"
+                      [class.border-[#5f1327]]="!video.isImported"
+                    >
                       <div class="relative">
-                        <img [src]="video.thumbnail" class="w-full h-32 object-cover" [alt]="video.title">
+                        <img
+                          [src]="video.thumbnail"
+                          class="w-full h-32 object-cover"
+                          [alt]="video.title"
+                        />
                         @if (video.isImported) {
-                          <div class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
-                            ✓ Imported
+                          <div
+                            class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1"
+                          >
+                            <app-check-icon [size]="12" fillColor="white" />
+                            Imported
                           </div>
                         }
                       </div>
                       <div class="p-3 flex-grow">
-                        <h4 class="text-[#24181b] text-sm font-bold line-clamp-2 dark:text-white">{{ video.title }}</h4>
-                        <p class="text-[#8a756e] dark:text-gray-500 text-xs mt-1">
-                          {{ video.publishedAt | date:'mediumDate' }}
+                        <h4
+                          class="text-[#24181b] text-sm font-bold line-clamp-2 dark:text-white"
+                        >
+                          {{ video.title }}
+                        </h4>
+                        <p
+                          class="text-[#8a756e] dark:text-gray-500 text-xs mt-1"
+                        >
+                          {{ video.publishedAt | date: "mediumDate" }}
                         </p>
                       </div>
                       <div class="p-3 pt-0">
@@ -440,16 +636,22 @@ interface ChannelImportResult {
                             class="w-full bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded font-semibold disabled:opacity-50 transition"
                           >
                             @if (isImportingVideo(video.youtubeId)) {
-                              <span class="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1"></span>
+                              <span
+                                class="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1"
+                              ></span>
                             }
                             Import
                           </button>
                         } @else {
                           <button
                             disabled
-                            class="w-full bg-green-900/50 text-green-400 text-xs py-2 rounded cursor-default"
+                            class="w-full bg-green-900/50 text-green-400 text-xs py-2 rounded cursor-default flex items-center justify-center gap-1"
                           >
-                            ✓ Already Imported
+                            <app-check-icon
+                              [size]="12"
+                              fillColor="currentColor"
+                            />
+                            Already Imported
                           </button>
                         }
                       </div>
@@ -466,7 +668,9 @@ interface ChannelImportResult {
                       class="bg-[#5f1327] hover:bg-[#800020] text-white px-6 py-2 rounded text-sm disabled:opacity-50"
                     >
                       @if (isLoadingMoreVideos()) {
-                        <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                        <span
+                          class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"
+                        ></span>
                       }
                       Load More Videos
                     </button>
@@ -479,12 +683,16 @@ interface ChannelImportResult {
       }
 
       <!-- ============ ADD CHANNELS TAB (BULK IMPORT) ============ -->
-      @if (activeTab() === 'channels') {
-        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
+      @if (activeTab() === "channels") {
+        <div
+          class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]"
+        >
           <h3 class="text-[#d6b87a] font-bold mb-2">Bulk Channel Import</h3>
           <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
-            Bulk import is currently consolidated under <strong class="text-[#24181b] dark:text-white">My Channels</strong>.
-            Add channels there, then run import in batches with progress tracking.
+            Bulk import is currently consolidated under
+            <strong class="text-[#24181b] dark:text-white">My Channels</strong>.
+            Add channels there, then run import in batches with progress
+            tracking.
           </p>
           <button
             (click)="activeTab.set('my-channels')"
@@ -496,12 +704,16 @@ interface ChannelImportResult {
       }
 
       <!-- ============ SEARCH BY TITLE TAB ============ -->
-      @if (activeTab() === 'search') {
-        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
+      @if (activeTab() === "search") {
+        <div
+          class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]"
+        >
           <h3 class="text-[#d6b87a] font-bold mb-2">Title Search Import</h3>
           <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
-            Title-based import has been folded into channel workflows for reliability.
-            Use <strong class="text-[#24181b] dark:text-white">My Channels</strong> to import verified long-form videos.
+            Title-based import has been folded into channel workflows for
+            reliability. Use
+            <strong class="text-[#24181b] dark:text-white">My Channels</strong>
+            to import verified long-form videos.
           </p>
           <button
             (click)="activeTab.set('my-channels')"
@@ -513,12 +725,15 @@ interface ChannelImportResult {
       }
 
       <!-- ============ TRENDING SCAN TAB ============ -->
-      @if (activeTab() === 'trending') {
-        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
+      @if (activeTab() === "trending") {
+        <div
+          class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]"
+        >
           <h3 class="text-[#d6b87a] font-bold mb-2">Trending Scout</h3>
           <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
-            Trending scan is temporarily paused while we prioritize channel-based imports.
-            This avoids duplicate entries and improves metadata quality.
+            Trending scan is temporarily paused while we prioritize
+            channel-based imports. This avoids duplicate entries and improves
+            metadata quality.
           </p>
           <button
             (click)="activeTab.set('my-channels')"
@@ -530,11 +745,14 @@ interface ChannelImportResult {
       }
 
       <!-- ============ RSS TAB ============ -->
-      @if (activeTab() === 'rss') {
-        <div class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]">
+      @if (activeTab() === "rss") {
+        <div
+          class="bg-[#fff7f0] border border-[#dcc5b8] rounded-lg p-6 dark:bg-[#1b1014] dark:border-[#5f1327]"
+        >
           <h3 class="text-[#d6b87a] font-bold mb-2">RSS Ingestion</h3>
           <p class="text-[#7b6660] dark:text-gray-400 text-sm mb-4">
-            RSS import is managed from server-side automation. This panel is reserved for future manual controls.
+            RSS import is managed from server-side automation. This panel is
+            reserved for future manual controls.
           </p>
           <button
             (click)="activeTab.set('my-channels')"
@@ -545,17 +763,19 @@ interface ChannelImportResult {
         </div>
       }
     </div>
-  `
+  `,
 })
 export class ContentDiscoveryComponent {
   private http = inject(HttpClient);
   private toast = inject(ToastService);
 
-  activeTab = signal<'my-channels' | 'channels' | 'search' | 'trending' | 'rss'>('my-channels');
+  activeTab = signal<
+    "my-channels" | "channels" | "search" | "trending" | "rss"
+  >("my-channels");
 
   // Channels state
   channels = signal<Channel[]>([]);
-  newChannelUrl = signal('');
+  newChannelUrl = signal("");
   isAddingChannel = signal(false);
   channelAddError = signal<string | null>(null);
   deletingChannelIds = signal<Set<string>>(new Set());
@@ -569,13 +789,20 @@ export class ContentDiscoveryComponent {
   // Backfill state
   isBackfilling = signal(false);
   backfillJobId = signal<string | null>(null);
-  backfillProgress = signal<{ processed: number; total: number; channelsCreated: number; moviesTagged: number; status: string; errors: string[] } | null>(null);
+  backfillProgress = signal<{
+    processed: number;
+    total: number;
+    channelsCreated: number;
+    moviesTagged: number;
+    status: string;
+    errors: string[];
+  } | null>(null);
   private backfillPollInterval: number | null = null;
 
   // Channel detail state
   selectedChannel = signal<Channel | null>(null);
   channelVideos = signal<YouTubeVideo[]>([]);
-  videoFilter = signal<'all' | 'imported' | 'not-imported'>('all');
+  videoFilter = signal<"all" | "imported" | "not-imported">("all");
   isLoadingChannelVideos = signal(false);
   isLoadingMoreVideos = signal(false);
   channelNextPageToken = signal<string | null>(null);
@@ -583,26 +810,26 @@ export class ContentDiscoveryComponent {
   isImportingSelected = signal(false);
 
   // Computed values
-  totalRemaining = computed(() => 
-    this.channels().reduce((sum, ch) => sum + ch.stats.remainingCount, 0)
+  totalRemaining = computed(() =>
+    this.channels().reduce((sum, ch) => sum + ch.stats.remainingCount, 0),
   );
 
   filteredChannelVideos = computed(() => {
     const filter = this.videoFilter();
     const videos = this.channelVideos();
-    
+
     switch (filter) {
-      case 'imported':
-        return videos.filter(v => v.isImported);
-      case 'not-imported':
-        return videos.filter(v => !v.isImported);
+      case "imported":
+        return videos.filter((v) => v.isImported);
+      case "not-imported":
+        return videos.filter((v) => !v.isImported);
       default:
         return videos;
     }
   });
 
   selectedChannelRemaining = computed(() => {
-    return this.channelVideos().filter(v => !v.isImported).length;
+    return this.channelVideos().filter((v) => !v.isImported).length;
   });
 
   importedChannelVideosCount = computed(() => {
@@ -616,14 +843,18 @@ export class ContentDiscoveryComponent {
   // ===== Channel Management =====
 
   loadChannels() {
-    this.http.get<{ status: string; data: Channel[] }>('/api/v1/admin/youtube/channels')
+    this.http
+      .get<{
+        status: string;
+        data: Channel[];
+      }>("/api/v1/admin/youtube/channels")
       .subscribe({
         next: (response) => {
           this.channels.set(response.data);
         },
         error: (error) => {
-          console.error('Error loading channels:', error);
-        }
+          console.error("Error loading channels:", error);
+        },
       });
   }
 
@@ -634,43 +865,52 @@ export class ContentDiscoveryComponent {
     this.isAddingChannel.set(true);
     this.channelAddError.set(null);
 
-    this.http.post<{ status: string; data: Channel }>('/api/v1/admin/youtube/channels', { url })
+    this.http
+      .post<{
+        status: string;
+        data: Channel;
+      }>("/api/v1/admin/youtube/channels", { url })
       .subscribe({
         next: (response) => {
-          this.channels.update(channels => [response.data, ...channels]);
-          this.newChannelUrl.set('');
+          this.channels.update((channels) => [response.data, ...channels]);
+          this.newChannelUrl.set("");
           this.isAddingChannel.set(false);
         },
         error: (error) => {
-          this.channelAddError.set(error.error?.message || 'Failed to add channel');
+          this.channelAddError.set(
+            error.error?.message || "Failed to add channel",
+          );
           this.isAddingChannel.set(false);
-        }
+        },
       });
   }
 
   deleteChannel(id: string) {
-    this.deletingChannelIds.update(ids => {
+    this.deletingChannelIds.update((ids) => {
       ids.add(id);
       return new Set(ids);
     });
 
-    this.http.delete<{ status: string }>(`/api/v1/admin/youtube/channels/${id}`)
+    this.http
+      .delete<{ status: string }>(`/api/v1/admin/youtube/channels/${id}`)
       .subscribe({
         next: () => {
-          this.channels.update(channels => channels.filter(c => c.id !== id));
-          this.deletingChannelIds.update(ids => {
+          this.channels.update((channels) =>
+            channels.filter((c) => c.id !== id),
+          );
+          this.deletingChannelIds.update((ids) => {
             ids.delete(id);
             return new Set(ids);
           });
         },
         error: (error) => {
-          console.error('Error deleting channel:', error);
-          this.toast.error('Failed to delete channel');
-          this.deletingChannelIds.update(ids => {
+          console.error("Error deleting channel:", error);
+          this.toast.error("Failed to delete channel");
+          this.deletingChannelIds.update((ids) => {
             ids.delete(id);
             return new Set(ids);
           });
-        }
+        },
       });
   }
 
@@ -681,62 +921,72 @@ export class ContentDiscoveryComponent {
   // ===== Batch Import =====
 
   startBatchImport(channelId: string) {
-    this.batchImportingChannels.update(ids => {
+    this.batchImportingChannels.update((ids) => {
       ids.add(channelId);
       return new Set(ids);
     });
 
-    this.http.post<{ status: string; data: { progressId: string } }>(
-      `/api/v1/admin/youtube/channels/${channelId}/import-remaining`,
-      { batchSize: 10 }
-    ).subscribe({
-      next: (response) => {
-        const progressId = response.data.progressId;
-        this.startProgressPolling(channelId, progressId);
-      },
-      error: (error) => {
-        console.error('Error starting batch import:', error);
-        this.toast.error('Failed to start batch import');
-        this.batchImportingChannels.update(ids => {
-          ids.delete(channelId);
-          return new Set(ids);
-        });
-      }
-    });
+    this.http
+      .post<{
+        status: string;
+        data: { progressId: string };
+      }>(`/api/v1/admin/youtube/channels/${channelId}/import-remaining`, {
+        batchSize: 10,
+      })
+      .subscribe({
+        next: (response) => {
+          const progressId = response.data.progressId;
+          this.startProgressPolling(channelId, progressId);
+        },
+        error: (error) => {
+          console.error("Error starting batch import:", error);
+          this.toast.error("Failed to start batch import");
+          this.batchImportingChannels.update((ids) => {
+            ids.delete(channelId);
+            return new Set(ids);
+          });
+        },
+      });
   }
 
   startProgressPolling(channelId: string, progressId: string) {
     const intervalId = window.setInterval(() => {
-      this.http.get<{ status: string; data: BatchImportProgress }>(
-        `/api/v1/admin/youtube/import-progress/${progressId}`
-      ).subscribe({
-        next: (response) => {
-          const progress = response.data;
-          
-          this.importProgressMap.update(map => {
-            map.set(channelId, progress);
-            return new Map(map);
-          });
+      this.http
+        .get<{
+          status: string;
+          data: BatchImportProgress;
+        }>(`/api/v1/admin/youtube/import-progress/${progressId}`)
+        .subscribe({
+          next: (response) => {
+            const progress = response.data;
 
-          if (progress.status === 'completed' || progress.status === 'failed') {
-            window.clearInterval(intervalId);
-            this.progressPollingIntervals.delete(channelId);
-            
-            this.batchImportingChannels.update(ids => {
-              ids.delete(channelId);
-              return new Set(ids);
+            this.importProgressMap.update((map) => {
+              map.set(channelId, progress);
+              return new Map(map);
             });
 
-            // Refresh channels to update stats
-            this.loadChannels();
-          }
-        },
-        error: (error) => {
-          console.error('Error polling progress:', error);
-          window.clearInterval(intervalId);
-          this.progressPollingIntervals.delete(channelId);
-        }
-      });
+            if (
+              progress.status === "completed" ||
+              progress.status === "failed"
+            ) {
+              window.clearInterval(intervalId);
+              this.progressPollingIntervals.delete(channelId);
+
+              this.batchImportingChannels.update((ids) => {
+                ids.delete(channelId);
+                return new Set(ids);
+              });
+
+              // Refresh channels to update stats
+              this.loadChannels();
+            }
+          },
+          error: (error) => {
+            console.error("Error polling progress:", error);
+            window.clearInterval(intervalId);
+            this.progressPollingIntervals.delete(channelId);
+          },
+        });
     }, 2000);
 
     this.progressPollingIntervals.set(channelId, intervalId);
@@ -752,12 +1002,12 @@ export class ContentDiscoveryComponent {
 
   async importAllChannels() {
     this.isImportingAll.set(true);
-    
+
     for (const channel of this.channels()) {
       if (channel.stats.remainingCount > 0) {
         await new Promise<void>((resolve) => {
           this.startBatchImport(channel.channelId);
-          
+
           // Wait for this channel to complete before moving to next
           const checkInterval = window.setInterval(() => {
             if (!this.isBatchImporting(channel.channelId)) {
@@ -778,7 +1028,7 @@ export class ContentDiscoveryComponent {
     this.selectedChannel.set(channel);
     this.channelVideos.set([]);
     this.channelNextPageToken.set(null);
-    this.videoFilter.set('all');
+    this.videoFilter.set("all");
     this.loadChannelVideos(channel.channelId);
   }
 
@@ -789,31 +1039,38 @@ export class ContentDiscoveryComponent {
       this.isLoadingMoreVideos.set(true);
     }
 
-    const params: { pageToken?: string; maxResults: number } = { maxResults: 50 };
+    const params: { pageToken?: string; maxResults: number } = {
+      maxResults: 50,
+    };
     if (pageToken) {
       params.pageToken = pageToken;
     }
 
-    this.http.get<{ status: string; data: ChannelVideosResult }>(
-      `/api/v1/admin/youtube/channels/${channelId}/videos`,
-      { params }
-    ).subscribe({
-      next: (response) => {
-        if (pageToken) {
-          this.channelVideos.update(videos => [...videos, ...response.data.videos]);
-        } else {
-          this.channelVideos.set(response.data.videos);
-        }
-        this.channelNextPageToken.set(response.data.nextPageToken);
-        this.isLoadingChannelVideos.set(false);
-        this.isLoadingMoreVideos.set(false);
-      },
-      error: (error) => {
-        console.error('Error loading channel videos:', error);
-        this.isLoadingChannelVideos.set(false);
-        this.isLoadingMoreVideos.set(false);
-      }
-    });
+    this.http
+      .get<{
+        status: string;
+        data: ChannelVideosResult;
+      }>(`/api/v1/admin/youtube/channels/${channelId}/videos`, { params })
+      .subscribe({
+        next: (response) => {
+          if (pageToken) {
+            this.channelVideos.update((videos) => [
+              ...videos,
+              ...response.data.videos,
+            ]);
+          } else {
+            this.channelVideos.set(response.data.videos);
+          }
+          this.channelNextPageToken.set(response.data.nextPageToken);
+          this.isLoadingChannelVideos.set(false);
+          this.isLoadingMoreVideos.set(false);
+        },
+        error: (error) => {
+          console.error("Error loading channel videos:", error);
+          this.isLoadingChannelVideos.set(false);
+          this.isLoadingMoreVideos.set(false);
+        },
+      });
   }
 
   loadMoreChannelVideos() {
@@ -827,42 +1084,46 @@ export class ContentDiscoveryComponent {
   closeChannelDetail() {
     this.selectedChannel.set(null);
     this.channelVideos.set([]);
-    this.videoFilter.set('all');
+    this.videoFilter.set("all");
   }
 
   importSingleVideo(video: YouTubeVideo) {
-    this.importingVideoIds.update(ids => {
+    this.importingVideoIds.update((ids) => {
       ids.add(video.youtubeId);
       return new Set(ids);
     });
 
-    this.http.post('/api/v1/admin/import/youtube', {
-      title: video.title,
-      youtubeId: video.youtubeId,
-      description: video.description,
-      year: new Date(video.publishedAt).getFullYear(),
-      thumbnailUrl: video.thumbnail,
-      genre: ['Nollywood'],
-      isStreamOnly: true
-    }).subscribe({
-      next: () => {
-        this.channelVideos.update(videos => 
-          videos.map(v => v.youtubeId === video.youtubeId ? { ...v, isImported: true } : v)
-        );
-        this.importingVideoIds.update(ids => {
-          ids.delete(video.youtubeId);
-          return new Set(ids);
-        });
-      },
-      error: (error) => {
-        console.error('Error importing video:', error);
-        this.toast.error('Failed to import video');
-        this.importingVideoIds.update(ids => {
-          ids.delete(video.youtubeId);
-          return new Set(ids);
-        });
-      }
-    });
+    this.http
+      .post("/api/v1/admin/import/youtube", {
+        title: video.title,
+        youtubeId: video.youtubeId,
+        description: video.description,
+        year: new Date(video.publishedAt).getFullYear(),
+        thumbnailUrl: video.thumbnail,
+        genre: ["Nollywood"],
+        isStreamOnly: true,
+      })
+      .subscribe({
+        next: () => {
+          this.channelVideos.update((videos) =>
+            videos.map((v) =>
+              v.youtubeId === video.youtubeId ? { ...v, isImported: true } : v,
+            ),
+          );
+          this.importingVideoIds.update((ids) => {
+            ids.delete(video.youtubeId);
+            return new Set(ids);
+          });
+        },
+        error: (error) => {
+          console.error("Error importing video:", error);
+          this.toast.error("Failed to import video");
+          this.importingVideoIds.update((ids) => {
+            ids.delete(video.youtubeId);
+            return new Set(ids);
+          });
+        },
+      });
   }
 
   isImportingVideo(youtubeId: string): boolean {
@@ -875,7 +1136,7 @@ export class ContentDiscoveryComponent {
 
     this.isImportingSelected.set(true);
     this.startBatchImport(channel.channelId);
-    
+
     // Poll until complete
     const checkInterval = window.setInterval(() => {
       if (!this.isBatchImporting(channel.channelId)) {
@@ -894,21 +1155,30 @@ export class ContentDiscoveryComponent {
     this.backfillProgress.set(null);
     this.backfillJobId.set(null);
 
-    this.http.post<{ status: string; data: { jobId: string } }>(
-      '/api/v1/admin/youtube/channels/backfill',
-      {}
-    ).subscribe({
-      next: (response) => {
-        const jobId = response.data.jobId;
-        this.backfillJobId.set(jobId);
-        this.startBackfillPolling(jobId);
-      },
-      error: (error) => {
-        console.error('Backfill failed to start:', error);
-        this.backfillProgress.set({ processed: 0, total: 0, channelsCreated: 0, moviesTagged: 0, status: 'failed', errors: [error.error?.message || 'Failed to start backfill'] });
-        this.isBackfilling.set(false);
-      }
-    });
+    this.http
+      .post<{
+        status: string;
+        data: { jobId: string };
+      }>("/api/v1/admin/youtube/channels/backfill", {})
+      .subscribe({
+        next: (response) => {
+          const jobId = response.data.jobId;
+          this.backfillJobId.set(jobId);
+          this.startBackfillPolling(jobId);
+        },
+        error: (error) => {
+          console.error("Backfill failed to start:", error);
+          this.backfillProgress.set({
+            processed: 0,
+            total: 0,
+            channelsCreated: 0,
+            moviesTagged: 0,
+            status: "failed",
+            errors: [error.error?.message || "Failed to start backfill"],
+          });
+          this.isBackfilling.set(false);
+        },
+      });
   }
 
   private startBackfillPolling(jobId: string) {
@@ -917,27 +1187,40 @@ export class ContentDiscoveryComponent {
     }
 
     this.backfillPollInterval = window.setInterval(() => {
-      this.http.get<{ status: string; data: { processed: number; total: number; channelsCreated: number; moviesTagged: number; status: string; errors: string[] } }>(
-        `/api/v1/admin/youtube/channels/backfill/${jobId}`
-      ).subscribe({
-        next: (response) => {
-          this.backfillProgress.set(response.data);
+      this.http
+        .get<{
+          status: string;
+          data: {
+            processed: number;
+            total: number;
+            channelsCreated: number;
+            moviesTagged: number;
+            status: string;
+            errors: string[];
+          };
+        }>(`/api/v1/admin/youtube/channels/backfill/${jobId}`)
+        .subscribe({
+          next: (response) => {
+            this.backfillProgress.set(response.data);
 
-          if (response.data.status === 'completed' || response.data.status === 'failed') {
+            if (
+              response.data.status === "completed" ||
+              response.data.status === "failed"
+            ) {
+              window.clearInterval(this.backfillPollInterval!);
+              this.backfillPollInterval = null;
+              this.isBackfilling.set(false);
+              // Reload channels list to show newly discovered ones
+              this.loadChannels();
+            }
+          },
+          error: (error) => {
+            console.error("Backfill polling error:", error);
             window.clearInterval(this.backfillPollInterval!);
             this.backfillPollInterval = null;
             this.isBackfilling.set(false);
-            // Reload channels list to show newly discovered ones
-            this.loadChannels();
-          }
-        },
-        error: (error) => {
-          console.error('Backfill polling error:', error);
-          window.clearInterval(this.backfillPollInterval!);
-          this.backfillPollInterval = null;
-          this.isBackfilling.set(false);
-        }
-      });
+          },
+        });
     }, 2000);
   }
 }

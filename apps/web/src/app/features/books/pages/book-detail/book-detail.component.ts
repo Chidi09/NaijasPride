@@ -1,14 +1,15 @@
-import { Component, inject, input, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { Book } from '@naijaspride/types';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatChipsModule } from '@angular/material/chips';
-import { BookOfflineService } from '../../../../core/services/book-offline.service';
-import { LibraryService } from '../../../../core/services/library.service';
-import { AuthService } from '../../../../core/auth/auth.service';
+import { Component, inject, input, OnInit, signal } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { RouterLink } from "@angular/router";
+import { HttpClient } from "@angular/common/http";
+import { Book } from "@naijaspride/types";
+import { MatButtonModule } from "@angular/material/button";
+import { MatCardModule } from "@angular/material/card";
+import { MatChipsModule } from "@angular/material/chips";
+import { BookOfflineService } from "../../../../core/services/book-offline.service";
+import { LibraryService } from "../../../../core/services/library.service";
+import { AuthService } from "../../../../core/auth/auth.service";
+import { StarIconComponent } from "../../../../shared/components/icons/star-icon.component";
 
 type LightNovelVolume = {
   id: string;
@@ -28,9 +29,16 @@ type LightNovelSeriesDetail = {
 };
 
 @Component({
-  selector: 'app-book-detail',
+  selector: "app-book-detail",
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatChipsModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    StarIconComponent,
+  ],
   template: `
     @if (book(); as book) {
       <div class="container mx-auto px-4 py-12 books-theme">
@@ -47,17 +55,25 @@ type LightNovelSeriesDetail = {
                       loading="lazy"
                       decoding="async"
                       referrerpolicy="no-referrer"
-                    >
+                    />
                   </div>
                 </mat-card>
               } @else {
                 <mat-card class="np-cover-card">
                   <div class="np-cover-media">
-                    <div class="absolute inset-0 flex items-center justify-center"><span class="material-symbols-outlined text-6xl" aria-hidden="true">menu_book</span></div>
+                    <div
+                      class="absolute inset-0 flex items-center justify-center"
+                    >
+                      <span
+                        class="material-symbols-outlined text-6xl"
+                        aria-hidden="true"
+                        >menu_book</span
+                      >
+                    </div>
                   </div>
                 </mat-card>
               }
-              
+
               @if (book.downloadUrl) {
                 <div class="mt-6 grid gap-2">
                   @if (isReadableInApp(book)) {
@@ -79,7 +95,7 @@ type LightNovelSeriesDetail = {
                     color="primary"
                     class="w-full"
                   >
-                    Download {{ book.format || 'PDF' }}
+                    Download {{ book.format || "PDF" }}
                     @if (book.fileSize) {
                       <span class="text-sm font-normal block mt-1">
                         {{ formatFileSize(book.fileSize) }}
@@ -113,12 +129,27 @@ type LightNovelSeriesDetail = {
                     >
                       Remove Offline Copy
                     </button>
-                  } @else if (bookOffline.getStatus(book.id) === 'downloading' || bookOffline.getStatus(book.id) === 'queued') {
-                    <div class="text-xs text-center text-[var(--text-muted)] py-1">
-                      {{ bookOffline.getStatus(book.id) === 'queued' ? 'Queued…' : 'Downloading…' }} {{ bookOffline.getProgress(book.id) }}%
+                  } @else if (
+                    bookOffline.getStatus(book.id) === "downloading" ||
+                    bookOffline.getStatus(book.id) === "queued"
+                  ) {
+                    <div
+                      class="text-xs text-center text-[var(--text-muted)] py-1"
+                    >
+                      {{
+                        bookOffline.getStatus(book.id) === "queued"
+                          ? "Queued…"
+                          : "Downloading…"
+                      }}
+                      {{ bookOffline.getProgress(book.id) }}%
                     </div>
-                    <div class="h-1 w-full bg-[#d9c4b7] dark:bg-white/10 rounded overflow-hidden">
-                      <div class="h-full bg-cinema-500 transition-all" [style.width.%]="bookOffline.getProgress(book.id)"></div>
+                    <div
+                      class="h-1 w-full bg-[#d9c4b7] dark:bg-white/10 rounded overflow-hidden"
+                    >
+                      <div
+                        class="h-full bg-cinema-500 transition-all"
+                        [style.width.%]="bookOffline.getProgress(book.id)"
+                      ></div>
                     </div>
                   } @else {
                     <button
@@ -129,7 +160,7 @@ type LightNovelSeriesDetail = {
                       (click)="saveOffline(book)"
                     >
                       Save for Offline
-                      @if (bookOffline.getStatus(book.id) === 'error') {
+                      @if (bookOffline.getStatus(book.id) === "error") {
                         <span class="ml-1 text-red-400 text-xs">(retry)</span>
                       }
                     </button>
@@ -143,27 +174,52 @@ type LightNovelSeriesDetail = {
                   <button
                     mat-stroked-button
                     type="button"
-                    [color]="library.isFavoriteBook(book.id) ? 'warn' : 'primary'"
+                    [color]="
+                      library.isFavoriteBook(book.id) ? 'warn' : 'primary'
+                    "
                     class="w-full"
                     (click)="toggleFavorite(book)"
                   >
-                    {{ library.isFavoriteBook(book.id) ? '★ Favorited' : '☆ Add to Favorites' }}
+                    <div class="flex items-center justify-center gap-2">
+                      <app-star-icon
+                        [size]="16"
+                        [filled]="library.isFavoriteBook(book.id)"
+                        fillColor="#fbbf24"
+                        strokeColor="#fbbf24"
+                      />
+                      {{
+                        library.isFavoriteBook(book.id)
+                          ? "Favorited"
+                          : "Add to Favorites"
+                      }}
+                    </div>
                   </button>
                 </div>
               }
             </div>
           </div>
-          
+
           <!-- Book Details -->
           <div class="md:col-span-2">
-            <a routerLink="/books" class="text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white transition-colors mb-4 inline-block">
+            <a
+              routerLink="/books"
+              class="text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white transition-colors mb-4 inline-block"
+            >
               ← Back to Library
             </a>
-            
-            <h1 class="text-3xl md:text-4xl font-serif text-[#24181b] dark:text-white mb-2">{{ book.title }}</h1>
-            <p class="text-xl text-[#8a756e] dark:text-gray-400 mb-6">by {{ book.author }}</p>
-            
-            <div class="flex flex-wrap gap-4 mb-8 text-sm text-[#8a756e] dark:text-gray-400">
+
+            <h1
+              class="text-3xl md:text-4xl font-serif text-[#24181b] dark:text-white mb-2"
+            >
+              {{ book.title }}
+            </h1>
+            <p class="text-xl text-[#8a756e] dark:text-gray-400 mb-6">
+              by {{ book.author }}
+            </p>
+
+            <div
+              class="flex flex-wrap gap-4 mb-8 text-sm text-[#8a756e] dark:text-gray-400"
+            >
               @if (book.year) {
                 <span>{{ book.year }}</span>
               }
@@ -177,13 +233,19 @@ type LightNovelSeriesDetail = {
                 <span>• {{ book.language }}</span>
               }
               @if ((book.viewCount ?? 0) > 0) {
-                <span>• {{ formatCompactCount(book.viewCount ?? 0) }} views</span>
+                <span
+                  >• {{ formatCompactCount(book.viewCount ?? 0) }} views</span
+                >
               }
             </div>
-            
+
             @if (book.genre?.length) {
               <mat-card class="np-surface-card mb-8 p-4">
-                <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Genres</p>
+                <p
+                  class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]"
+                >
+                  Genres
+                </p>
                 <mat-chip-set class="mt-2" aria-label="Book genres">
                   @for (genre of book.genre; track genre) {
                     <mat-chip>{{ genre }}</mat-chip>
@@ -191,11 +253,17 @@ type LightNovelSeriesDetail = {
                 </mat-chip-set>
               </mat-card>
             }
-            
+
             @if (book.description) {
               <mat-card class="np-surface-card p-6">
-                <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Description</p>
-                <p class="mt-2 text-[var(--text-secondary)] leading-relaxed">{{ book.description }}</p>
+                <p
+                  class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]"
+                >
+                  Description
+                </p>
+                <p class="mt-2 text-[var(--text-secondary)] leading-relaxed">
+                  {{ book.description }}
+                </p>
               </mat-card>
             }
 
@@ -203,10 +271,22 @@ type LightNovelSeriesDetail = {
               <mat-card class="np-surface-card p-6 mt-6">
                 <div class="flex items-center justify-between gap-3">
                   <div>
-                    <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Light Novel Series</p>
-                    <h3 class="text-lg font-serif text-[#24181b] dark:text-white mt-1">{{ series.seriesTitle }}</h3>
+                    <p
+                      class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]"
+                    >
+                      Light Novel Series
+                    </p>
+                    <h3
+                      class="text-lg font-serif text-[#24181b] dark:text-white mt-1"
+                    >
+                      {{ series.seriesTitle }}
+                    </h3>
                   </div>
-                  <a routerLink="/books/light-novels" class="text-xs text-[#800020] hover:underline">Browse All Series</a>
+                  <a
+                    routerLink="/books/light-novels"
+                    class="text-xs text-[#800020] hover:underline"
+                    >Browse All Series</a
+                  >
                 </div>
 
                 <div class="mt-4 space-y-2">
@@ -217,19 +297,23 @@ type LightNovelSeriesDetail = {
                       [class.border-[#800020]]="volume.slug === book.slug"
                       [class.border-[#e4d0c5]]="volume.slug !== book.slug"
                     >
-                      <span class="text-sm text-[#24181b] dark:text-white truncate">
+                      <span
+                        class="text-sm text-[#24181b] dark:text-white truncate"
+                      >
                         @if (volume.volumeNumber !== null) {
                           <strong>Vol {{ volume.volumeNumber }}:</strong>
                         }
                         {{ volume.title }}
                       </span>
-                      <span class="text-xs text-[#8a756e] dark:text-gray-400">{{ volume.year }}</span>
+                      <span class="text-xs text-[#8a756e] dark:text-gray-400">{{
+                        volume.year
+                      }}</span>
                     </a>
                   }
                 </div>
               </mat-card>
             }
-            
+
             @if (book.isbn) {
               <div class="mt-6 text-[#8a756e] dark:text-gray-500 text-sm">
                 ISBN: {{ book.isbn }}
@@ -239,11 +323,13 @@ type LightNovelSeriesDetail = {
         </div>
       </div>
     } @else {
-      <div class="container mx-auto px-4 py-24 text-center text-[#8a756e] dark:text-gray-400">
+      <div
+        class="container mx-auto px-4 py-24 text-center text-[#8a756e] dark:text-gray-400"
+      >
         <p>Loading...</p>
       </div>
     }
-  `
+  `,
 })
 export class BookDetailComponent implements OnInit {
   slug = input.required<string>();
@@ -262,7 +348,8 @@ export class BookDetailComponent implements OnInit {
 
   private loadBook() {
     this.isLoading.set(true);
-    this.http.get<{ status: string; data: Book }>(`/api/v1/books/${this.slug()}`)
+    this.http
+      .get<{ status: string; data: Book }>(`/api/v1/books/${this.slug()}`)
       .subscribe({
         next: (response) => {
           this.book.set(response.data);
@@ -274,20 +361,25 @@ export class BookDetailComponent implements OnInit {
           this.isLoading.set(false);
           // Load favorite state
           if (this.auth.currentUser()) {
-            this.library.checkBookFavorite(response.data.id).catch(() => {/* ignore */});
+            this.library.checkBookFavorite(response.data.id).catch(() => {
+              /* ignore */
+            });
           }
         },
         error: (error) => {
-          console.error('Error loading book:', error);
+          console.error("Error loading book:", error);
           this.book.set(null);
           this.isLoading.set(false);
-        }
+        },
       });
   }
 
   private loadLightNovelSeries(slug: string) {
     this.http
-      .get<{ status: string; data: LightNovelSeriesDetail }>(`/api/v1/books/light-novels/${encodeURIComponent(slug)}/volumes`)
+      .get<{
+        status: string;
+        data: LightNovelSeriesDetail;
+      }>(`/api/v1/books/light-novels/${encodeURIComponent(slug)}/volumes`)
       .subscribe({
         next: (response) => {
           this.lightNovelSeries.set(response.data);
@@ -300,16 +392,18 @@ export class BookDetailComponent implements OnInit {
 
   saveOffline(book: Book) {
     const apiFileUrl = `/api/v1/books/${encodeURIComponent(book.slug)}/file?disposition=inline`;
-    this.bookOffline.download({
-      bookId: book.id,
-      bookTitle: book.title,
-      bookSlug: book.slug,
-      author: book.author,
-      format: book.format,
-      apiFileUrl,
-      coverUrl: book.coverUrl ?? undefined,
-      fileSizeBytes: book.fileSize ?? undefined,
-    }).catch(console.error);
+    this.bookOffline
+      .download({
+        bookId: book.id,
+        bookTitle: book.title,
+        bookSlug: book.slug,
+        author: book.author,
+        format: book.format,
+        apiFileUrl,
+        coverUrl: book.coverUrl ?? undefined,
+        fileSizeBytes: book.fileSize ?? undefined,
+      })
+      .catch(console.error);
   }
 
   removeOffline(book: Book) {
@@ -321,23 +415,23 @@ export class BookDetailComponent implements OnInit {
   }
 
   isEpubBook(book: Book): boolean {
-    return (book.format || '').trim().toLowerCase() === 'epub';
+    return (book.format || "").trim().toLowerCase() === "epub";
   }
 
   isReadableInApp(book: Book): boolean {
-    const format = (book.format || '').trim().toLowerCase();
-    const isSupportedFormat = format === 'epub' || format === 'pdf';
+    const format = (book.format || "").trim().toLowerCase();
+    const isSupportedFormat = format === "epub" || format === "pdf";
     const hasDownloadUrl = !!book.downloadUrl;
     return isSupportedFormat && hasDownloadUrl;
   }
 
   async checkFileAccessibility(book: Book): Promise<boolean> {
     if (!book.slug) return false;
-    
+
     try {
       const response = await fetch(`/api/v1/books/${book.slug}/check-access`, {
-        method: 'HEAD',
-        credentials: 'include'
+        method: "HEAD",
+        credentials: "include",
       });
       return response.ok;
     } catch {
@@ -346,30 +440,33 @@ export class BookDetailComponent implements OnInit {
   }
 
   isEpubBooksSource(book: Book): boolean {
-    return (book.publisher || '').trim().toLowerCase() === 'epubbooks' || book.slug.toLowerCase().startsWith('epubbooks-');
+    return (
+      (book.publisher || "").trim().toLowerCase() === "epubbooks" ||
+      book.slug.toLowerCase().startsWith("epubbooks-")
+    );
   }
 
   isLightNovel(book: Book): boolean {
     return (
-      book.genre?.some((entry) => entry.toLowerCase() === 'light novel') ||
-      (book.publisher || '').toLowerCase().includes('elsci') ||
-      book.slug.toLowerCase().startsWith('elsci-ln-')
+      book.genre?.some((entry) => entry.toLowerCase() === "light novel") ||
+      (book.publisher || "").toLowerCase().includes("elsci") ||
+      book.slug.toLowerCase().startsWith("elsci-ln-")
     );
   }
 
   sourceUrl(book: Book): string | null {
     const slug = book.slug.toLowerCase();
-    if (!slug.startsWith('epubbooks-')) return null;
-    const externalSlug = book.slug.slice('epubbooks-'.length);
+    if (!slug.startsWith("epubbooks-")) return null;
+    const externalSlug = book.slug.slice("epubbooks-".length);
     return `https://www.epubbooks.com/book/${externalSlug}`;
   }
-  
+
   formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
   formatCompactCount(value: number): string {
