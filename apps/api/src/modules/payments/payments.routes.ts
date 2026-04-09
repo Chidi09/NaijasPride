@@ -1,9 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
-import { PaystackService } from './paystack.service';
+import { PaystackService, NonRetryablePaymentError } from './paystack.service';
 import { z } from 'zod';
 
 const initializePaymentSchema = z.object({
-  // Accept either a plan slug (mobile/standard/family) or legacy monthly/yearly
   plan: z.string().min(1),
 });
 
@@ -14,14 +13,23 @@ const verifyPaymentSchema = z.object({
 export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new PaystackService(fastify.prisma);
 
+  // Fix #2: capture raw body before JSON parsing so webhook HMAC uses exact bytes from Paystack
+  fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+    try {
+      const parsed = JSON.parse(body.toString());
+      (req as any).rawBody = body;
+      done(null, parsed);
+    } catch (e) {
+      done(e as Error, undefined);
+    }
+  });
+
   // Initialize payment link (requires auth)
   fastify.post(
     '/initialize',
     {
       onRequest: [fastify.authenticate],
-      schema: {
-        body: initializePaymentSchema,
-      },
+      schema: { body: initializePaymentSchema },
     },
     async (req, reply) => {
       const { plan } = req.body as z.infer<typeof initializePaymentSchema>;
@@ -47,43 +55,26 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      // Look up the plan price from DB by slug, fall back to legacy monthly/yearly amounts
-      let amountKobo: number;
-      let durationDays: number | undefined;
-      let planName: string | undefined;
-      let planId: string | undefined;
-      const dbPlan = await fastify.prisma.plan.findUnique({ where: { slug: plan } });
-      if (dbPlan) {
-        amountKobo = dbPlan.price * 100; // price is in Naira, Paystack needs kobo
-        durationDays = dbPlan.durationDays;
-        planName = dbPlan.name;
-        planId = dbPlan.id;
-      } else {
-        // Legacy fallback: monthly = ₦1,500, yearly = ₦12,000
-        amountKobo = plan === 'yearly' ? 1_200_000 : 150_000;
-        durationDays = plan === 'yearly' ? 365 : 30;
-        planName = plan === 'yearly' ? 'Yearly Plan' : 'Monthly Plan';
-      }
+      // Fix #3: plan pricing logic lives in the service
+      const { amountKobo, durationDays, planName, planId } = await service.resolvePlanBySlug(plan);
 
       const data = await service.initializeTransaction(
         { id: user.id, email: user.email },
         amountKobo,
-        {
-          planSlug: plan,
-          planId,
-          planName,
-          durationDays,
-        }
+        { planSlug: plan, planId, planName, durationDays }
       );
+
       return { success: true, data };
     }
   );
 
-  // Verify a Paystack transaction reference (called from /payment/callback page)
-  // No auth required — user identity is extracted from Paystack metadata (userId embedded at payment init)
+  // Verify a Paystack transaction reference (called from /payment/callback page).
+  // No auth — user identity comes from Paystack metadata embedded at payment init.
+  // Fix #4: tighter rate limit than the global 300/min default
   fastify.post(
     '/verify',
     {
+      config: { rateLimit: { max: 15, timeWindow: '1 minute' } },
       schema: { body: verifyPaymentSchema },
     },
     async (req, reply) => {
@@ -99,8 +90,10 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   // Paystack webhook
   fastify.post('/webhook', async (req, reply) => {
     const signature = req.headers['x-paystack-signature'] as string;
+    const rawBody = (req as any).rawBody as Buffer;
 
-    if (!signature || !service.verifyWebhookSignature(signature, req.body)) {
+    // Fix #2: verify against raw bytes, not re-serialized JSON
+    if (!signature || !service.verifyWebhookSignature(signature, rawBody)) {
       return reply.status(401).send('Invalid signature');
     }
 
@@ -108,6 +101,13 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       await service.handleWebhook(req.body);
     } catch (err) {
       fastify.log.error({ err }, '[Paystack] webhook handling failed');
+
+      // Fix #7: non-retryable errors (bad data, user not found) → 200 so Paystack stops retrying.
+      // Transient errors (DB down, Redis timeout) → 500 so Paystack retries.
+      if (err instanceof NonRetryablePaymentError) {
+        return reply.status(200).send('OK');
+      }
+
       return reply.status(500).send('Webhook processing failed');
     }
 

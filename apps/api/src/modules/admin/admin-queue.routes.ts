@@ -1,6 +1,11 @@
-import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from "fastify";
+import {
+  FastifyInstance,
+  FastifyPluginOptions,
+  FastifyRequest,
+  FastifyReply,
+} from "fastify";
 import { Queue } from "bullmq";
-import axios from 'axios';
+import axios from "axios";
 import {
   torrentQueue,
   bookImportQueue,
@@ -21,19 +26,26 @@ interface QueueStats {
   paused: boolean;
 }
 
+/**
+ * Resolve a queue by its name. Returns null if queue name is unknown or not configured.
+ */
+function resolveQueue(name: string): Queue | null {
+  if (name === "torrent-processing") return torrentQueue.get();
+  if (name === "book-import") return bookImportQueue.get();
+  if (name === "book-cover-processing") return bookCoverQueue.get();
+  if (name === "remote-ingest-processing") return remoteIngestQueue.get();
+  if (name === "remote-ingest-dead-letter")
+    return remoteIngestDeadLetterQueue.get();
+  return null;
+}
+
 export const adminQueueRoutes = async (
   app: FastifyInstance,
-  opts: FastifyPluginOptions
+  opts: FastifyPluginOptions,
 ) => {
-  const requireAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
-    if (request.user?.role !== "ADMIN") {
-      return reply.status(403).send({ success: false, error: "Forbidden: Admin access required" });
-    }
-  };
-
   // GET /api/admin/queues - Get all queue stats
   app.get("/queues", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const queues: QueueStats[] = [];
@@ -41,13 +53,14 @@ export const adminQueueRoutes = async (
         // Get torrent queue stats
         const torrentQ = torrentQueue.get();
         if (torrentQ) {
-          const [waiting, active, completed, failed, delayed] = await Promise.all([
-            torrentQ.getWaitingCount(),
-            torrentQ.getActiveCount(),
-            torrentQ.getCompletedCount(),
-            torrentQ.getFailedCount(),
-            torrentQ.getDelayedCount(),
-          ]);
+          const [waiting, active, completed, failed, delayed] =
+            await Promise.all([
+              torrentQ.getWaitingCount(),
+              torrentQ.getActiveCount(),
+              torrentQ.getCompletedCount(),
+              torrentQ.getFailedCount(),
+              torrentQ.getDelayedCount(),
+            ]);
 
           queues.push({
             name: "torrent-processing",
@@ -63,13 +76,14 @@ export const adminQueueRoutes = async (
         // Get book import queue stats
         const bookQ = bookImportQueue.get();
         if (bookQ) {
-          const [waiting, active, completed, failed, delayed] = await Promise.all([
-            bookQ.getWaitingCount(),
-            bookQ.getActiveCount(),
-            bookQ.getCompletedCount(),
-            bookQ.getFailedCount(),
-            bookQ.getDelayedCount(),
-          ]);
+          const [waiting, active, completed, failed, delayed] =
+            await Promise.all([
+              bookQ.getWaitingCount(),
+              bookQ.getActiveCount(),
+              bookQ.getCompletedCount(),
+              bookQ.getFailedCount(),
+              bookQ.getDelayedCount(),
+            ]);
 
           queues.push({
             name: "book-import",
@@ -84,13 +98,14 @@ export const adminQueueRoutes = async (
 
         const bookCoverQ = bookCoverQueue.get();
         if (bookCoverQ) {
-          const [waiting, active, completed, failed, delayed] = await Promise.all([
-            bookCoverQ.getWaitingCount(),
-            bookCoverQ.getActiveCount(),
-            bookCoverQ.getCompletedCount(),
-            bookCoverQ.getFailedCount(),
-            bookCoverQ.getDelayedCount(),
-          ]);
+          const [waiting, active, completed, failed, delayed] =
+            await Promise.all([
+              bookCoverQ.getWaitingCount(),
+              bookCoverQ.getActiveCount(),
+              bookCoverQ.getCompletedCount(),
+              bookCoverQ.getFailedCount(),
+              bookCoverQ.getDelayedCount(),
+            ]);
 
           queues.push({
             name: "book-cover-processing",
@@ -105,13 +120,14 @@ export const adminQueueRoutes = async (
 
         const remoteQ = remoteIngestQueue.get();
         if (remoteQ) {
-          const [waiting, active, completed, failed, delayed] = await Promise.all([
-            remoteQ.getWaitingCount(),
-            remoteQ.getActiveCount(),
-            remoteQ.getCompletedCount(),
-            remoteQ.getFailedCount(),
-            remoteQ.getDelayedCount(),
-          ]);
+          const [waiting, active, completed, failed, delayed] =
+            await Promise.all([
+              remoteQ.getWaitingCount(),
+              remoteQ.getActiveCount(),
+              remoteQ.getCompletedCount(),
+              remoteQ.getFailedCount(),
+              remoteQ.getDelayedCount(),
+            ]);
 
           queues.push({
             name: "remote-ingest-processing",
@@ -126,13 +142,14 @@ export const adminQueueRoutes = async (
 
         const remoteDlq = remoteIngestDeadLetterQueue.get();
         if (remoteDlq) {
-          const [waiting, active, completed, failed, delayed] = await Promise.all([
-            remoteDlq.getWaitingCount(),
-            remoteDlq.getActiveCount(),
-            remoteDlq.getCompletedCount(),
-            remoteDlq.getFailedCount(),
-            remoteDlq.getDelayedCount(),
-          ]);
+          const [waiting, active, completed, failed, delayed] =
+            await Promise.all([
+              remoteDlq.getWaitingCount(),
+              remoteDlq.getActiveCount(),
+              remoteDlq.getCompletedCount(),
+              remoteDlq.getFailedCount(),
+              remoteDlq.getDelayedCount(),
+            ]);
 
           queues.push({
             name: "remote-ingest-dead-letter",
@@ -150,11 +167,12 @@ export const adminQueueRoutes = async (
           data: queues,
           meta: {
             totalQueues: queues.length,
-            hasRedis: !!torrentQ || !!bookQ || !!bookCoverQ || !!remoteQ || !!remoteDlq,
+            hasRedis:
+              !!torrentQ || !!bookQ || !!bookCoverQ || !!remoteQ || !!remoteDlq,
           },
         });
       } catch (error) {
-        console.error("Queue stats error:", error);
+        app.log.error({ error }, "Queue stats error");
         return reply.status(500).send({
           success: false,
           error: "Failed to fetch queue statistics",
@@ -165,7 +183,7 @@ export const adminQueueRoutes = async (
 
   // GET /api/admin/queues/:name/jobs - Get jobs from a specific queue
   app.get("/queues/:name/jobs", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { name } = request.params as { name: string };
@@ -174,19 +192,7 @@ export const adminQueueRoutes = async (
           limit?: string;
         };
 
-        let queue: Queue | null = null;
-        if (name === "torrent-processing") {
-          queue = torrentQueue.get();
-        } else if (name === "book-import") {
-          queue = bookImportQueue.get();
-        } else if (name === "book-cover-processing") {
-          queue = bookCoverQueue.get();
-        } else if (name === "remote-ingest-processing") {
-          queue = remoteIngestQueue.get();
-        } else if (name === "remote-ingest-dead-letter") {
-          queue = remoteIngestDeadLetterQueue.get();
-        }
-
+        const queue = resolveQueue(name);
         if (!queue) {
           return reply.status(404).send({
             success: false,
@@ -214,7 +220,11 @@ export const adminQueueRoutes = async (
             jobs = await queue.getDelayed(0, limitNum);
             break;
           default:
-            jobs = await queue.getJobs(["waiting", "active", "completed", "failed", "delayed"], 0, limitNum);
+            jobs = await queue.getJobs(
+              ["waiting", "active", "completed", "failed", "delayed"],
+              0,
+              limitNum,
+            );
         }
 
         const formattedJobs = jobs.map((job) => ({
@@ -240,7 +250,7 @@ export const adminQueueRoutes = async (
           },
         });
       } catch (error) {
-        console.error("Queue jobs fetch error:", error);
+        app.log.error({ error }, "Queue jobs fetch error");
         return reply.status(500).send({
           success: false,
           error: "Failed to fetch jobs",
@@ -251,24 +261,12 @@ export const adminQueueRoutes = async (
 
   // POST /api/admin/queues/:name/pause - Pause a queue
   app.post("/queues/:name/pause", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { name } = request.params as { name: string };
 
-        let queue: Queue | null = null;
-        if (name === "torrent-processing") {
-          queue = torrentQueue.get();
-        } else if (name === "book-import") {
-          queue = bookImportQueue.get();
-        } else if (name === "book-cover-processing") {
-          queue = bookCoverQueue.get();
-        } else if (name === "remote-ingest-processing") {
-          queue = remoteIngestQueue.get();
-        } else if (name === "remote-ingest-dead-letter") {
-          queue = remoteIngestDeadLetterQueue.get();
-        }
-
+        const queue = resolveQueue(name);
         if (!queue) {
           return reply.status(404).send({
             success: false,
@@ -293,24 +291,12 @@ export const adminQueueRoutes = async (
 
   // POST /api/admin/queues/:name/resume - Resume a queue
   app.post("/queues/:name/resume", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { name } = request.params as { name: string };
 
-        let queue: Queue | null = null;
-        if (name === "torrent-processing") {
-          queue = torrentQueue.get();
-        } else if (name === "book-import") {
-          queue = bookImportQueue.get();
-        } else if (name === "book-cover-processing") {
-          queue = bookCoverQueue.get();
-        } else if (name === "remote-ingest-processing") {
-          queue = remoteIngestQueue.get();
-        } else if (name === "remote-ingest-dead-letter") {
-          queue = remoteIngestDeadLetterQueue.get();
-        }
-
+        const queue = resolveQueue(name);
         if (!queue) {
           return reply.status(404).send({
             success: false,
@@ -335,24 +321,15 @@ export const adminQueueRoutes = async (
 
   // DELETE /api/admin/queues/:name/jobs/:jobId - Remove a specific job
   app.delete("/queues/:name/jobs/:jobId", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
-        const { name, jobId } = request.params as { name: string; jobId: string };
+        const { name, jobId } = request.params as {
+          name: string;
+          jobId: string;
+        };
 
-        let queue: Queue | null = null;
-        if (name === "torrent-processing") {
-          queue = torrentQueue.get();
-        } else if (name === "book-import") {
-          queue = bookImportQueue.get();
-        } else if (name === "book-cover-processing") {
-          queue = bookCoverQueue.get();
-        } else if (name === "remote-ingest-processing") {
-          queue = remoteIngestQueue.get();
-        } else if (name === "remote-ingest-dead-letter") {
-          queue = remoteIngestDeadLetterQueue.get();
-        }
-
+        const queue = resolveQueue(name);
         if (!queue) {
           return reply.status(404).send({
             success: false,
@@ -385,7 +362,7 @@ export const adminQueueRoutes = async (
 
   // GET /api/admin/health/external-services - Check health of external services
   app.get("/health/external-services", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const results: Record<string, any> = {};
@@ -396,13 +373,18 @@ export const adminQueueRoutes = async (
 
         // Check 1337x health (basic connectivity test)
         const mirrorUrls = [
-          'https://www.1377x.to',
-          'https://1337x.st',
-          'https://x1337x.ws',
+          "https://www.1377x.to",
+          "https://1337x.st",
+          "https://x1337x.ws",
         ];
 
-        results['1337x'] = {
-          mirrors: [] as Array<{ url: string; healthy: boolean; responseTimeMs?: number; error?: string }>,
+        results["1337x"] = {
+          mirrors: [] as Array<{
+            url: string;
+            healthy: boolean;
+            responseTimeMs?: number;
+            error?: string;
+          }>,
         };
 
         for (const url of mirrorUrls.slice(0, 3)) {
@@ -412,13 +394,13 @@ export const adminQueueRoutes = async (
               timeout: 10000,
               validateStatus: () => true,
             });
-            results['1337x'].mirrors.push({
+            results["1337x"].mirrors.push({
               url,
               healthy: response.status >= 200 && response.status < 400,
               responseTimeMs: Date.now() - startTime,
             });
           } catch (error) {
-            results['1337x'].mirrors.push({
+            results["1337x"].mirrors.push({
               url,
               healthy: false,
               responseTimeMs: Date.now() - startTime,
@@ -428,14 +410,20 @@ export const adminQueueRoutes = async (
         }
 
         // Check FlareSolverr status — must use POST /v1 (GET returns 405)
-        const flaresolverrUrl = (process.env.FLARESOLVERR_URL || 'http://flaresolverr:8191').trim();
+        const flaresolverrUrl = (
+          process.env.FLARESOLVERR_URL || "http://flaresolverr:8191"
+        ).trim();
         const startTime = Date.now();
         try {
-          const response = await axios.post(`${flaresolverrUrl}/v1`,
-            { cmd: 'sessions.list' },
+          const response = await axios.post(
+            `${flaresolverrUrl}/v1`,
+            { cmd: "sessions.list" },
             { timeout: 8000, validateStatus: () => true },
           );
-          const ok = response.status >= 200 && response.status < 300 && response.data?.status === 'ok';
+          const ok =
+            response.status >= 200 &&
+            response.status < 300 &&
+            response.data?.status === "ok";
           results.flaresolverr = {
             healthy: ok,
             responseTimeMs: Date.now() - startTime,

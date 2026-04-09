@@ -15,7 +15,8 @@
       "WebFetch(domain:www.vidsrc.wtf)",
       "WebFetch(domain:vsembed.ru)",
       "WebFetch(domain:vidsrcme.ru)",
-      "WebFetch(domain:animenana.com)"
+      "WebFetch(domain:animenana.com)",
+      "Bash(node_modules/.bin/tsc --noEmit)"
     ]
   }
 }

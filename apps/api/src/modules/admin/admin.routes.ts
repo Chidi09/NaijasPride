@@ -1,8 +1,4 @@
-import {
-  FastifyInstance,
-  FastifyReply,
-  FastifyRequest,
-} from "fastify";
+import { FastifyInstance } from "fastify";
 import { YoutubeScoutService } from "./services/youtube-scout.service";
 import { RssScoutService } from "./services/rss-scout.service";
 import { TMDBMetadataService } from "./services/tmdb-metadata.service";
@@ -16,6 +12,12 @@ import { z } from "zod";
 import { Genre as PrismaGenre } from "@prisma/client";
 import { QueueService } from "../../shared/services/queue.service";
 import { getPushDiagnostics } from "../../shared/services/push-notification.service";
+import { parseBooleanFlag, parsePositiveInt } from "../../shared/schedulers";
+import {
+  generateMovieSlug,
+  generateVideoSlug,
+} from "../../shared/utils/slugify";
+import { WrappedService } from "../wrapped/wrapped.service";
 
 // Validation schemas
 const RssUrlSchema = z.object({
@@ -64,9 +66,11 @@ const ChannelImportYoutubeSchema = z.object({
 const PRISMA_GENRE_SET = new Set(Object.values(PrismaGenre));
 
 const normalizeGenres = (rawGenres: string[] | undefined): PrismaGenre[] => {
-  const normalized = (rawGenres || ['Nollywood'])
+  const normalized = (rawGenres || ["Nollywood"])
     .map((entry) => entry.trim())
-    .filter((entry): entry is PrismaGenre => PRISMA_GENRE_SET.has(entry as PrismaGenre));
+    .filter((entry): entry is PrismaGenre =>
+      PRISMA_GENRE_SET.has(entry as PrismaGenre),
+    );
 
   return normalized.length > 0 ? normalized : [PrismaGenre.Nollywood];
 };
@@ -96,51 +100,39 @@ const PushDiagnosticsQuerySchema = z.object({
   email: z.string().email().optional(),
 });
 
-export const adminRoutes = async (
-  app: FastifyInstance,
-  _opts: unknown,
-) => {
+export const adminRoutes = async (app: FastifyInstance, _opts: unknown) => {
   const ytService = new YoutubeScoutService(app.prisma);
   const rssService = new RssScoutService();
   const tmdbService = new TMDBMetadataService(app.prisma);
   const autoLibraryService = new AutoLibraryDiscoveryService(app.prisma);
-  const parsePositiveInt = (value?: string) => {
-    if (!value) return undefined;
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-  };
-  const parseBooleanFlag = (value: string | undefined, defaultValue: boolean): boolean => {
-    if (typeof value !== 'string') return defaultValue;
-    return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase());
-  };
-  const requireAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
-    if (request.user.role !== "ADMIN") {
-      return reply.status(403).send({
-        status: "error",
-        message: "Forbidden: Admin access required",
-      });
-    }
-  };
 
   // GET /api/admin/push/diagnostics - quick push/FCM health + token stats
-  app.get('/push/diagnostics', {
-    preHandler: [app.authenticate, requireAdmin],
+  app.get("/push/diagnostics", {
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       querystring: PushDiagnosticsQuerySchema,
     },
     handler: async (request, reply) => {
       try {
-        const { userId, email } = request.query as z.infer<typeof PushDiagnosticsQuerySchema>;
-        const diagnostics = await getPushDiagnostics(app.prisma, { userId, email });
+        const { userId, email } = request.query as z.infer<
+          typeof PushDiagnosticsQuerySchema
+        >;
+        const diagnostics = await getPushDiagnostics(app.prisma, {
+          userId,
+          email,
+        });
 
         return reply.send({
-          status: 'success',
+          status: "success",
           data: diagnostics,
         });
       } catch (error) {
         return reply.status(500).send({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to fetch push diagnostics',
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch push diagnostics",
         });
       }
     },
@@ -148,7 +140,7 @@ export const adminRoutes = async (
 
   // GET /api/admin/discovery/youtube - Scan YouTube for Nollywood movies
   app.get("/discovery/youtube", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const results = await ytService.scanForMovies();
@@ -169,7 +161,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/discovery/rss - Parse an RSS feed
   app.post("/discovery/rss", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: RssUrlSchema,
     },
@@ -194,7 +186,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/import/youtube - Import a YouTube video as a movie
   app.post("/import/youtube", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: ImportYoutubeSchema,
     },
@@ -203,7 +195,7 @@ export const adminRoutes = async (
         const data = request.body as z.infer<typeof ImportYoutubeSchema>;
 
         // Generate slug from title
-        const slug = `${data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${data.year}`;
+        const slug = generateMovieSlug(data.title, data.year);
 
         // Create movie in database
         const movie = await app.prisma.movie.create({
@@ -225,9 +217,11 @@ export const adminRoutes = async (
         });
 
         // Enrich with TMDB metadata in background (don't wait for it)
-        tmdbService.enrichMovieFromTMDB(movie.id, data.title, data.year).catch(err => {
-          console.error(`[TMDB] Failed to enrich ${data.title}:`, err);
-        });
+        tmdbService
+          .enrichMovieFromTMDB(movie.id, data.title, data.year)
+          .catch((err) => {
+            console.error(`[TMDB] Failed to enrich ${data.title}:`, err);
+          });
 
         return reply.send({
           status: "success",
@@ -246,14 +240,19 @@ export const adminRoutes = async (
 
   // POST /api/admin/discovery/youtube/search - Search YouTube by movie titles
   app.post("/discovery/youtube/search", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: SearchTitlesSchema,
     },
     handler: async (request, reply) => {
       try {
-        const { titles, suffix } = request.body as z.infer<typeof SearchTitlesSchema>;
-        const results = await ytService.searchByTitles(titles, suffix || "Full Movie");
+        const { titles, suffix } = request.body as z.infer<
+          typeof SearchTitlesSchema
+        >;
+        const results = await ytService.searchByTitles(
+          titles,
+          suffix || "Full Movie",
+        );
 
         return reply.send({
           status: "success",
@@ -271,7 +270,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/import/youtube/batch - Import multiple YouTube videos at once
   app.post("/import/youtube/batch", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: BatchImportSchema,
     },
@@ -284,7 +283,7 @@ export const adminRoutes = async (
 
         for (const data of items) {
           try {
-            const slug = `${data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${data.year}`;
+            const slug = generateMovieSlug(data.title, data.year);
 
             // Check if slug or youtubeId already exists
             const existing = await app.prisma.movie.findFirst({
@@ -316,9 +315,11 @@ export const adminRoutes = async (
             });
 
             // Enrich with TMDB metadata in background
-            tmdbService.enrichMovieFromTMDB(movie.id, data.title, data.year).catch(err => {
-              console.error(`[TMDB] Failed to enrich ${data.title}:`, err);
-            });
+            tmdbService
+              .enrichMovieFromTMDB(movie.id, data.title, data.year)
+              .catch((err) => {
+                console.error(`[TMDB] Failed to enrich ${data.title}:`, err);
+              });
 
             imported.push(data.title);
           } catch (err) {
@@ -346,7 +347,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/import/youtube/auto - Search titles and import best YouTube matches
   app.post("/import/youtube/auto", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: AutoImportYoutubeSchema,
     },
@@ -364,7 +365,11 @@ export const adminRoutes = async (
         const skipped: string[] = [];
         const notFound: string[] = [];
         const failed: { title: string; error: string }[] = [];
-        const selected: Array<{ searchTitle: string; youtubeId: string; matchedTitle: string }> = [];
+        const selected: Array<{
+          searchTitle: string;
+          youtubeId: string;
+          matchedTitle: string;
+        }> = [];
 
         for (const title of titles) {
           try {
@@ -376,8 +381,10 @@ export const adminRoutes = async (
 
             // default strategy: first result
             const best = candidates[0];
-            const year = new Date(best.publishedAt).getFullYear() || new Date().getFullYear();
-            const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
+            const year =
+              new Date(best.publishedAt).getFullYear() ||
+              new Date().getFullYear();
+            const slug = generateMovieSlug(title, year);
 
             const existing = await app.prisma.movie.findFirst({
               where: { OR: [{ slug }, { youtubeId: best.youtubeId }] },
@@ -415,9 +422,11 @@ export const adminRoutes = async (
               });
 
               // Enrich with TMDB metadata in background
-              tmdbService.enrichMovieFromTMDB(movie.id, title, year).catch(err => {
-                console.error(`[TMDB] Failed to enrich ${title}:`, err);
-              });
+              tmdbService
+                .enrichMovieFromTMDB(movie.id, title, year)
+                .catch((err) => {
+                  console.error(`[TMDB] Failed to enrich ${title}:`, err);
+                });
             }
 
             imported.push(title);
@@ -447,7 +456,9 @@ export const adminRoutes = async (
         return reply.status(500).send({
           status: "error",
           message:
-            error instanceof Error ? error.message : "Failed to auto-import YouTube titles",
+            error instanceof Error
+              ? error.message
+              : "Failed to auto-import YouTube titles",
         });
       }
     },
@@ -455,7 +466,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/import/youtube/channels - Import latest long-form videos from selected channels
   app.post("/import/youtube/channels", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: ChannelImportYoutubeSchema,
     },
@@ -500,8 +511,9 @@ export const adminRoutes = async (
           for (const video of entry.videos) {
             try {
               const year =
-                new Date(video.publishedAt).getFullYear() || new Date().getFullYear();
-              const slug = `${video.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
+                new Date(video.publishedAt).getFullYear() ||
+                new Date().getFullYear();
+              const slug = generateVideoSlug(video.title);
 
               const existing = await app.prisma.movie.findFirst({
                 where: { OR: [{ slug }, { youtubeId: video.youtubeId }] },
@@ -533,9 +545,14 @@ export const adminRoutes = async (
                 });
 
                 // Enrich with TMDB metadata in background
-                tmdbService.enrichMovieFromTMDB(movie.id, video.title, year).catch(err => {
-                  console.error(`[TMDB] Failed to enrich ${video.title}:`, err);
-                });
+                tmdbService
+                  .enrichMovieFromTMDB(movie.id, video.title, year)
+                  .catch((err) => {
+                    console.error(
+                      `[TMDB] Failed to enrich ${video.title}:`,
+                      err,
+                    );
+                  });
               }
 
               imported.push(video.title);
@@ -581,7 +598,7 @@ export const adminRoutes = async (
 
   // GET /api/admin/books/auto-library/must-haves - Preview must-have seed list
   app.get("/books/auto-library/must-haves", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (_request, reply) => {
       try {
         const mustHaves = await autoLibraryService.loadMustHaves();
@@ -604,7 +621,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/books/auto-library/discover - Search 1337x for must-haves/trending books
   app.post("/books/auto-library/discover", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: AutoLibraryDiscoverSchema,
     },
@@ -636,18 +653,20 @@ export const adminRoutes = async (
   const queueService = new QueueService();
 
   app.post("/books/annas-mirror/run", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: AnnasMirrorRunSchema,
     },
     handler: async (request, reply) => {
       try {
-        const { batchSize, dryRun } = request.body as z.infer<typeof AnnasMirrorRunSchema>;
+        const { batchSize, dryRun } = request.body as z.infer<
+          typeof AnnasMirrorRunSchema
+        >;
 
         await queueService.addAnnasMirrorJob({
           batchSize,
           dryRun,
-          triggeredBy: 'admin-api',
+          triggeredBy: "admin-api",
         });
 
         return reply.send({
@@ -669,18 +688,15 @@ export const adminRoutes = async (
 
   // GET /api/admin/rss-feeds - Get all RSS feeds
   app.get("/rss-feeds", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { page, limit } = request.query as {
           page?: string;
           limit?: string;
         };
-        const pageNum = Math.max(1, parsePositiveInt(page) ?? 1);
-        const limitNum = Math.min(
-          50,
-          Math.max(1, parsePositiveInt(limit) ?? 20),
-        );
+        const pageNum = Math.max(1, parsePositiveInt(page, 1));
+        const limitNum = Math.min(50, Math.max(1, parsePositiveInt(limit, 20)));
         const skip = (pageNum - 1) * limitNum;
 
         const [total, feeds] = await Promise.all([
@@ -718,13 +734,15 @@ export const adminRoutes = async (
 
   // POST /api/admin/rss-feeds - Create a new RSS feed
   app.post("/rss-feeds", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: CreateRssFeedSchema,
     },
     handler: async (request, reply) => {
       try {
-        const { name, url } = request.body as z.infer<typeof CreateRssFeedSchema>;
+        const { name, url } = request.body as z.infer<
+          typeof CreateRssFeedSchema
+        >;
 
         const feed = await app.prisma.rssFeed.create({
           data: {
@@ -755,19 +773,27 @@ export const adminRoutes = async (
   const revenueService = new RevenueService(app.prisma);
 
   app.get("/revenue/summary", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (_request, reply) => {
       try {
         const summary = await revenueService.getRevenueSummary();
         return reply.send({ success: true, data: summary });
       } catch (error) {
-        return reply.status(500).send({ success: false, error: { message: error instanceof Error ? error.message : "Failed to fetch summary" } });
+        return reply.status(500).send({
+          success: false,
+          error: {
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to fetch summary",
+          },
+        });
       }
-    }
+    },
   });
 
   app.get("/revenue/breakdown", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       querystring: z.object({
         period: z.enum(["weekly", "monthly", "yearly"]).default("monthly"),
@@ -775,17 +801,27 @@ export const adminRoutes = async (
     },
     handler: async (request, reply) => {
       try {
-        const { period } = request.query as { period: 'weekly' | 'monthly' | 'yearly' };
+        const { period } = request.query as {
+          period: "weekly" | "monthly" | "yearly";
+        };
         const breakdown = await revenueService.getRevenueBreakdown(period);
         return reply.send({ success: true, data: breakdown });
       } catch (error) {
-        return reply.status(500).send({ success: false, error: { message: error instanceof Error ? error.message : "Failed to fetch breakdown" } });
+        return reply.status(500).send({
+          success: false,
+          error: {
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to fetch breakdown",
+          },
+        });
       }
-    }
+    },
   });
 
   app.post("/revenue/ads/record", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: z.object({
         date: z.string().optional(), // ISO string
@@ -802,13 +838,21 @@ export const adminRoutes = async (
           date,
           body.revenue,
           body.impressions,
-          body.clicks
+          body.clicks,
         );
         return reply.send({ success: true, data: record });
       } catch (error) {
-        return reply.status(500).send({ success: false, error: { message: error instanceof Error ? error.message : "Failed to record revenue" } });
+        return reply.status(500).send({
+          success: false,
+          error: {
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to record revenue",
+          },
+        });
       }
-    }
+    },
   });
 
   // ===== YouTube Channel Management Routes =====
@@ -817,12 +861,12 @@ export const adminRoutes = async (
 
   // POST /api/admin/youtube/discovery/run - Manually trigger auto-discovery
   app.post("/youtube/discovery/run", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (_request, reply) => {
       try {
         // Run in background
-        discoveryService.runDiscoveryCycle().catch(err => {
-          console.error('[Admin] Manual YouTube discovery failed:', err);
+        discoveryService.runDiscoveryCycle().catch((err) => {
+          console.error("[Admin] Manual YouTube discovery failed:", err);
         });
 
         return reply.send({
@@ -832,7 +876,10 @@ export const adminRoutes = async (
       } catch (error) {
         return reply.status(500).send({
           status: "error",
-          message: error instanceof Error ? error.message : "Failed to start discovery",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to start discovery",
         });
       }
     },
@@ -840,7 +887,7 @@ export const adminRoutes = async (
 
   // GET /api/admin/youtube/channels - List all configured channels
   app.get("/youtube/channels", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (_request, reply) => {
       try {
         const channels = await channelService.listChannels();
@@ -852,9 +899,7 @@ export const adminRoutes = async (
         return reply.status(500).send({
           status: "error",
           message:
-            error instanceof Error
-              ? error.message
-              : "Failed to fetch channels",
+            error instanceof Error ? error.message : "Failed to fetch channels",
         });
       }
     },
@@ -862,7 +907,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/youtube/channels - Add a new channel
   app.post("/youtube/channels", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: z.object({
         url: z.string().url(),
@@ -881,9 +926,7 @@ export const adminRoutes = async (
         return reply.status(400).send({
           status: "error",
           message:
-            error instanceof Error
-              ? error.message
-              : "Failed to add channel",
+            error instanceof Error ? error.message : "Failed to add channel",
         });
       }
     },
@@ -891,7 +934,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/youtube/channels/backfill - Start background backfill job (returns jobId immediately)
   app.post("/youtube/channels/backfill", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (_request, reply) => {
       try {
         const jobId = channelService.startBackfill();
@@ -904,9 +947,7 @@ export const adminRoutes = async (
         return reply.status(500).send({
           status: "error",
           message:
-            error instanceof Error
-              ? error.message
-              : "Failed to start backfill",
+            error instanceof Error ? error.message : "Failed to start backfill",
         });
       }
     },
@@ -914,19 +955,22 @@ export const adminRoutes = async (
 
   // GET /api/admin/youtube/channels/backfill/:jobId - Poll backfill progress
   app.get("/youtube/channels/backfill/:jobId", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { jobId } = request.params as { jobId: string };
         const progress = channelService.getBackfillProgress(jobId);
         if (!progress) {
-          return reply.status(404).send({ status: "error", message: "Job not found" });
+          return reply
+            .status(404)
+            .send({ status: "error", message: "Job not found" });
         }
         return reply.send({ status: "success", data: progress });
       } catch (error) {
         return reply.status(500).send({
           status: "error",
-          message: error instanceof Error ? error.message : "Failed to get progress",
+          message:
+            error instanceof Error ? error.message : "Failed to get progress",
         });
       }
     },
@@ -934,7 +978,7 @@ export const adminRoutes = async (
 
   // DELETE /api/admin/youtube/channels/:id - Remove a channel
   app.delete("/youtube/channels/:id", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
@@ -947,9 +991,7 @@ export const adminRoutes = async (
         return reply.status(500).send({
           status: "error",
           message:
-            error instanceof Error
-              ? error.message
-              : "Failed to remove channel",
+            error instanceof Error ? error.message : "Failed to remove channel",
         });
       }
     },
@@ -957,19 +999,32 @@ export const adminRoutes = async (
 
   // GET /api/admin/youtube/channels/:channelId/videos - Get all videos from channel
   app.get("/youtube/channels/:channelId/videos", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       querystring: z.object({
         pageToken: z.string().optional(),
-        maxResults: z.coerce.number().int().min(1).max(50).optional().default(50),
+        maxResults: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .default(50),
       }),
     },
     handler: async (request, reply) => {
       try {
         const { channelId } = request.params as { channelId: string };
-        const { pageToken, maxResults } = request.query as { pageToken?: string; maxResults: number };
-        
-        const result = await channelService.getChannelVideos(channelId, pageToken, maxResults);
+        const { pageToken, maxResults } = request.query as {
+          pageToken?: string;
+          maxResults: number;
+        };
+
+        const result = await channelService.getChannelVideos(
+          channelId,
+          pageToken,
+          maxResults,
+        );
         return reply.send({
           status: "success",
           data: result,
@@ -988,7 +1043,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/youtube/channels/:channelId/import-remaining - Batch import remaining videos
   app.post("/youtube/channels/:channelId/import-remaining", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: z.object({
         batchSize: z.number().int().min(1).max(20).optional().default(10),
@@ -998,8 +1053,11 @@ export const adminRoutes = async (
       try {
         const { channelId } = request.params as { channelId: string };
         const { batchSize } = request.body as { batchSize?: number };
-        
-        const progressId = await channelService.startBatchImport(channelId, batchSize);
+
+        const progressId = await channelService.startBatchImport(
+          channelId,
+          batchSize,
+        );
         return reply.send({
           status: "success",
           data: { progressId },
@@ -1019,19 +1077,19 @@ export const adminRoutes = async (
 
   // GET /api/admin/youtube/import-progress/:progressId - Get import progress
   app.get("/youtube/import-progress/:progressId", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { progressId } = request.params as { progressId: string };
         const progress = channelService.getImportProgress(progressId);
-        
+
         if (!progress) {
           return reply.status(404).send({
             status: "error",
             message: "Import progress not found",
           });
         }
-        
+
         return reply.send({
           status: "success",
           data: progress,
@@ -1050,7 +1108,7 @@ export const adminRoutes = async (
 
   // POST /api/admin/movies/backfill-slugs - Generate slugs for movies without them
   app.post("/movies/backfill-slugs", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (_request, reply) => {
       try {
         const { MoviesService } = await import("../movies/movies.service");
@@ -1065,17 +1123,15 @@ export const adminRoutes = async (
         return reply.status(500).send({
           status: "error",
           message:
-            error instanceof Error
-              ? error.message
-              : "Failed to backfill slugs",
+            error instanceof Error ? error.message : "Failed to backfill slugs",
         });
       }
     },
   });
 
   // POST /api/admin/movies/soap2day/crawl - Manually trigger Soap2Day crawler
-  app.post('/movies/soap2day/crawl', {
-    preHandler: [app.authenticate, requireAdmin],
+  app.post("/movies/soap2day/crawl", {
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: {
       body: z.object({
         maxPerRun: z.number().int().min(1).max(10).optional().default(5),
@@ -1084,56 +1140,65 @@ export const adminRoutes = async (
     handler: async (request, reply) => {
       try {
         const { maxPerRun } = request.body as { maxPerRun: number };
-        const { Soap2DayCrawlerService } = await import('../movies/soap2day-crawler.service');
-        const crawler = new Soap2DayCrawlerService(app.prisma, console, { maxPerRun });
+        const { Soap2DayCrawlerService } =
+          await import("../movies/soap2day-crawler.service");
+        const crawler = new Soap2DayCrawlerService(app.prisma, console, {
+          maxPerRun,
+        });
         const summary = await crawler.crawl();
-        return reply.send({ status: 'success', data: summary });
+        return reply.send({ status: "success", data: summary });
       } catch (error) {
         return reply.status(500).send({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Soap2Day crawl failed',
+          status: "error",
+          message:
+            error instanceof Error ? error.message : "Soap2Day crawl failed",
         });
       }
     },
   });
 
   // GET /api/admin/movies/soap2day/stats - Soap2Day tracked totals and scheduler state
-  app.get('/movies/soap2day/stats', {
-    preHandler: [app.authenticate, requireAdmin],
+  app.get("/movies/soap2day/stats", {
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (_request, reply) => {
       try {
         const soap2dayWhere = {
           OR: [
-            { uploadedBy: 'soap2day-crawler' },
-            { metadata: { path: ['source'], equals: 'soap2day-crawler' } },
+            { uploadedBy: "soap2day-crawler" },
+            { metadata: { path: ["source"], equals: "soap2day-crawler" } },
           ],
         };
 
-        const [totalTracked, activeTracked, pendingTracked, lastTracked] = await Promise.all([
-          app.prisma.movie.count({ where: soap2dayWhere }),
-          app.prisma.movie.count({ where: { ...soap2dayWhere, status: 'active' } }),
-          app.prisma.movie.count({ where: { ...soap2dayWhere, status: 'pending' } }),
-          app.prisma.movie.findFirst({
-            where: soap2dayWhere,
-            orderBy: { createdAt: 'desc' },
-            select: {
-              id: true,
-              slug: true,
-              title: true,
-              year: true,
-              status: true,
-              createdAt: true,
-            },
-          }),
-        ]);
+        const [totalTracked, activeTracked, pendingTracked, lastTracked] =
+          await Promise.all([
+            app.prisma.movie.count({ where: soap2dayWhere }),
+            app.prisma.movie.count({
+              where: { ...soap2dayWhere, status: "active" },
+            }),
+            app.prisma.movie.count({
+              where: { ...soap2dayWhere, status: "pending" },
+            }),
+            app.prisma.movie.findFirst({
+              where: soap2dayWhere,
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                slug: true,
+                title: true,
+                year: true,
+                status: true,
+                createdAt: true,
+              },
+            }),
+          ]);
 
-        const configuredUrls = (process.env.SOAP2DAY_CRAWLER_URLS || '')
-          .split(',')
+        const configuredUrls = (process.env.SOAP2DAY_CRAWLER_URLS || "")
+          .split(",")
           .map((entry) => entry.trim())
           .filter(Boolean);
 
         return reply.send({
-          status: 'success',
+          status: "success",
           data: {
             totalTracked,
             activeTracked,
@@ -1145,34 +1210,49 @@ export const adminRoutes = async (
                 }
               : null,
             scheduler: {
-              enabled: parseBooleanFlag(process.env.SOAP2DAY_CRAWLER_ENABLED, false),
-              intervalMs: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_INTERVAL_MS) ?? 12 * 60 * 60 * 1000,
-              startupDelayMs: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_STARTUP_DELAY_MS) ?? 10 * 60 * 1000,
-              maxPerRun: parsePositiveInt(process.env.SOAP2DAY_CRAWLER_MAX_PER_RUN) ?? 5,
+              enabled: parseBooleanFlag(
+                process.env.SOAP2DAY_CRAWLER_ENABLED,
+                false,
+              ),
+              intervalMs: parsePositiveInt(
+                process.env.SOAP2DAY_CRAWLER_INTERVAL_MS,
+                12 * 60 * 60 * 1000,
+              ),
+              startupDelayMs: parsePositiveInt(
+                process.env.SOAP2DAY_CRAWLER_STARTUP_DELAY_MS,
+                10 * 60 * 1000,
+              ),
+              maxPerRun: parsePositiveInt(
+                process.env.SOAP2DAY_CRAWLER_MAX_PER_RUN,
+                5,
+              ),
               urls: configuredUrls,
             },
           },
         });
       } catch (error) {
         return reply.status(500).send({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to fetch Soap2Day stats',
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch Soap2Day stats",
         });
       }
     },
   });
 
   // POST /api/admin/movies/upload-url - Generate signed upload URL for movie files (Admin only)
-  app.post('/movies/upload-url', {
+  app.post("/movies/upload-url", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
             error: {
-              code: 'FORBIDDEN',
-              message: 'Admin access required',
+              code: "FORBIDDEN",
+              message: "Admin access required",
             },
           });
         }
@@ -1184,20 +1264,20 @@ export const adminRoutes = async (
         };
 
         const allowedVideoTypes = new Set([
-          'video/mp4',
-          'video/x-matroska',
-          'video/webm',
-          'video/quicktime',
-          'video/x-msvideo',
-          'video/x-m4v',
+          "video/mp4",
+          "video/x-matroska",
+          "video/webm",
+          "video/quicktime",
+          "video/x-msvideo",
+          "video/x-m4v",
         ]);
 
         if (!allowedVideoTypes.has(body.contentType)) {
           return reply.status(400).send({
             success: false,
             error: {
-              code: 'INVALID_CONTENT_TYPE',
-              message: `Unsupported video type: ${body.contentType}. Allowed: ${Array.from(allowedVideoTypes).join(', ')}`,
+              code: "INVALID_CONTENT_TYPE",
+              message: `Unsupported video type: ${body.contentType}. Allowed: ${Array.from(allowedVideoTypes).join(", ")}`,
             },
           });
         }
@@ -1207,18 +1287,22 @@ export const adminRoutes = async (
           return reply.status(400).send({
             success: false,
             error: {
-              code: 'FILE_TOO_LARGE',
-              message: 'File size exceeds 5GB limit',
+              code: "FILE_TOO_LARGE",
+              message: "File size exceeds 5GB limit",
             },
           });
         }
 
-        const safeName = body.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const safeName = body.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
         const storageKey = `movies/uploaded/${Date.now()}-${safeName}`;
-        
-        const { StorageService } = await import('../../shared/services/storage.service');
+
+        const { StorageService } =
+          await import("../../shared/services/storage.service");
         const storageService = new StorageService();
-        const uploadUrl = await storageService.getUploadUrl(storageKey, body.contentType);
+        const uploadUrl = await storageService.getUploadUrl(
+          storageKey,
+          body.contentType,
+        );
 
         return reply.send({
           success: true,
@@ -1230,12 +1314,15 @@ export const adminRoutes = async (
           },
         });
       } catch (error) {
-        console.error('[Admin] Movie upload URL error:', error);
+        console.error("[Admin] Movie upload URL error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'UPLOAD_URL_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to create upload URL',
+            code: "UPLOAD_URL_ERROR",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to create upload URL",
           },
         });
       }
@@ -1244,16 +1331,16 @@ export const adminRoutes = async (
 
   // POST /api/admin/movies/create - Create a new movie with metadata (Admin only)
   // Supports TMDB auto-enrichment when tmdbId is provided or via search
-  app.post('/movies/create', {
+  app.post("/movies/create", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
             error: {
-              code: 'FORBIDDEN',
-              message: 'Admin access required',
+              code: "FORBIDDEN",
+              message: "Admin access required",
             },
           });
         }
@@ -1281,41 +1368,44 @@ export const adminRoutes = async (
           return reply.status(400).send({
             success: false,
             error: {
-              code: 'MISSING_FIELDS',
-              message: 'Title, year, and storageKey are required',
+              code: "MISSING_FIELDS",
+              message: "Title, year, and storageKey are required",
             },
           });
         }
 
-        const { PrismaClient } = await import('@prisma/client');
+        const { PrismaClient } = await import("@prisma/client");
         const prisma = new PrismaClient();
 
         // Initialize TMDB service for metadata fetching
-        const { TMDBMetadataService } = await import('./services/tmdb-metadata.service');
+        const { TMDBMetadataService } =
+          await import("./services/tmdb-metadata.service");
         const tmdbService = new TMDBMetadataService(prisma);
 
         // Fetch metadata from TMDB if requested or if tmdbId provided
         let tmdbData = null;
-        let metadataSource = 'manual';
-        
+        let metadataSource = "manual";
+
         if (body.fetchMetadata || body.tmdbId) {
           if (body.tmdbId) {
             tmdbData = await tmdbService.getMovieDetails(body.tmdbId);
           } else {
             tmdbData = await tmdbService.searchMovie(body.title, body.year);
           }
-          
+
           if (tmdbData) {
-            metadataSource = 'tmdb';
-            console.log(`[Admin] Found TMDB match: ${tmdbData.title} (ID: ${tmdbData.id})`);
+            metadataSource = "tmdb";
+            console.log(
+              `[Admin] Found TMDB match: ${tmdbData.title} (ID: ${tmdbData.id})`,
+            );
           }
         }
 
         // Generate slug
         const slugBase = body.title
           .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '');
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
         const slug = `${slugBase}-${body.year}`;
 
         // Check for duplicate
@@ -1328,7 +1418,7 @@ export const adminRoutes = async (
           return reply.status(409).send({
             success: false,
             error: {
-              code: 'DUPLICATE_MOVIE',
+              code: "DUPLICATE_MOVIE",
               message: `Movie with slug "${slug}" already exists`,
             },
           });
@@ -1342,37 +1432,39 @@ export const adminRoutes = async (
           overview: tmdbData?.overview || null,
           year: body.year,
           genre: normalizeGenres(
-            tmdbData?.genres && tmdbData.genres.length > 0 
+            tmdbData?.genres && tmdbData.genres.length > 0
               ? tmdbData.genres.map((g: { name: string }) => g.name)
-              : body.genre
+              : body.genre,
           ),
           durationMinutes: body.duration || tmdbData?.runtime || null,
           thumbnailUrl: body.thumbnailUrl || null,
-          posterUrl: tmdbData?.poster_path 
-            ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` 
+          posterUrl: tmdbData?.poster_path
+            ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`
             : null,
-          backdropUrl: tmdbData?.backdrop_path 
-            ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` 
+          backdropUrl: tmdbData?.backdrop_path
+            ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`
             : null,
           fileUrls: {
-            "Original": `/api/v1/movies/download?key=${encodeURIComponent(body.storageKey)}`
+            Original: `/api/v1/movies/download?key=${encodeURIComponent(body.storageKey)}`,
           },
           fileSizes: {
-            "Original": body.fileSize || 0
+            Original: body.fileSize || 0,
           },
-          status: 'active' as const,
-          uploadedBy: 'admin',
+          status: "active" as const,
+          uploadedBy: "admin",
           isStreamOnly: body.isStreamOnly ?? true,
           tmdbId: tmdbData?.id || null,
           imdbId: body.imdbId || tmdbData?.imdb_id || null,
-          tmdbRating: tmdbData?.vote_average ? Math.round(tmdbData.vote_average * 10) : null,
+          tmdbRating: tmdbData?.vote_average
+            ? Math.round(tmdbData.vote_average * 10)
+            : null,
           metadata: {
             storageKey: body.storageKey,
             contentType: body.contentType,
             fileSize: body.fileSize,
-            source: 'admin-upload',
+            source: "admin-upload",
             director: body.director || null,
-          }
+          },
         };
 
         // Create movie record
@@ -1383,20 +1475,20 @@ export const adminRoutes = async (
         // Add cast members from TMDB if available
         if (tmdbData?.credits?.cast && tmdbData.credits.cast.length > 0) {
           const topCast = tmdbData.credits.cast.slice(0, 10);
-          
+
           for (const actor of topCast) {
             await prisma.cast.create({
               data: {
                 name: actor.name,
                 character: actor.character || null,
-                photoUrl: actor.profile_path 
-                  ? `https://image.tmdb.org/t/p/w200${actor.profile_path}` 
+                photoUrl: actor.profile_path
+                  ? `https://image.tmdb.org/t/p/w200${actor.profile_path}`
                   : null,
                 movieId: movie.id,
               },
             });
           }
-          
+
           console.log(`[Admin] Added ${topCast.length} cast members from TMDB`);
         }
 
@@ -1411,18 +1503,19 @@ export const adminRoutes = async (
               tmdbId: tmdbData?.id || null,
               enriched: !!tmdbData,
             },
-            message: tmdbData 
-              ? 'Movie created successfully with TMDB metadata' 
-              : 'Movie created successfully (TMDB metadata not found)',
+            message: tmdbData
+              ? "Movie created successfully with TMDB metadata"
+              : "Movie created successfully (TMDB metadata not found)",
           },
         });
       } catch (error) {
-        console.error('[Admin] Movie creation error:', error);
+        console.error("[Admin] Movie creation error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'CREATE_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to create movie',
+            code: "CREATE_ERROR",
+            message:
+              error instanceof Error ? error.message : "Failed to create movie",
           },
         });
       }
@@ -1430,14 +1523,14 @@ export const adminRoutes = async (
   });
 
   // POST /api/admin/movies/search-tmdb - Search TMDB for movie metadata
-  app.post('/movies/search-tmdb', {
+  app.post("/movies/search-tmdb", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
-            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+            error: { code: "FORBIDDEN", message: "Admin access required" },
           });
         }
 
@@ -1449,17 +1542,18 @@ export const adminRoutes = async (
         if (!body.title) {
           return reply.status(400).send({
             success: false,
-            error: { code: 'MISSING_TITLE', message: 'Title is required' },
+            error: { code: "MISSING_TITLE", message: "Title is required" },
           });
         }
 
-        const { PrismaClient } = await import('@prisma/client');
+        const { PrismaClient } = await import("@prisma/client");
         const prisma = new PrismaClient();
-        const { TMDBMetadataService } = await import('./services/tmdb-metadata.service');
+        const { TMDBMetadataService } =
+          await import("./services/tmdb-metadata.service");
         const tmdbService = new TMDBMetadataService(prisma);
 
         const results = await tmdbService.searchMovie(body.title, body.year);
-        
+
         await prisma.$disconnect();
 
         if (!results) {
@@ -1467,7 +1561,7 @@ export const adminRoutes = async (
             success: true,
             data: {
               results: [],
-              message: 'No TMDB matches found',
+              message: "No TMDB matches found",
             },
           });
         }
@@ -1476,16 +1570,17 @@ export const adminRoutes = async (
           success: true,
           data: {
             results: [results],
-            message: 'TMDB match found',
+            message: "TMDB match found",
           },
         });
       } catch (error) {
-        console.error('[Admin] TMDB search error:', error);
+        console.error("[Admin] TMDB search error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'SEARCH_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to search TMDB',
+            code: "SEARCH_ERROR",
+            message:
+              error instanceof Error ? error.message : "Failed to search TMDB",
           },
         });
       }
@@ -1493,14 +1588,14 @@ export const adminRoutes = async (
   });
 
   // POST /api/admin/movies/:id/enrich - Enrich existing movie with TMDB data
-  app.post('/movies/:id/enrich', {
+  app.post("/movies/:id/enrich", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
-            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+            error: { code: "FORBIDDEN", message: "Admin access required" },
           });
         }
 
@@ -1511,7 +1606,7 @@ export const adminRoutes = async (
           searchYear?: number;
         };
 
-        const { PrismaClient } = await import('@prisma/client');
+        const { PrismaClient } = await import("@prisma/client");
         const prisma = new PrismaClient();
 
         const movie = await prisma.movie.findUnique({
@@ -1522,19 +1617,20 @@ export const adminRoutes = async (
           await prisma.$disconnect();
           return reply.status(404).send({
             success: false,
-            error: { code: 'NOT_FOUND', message: 'Movie not found' },
+            error: { code: "NOT_FOUND", message: "Movie not found" },
           });
         }
 
-        const { TMDBMetadataService } = await import('./services/tmdb-metadata.service');
+        const { TMDBMetadataService } =
+          await import("./services/tmdb-metadata.service");
         const tmdbService = new TMDBMetadataService(prisma);
 
         let tmdbId = body.tmdbId;
-        
+
         if (!tmdbId && body.searchTitle) {
           const searchResult = await tmdbService.searchMovie(
-            body.searchTitle, 
-            body.searchYear || movie.year
+            body.searchTitle,
+            body.searchYear || movie.year,
           );
           if (searchResult) {
             tmdbId = searchResult.id;
@@ -1546,14 +1642,14 @@ export const adminRoutes = async (
           return reply.status(400).send({
             success: false,
             error: {
-              code: 'NO_TMDB_ID',
-              message: 'Please provide tmdbId or searchTitle',
+              code: "NO_TMDB_ID",
+              message: "Please provide tmdbId or searchTitle",
             },
           });
         }
 
         await tmdbService.enrichMovieFromTMDB(id, movie.title, movie.year);
-        
+
         const updatedMovie = await prisma.movie.findUnique({
           where: { id },
           include: { cast: true },
@@ -1565,16 +1661,17 @@ export const adminRoutes = async (
           success: true,
           data: {
             movie: updatedMovie,
-            message: 'Movie enriched with TMDB data',
+            message: "Movie enriched with TMDB data",
           },
         });
       } catch (error) {
-        console.error('[Admin] Enrich error:', error);
+        console.error("[Admin] Enrich error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'ENRICH_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to enrich movie',
+            code: "ENRICH_ERROR",
+            message:
+              error instanceof Error ? error.message : "Failed to enrich movie",
           },
         });
       }
@@ -1582,16 +1679,16 @@ export const adminRoutes = async (
   });
 
   // GET /api/admin/movies/uploads - List uploaded movies (Admin only)
-  app.get('/movies/uploads', {
+  app.get("/movies/uploads", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
             error: {
-              code: 'FORBIDDEN',
-              message: 'Admin access required',
+              code: "FORBIDDEN",
+              message: "Admin access required",
             },
           });
         }
@@ -1601,22 +1698,22 @@ export const adminRoutes = async (
           limit?: string;
         };
 
-        const page = parseInt(query.page || '1', 10);
-        const limit = parseInt(query.limit || '20', 10);
+        const page = parseInt(query.page || "1", 10);
+        const limit = parseInt(query.limit || "20", 10);
         const skip = (page - 1) * limit;
 
-        const { PrismaClient } = await import('@prisma/client');
+        const { PrismaClient } = await import("@prisma/client");
         const prisma = new PrismaClient();
 
         const [movies, total] = await Promise.all([
           prisma.movie.findMany({
             where: {
               metadata: {
-                path: ['source'],
-                equals: 'admin-upload',
+                path: ["source"],
+                equals: "admin-upload",
               },
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             skip,
             take: limit,
             select: {
@@ -1634,8 +1731,8 @@ export const adminRoutes = async (
           prisma.movie.count({
             where: {
               metadata: {
-                path: ['source'],
-                equals: 'admin-upload',
+                path: ["source"],
+                equals: "admin-upload",
               },
             },
           }),
@@ -1656,12 +1753,13 @@ export const adminRoutes = async (
           },
         });
       } catch (error) {
-        console.error('[Admin] List uploads error:', error);
+        console.error("[Admin] List uploads error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'LIST_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to list uploads',
+            code: "LIST_ERROR",
+            message:
+              error instanceof Error ? error.message : "Failed to list uploads",
           },
         });
       }
@@ -1669,14 +1767,14 @@ export const adminRoutes = async (
   });
 
   // POST /api/admin/movies/bulk-upload - Upload multiple movies (Admin only)
-  app.post('/movies/bulk-upload', {
+  app.post("/movies/bulk-upload", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
-            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+            error: { code: "FORBIDDEN", message: "Admin access required" },
           });
         }
 
@@ -1698,23 +1796,31 @@ export const adminRoutes = async (
         if (!body.movies || body.movies.length === 0) {
           return reply.status(400).send({
             success: false,
-            error: { code: 'NO_MOVIES', message: 'No movies provided' },
+            error: { code: "NO_MOVIES", message: "No movies provided" },
           });
         }
 
         if (body.movies.length > 50) {
           return reply.status(400).send({
             success: false,
-            error: { code: 'TOO_MANY_MOVIES', message: 'Maximum 50 movies per batch' },
+            error: {
+              code: "TOO_MANY_MOVIES",
+              message: "Maximum 50 movies per batch",
+            },
           });
         }
 
         const allowedVideoTypes = new Set([
-          'video/mp4', 'video/x-matroska', 'video/webm',
-          'video/quicktime', 'video/x-msvideo', 'video/x-m4v',
+          "video/mp4",
+          "video/x-matroska",
+          "video/webm",
+          "video/quicktime",
+          "video/x-msvideo",
+          "video/x-m4v",
         ]);
 
-        const { StorageService } = await import('../../shared/services/storage.service');
+        const { StorageService } =
+          await import("../../shared/services/storage.service");
         const storageService = new StorageService();
 
         const results = await Promise.all(
@@ -1727,9 +1833,12 @@ export const adminRoutes = async (
               };
             }
 
-            const safeName = movie.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const safeName = movie.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
             const storageKey = `movies/uploaded/${Date.now()}-${safeName}`;
-            const uploadUrl = await storageService.getUploadUrl(storageKey, movie.contentType);
+            const uploadUrl = await storageService.getUploadUrl(
+              storageKey,
+              movie.contentType,
+            );
 
             return {
               title: movie.title,
@@ -1750,25 +1859,28 @@ export const adminRoutes = async (
                 fileSize: movie.fileSize,
               },
             };
-          })
+          }),
         );
 
         return reply.send({
           success: true,
           data: {
             total: results.length,
-            successful: results.filter(r => r.success).length,
-            failed: results.filter(r => !r.success).length,
+            successful: results.filter((r) => r.success).length,
+            failed: results.filter((r) => !r.success).length,
             movies: results,
           },
         });
       } catch (error) {
-        console.error('[Admin] Bulk upload error:', error);
+        console.error("[Admin] Bulk upload error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'BULK_UPLOAD_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to process bulk upload',
+            code: "BULK_UPLOAD_ERROR",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to process bulk upload",
           },
         });
       }
@@ -1776,14 +1888,14 @@ export const adminRoutes = async (
   });
 
   // POST /api/admin/movies/:id/thumbnail - Generate thumbnail from video (Admin only)
-  app.post('/movies/:id/thumbnail', {
+  app.post("/movies/:id/thumbnail", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
-            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+            error: { code: "FORBIDDEN", message: "Admin access required" },
           });
         }
 
@@ -1794,7 +1906,7 @@ export const adminRoutes = async (
           height?: number;
         };
 
-        const { PrismaClient } = await import('@prisma/client');
+        const { PrismaClient } = await import("@prisma/client");
         const prisma = new PrismaClient();
 
         const movie = await prisma.movie.findUnique({
@@ -1805,7 +1917,7 @@ export const adminRoutes = async (
           await prisma.$disconnect();
           return reply.status(404).send({
             success: false,
-            error: { code: 'NOT_FOUND', message: 'Movie not found' },
+            error: { code: "NOT_FOUND", message: "Movie not found" },
           });
         }
 
@@ -1814,7 +1926,10 @@ export const adminRoutes = async (
           await prisma.$disconnect();
           return reply.status(400).send({
             success: false,
-            error: { code: 'NO_STORAGE_KEY', message: 'Movie has no storage key' },
+            error: {
+              code: "NO_STORAGE_KEY",
+              message: "Movie has no storage key",
+            },
           });
         }
 
@@ -1823,36 +1938,46 @@ export const adminRoutes = async (
         const width = body.width || 1280;
         const height = body.height || 720;
 
-        const { StorageService } = await import('../../shared/services/storage.service');
+        const { StorageService } =
+          await import("../../shared/services/storage.service");
         const storageService = new StorageService();
 
         const thumbnailKey = `movies/thumbnails/${id}-${Date.now()}.jpg`;
 
         try {
-          const { exec } = await import('child_process');
-          const { promisify } = await import('util');
+          const { exec } = await import("child_process");
+          const { promisify } = await import("util");
           const execAsync = promisify(exec);
 
-          const videoUrl = await storageService.getDownloadUrl(storageKey, { expiresInSeconds: 3600 });
+          const videoUrl = await storageService.getDownloadUrl(storageKey, {
+            expiresInSeconds: 3600,
+          });
           const tempPath = `/tmp/thumbnail-${id}.jpg`;
 
           await execAsync(
             `ffmpeg -ss ${timestamp} -i "${videoUrl}" -vframes 1 -vf "scale=${width}:${height}" -q:v 2 "${tempPath}" -y`,
-            { timeout: 60000 }
+            { timeout: 60000 },
           );
 
-          const fs = await import('fs');
+          const fs = await import("fs");
           const thumbnailBuffer = await fs.promises.readFile(tempPath);
-          await storageService.uploadBuffer(thumbnailKey, thumbnailBuffer, 'image/jpeg');
+          await storageService.uploadBuffer(
+            thumbnailKey,
+            thumbnailBuffer,
+            "image/jpeg",
+          );
           await fs.promises.unlink(tempPath);
         } catch (ffmpegError) {
-          console.warn('[Admin] FFmpeg failed, using placeholder:', ffmpegError);
+          console.warn(
+            "[Admin] FFmpeg failed, using placeholder:",
+            ffmpegError,
+          );
           const placeholderUrl = `https://via.placeholder.com/${width}x${height}/800020/FFFFFF?text=${encodeURIComponent(movie.title)}`;
           await prisma.$disconnect();
           return reply.send({
             success: true,
             data: {
-              message: 'Using placeholder thumbnail (ffmpeg not available)',
+              message: "Using placeholder thumbnail (ffmpeg not available)",
               thumbnailUrl: placeholderUrl,
             },
           });
@@ -1860,7 +1985,9 @@ export const adminRoutes = async (
 
         await prisma.movie.update({
           where: { id },
-          data: { thumbnailUrl: `/api/v1/movies/download?key=${encodeURIComponent(thumbnailKey)}` },
+          data: {
+            thumbnailUrl: `/api/v1/movies/download?key=${encodeURIComponent(thumbnailKey)}`,
+          },
         });
 
         await prisma.$disconnect();
@@ -1868,18 +1995,21 @@ export const adminRoutes = async (
         return reply.send({
           success: true,
           data: {
-            message: 'Thumbnail generated successfully',
+            message: "Thumbnail generated successfully",
             thumbnailUrl: `/api/v1/movies/download?key=${encodeURIComponent(thumbnailKey)}`,
             timestamp,
           },
         });
       } catch (error) {
-        console.error('[Admin] Thumbnail generation error:', error);
+        console.error("[Admin] Thumbnail generation error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'THUMBNAIL_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to generate thumbnail',
+            code: "THUMBNAIL_ERROR",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to generate thumbnail",
           },
         });
       }
@@ -1887,23 +2017,23 @@ export const adminRoutes = async (
   });
 
   // POST /api/admin/movies/:id/transcode - Transcode video to HLS (Admin only)
-  app.post('/movies/:id/transcode', {
+  app.post("/movies/:id/transcode", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
-            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+            error: { code: "FORBIDDEN", message: "Admin access required" },
           });
         }
 
         const { id } = request.params as { id: string };
         const body = request.body as {
-          qualities?: Array<'240p' | '360p' | '480p' | '720p' | '1080p'>;
+          qualities?: Array<"240p" | "360p" | "480p" | "720p" | "1080p">;
         };
 
-        const { PrismaClient } = await import('@prisma/client');
+        const { PrismaClient } = await import("@prisma/client");
         const prisma = new PrismaClient();
 
         const movie = await prisma.movie.findUnique({
@@ -1914,7 +2044,7 @@ export const adminRoutes = async (
           await prisma.$disconnect();
           return reply.status(404).send({
             success: false,
-            error: { code: 'NOT_FOUND', message: 'Movie not found' },
+            error: { code: "NOT_FOUND", message: "Movie not found" },
           });
         }
 
@@ -1926,20 +2056,23 @@ export const adminRoutes = async (
         return reply.send({
           success: true,
           data: {
-            message: 'Transcoding job queued',
+            message: "Transcoding job queued",
             jobId,
             movieId: id,
-            status: 'queued',
-            qualities: body.qualities || ['360p', '720p', '1080p'],
+            status: "queued",
+            qualities: body.qualities || ["360p", "720p", "1080p"],
           },
         });
       } catch (error) {
-        console.error('[Admin] Transcode error:', error);
+        console.error("[Admin] Transcode error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'TRANSCODE_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to queue transcoding',
+            code: "TRANSCODE_ERROR",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to queue transcoding",
           },
         });
       }
@@ -1947,14 +2080,14 @@ export const adminRoutes = async (
   });
 
   // GET /api/admin/movies/progress/:jobId - Get upload/processing progress (Admin only)
-  app.get('/movies/progress/:jobId', {
+  app.get("/movies/progress/:jobId", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
       try {
-        if (request.user.role !== 'ADMIN') {
+        if (request.user.role !== "ADMIN") {
           return reply.status(403).send({
             success: false,
-            error: { code: 'FORBIDDEN', message: 'Admin access required' },
+            error: { code: "FORBIDDEN", message: "Admin access required" },
           });
         }
 
@@ -1963,10 +2096,10 @@ export const adminRoutes = async (
         // This is a mock implementation - in production you'd check Redis or database
         const mockProgress = {
           jobId,
-          status: 'processing',
+          status: "processing",
           progress: 65,
-          stage: 'uploading',
-          message: 'Uploading video to R2 storage',
+          stage: "uploading",
+          message: "Uploading video to R2 storage",
           startedAt: new Date(Date.now() - 300000).toISOString(),
           estimatedCompletion: new Date(Date.now() + 180000).toISOString(),
         };
@@ -1976,21 +2109,50 @@ export const adminRoutes = async (
           data: mockProgress,
         });
       } catch (error) {
-        console.error('[Admin] Progress check error:', error);
+        console.error("[Admin] Progress check error:", error);
         return reply.status(500).send({
           success: false,
           error: {
-            code: 'PROGRESS_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to get progress',
+            code: "PROGRESS_ERROR",
+            message:
+              error instanceof Error ? error.message : "Failed to get progress",
           },
         });
       }
     },
   });
 
+  // ===== Wrapped Admin Routes =====
+  const wrappedService = new WrappedService(app.prisma);
+
+  // POST /api/admin/wrapped/generate-all - Batch generate wrapped for all users
+  app.post("/wrapped/generate-all", {
+    preHandler: [app.authenticate, app.requireAdmin],
+    schema: {
+      body: z.object({
+        period: z.string().regex(/^(\d{4})-(\d{2}|annual)$/),
+        limit: z.number().int().min(1).max(5000).optional(),
+      }),
+    },
+    handler: async (request, reply) => {
+      const { period, limit } = request.body as {
+        period: string;
+        limit?: number;
+      };
+      const result = await wrappedService.generateForAllUsers(period, {
+        limit,
+      });
+
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    },
+  });
+
   // Register queue management routes
-  await app.register(adminQueueRoutes, { prefix: '' });
+  await app.register(adminQueueRoutes, { prefix: "" });
 
   // Register user management routes
-  await app.register(adminUserRoutes, { prefix: '' });
+  await app.register(adminUserRoutes, { prefix: "" });
 };

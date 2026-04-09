@@ -1,19 +1,26 @@
-import fp from 'fastify-plugin';
-import { FastifyReply, FastifyRequest } from 'fastify';
-import jwt from 'jsonwebtoken';
+import fp from "fastify-plugin";
+import { FastifyReply, FastifyRequest } from "fastify";
+import jwt from "jsonwebtoken";
 
 // 1. Extend Fastify Request type to include 'user'
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyRequest {
     user: {
       id: string;
       userId: string;
       email: string;
-      role: 'USER' | 'ADMIN';
+      role: "USER" | "ADMIN";
     };
   }
   interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void | FastifyReply>;
+    authenticate: (
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) => Promise<void | FastifyReply>;
+    requireAdmin: (
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) => Promise<void | FastifyReply>;
   }
 }
 
@@ -22,12 +29,12 @@ const getJwtSecret = () => process.env.JWT_SECRET;
 type JwtPayload = {
   id: string;
   email: string;
-  role: 'USER' | 'ADMIN';
-  type?: 'access' | 'refresh';
+  role: "USER" | "ADMIN";
+  type?: "access" | "refresh";
 };
 
 export default fp(async (fastify) => {
-  // Define the decorator
+  // Define the authenticate decorator
   fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const authHeader = request.headers.authorization;
@@ -56,6 +63,16 @@ export default fp(async (fastify) => {
       };
     } catch (err) {
       return reply.status(401).send({ success: false, error: 'Unauthorized: Invalid token' });
+    }
+  });
+
+  // Define the requireAdmin decorator
+  fastify.decorate('requireAdmin', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.user.role !== 'ADMIN') {
+      return reply.status(403).send({
+        success: false,
+        error: 'Forbidden: Admin access required',
+      });
     }
   });
 });

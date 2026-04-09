@@ -5,7 +5,9 @@ const UpdateUserSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   role: z.enum(["USER", "ADMIN"]).optional(),
   isPremium: z.boolean().optional(),
-  subStatus: z.enum(["active", "inactive", "cancelled", "expired", "past_due"]).optional(),
+  subStatus: z
+    .enum(["active", "inactive", "cancelled", "expired", "past_due"])
+    .optional(),
   emailVerified: z.boolean().optional(),
 });
 
@@ -18,21 +20,13 @@ const ListUsersQuerySchema = z.object({
 });
 
 export const adminUserRoutes = async (app: FastifyInstance) => {
-  const requireAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
-    if (request.user.role !== "ADMIN") {
-      return reply.status(403).send({
-        status: "error",
-        message: "Forbidden: Admin access required",
-      });
-    }
-  };
-
   // GET /api/admin/users - List all users with pagination and filters
   app.get("/users", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
-        const { page, limit, search, role, isPremium } = ListUsersQuerySchema.parse(request.query);
+        const { page, limit, search, role, isPremium } =
+          ListUsersQuerySchema.parse(request.query);
         const skip = (page - 1) * limit;
 
         const where: any = {};
@@ -90,7 +84,48 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
       } catch (error) {
         return reply.status(500).send({
           status: "error",
-          message: error instanceof Error ? error.message : "Failed to fetch users",
+          message:
+            error instanceof Error ? error.message : "Failed to fetch users",
+        });
+      }
+    },
+  });
+
+  // GET /api/admin/users/stats - Get user statistics
+  // IMPORTANT: This route must be registered BEFORE /users/:id to avoid being shadowed
+  app.get("/users/stats", {
+    preHandler: [app.authenticate, app.requireAdmin],
+    handler: async (_request, reply) => {
+      try {
+        const [total, admins, premium, verified, recent] = await Promise.all([
+          app.prisma.user.count(),
+          app.prisma.user.count({ where: { role: "ADMIN" } }),
+          app.prisma.user.count({ where: { isPremium: true } }),
+          app.prisma.user.count({ where: { emailVerified: true } }),
+          app.prisma.user.count({
+            where: {
+              createdAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+              },
+            },
+          }),
+        ]);
+
+        return reply.send({
+          status: "success",
+          data: {
+            total,
+            admins,
+            premium,
+            verified,
+            recentSignups: recent,
+          },
+        });
+      } catch (error) {
+        return reply.status(500).send({
+          status: "error",
+          message:
+            error instanceof Error ? error.message : "Failed to fetch stats",
         });
       }
     },
@@ -98,7 +133,7 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
 
   // GET /api/admin/users/:id - Get user details
   app.get("/users/:id", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
@@ -123,11 +158,20 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
             },
             downloadHistory: {
               take: 5,
-              select: { id: true, timestamp: true, movie: { select: { title: true } } },
+              select: {
+                id: true,
+                timestamp: true,
+                movie: { select: { title: true } },
+              },
             },
             watchHistory: {
               take: 5,
-              select: { id: true, progress: true, duration: true, movie: { select: { title: true } } },
+              select: {
+                id: true,
+                progress: true,
+                duration: true,
+                movie: { select: { title: true } },
+              },
             },
           },
         });
@@ -146,7 +190,8 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
       } catch (error) {
         return reply.status(500).send({
           status: "error",
-          message: error instanceof Error ? error.message : "Failed to fetch user",
+          message:
+            error instanceof Error ? error.message : "Failed to fetch user",
         });
       }
     },
@@ -154,7 +199,7 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
 
   // PATCH /api/admin/users/:id - Update user (role, premium status, etc.)
   app.patch("/users/:id", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     schema: { body: UpdateUserSchema },
     handler: async (request, reply) => {
       try {
@@ -195,7 +240,8 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
       } catch (error) {
         return reply.status(500).send({
           status: "error",
-          message: error instanceof Error ? error.message : "Failed to update user",
+          message:
+            error instanceof Error ? error.message : "Failed to update user",
         });
       }
     },
@@ -203,7 +249,7 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
 
   // DELETE /api/admin/users/:id - Ban/delete user
   app.delete("/users/:id", {
-    preHandler: [app.authenticate, requireAdmin],
+    preHandler: [app.authenticate, app.requireAdmin],
     handler: async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
@@ -225,45 +271,8 @@ export const adminUserRoutes = async (app: FastifyInstance) => {
       } catch (error) {
         return reply.status(500).send({
           status: "error",
-          message: error instanceof Error ? error.message : "Failed to delete user",
-        });
-      }
-    },
-  });
-
-  // GET /api/admin/users/stats - Get user statistics
-  app.get("/users/stats", {
-    preHandler: [app.authenticate, requireAdmin],
-    handler: async (_request, reply) => {
-      try {
-        const [total, admins, premium, verified, recent] = await Promise.all([
-          app.prisma.user.count(),
-          app.prisma.user.count({ where: { role: "ADMIN" } }),
-          app.prisma.user.count({ where: { isPremium: true } }),
-          app.prisma.user.count({ where: { emailVerified: true } }),
-          app.prisma.user.count({
-            where: {
-              createdAt: {
-                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-              },
-            },
-          }),
-        ]);
-
-        return reply.send({
-          status: "success",
-          data: {
-            total,
-            admins,
-            premium,
-            verified,
-            recentSignups: recent,
-          },
-        });
-      } catch (error) {
-        return reply.status(500).send({
-          status: "error",
-          message: error instanceof Error ? error.message : "Failed to fetch stats",
+          message:
+            error instanceof Error ? error.message : "Failed to delete user",
         });
       }
     },

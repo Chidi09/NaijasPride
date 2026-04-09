@@ -1,6 +1,6 @@
-import { PrismaClient, Prisma } from '@prisma/client';
-import { WrappedStatsService, WrappedStats } from './wrapped-stats.service';
-import { WrappedImageService, CardUrls } from './wrapped-image.service';
+import { PrismaClient, Prisma } from "@prisma/client";
+import { WrappedStatsService, WrappedStats } from "./wrapped-stats.service";
+import { WrappedImageService, CardUrls } from "./wrapped-image.service";
 
 export class WrappedService {
   private statsService: WrappedStatsService;
@@ -18,7 +18,7 @@ export class WrappedService {
   async generateForUser(
     userId: string,
     period: string,
-    options: { force?: boolean; skipImages?: boolean } = {}
+    options: { force?: boolean; skipImages?: boolean } = {},
   ): Promise<{ stats: WrappedStats; cardUrls: CardUrls | null }> {
     // Check if already exists
     const existing = await this.prisma.userWrappedStats.findUnique({
@@ -67,7 +67,10 @@ export class WrappedService {
   /**
    * Get wrapped for a user (generates on-demand if missing)
    */
-  async getForUser(userId: string, period: string): Promise<{
+  async getForUser(
+    userId: string,
+    period: string,
+  ): Promise<{
     stats: WrappedStats;
     cardUrls: CardUrls | null;
   } | null> {
@@ -93,15 +96,34 @@ export class WrappedService {
    */
   async getPublicWrapped(
     userId: string,
-    period: string
+    period: string,
   ): Promise<{
     stats: WrappedStats;
     cardUrls: CardUrls | null;
     userName: string | null;
   } | null> {
-    const wrapped = await this.getForUser(userId, period);
-    if (!wrapped) return null;
+    // Single query to get both wrapped and user name, avoiding N+1
+    const wrappedWithUser = await this.prisma.userWrappedStats.findUnique({
+      where: { userId_period: { userId, period } },
+      include: {
+        user: {
+          select: { name: true },
+        },
+      },
+    });
 
+    if (wrappedWithUser) {
+      return {
+        stats: wrappedWithUser.statsJson as unknown as WrappedStats,
+        cardUrls: wrappedWithUser.cardUrls as unknown as CardUrls | null,
+        userName: wrappedWithUser.user?.name || null,
+      };
+    }
+
+    // Generate on-demand if missing
+    const wrapped = await this.generateForUser(userId, period);
+
+    // Get user name in a separate query (only when generation happens)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { name: true },
@@ -119,11 +141,11 @@ export class WrappedService {
   async getAvailablePeriods(userId: string): Promise<string[]> {
     const periods = await this.prisma.userWrappedStats.findMany({
       where: { userId },
-      orderBy: { period: 'desc' },
+      orderBy: { period: "desc" },
       select: { period: true },
     });
 
-    return periods.map(p => p.period);
+    return periods.map((p) => p.period);
   }
 
   /**
@@ -131,7 +153,7 @@ export class WrappedService {
    */
   static getCurrentPeriod(): string {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   }
 
   static getAnnualPeriod(year?: number): string {
@@ -153,7 +175,7 @@ export class WrappedService {
    */
   async generateForAllUsers(
     period: string,
-    options: { limit?: number; offset?: number } = {}
+    options: { limit?: number; offset?: number } = {},
   ): Promise<{ processed: number; errors: number }> {
     // Get active users (had any activity in the past 3 months)
     const threeMonthsAgo = new Date();
@@ -176,14 +198,15 @@ export class WrappedService {
     let processed = 0;
     let errors = 0;
 
-    for (const user of users) {
-      try {
-        await this.generateForUser(user.id, period);
-        processed++;
-      } catch (error) {
-        console.error(`[WrappedService] Failed for user ${user.id}:`, error);
-        errors++;
-      }
+    // Process users in batches with concurrency control to avoid blocking the event loop
+    const CONCURRENCY = 10;
+    for (let i = 0; i < users.length; i += CONCURRENCY) {
+      const batch = users.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map((u) => this.generateForUser(u.id, period)),
+      );
+      errors += results.filter((r) => r.status === "rejected").length;
+      processed += results.filter((r) => r.status === "fulfilled").length;
     }
 
     return { processed, errors };

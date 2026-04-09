@@ -1,10 +1,10 @@
-import { FastifyInstance } from 'fastify';
-import { WrappedService } from './wrapped.service';
-import { getPushService } from '../../shared/services/push-notification.service';
+import { FastifyInstance } from "fastify";
+import { WrappedService } from "./wrapped.service";
+import { getPushService } from "../../shared/services/push-notification.service";
 
 /**
  * Wrapped Cron Scheduler
- * 
+ *
  * - Monthly: 1st of each month, generates previous month's wrapped for all active users
  * - Annual: December 1st, generates annual wrapped for all active users
  * - Also sends push notifications when wrapped is ready
@@ -22,8 +22,10 @@ export class WrappedCronService {
   start(): void {
     this.scheduleMonthlyJob();
     this.scheduleAnnualJob();
-    
-    this.app.log.info('[WrappedCron] Started - Monthly (1st) and Annual (Dec 1st) jobs scheduled');
+
+    this.app.log.info(
+      "[WrappedCron] Started - Monthly (1st) and Annual (Dec 1st) jobs scheduled",
+    );
   }
 
   stop(): void {
@@ -42,7 +44,9 @@ export class WrappedCronService {
     const safeDelay = Math.min(delay, this.MAX_TIMEOUT_MS);
     const isCapped = safeDelay < delay;
 
-    this.app.log.info(`[WrappedCron] Monthly job scheduled for ${nextRun.toISOString()}${isCapped ? ' (rechecking in chunks until then)' : ''}`);
+    this.app.log.info(
+      `[WrappedCron] Monthly job scheduled for ${nextRun.toISOString()}${isCapped ? " (rechecking in chunks until then)" : ""}`,
+    );
 
     this.monthlyTimer = setTimeout(() => {
       if (isCapped) {
@@ -64,7 +68,9 @@ export class WrappedCronService {
     const safeDelay = Math.min(delay, this.MAX_TIMEOUT_MS);
     const isCapped = safeDelay < delay;
 
-    this.app.log.info(`[WrappedCron] Annual job scheduled for ${nextRun.toISOString()}${isCapped ? ' (rechecking in chunks until then)' : ''}`);
+    this.app.log.info(
+      `[WrappedCron] Annual job scheduled for ${nextRun.toISOString()}${isCapped ? " (rechecking in chunks until then)" : ""}`,
+    );
 
     this.annualTimer = setTimeout(() => {
       if (isCapped) {
@@ -98,9 +104,11 @@ export class WrappedCronService {
   private async runMonthlyJob(): Promise<void> {
     const now = new Date();
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const period = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
-    
-    this.app.log.info(`[WrappedCron] Starting monthly job for period: ${period}`);
+    const period = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+
+    this.app.log.info(
+      `[WrappedCron] Starting monthly job for period: ${period}`,
+    );
 
     try {
       // Generate wrapped for all active users (batch in chunks)
@@ -109,30 +117,34 @@ export class WrappedCronService {
       let totalProcessed = 0;
 
       while (true) {
-        const result = await this.wrappedService.generateForAllUsers(period, { limit, offset });
+        const result = await this.wrappedService.generateForAllUsers(period, {
+          limit,
+          offset,
+        });
         totalProcessed += result.processed;
-        
+
         if (result.processed === 0) break;
         offset += limit;
 
         // Small delay between batches to avoid overwhelming the system
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
       }
 
-      this.app.log.info(`[WrappedCron] Monthly job completed: ${totalProcessed} users processed for ${period}`);
+      this.app.log.info(
+        `[WrappedCron] Monthly job completed: ${totalProcessed} users processed for ${period}`,
+      );
 
       // Send push notifications
       await this.sendMonthlyNotifications(period);
-
     } catch (error) {
-      this.app.log.error({ error }, '[WrappedCron] Monthly job failed');
+      this.app.log.error({ error }, "[WrappedCron] Monthly job failed");
     }
   }
 
   private async runAnnualJob(): Promise<void> {
     const year = new Date().getFullYear();
     const period = `${year}-annual`;
-    
+
     this.app.log.info(`[WrappedCron] Starting annual job for ${year}`);
 
     try {
@@ -142,22 +154,26 @@ export class WrappedCronService {
       let totalProcessed = 0;
 
       while (true) {
-        const result = await this.wrappedService.generateForAllUsers(period, { limit, offset });
+        const result = await this.wrappedService.generateForAllUsers(period, {
+          limit,
+          offset,
+        });
         totalProcessed += result.processed;
-        
+
         if (result.processed === 0) break;
         offset += limit;
 
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
       }
 
-      this.app.log.info(`[WrappedCron] Annual job completed: ${totalProcessed} users processed for ${period}`);
+      this.app.log.info(
+        `[WrappedCron] Annual job completed: ${totalProcessed} users processed for ${period}`,
+      );
 
       // Send push notifications (more exciting for annual)
       await this.sendAnnualNotifications(year);
-
     } catch (error) {
-      this.app.log.error({ error }, '[WrappedCron] Annual job failed');
+      this.app.log.error({ error }, "[WrappedCron] Annual job failed");
     }
   }
 
@@ -171,23 +187,45 @@ export class WrappedCronService {
       select: { userId: true },
     });
 
-    const monthName = new Date(`${period}-01`).toLocaleString('en-NG', { month: 'long' });
+    const monthName = new Date(`${period}-01`).toLocaleString("en-NG", {
+      month: "long",
+    });
 
-    for (const record of wrappedRecords) {
-      try {
-        await pushService.sendGeneric(
-          record.userId,
-          `Your ${monthName} Wrapped is here! 🎬`,
-          'See your top movies, music, and books from this month',
-          `/wrapped/${period}`,
-          { event: 'monthly_wrapped', period }
-        );
-      } catch (error) {
-        this.app.log.error({ error, userId: record.userId }, '[WrappedCron] Failed to send monthly notification');
-      }
+    // Send notifications in batches with concurrency control
+    const CONCURRENCY = 10;
+    let sent = 0;
+    let failed = 0;
+
+    for (let i = 0; i < wrappedRecords.length; i += CONCURRENCY) {
+      const batch = wrappedRecords.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map((record) =>
+          pushService.sendGeneric(
+            record.userId,
+            `Your ${monthName} Wrapped is here! 🎬`,
+            "See your top movies, music, and books from this month",
+            `/wrapped/${period}`,
+            { event: "monthly_wrapped", period },
+          ),
+        ),
+      );
+
+      results.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          sent++;
+        } else {
+          failed++;
+          this.app.log.error(
+            { error: result.reason, userId: batch[idx].userId },
+            "[WrappedCron] Failed to send monthly notification",
+          );
+        }
+      });
     }
 
-    this.app.log.info(`[WrappedCron] Sent ${wrappedRecords.length} monthly notifications`);
+    this.app.log.info(
+      `[WrappedCron] Sent ${sent} monthly notifications, ${failed} failed`,
+    );
   }
 
   private async sendAnnualNotifications(year: number): Promise<void> {
@@ -201,20 +239,38 @@ export class WrappedCronService {
       select: { userId: true },
     });
 
-    for (const record of wrappedRecords) {
-      try {
-        await pushService.sendGeneric(
-          record.userId,
-          `Your ${year} Wrapped has arrived! 🎉`,
-          'Your year in entertainment is ready. Discover your top movies, music, and more!',
-          `/wrapped/${period}`,
-          { event: 'annual_wrapped', period }
-        );
-      } catch (error) {
-        this.app.log.error({ error, userId: record.userId }, '[WrappedCron] Failed to send annual notification');
-      }
+    // Send notifications in batches with concurrency control
+    const CONCURRENCY = 10;
+    let sent = 0;
+    let failed = 0;
+
+    for (let i = 0; i < wrappedRecords.length; i += CONCURRENCY) {
+      const batch = wrappedRecords.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map((record) =>
+          pushService.sendGeneric(
+            record.userId,
+            `Your ${year} Wrapped has arrived! 🎉`,
+            'Your year in entertainment is ready. Discover your top movies, music, and more!',
+            `/wrapped/${period}`,
+            { event: 'annual_wrapped', period }
+          )
+        )
+      );
+
+      results.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          sent++;
+        } else {
+          failed++;
+          this.app.log.error(
+            { error: result.reason, userId: batch[idx].userId },
+            '[WrappedCron] Failed to send annual notification'
+          );
+        }
+      });
     }
 
-    this.app.log.info(`[WrappedCron] Sent ${wrappedRecords.length} annual notifications`);
+    this.app.log.info(`[WrappedCron] Sent ${sent} annual notifications, ${failed} failed`);
   }
 }
