@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { NotificationType } from '@prisma/client';
+import { torrentQueue } from '../../shared/services/queue.service.js';
 
 interface YtsTorrent { hash: string; quality: string; seeds: number; }
 interface YtsMovie { title: string; torrents: YtsTorrent[]; }
@@ -116,27 +117,30 @@ export async function processDownloadRequest(
     }
 
     if (!magnetLink) {
-      await prisma.downloadRequest.update({
-        where: { id: requestId },
-        data: { status: 'FAILED', errorMsg: `No torrent found for "${contentTitle}" — it may not be available yet` },
-      });
-      // Notify user of failure
-      await prisma.notification.create({
-        data: {
-          userId: req.userId,
-          type: NotificationType.DOWNLOAD_READY,
-          title: 'Download request unavailable',
-          body: `We couldn't find a download for "${contentTitle}". We'll keep checking.`,
-          data: { movieId: req.movieId, showId: req.showId },
-        },
-      });
+      // Atomically record failure and notify the user.
+      // NOTE: NotificationType.DOWNLOAD_READY is reused here because the schema
+      // has no DOWNLOAD_FAILED variant. Title/body distinguish the two cases.
+      await prisma.$transaction([
+        prisma.downloadRequest.update({
+          where: { id: requestId },
+          data: { status: 'FAILED', errorMsg: `No torrent found for "${contentTitle}" — it may not be available yet` },
+        }),
+        prisma.notification.create({
+          data: {
+            userId: req.userId,
+            type: NotificationType.DOWNLOAD_READY,
+            title: 'Download request unavailable',
+            body: `We couldn't find a download for "${contentTitle}". We'll keep checking.`,
+            data: { movieId: req.movieId, showId: req.showId },
+          },
+        }),
+      ]);
       return;
     }
 
-    // Queue the torrent job using the existing queue
-    const { torrentQueue } = await import('../../shared/services/queue.service.js');
     const queue = torrentQueue.get();
     if (queue && req.movieId) {
+      // Movie: hand off to the torrent queue, then mark as queued.
       await queue.add('torrent-job', {
         movieId: req.movieId,
         magnetLink,
@@ -148,21 +152,22 @@ export async function processDownloadRequest(
         data: { status: 'QUEUED', magnetLink },
       });
     } else {
-      // For TV shows, torrent queue is movie-specific; mark found but notify admin
-      await prisma.downloadRequest.update({
-        where: { id: requestId },
-        data: { status: 'QUEUED', magnetLink },
-      });
-      // Notify user we found it and queued it
-      await prisma.notification.create({
-        data: {
-          userId: req.userId,
-          type: NotificationType.DOWNLOAD_READY,
-          title: 'Download located!',
-          body: `We found "${contentTitle}" and it's in the queue. You'll be notified when it's ready.`,
-          data: { movieId: req.movieId, showId: req.showId },
-        },
-      });
+      // TV show (or no queue): save the magnet and notify the user atomically.
+      await prisma.$transaction([
+        prisma.downloadRequest.update({
+          where: { id: requestId },
+          data: { status: 'QUEUED', magnetLink },
+        }),
+        prisma.notification.create({
+          data: {
+            userId: req.userId,
+            type: NotificationType.DOWNLOAD_READY,
+            title: 'Download located!',
+            body: `We found "${contentTitle}" and it's in the queue. You'll be notified when it's ready.`,
+            data: { movieId: req.movieId, showId: req.showId },
+          },
+        }),
+      ]);
     }
   } catch (err) {
     await prisma.downloadRequest.update({

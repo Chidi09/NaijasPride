@@ -1,6 +1,6 @@
 import { Prisma, PrismaClient, Genre as PrismaGenre } from '@prisma/client';
 import { ContentStatus, Genre, PaginationMeta, TvShow, TvShowSearchParams, TvShowSummary } from '@naijaspride/types';
-import { getRedis } from '../../shared/services/redis.service';
+import { withCache } from '../../shared/services/redis.service';
 
 type TvShowWithNested = Prisma.TvShowGetPayload<{
   include: {
@@ -42,7 +42,7 @@ export class TvShowsService {
 
     const orderBy =
       params.sortBy === 'popular'
-        ? { updatedAt: 'desc' as const }
+        ? { viewCount: 'desc' as const }
         : params.sortBy === 'title'
           ? { title: 'asc' as const }
           : params.sortBy === 'trending'
@@ -50,96 +50,61 @@ export class TvShowsService {
             : { createdAt: 'desc' as const };
 
     const cacheKey = `tv-shows:search:${JSON.stringify({ ...params, page, limit })}`;
-    const redis = getRedis();
-    if (redis) {
-      try {
-        const cached = await redis.get(cacheKey);
-        if (cached) return JSON.parse(cached) as { data: TvShowSummary[]; meta: PaginationMeta };
-      } catch {
-        // no-op cache read failure
-      }
-    }
 
-    const [total, shows] = await Promise.all([
-      this.prisma.tvShow.count({ where }),
-      this.prisma.tvShow.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit,
+    return withCache(cacheKey, 300, async () => {
+      const [total, shows] = await Promise.all([
+        this.prisma.tvShow.count({ where }),
+        this.prisma.tvShow.findMany({
+          where,
+          orderBy,
+          skip,
+          take: limit,
+          include: {
+            seasons: {
+              select: {
+                id: true,
+                _count: {
+                  select: { episodes: true },
+                },
+              },
+            },
+          },
+        }),
+      ]);
+
+      const data = shows.map((show) => this.mapToSummary(show));
+      const meta: PaginationMeta = {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      };
+
+      return { data, meta };
+    });
+  }
+
+  async findBySlug(slug: string): Promise<TvShow | null> {
+    return withCache(`tv-show:${slug}`, 600, async () => {
+      const show = await this.prisma.tvShow.findUnique({
+        where: { slug },
         include: {
           seasons: {
-            select: {
-              id: true,
-              _count: {
-                select: { episodes: true },
+            orderBy: { seasonNumber: 'asc' },
+            include: {
+              episodes: {
+                orderBy: { episodeNumber: 'asc' },
               },
             },
           },
         },
-      }),
-    ]);
+      });
 
-    const data = shows.map((show) => this.mapToSummary(show));
-    const meta: PaginationMeta = {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-      hasNext: page * limit < total,
-      hasPrev: page > 1,
-    };
-
-    const payload = { data, meta };
-    if (redis) {
-      try {
-        await redis.set(cacheKey, JSON.stringify(payload), 'EX', 300);
-      } catch {
-        // no-op cache write failure
-      }
-    }
-
-    return payload;
-  }
-
-  async findBySlug(slug: string): Promise<TvShow | null> {
-    const cacheKey = `tv-show:${slug}`;
-    const redis = getRedis();
-    if (redis) {
-      try {
-        const cached = await redis.get(cacheKey);
-        if (cached) return JSON.parse(cached) as TvShow;
-      } catch {
-        // no-op cache read failure
-      }
-    }
-
-    const show = await this.prisma.tvShow.findUnique({
-      where: { slug },
-      include: {
-        seasons: {
-          orderBy: { seasonNumber: 'asc' },
-          include: {
-            episodes: {
-              orderBy: { episodeNumber: 'asc' },
-            },
-          },
-        },
-      },
+      if (!show) return null;
+      return this.mapToShow(show);
     });
-
-    if (!show) return null;
-    const mapped = this.mapToShow(show);
-
-    if (redis) {
-      try {
-        await redis.set(cacheKey, JSON.stringify(mapped), 'EX', 600);
-      } catch {
-        // no-op cache write failure
-      }
-    }
-
-    return mapped;
   }
 
   async resolveEpisode(slug: string, seasonNumber: number, episodeNumber: number) {
@@ -233,24 +198,29 @@ export class TvShowsService {
             slug: true,
             posterUrl: true,
             thumbnailUrl: true,
-            seasons: {
-              select: {
-                seasonNumber: true,
-                episodes: {
-                  select: { id: true, episodeNumber: true, title: true },
-                },
-              },
-            },
           },
         },
       },
     });
 
+    if (rows.length === 0) return [];
+
+    // Batch-load all needed episodes in a single query — avoids loading every
+    // season + episode for every show just to find one episode's metadata.
+    const episodeIds = rows.map((r) => r.episodeId).filter(Boolean);
+    const episodes = await this.prisma.tvEpisode.findMany({
+      where: { id: { in: episodeIds } },
+      select: {
+        id: true,
+        title: true,
+        episodeNumber: true,
+        season: { select: { seasonNumber: true } },
+      },
+    });
+    const episodeMap = new Map(episodes.map((e) => [e.id, e]));
+
     return rows.map((row) => {
-      const season = row.show.seasons.find((s) =>
-        s.episodes.some((e) => e.id === row.episodeId),
-      );
-      const episode = season?.episodes.find((e) => e.id === row.episodeId);
+      const ep = episodeMap.get(row.episodeId);
       const progressPct = row.duration > 0 ? Math.round((row.progress / row.duration) * 100) : 0;
 
       return {
@@ -259,9 +229,9 @@ export class TvShowsService {
         slug: row.show.slug,
         posterUrl: row.show.posterUrl || row.show.thumbnailUrl,
         episodeId: row.episodeId,
-        seasonNumber: season?.seasonNumber ?? null,
-        episodeNumber: episode?.episodeNumber ?? null,
-        episodeTitle: episode?.title ?? null,
+        seasonNumber: ep?.season?.seasonNumber ?? null,
+        episodeNumber: ep?.episodeNumber ?? null,
+        episodeTitle: ep?.title ?? null,
         progress: row.progress,
         duration: row.duration,
         progressPercentage: Math.min(100, progressPct),

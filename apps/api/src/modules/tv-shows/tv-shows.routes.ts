@@ -6,6 +6,10 @@ import { EmbedResolverService } from '../movies/embed-resolver.service';
 import { TvTmdbSyncService } from './tv-tmdb-sync.service';
 import { z } from 'zod';
 
+const historyQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
 export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
   const service = new TvShowsService(fastify.prisma);
@@ -22,15 +26,8 @@ export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   app.post('/sync', {
-    onRequest: [fastify.authenticate],
-  }, async (request, reply) => {
-    if (request.user.role !== 'ADMIN') {
-      return reply.status(403).send({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Admins only' },
-      });
-    }
-
+    onRequest: [fastify.authenticate, fastify.requireAdmin],
+  }, async (_request, reply) => {
     const summary = await tmdbSyncService.syncCatalog();
     return reply.send({ success: true, data: summary });
   });
@@ -48,9 +45,11 @@ export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
 
   app.get('/history', {
     onRequest: [fastify.authenticate],
+    schema: {
+      querystring: historyQuerySchema,
+    },
   }, async (request) => {
-    const { limit } = request.query as { limit?: string };
-    const rows = await service.getHistory(request.user.userId, limit ? parseInt(limit) : 10);
+    const rows = await service.getHistory(request.user.userId, request.query.limit);
     return { success: true, data: rows };
   });
 
@@ -98,7 +97,11 @@ export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  app.get('/:slug', async (request, reply) => {
+  app.get('/:slug', {
+    schema: {
+      params: z.object({ slug: z.string().min(1) }),
+    },
+  }, async (request, reply) => {
     const { slug } = request.params as { slug: string };
     const show = await service.findBySlug(slug);
     if (!show) {

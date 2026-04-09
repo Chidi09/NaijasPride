@@ -21,3 +21,36 @@ export const closeRedis = async (): Promise<void> => {
     _redis = null;
   }
 };
+
+/**
+ * Read-through cache helper. Checks Redis first; on miss calls fn(), stores the
+ * result under key for ttlSeconds, then returns it. Cache errors are silently
+ * swallowed so a Redis outage never breaks the request.
+ */
+export async function withCache<T>(
+  key: string,
+  ttlSeconds: number,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      const cached = await redis.get(key);
+      if (cached) return JSON.parse(cached) as T;
+    } catch {
+      // ignore — treat as a cache miss
+    }
+  }
+
+  const result = await fn();
+
+  if (redis) {
+    try {
+      await redis.set(key, JSON.stringify(result), 'EX', ttlSeconds);
+    } catch {
+      // ignore — result still served from fn()
+    }
+  }
+
+  return result;
+}
