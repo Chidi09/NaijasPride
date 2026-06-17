@@ -106,6 +106,7 @@ Kotatsu/
 .do/
 .opencode/
 .gemini/
+GEMINI.md
 
 # Generated Tools Data
 tools/generated/
