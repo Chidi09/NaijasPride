@@ -194,46 +194,95 @@ const TV_SECTION_LABELS: Record<TvSectionKey, string> = {
                       View all
                     </button>
                   </div>
-                  <div class="flex gap-5 overflow-x-auto pb-2">
-                    @for (
-                      show of (sectionQuery(key).data()?.data || []).slice(
-                        0,
-                        10
-                      );
-                      track show.id
-                    ) {
-                      <a
-                        [routerLink]="['/tv-shows', show.slug]"
-                        class="group block w-48 flex-shrink-0"
-                      >
-                        <div
-                          class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]"
-                        >
-                          <img
-                            [src]="
-                              show.posterUrl ||
-                              show.thumbnailUrl ||
-                              '/assets/images/poster-placeholder.svg'
-                            "
-                            [alt]="show.title"
-                            class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                            loading="lazy"
-                          />
-                        </div>
-                        <p
-                          class="mt-3 line-clamp-2 text-sm font-semibold text-white"
-                        >
-                          {{ show.title }}
-                        </p>
-                        <p class="text-xs text-white/50">
-                          {{ show.seasonCount }} seasons •
-                          {{ show.episodeCount }} episodes
-                          @if ((show.viewCount ?? 0) > 0) {
-                            • {{ formatCount(show.viewCount ?? 0) }} views
-                          }
-                        </p>
-                      </a>
-                    }
+                  <div
+                    class="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)] group/marquee py-2"
+                  >
+                    <div
+                      class="flex w-max animate-marquee-tv group-hover/marquee:[animation-play-state:paused]"
+                    >
+                      <div class="flex gap-5 pr-5">
+                        @for (
+                          show of (sectionQuery(key).data()?.data || []).slice(
+                            0,
+                            10
+                          );
+                          track show.id
+                        ) {
+                          <a
+                            [routerLink]="['/tv-shows', show.slug]"
+                            class="group block w-48 flex-shrink-0"
+                          >
+                            <div
+                              class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]"
+                            >
+                              <img
+                                [src]="
+                                  show.posterUrl ||
+                                  show.thumbnailUrl ||
+                                  '/assets/images/poster-placeholder.svg'
+                                "
+                                [alt]="show.title"
+                                class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                loading="lazy"
+                              />
+                            </div>
+                            <p
+                              class="mt-3 line-clamp-2 text-sm font-semibold text-white"
+                            >
+                              {{ show.title }}
+                            </p>
+                            <p class="text-xs text-white/50">
+                              {{ show.seasonCount }} seasons •
+                              {{ show.episodeCount }} episodes
+                              @if ((show.viewCount ?? 0) > 0) {
+                                • {{ formatCount(show.viewCount ?? 0) }} views
+                              }
+                            </p>
+                          </a>
+                        }
+                      </div>
+                      <div class="flex gap-5 pr-5">
+                        @for (
+                          show of (sectionQuery(key).data()?.data || []).slice(
+                            0,
+                            10
+                          );
+                          track "dup-" + show.id
+                        ) {
+                          <a
+                            [routerLink]="['/tv-shows', show.slug]"
+                            class="group block w-48 flex-shrink-0"
+                          >
+                            <div
+                              class="relative aspect-[2/3] overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.04]"
+                            >
+                              <img
+                                [src]="
+                                  show.posterUrl ||
+                                  show.thumbnailUrl ||
+                                  '/assets/images/poster-placeholder.svg'
+                                "
+                                [alt]="show.title"
+                                class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                loading="lazy"
+                              />
+                            </div>
+                            <p
+                              class="mt-3 line-clamp-2 text-sm font-semibold text-white"
+                            >
+                              {{ show.title }}
+                            </p>
+                            <p class="text-xs text-white/50">
+                              {{ show.seasonCount }} seasons •
+                              {{ show.episodeCount }} episodes
+                              @if ((show.viewCount ?? 0) > 0) {
+                                • {{ formatCount(show.viewCount ?? 0) }} views
+                              }
+                            </p>
+                          </a>
+                        }
+                      </div>
+                    </div>
                   </div>
                 </div>
               }

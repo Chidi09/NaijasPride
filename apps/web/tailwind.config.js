@@ -6,6 +6,20 @@ module.exports = {
   content: [join(__dirname, 'src/**/!(*.stories|*.spec).{ts,html}')],
   theme: {
     extend: {
+      animation: {
+        'marquee-tv': 'marquee-tv 40s linear infinite',
+        'marquee-anime': 'marquee-anime 40s linear infinite',
+      },
+      keyframes: {
+        'marquee-tv': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(calc(-50% - 0.625rem))' },
+        },
+        'marquee-anime': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(calc(-50% - 0.375rem))' },
+        }
+      },
       colors: {
         // "Old Money" Palette
         cinema: {

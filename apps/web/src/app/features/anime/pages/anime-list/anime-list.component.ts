@@ -180,101 +180,87 @@ type RailState = {
                     </button>
                   </div>
                 } @else {
-                  <div class="group/rail relative">
-                    <!-- Left arrow -->
-                    <button
-                      type="button"
-                      (click)="scrollRail(scrollEl, -1)"
-                      class="absolute -left-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white opacity-0 shadow-lg backdrop-blur-sm transition-all duration-200 hover:bg-[#800020] group-hover/rail:opacity-100 active:scale-95"
-                      aria-label="Scroll left"
-                    >
-                      <svg
-                        class="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="M15 19l-7-7 7-7"
-                        />
-                      </svg>
-                    </button>
-
-                    <!-- Scrollable row -->
+                  <div
+                    class="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)] group/marquee py-2"
+                  >
                     <div
-                      #scrollEl
-                      class="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                      (mousedown)="startDrag($event, scrollEl)"
+                      class="flex w-max animate-marquee-anime group-hover/marquee:[animation-play-state:paused]"
                     >
-                      @for (
-                        item of dedupedRails()[rail.key].items;
-                        track item.id
-                      ) {
-                        <a
-                          [routerLink]="['/anime', item.id]"
-                          class="group w-[150px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] transition hover:border-[#800020]/50 hover:bg-white/[0.05] sm:w-[180px]"
-                        >
-                          <img
-                            [src]="
-                              item.coverImage?.large ||
-                              item.coverImage?.medium ||
-                              '/assets/images/poster-placeholder.svg'
-                            "
-                            [alt]="item.title?.romaji"
-                            class="aspect-[2/3] w-full object-cover transition duration-500 group-hover:scale-105"
-                            loading="lazy"
-                          />
-                          <div class="p-3">
-                            <h3
-                              class="line-clamp-2 text-sm font-semibold text-white"
-                            >
-                              {{
-                                item.title?.english ||
-                                  item.title?.romaji ||
-                                  item.title?.native
-                              }}
-                            </h3>
-                            <p class="mt-1 text-xs text-white/50">
-                              {{ item.seasonYear || "-" }} •
-                              {{ item.episodes || "?" }} eps
-                            </p>
-                          </div>
-                        </a>
-                      }
+                      <div class="flex gap-3 pr-3">
+                        @for (
+                          item of dedupedRails()[rail.key].items;
+                          track item.id
+                        ) {
+                          <a
+                            [routerLink]="['/anime', item.id]"
+                            class="group w-[150px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] transition hover:border-[#800020]/50 hover:bg-white/[0.05] sm:w-[180px]"
+                          >
+                            <img
+                              [src]="
+                                item.coverImage?.large ||
+                                item.coverImage?.medium ||
+                                '/assets/images/poster-placeholder.svg'
+                              "
+                              [alt]="item.title?.romaji"
+                              class="aspect-[2/3] w-full object-cover transition duration-500 group-hover:scale-105"
+                              loading="lazy"
+                            />
+                            <div class="p-3">
+                              <h3
+                                class="line-clamp-2 text-sm font-semibold text-white"
+                              >
+                                {{
+                                  item.title?.english ||
+                                    item.title?.romaji ||
+                                    item.title?.native
+                                }}
+                              </h3>
+                              <p class="mt-1 text-xs text-white/50">
+                                {{ item.seasonYear || "-" }} •
+                                {{ item.episodes || "?" }} eps
+                              </p>
+                            </div>
+                          </a>
+                        }
+                      </div>
+                      <div class="flex gap-3 pr-3">
+                        @for (
+                          item of dedupedRails()[rail.key].items;
+                          track "dup-" + item.id
+                        ) {
+                          <a
+                            [routerLink]="['/anime', item.id]"
+                            class="group w-[150px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] transition hover:border-[#800020]/50 hover:bg-white/[0.05] sm:w-[180px]"
+                          >
+                            <img
+                              [src]="
+                                item.coverImage?.large ||
+                                item.coverImage?.medium ||
+                                '/assets/images/poster-placeholder.svg'
+                              "
+                              [alt]="item.title?.romaji"
+                              class="aspect-[2/3] w-full object-cover transition duration-500 group-hover:scale-105"
+                              loading="lazy"
+                            />
+                            <div class="p-3">
+                              <h3
+                                class="line-clamp-2 text-sm font-semibold text-white"
+                              >
+                                {{
+                                  item.title?.english ||
+                                    item.title?.romaji ||
+                                    item.title?.native
+                                }}
+                              </h3>
+                              <p class="mt-1 text-xs text-white/50">
+                                {{ item.seasonYear || "-" }} •
+                                {{ item.episodes || "?" }} eps
+                              </p>
+                            </div>
+                          </a>
+                        }
+                      </div>
                     </div>
-
-                    <!-- Right arrow -->
-                    <button
-                      type="button"
-                      (click)="scrollRail(scrollEl, 1)"
-                      class="absolute -right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white opacity-0 shadow-lg backdrop-blur-sm transition-all duration-200 hover:bg-[#800020] group-hover/rail:opacity-100 active:scale-95"
-                      aria-label="Scroll right"
-                    >
-                      <svg
-                        class="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </button>
-
-                    <!-- Edge fade gradients -->
-                    <div
-                      class="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent opacity-0 transition-opacity group-hover/rail:opacity-100"
-                    ></div>
-                    <div
-                      class="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent opacity-0 transition-opacity group-hover/rail:opacity-100"
-                    ></div>
                   </div>
                 }
               </section>

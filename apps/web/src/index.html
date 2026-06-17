@@ -76,6 +76,22 @@
         } catch (_) {}
       })();
     </script>
+
+    <!-- JSON-LD for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "NaijasPride",
+      "url": "https://naijaspride.com",
+      "description": "Watch Nollywood, Bollywood, and Hollywood movies, read books, and explore manga on NaijasPride.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://naijaspride.com/search?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
   </head>
   <body>
     <app-root></app-root>
