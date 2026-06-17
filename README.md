@@ -1,6 +1,15 @@
-# NaijasPride
+<p align="center">
+  <img src="apps/web/src/assets/images/logo-full.png" alt="NaijasPride" width="250" />
+</p>
 
-NaijasPride is a robust, full-stack monorepo designed as a premier streaming and media platform tailored for Nollywood, Bollywood, Hollywood content, as well as anime and books. Built with scale, performance, and best engineering practices in mind.
+<h1 align="center">NaijasPride</h1>
+
+<p align="center">
+  A premier streaming and media platform tailored for Nollywood, Bollywood, Hollywood content, as well as anime and books.<br/>
+  Built with scale, performance, and best engineering practices in mind.
+</p>
+
+---
 
 ## 🏗 Architecture & Engineering Patterns
 
