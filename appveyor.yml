@@ -14,15 +14,10 @@ init:
 install:
   - nvm install $nodejs_version
   - npm install -g npm@11.5.2
-  - npm install
+  - npm ci --prefer-offline --no-audit
 
-build_script:
-  - npm run build
 
-test_script:
-  - npm run lint
-  # Uncomment if you have tests:
-  # - npm run test
+
 
 deploy_script:
   - sh: |
@@ -41,4 +36,4 @@ deploy_script:
       fi
 
 cache:
-  - node_modules -> package-lock.json
+  - ~/.npm -> package-lock.json
