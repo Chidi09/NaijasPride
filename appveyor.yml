@@ -26,12 +26,12 @@ deploy_script:
       if [ "$APPVEYOR_REPO_BRANCH" = "main" ]; then
         echo "Setting up SSH for deployment..."
         mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
+        echo "$SSH_PRIVATE_KEY" | base64 --decode > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
         ssh-keyscan -t rsa,ed25519 $SSH_HOST >> ~/.ssh/known_hosts 2>/dev/null
         
         echo "Deploying to $SSH_HOST..."
-        ssh -o StrictHostKeyChecking=accept-new $SSH_USER@$SSH_HOST "cd /opt/naijaspride && ./deploy.sh"
+        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new $SSH_USER@$SSH_HOST "cd /opt/naijaspride && ./deploy.sh"
         echo "Deployment triggered successfully!"
       else
         echo "Skipping deployment for non-main branch."
