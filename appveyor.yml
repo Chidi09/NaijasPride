@@ -16,6 +16,8 @@ install:
   - npm install -g npm@11.5.2
   - npm ci --prefer-offline --no-audit
 
+build: off
+
 
 
 
