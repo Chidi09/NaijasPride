@@ -86,7 +86,7 @@ type AnimeWatchResponse = {
   download?: string | null;
 };
 
-type AnimeSearchParams = {
+export type AnimeSearchParams = {
   q?: string;
   page?: number;
   perPage?: number;

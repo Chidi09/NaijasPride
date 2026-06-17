@@ -6,6 +6,7 @@ import {
   AnimeApiService,
   AnimeRailKey,
   AnilistMedia,
+  AnimeSearchParams,
 } from "../../services/anime-api.service";
 
 type RailState = {

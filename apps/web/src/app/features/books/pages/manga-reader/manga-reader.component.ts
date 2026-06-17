@@ -317,7 +317,7 @@ export class MangaReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private progressUpdate$ = new Subject<number>();
 
-  @ViewChild("swiperEl") swiperEl?: ElementRef<HTMLElement>;
+  @ViewChild("swiperEl") swiperEl?: ElementRef<any>;
   @ViewChild("webtoonScroll") webtoonScroll?: ElementRef<HTMLElement>;
 
   libraryMode = signal<"manga" | "comics">("manga");
