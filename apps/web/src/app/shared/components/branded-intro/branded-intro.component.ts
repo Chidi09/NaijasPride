@@ -37,7 +37,9 @@ import { BrandLogoComponent } from "../brand-logo/brand-logo.component";
         opacity: 0;
         transform: scale(0.7);
         filter: blur(10px);
-        animation: popIn 0.8s ease-out 0.15s forwards, zoomIn 2.8s ease-out 1s forwards;
+        animation:
+          popIn 0.8s ease-out 0.15s forwards,
+          zoomIn 2.8s ease-out 1s forwards;
       }
 
       :host ::ng-deep .brand-logo {
@@ -47,17 +49,32 @@ import { BrandLogoComponent } from "../brand-logo/brand-logo.component";
       }
 
       @keyframes popIn {
-        from { opacity: 0; transform: scale(1.08); filter: blur(10px); }
-        to { opacity: 1; transform: scale(1); filter: blur(0); }
+        from {
+          opacity: 0;
+          transform: scale(1.08);
+          filter: blur(10px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+          filter: blur(0);
+        }
       }
 
       @keyframes zoomIn {
-        0% { transform: scale(1); }
-        100% { transform: scale(1.5); }
+        0% {
+          transform: scale(1);
+        }
+        100% {
+          transform: scale(1.5);
+        }
       }
 
       @keyframes fadeOut {
-        to { opacity: 0; visibility: hidden; }
+        to {
+          opacity: 0;
+          visibility: hidden;
+        }
       }
     `,
   ],

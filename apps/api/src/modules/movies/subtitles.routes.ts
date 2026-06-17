@@ -1,6 +1,11 @@
 import { FastifyInstance, FastifyPluginOptions } from "fastify";
-import { SubtitleService, downloadAndConvertSubtitle } from "./subtitles.service";
+import {
+  SubtitleService,
+  downloadAndConvertSubtitle,
+  SubtitleResult,
+} from "./subtitles.service";
 import { z } from "zod";
+import { NotFoundError } from "../../shared/errors/app-error";
 
 const SearchSchema = z.object({
   imdbId: z.string().optional(),
@@ -15,7 +20,7 @@ const DownloadSchema = z.object({
 
 export const subtitleRoutes = async (
   app: FastifyInstance,
-  opts: FastifyPluginOptions
+  opts: FastifyPluginOptions,
 ) => {
   const subtitleService = new SubtitleService();
 
@@ -23,63 +28,44 @@ export const subtitleRoutes = async (
   app.get("/:id/subtitles", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
-      try {
-        const { id } = request.params as { id: string };
-        const { language } = request.query as { language?: string };
-
-        // Get movie details to find IMDB ID
-        const movie = await app.prisma.movie.findUnique({
-          where: { id },
-          select: { imdbId: true, title: true, year: true },
-        });
-
-        if (!movie) {
-          return reply.status(404).send({
-            status: "error",
-            message: "Movie not found",
-          });
-        }
-
-        let subtitles: any[] = [];
-
-        // Search by IMDB ID if available
-        if (movie.imdbId) {
-          subtitles = await subtitleService.search(movie.imdbId, language || "en");
-        }
-
-        // Fallback to title search if no IMDB ID or no results
-        if (subtitles.length === 0 && movie.title) {
-          subtitles = await subtitleService.searchByTitle(
-            movie.title,
-            movie.year || undefined,
-            language || "en"
-          );
-        }
-
-        // Transform subtitles to include download URL
-        const subtitlesWithUrl = subtitles.map(sub => ({
-          ...sub,
-          url: `/api/v1/movies/subtitles/${sub.url}/download`,
-          name: sub.filename,
-        }));
-
-        return reply.send({
-          status: "success",
-          data: subtitlesWithUrl,
-          meta: {
-            movieId: id,
-            imdbId: movie.imdbId,
-            title: movie.title,
-            found: subtitles.length,
-          },
-        });
-      } catch (error) {
-        console.error("Subtitle search error:", error);
-        return reply.status(500).send({
-          status: "error",
-          message: "Failed to search subtitles",
-        });
+      const { id } = request.params as { id: string };
+      const { language } = request.query as { language?: string };
+      const movie = await app.prisma.movie.findUnique({
+        where: { id },
+        select: { imdbId: true, title: true, year: true },
+      });
+      if (!movie) {
+        throw new NotFoundError("Movie not found");
       }
+      let subtitles: SubtitleResult[] = [];
+      if (movie.imdbId) {
+        subtitles = await subtitleService.search(
+          movie.imdbId,
+          language || "en",
+        );
+      }
+      if (subtitles.length === 0 && movie.title) {
+        subtitles = await subtitleService.searchByTitle(
+          movie.title,
+          movie.year || undefined,
+          language || "en",
+        );
+      }
+      const subtitlesWithUrl = subtitles.map((sub) => ({
+        ...sub,
+        url: `/api/v1/movies/subtitles/${sub.url}/download`,
+        name: sub.filename,
+      }));
+      return reply.send({
+        status: "success",
+        data: subtitlesWithUrl,
+        meta: {
+          movieId: id,
+          imdbId: movie.imdbId,
+          title: movie.title,
+          found: subtitles.length,
+        },
+      });
     },
   });
 
@@ -90,28 +76,15 @@ export const subtitleRoutes = async (
       body: DownloadSchema,
     },
     handler: async (request, reply) => {
-      try {
-        const { fileId } = request.body as z.infer<typeof DownloadSchema>;
-
-        const result = await subtitleService.getDownloadLink(fileId);
-
-        if (!result) {
-          return reply.status(404).send({
-            status: "error",
-            message: "Download link not available",
-          });
-        }
-
-        return reply.send({
-          status: "success",
-          data: result,
-        });
-      } catch (error) {
-        return reply.status(500).send({
-          status: "error",
-          message: "Failed to get download link",
-        });
+      const { fileId } = request.body as z.infer<typeof DownloadSchema>;
+      const result = await subtitleService.getDownloadLink(fileId);
+      if (!result) {
+        throw new NotFoundError("Download link not available");
       }
+      return reply.send({
+        status: "success",
+        data: result,
+      });
     },
   });
 
@@ -119,37 +92,18 @@ export const subtitleRoutes = async (
   app.get("/subtitles/:fileId/download", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
-      try {
-        const { fileId } = request.params as { fileId: string };
-
-        // Get download link from OpenSubtitles
-        const downloadResult = await subtitleService.getDownloadLink(fileId);
-
-        if (!downloadResult) {
-          return reply.status(404).send({
-            status: "error",
-            message: "Download link not available",
-          });
-        }
-
-        // Download and convert to VTT
-        const { content, isVtt } = await downloadAndConvertSubtitle(
-          downloadResult.link,
-          downloadResult.fileName
-        );
-
-        // Set appropriate headers
-        reply.header("Content-Type", "text/vtt");
-        reply.header("Content-Disposition", `inline; filename="subtitle.vtt"`);
-        
-        return reply.send(content);
-      } catch (error) {
-        console.error("Subtitle download error:", error);
-        return reply.status(500).send({
-          status: "error",
-          message: "Failed to download subtitle",
-        });
+      const { fileId } = request.params as { fileId: string };
+      const downloadResult = await subtitleService.getDownloadLink(fileId);
+      if (!downloadResult) {
+        throw new NotFoundError("Download link not available");
       }
+      const { content, isVtt } = await downloadAndConvertSubtitle(
+        downloadResult.link,
+        downloadResult.fileName,
+      );
+      reply.header("Content-Type", "text/vtt");
+      reply.header("Content-Disposition", `inline; filename="subtitle.vtt"`);
+      return reply.send(content);
     },
   });
 
@@ -157,54 +111,32 @@ export const subtitleRoutes = async (
   app.post("/:id/notify", {
     preHandler: [app.authenticate],
     handler: async (request, reply) => {
-      try {
-        const { id: movieId } = request.params as { id: string };
-        const userId = request.user.userId;
-
-        // Check if movie exists
-        const movie = await app.prisma.movie.findUnique({
-          where: { id: movieId },
-        });
-
-        if (!movie) {
-          return reply.status(404).send({
-            status: "error",
-            message: "Movie not found",
-          });
-        }
-
-        // Create notification request
-        const notification = await app.prisma.movieNotification.upsert({
-          where: {
-            userId_movieId: { userId, movieId },
-          },
-          update: {
-            sent: false,
-          },
-          create: {
-            userId,
-            movieId,
-            sent: false,
-          },
-        });
-
-        return reply.send({
-          status: "success",
-          data: notification,
-          message: "You will be notified when this movie is available in HD",
-        });
-      } catch (error: any) {
-        if (error.code === "P2002") {
-          return reply.status(409).send({
-            status: "error",
-            message: "Already subscribed to notifications for this movie",
-          });
-        }
-        return reply.status(500).send({
-          status: "error",
-          message: "Failed to register notification",
-        });
+      const { id: movieId } = request.params as { id: string };
+      const userId = request.user.userId;
+      const movie = await app.prisma.movie.findUnique({
+        where: { id: movieId },
+      });
+      if (!movie) {
+        throw new NotFoundError("Movie not found");
       }
+      const notification = await app.prisma.movieNotification.upsert({
+        where: {
+          userId_movieId: { userId, movieId },
+        },
+        update: {
+          sent: false,
+        },
+        create: {
+          userId,
+          movieId,
+          sent: false,
+        },
+      });
+      return reply.send({
+        status: "success",
+        data: notification,
+        message: "You will be notified when this movie is available in HD",
+      });
     },
   });
 };

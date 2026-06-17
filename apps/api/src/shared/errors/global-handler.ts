@@ -8,7 +8,9 @@ type PrismaLikeKnownError = {
   meta?: { target?: string[] | string };
 };
 
-const isPrismaLikeKnownError = (error: unknown): error is PrismaLikeKnownError => {
+const isPrismaLikeKnownError = (
+  error: unknown,
+): error is PrismaLikeKnownError => {
   return (
     typeof error === "object" &&
     error !== null &&
@@ -27,6 +29,7 @@ export async function globalErrorHandler(fastify: FastifyInstance) {
         success: false,
         code: error.code,
         message: error.message,
+        ...(error.details !== undefined ? { data: error.details } : {}),
       });
     }
 
@@ -65,6 +68,30 @@ export async function globalErrorHandler(fastify: FastifyInstance) {
           success: false,
           code: "NOT_FOUND",
           message: "Resource not found.",
+        });
+      }
+      // P2003: Foreign key constraint failed
+      if (dbError.code === "P2003") {
+        return reply.status(400).send({
+          success: false,
+          code: "FOREIGN_KEY_VIOLATION",
+          message: "Foreign key constraint failed.",
+        });
+      }
+      // P2011: Null constraint violation
+      if (dbError.code === "P2011") {
+        return reply.status(400).send({
+          success: false,
+          code: "NULL_CONSTRAINT_VIOLATION",
+          message: "Null constraint violation.",
+        });
+      }
+      // P2014: Required relation violation
+      if (dbError.code === "P2014") {
+        return reply.status(409).send({
+          success: false,
+          code: "RELATION_VIOLATION",
+          message: "Relation constraint violation.",
         });
       }
     }

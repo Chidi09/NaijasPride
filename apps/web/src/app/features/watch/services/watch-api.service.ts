@@ -53,12 +53,12 @@ export class WatchApiService {
   private readonly SYNC_TOAST_INTERVAL = 120_000; // 2 min between toasts
 
   saveProgress(movieId: string, progress: number, duration: number) {
-    return this.http.post<{ status: string; message: string }>(
-      "/api/v1/watch/progress",
-      { movieId, progress, duration },
-    ).pipe(
-      tap(() => this.showSyncToast()),
-    );
+    return this.http
+      .post<{
+        status: string;
+        message: string;
+      }>("/api/v1/watch/progress", { movieId, progress, duration })
+      .pipe(tap(() => this.showSyncToast()));
   }
 
   saveTvProgress(payload: {
@@ -70,7 +70,7 @@ export class WatchApiService {
     duration: number;
   }) {
     return this.http.post<{ success: boolean; message: string }>(
-      '/api/v1/tv-shows/progress',
+      "/api/v1/tv-shows/progress",
       payload,
     );
   }
@@ -120,7 +120,7 @@ export class WatchApiService {
     const now = Date.now();
     if (now - this.lastSyncToast > this.SYNC_TOAST_INTERVAL) {
       this.lastSyncToast = now;
-      this.toast.info('Progress synced');
+      this.toast.info("Progress synced");
     }
   }
 }

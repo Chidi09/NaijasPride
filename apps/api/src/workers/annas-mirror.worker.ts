@@ -6,13 +6,13 @@
  * book files and upload them to R2 storage.
  */
 
-import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
+import { Worker } from "bullmq";
+import IORedis from "ioredis";
+import { PrismaClient } from "@prisma/client";
 import {
   runAnnasMirrorHarvester,
   type AnnasMirrorOptions,
-} from '../modules/books/external/annas-archive/annas-mirror-harvester';
+} from "../modules/books/external/annas-archive/annas-mirror-harvester";
 
 type AnnasMirrorJobData = {
   batchSize?: number;
@@ -26,7 +26,7 @@ type AnnasMirrorJobData = {
 
 const REDIS_URL = process.env.REDIS_URL;
 if (!REDIS_URL) {
-  console.error('[AnnasMirrorWorker] REDIS_URL is not set. Exiting.');
+  console.error("[AnnasMirrorWorker] REDIS_URL is not set. Exiting.");
   process.exit(1);
 }
 
@@ -37,11 +37,13 @@ const connection = new IORedis(REDIS_URL, {
 const prisma = new PrismaClient();
 
 const worker = new Worker(
-  'annas-mirror',
+  "annas-mirror",
   async (job) => {
     const data = (job.data || {}) as AnnasMirrorJobData;
 
-    console.log(`[AnnasMirrorWorker] Job ${job.id} started (batch=${data.batchSize || 10}, dryRun=${!!data.dryRun})`);
+    console.log(
+      `[AnnasMirrorWorker] Job ${job.id} started (batch=${data.batchSize || 10}, dryRun=${!!data.dryRun})`,
+    );
 
     const options: AnnasMirrorOptions = {
       batchSize: data.batchSize,
@@ -70,11 +72,11 @@ const worker = new Worker(
   },
 );
 
-worker.on('completed', (job) => {
+worker.on("completed", (job) => {
   console.log(`[AnnasMirrorWorker] Job ${job.id} completed`);
 });
 
-worker.on('failed', (job, err) => {
+worker.on("failed", (job, err) => {
   console.error(`[AnnasMirrorWorker] Job ${job?.id} failed: ${err.message}`);
 });
 
@@ -97,5 +99,5 @@ const shutdown = async () => {
   process.exit(0);
 };
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

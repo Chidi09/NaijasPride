@@ -1,19 +1,12 @@
 import { Component, inject, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { HttpClient } from "@angular/common/http";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { AuthService } from "../../../../core/auth/auth.service";
 import { ToastService } from "../../../../core/services/toast.service";
 import { BrandLogoComponent } from "../../../../shared/components/brand-logo/brand-logo.component";
 import { CheckIconComponent } from "../../../../shared/components/icons/check-icon.component";
 import { CrossIconComponent } from "../../../../shared/components/icons/cross-icon.component";
 import { LoadingIconComponent } from "../../../../shared/components/icons/loading-icon.component";
-
-interface VerifyEmailResponse {
-  success: boolean;
-  data?: { email: string };
-  message?: string;
-  error?: string;
-}
 
 @Component({
   selector: "app-verify-email",
@@ -136,7 +129,7 @@ interface VerifyEmailResponse {
   `,
 })
 export class VerifyEmailComponent implements OnInit {
-  private http = inject(HttpClient);
+  private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private toast = inject(ToastService);
@@ -160,52 +153,44 @@ export class VerifyEmailComponent implements OnInit {
   }
 
   verifyEmail() {
-    this.http
-      .post<VerifyEmailResponse>("/api/v1/auth/verify-email", {
-        token: this.token,
-      })
-      .subscribe({
-        next: (response) => {
-          this.isVerifying = false;
-          if (response.success) {
-            this.verified = true;
-            this.toast.success("Email verified successfully!");
-          } else {
-            this.error = response.error || "Verification failed";
-            this.toast.error(this.error);
-          }
-        },
-        error: (err) => {
-          this.isVerifying = false;
-          this.error =
-            err.error?.error ||
-            "Verification failed. The link may have expired.";
+    this.authService.verifyEmail(this.token).subscribe({
+      next: (response) => {
+        this.isVerifying = false;
+        if (response.success) {
+          this.verified = true;
+          this.toast.success("Email verified successfully!");
+        } else {
+          this.error = response.error || "Verification failed";
           this.toast.error(this.error);
-        },
-      });
+        }
+      },
+      error: (err) => {
+        this.isVerifying = false;
+        this.error =
+          err.error?.error || "Verification failed. The link may have expired.";
+        this.toast.error(this.error);
+      },
+    });
   }
 
   resendEmail() {
     this.resending = true;
-    this.http
-      .post<VerifyEmailResponse>("/api/v1/auth/resend-verification", {})
-      .subscribe({
-        next: (response) => {
-          this.resending = false;
-          if (response.success) {
-            this.toast.success("Verification email sent! Check your inbox.");
-          } else {
-            this.toast.error(
-              response.error || "Failed to resend verification email",
-            );
-          }
-        },
-        error: (err) => {
-          this.resending = false;
-          const error =
-            err.error?.error || "Failed to resend verification email";
-          this.toast.error(error);
-        },
-      });
+    this.authService.resendVerification().subscribe({
+      next: (response) => {
+        this.resending = false;
+        if (response.success) {
+          this.toast.success("Verification email sent! Check your inbox.");
+        } else {
+          this.toast.error(
+            response.error || "Failed to resend verification email",
+          );
+        }
+      },
+      error: (err) => {
+        this.resending = false;
+        const error = err.error?.error || "Failed to resend verification email";
+        this.toast.error(error);
+      },
+    });
   }
 }

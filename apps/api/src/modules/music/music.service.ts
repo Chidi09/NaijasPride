@@ -1,5 +1,11 @@
-import { PrismaClient, MusicGenre, MusicRegion, ContentStatus, Prisma } from '@prisma/client';
-import { getRedis } from '../../shared/services/redis.service';
+import {
+  PrismaClient,
+  MusicGenre,
+  MusicRegion,
+  ContentStatus,
+  Prisma,
+} from "@prisma/client";
+import { getRedis } from "../../shared/services/redis.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,8 +99,8 @@ export class MusicService {
     if (params.q) {
       const q = params.q.trim();
       where.OR = [
-        { title: { contains: q, mode: 'insensitive' } },
-        { artist: { contains: q, mode: 'insensitive' } },
+        { title: { contains: q, mode: "insensitive" } },
+        { artist: { contains: q, mode: "insensitive" } },
       ];
     }
 
@@ -114,7 +120,7 @@ export class MusicService {
       this.prisma.musicVideo.findMany({
         where,
         select: MUSIC_VIDEO_SELECT,
-        orderBy: [{ weeklyPlays: 'desc' }, { playCount: 'desc' }],
+        orderBy: [{ weeklyPlays: "desc" }, { playCount: "desc" }],
         skip,
         take: limit,
       }),
@@ -138,7 +144,7 @@ export class MusicService {
     replayLoop: MusicVideoRow[];
     genreTakeover: { genre: string; videos: MusicVideoRow[] } | null;
   }> {
-    const cacheKey = 'music:featured';
+    const cacheKey = "music:featured";
     if (this.redis) {
       const cached = await this.redis.get(cacheKey);
       if (cached) return JSON.parse(cached);
@@ -154,7 +160,7 @@ export class MusicService {
       this.prisma.musicVideo.findMany({
         where: { ...activeWhere, updatedAt: { gte: sevenDaysAgo } },
         select: MUSIC_VIDEO_SELECT,
-        orderBy: { weeklyPlays: 'desc' },
+        orderBy: { weeklyPlays: "desc" },
         take: 12,
       }),
 
@@ -162,7 +168,7 @@ export class MusicService {
       this.prisma.musicVideo.findMany({
         where: { ...activeWhere, publishedAt: { gte: thirtyDaysAgo } },
         select: MUSIC_VIDEO_SELECT,
-        orderBy: { publishedAt: 'desc' },
+        orderBy: { publishedAt: "desc" },
         take: 12,
       }),
 
@@ -170,7 +176,7 @@ export class MusicService {
       this.prisma.musicVideo.findMany({
         where: { ...activeWhere, viewCount: { gte: 10 } },
         select: MUSIC_VIDEO_SELECT,
-        orderBy: { playCount: 'desc' },
+        orderBy: { playCount: "desc" },
         take: 12,
       }),
     ]);
@@ -192,9 +198,14 @@ export class MusicService {
     return result;
   }
 
-  private async getWeeklyGenreTakeover(): Promise<{ genre: string; videos: MusicVideoRow[] } | null> {
+  private async getWeeklyGenreTakeover(): Promise<{
+    genre: string;
+    videos: MusicVideoRow[];
+  } | null> {
     // Find the genre with the most weeklyPlays this week
-    const genreStats = await this.prisma.$queryRaw<{ genre: string; total: bigint }[]>`
+    const genreStats = await this.prisma.$queryRaw<
+      { genre: string; total: bigint }[]
+    >`
       SELECT unnest(genre::text[]) AS genre, SUM("weeklyPlays") AS total
       FROM "MusicVideo"
       WHERE status = 'active'
@@ -210,7 +221,7 @@ export class MusicService {
     const videos = await this.prisma.musicVideo.findMany({
       where: { status: ContentStatus.active, genre: { has: topGenre } },
       select: MUSIC_VIDEO_SELECT,
-      orderBy: { weeklyPlays: 'desc' },
+      orderBy: { weeklyPlays: "desc" },
       take: 8,
     });
 
@@ -230,25 +241,27 @@ export class MusicService {
   } | null> {
     const where = { artistSlug, status: ContentStatus.active };
 
-    const [totalVideos, topVideos, latestVideos, aggregate] = await Promise.all([
-      this.prisma.musicVideo.count({ where }),
-      this.prisma.musicVideo.findMany({
-        where,
-        select: MUSIC_VIDEO_SELECT,
-        orderBy: { playCount: 'desc' },
-        take: 6,
-      }),
-      this.prisma.musicVideo.findMany({
-        where,
-        select: MUSIC_VIDEO_SELECT,
-        orderBy: { publishedAt: 'desc' },
-        take: 12,
-      }),
-      this.prisma.musicVideo.aggregate({
-        where,
-        _sum: { playCount: true },
-      }),
-    ]);
+    const [totalVideos, topVideos, latestVideos, aggregate] = await Promise.all(
+      [
+        this.prisma.musicVideo.count({ where }),
+        this.prisma.musicVideo.findMany({
+          where,
+          select: MUSIC_VIDEO_SELECT,
+          orderBy: { playCount: "desc" },
+          take: 6,
+        }),
+        this.prisma.musicVideo.findMany({
+          where,
+          select: MUSIC_VIDEO_SELECT,
+          orderBy: { publishedAt: "desc" },
+          take: 12,
+        }),
+        this.prisma.musicVideo.aggregate({
+          where,
+          _sum: { playCount: true },
+        }),
+      ],
+    );
 
     if (totalVideos === 0) return null;
 
@@ -266,14 +279,22 @@ export class MusicService {
 
   // ── Single Video ──────────────────────────────────────────────────────────
 
-  async findBySlug(slug: string, userId?: string): Promise<(MusicVideoRow & { isLiked: boolean }) | null> {
+  async findBySlug(
+    slug: string,
+    userId?: string,
+  ): Promise<(MusicVideoRow & { isLiked: boolean }) | null> {
     let video = await this.prisma.musicVideo.findUnique({
       where: { slug },
       select: MUSIC_VIDEO_SELECT,
     });
 
     // Fallback for legacy links that may still pass UUID IDs.
-    if (!video && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
+    if (
+      !video &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        slug,
+      )
+    ) {
       video = await this.prisma.musicVideo.findUnique({
         where: { id: slug },
         select: MUSIC_VIDEO_SELECT,
@@ -329,7 +350,7 @@ export class MusicService {
 
   async toggleLike(
     musicId: string,
-    userId: string
+    userId: string,
   ): Promise<{ liked: boolean; likeCount: number }> {
     const existing = await this.prisma.musicLike.findUnique({
       where: { userId_musicId: { userId, musicId } },
@@ -362,11 +383,16 @@ export class MusicService {
     return this.prisma.musicPlaylist.findMany({
       where: { userId },
       include: { _count: { select: { items: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
-  async createPlaylist(userId: string, title: string, description?: string, isPublic = false) {
+  async createPlaylist(
+    userId: string,
+    title: string,
+    description?: string,
+    isPublic = false,
+  ) {
     return this.prisma.musicPlaylist.create({
       data: { userId, title, description, isPublic },
     });
@@ -377,7 +403,7 @@ export class MusicService {
     const playlist = await this.prisma.musicPlaylist.findFirst({
       where: { id: playlistId, userId },
     });
-    if (!playlist) throw new Error('Playlist not found or not owned by user');
+    if (!playlist) throw new Error("Playlist not found or not owned by user");
 
     const maxPosition = await this.prisma.musicPlaylistItem.aggregate({
       where: { playlistId },
@@ -401,25 +427,29 @@ export class MusicService {
           include: {
             music: { select: MUSIC_VIDEO_SELECT },
           },
-          orderBy: { position: 'asc' },
+          orderBy: { position: "asc" },
         },
       },
     });
 
     if (!playlist) return null;
-    if (!playlist.isPublic && !playlist.isCurated && playlist.userId !== userId) return null;
+    if (!playlist.isPublic && !playlist.isCurated && playlist.userId !== userId)
+      return null;
 
     return playlist;
   }
 
   // ── Recommendations ───────────────────────────────────────────────────────
 
-  async getRecommendations(userId: string, limit = 12): Promise<MusicVideoRow[]> {
+  async getRecommendations(
+    userId: string,
+    limit = 12,
+  ): Promise<MusicVideoRow[]> {
     // Gather user's most played genres & artists from history
     const history = await this.prisma.musicWatchHistory.findMany({
       where: { userId },
       include: { music: { select: { genre: true, artistSlug: true } } },
-      orderBy: { lastPlayedAt: 'desc' },
+      orderBy: { lastPlayedAt: "desc" },
       take: 50,
     });
 
@@ -432,7 +462,10 @@ export class MusicService {
       for (const g of h.music.genre) {
         genreFreq.set(g, (genreFreq.get(g) ?? 0) + h.playCount);
       }
-      artistFreq.set(h.music.artistSlug, (artistFreq.get(h.music.artistSlug) ?? 0) + h.playCount);
+      artistFreq.set(
+        h.music.artistSlug,
+        (artistFreq.get(h.music.artistSlug) ?? 0) + h.playCount,
+      );
     }
 
     // Top 3 genres, top 3 artists
@@ -451,7 +484,7 @@ export class MusicService {
       return this.prisma.musicVideo.findMany({
         where: { status: ContentStatus.active },
         select: MUSIC_VIDEO_SELECT,
-        orderBy: { weeklyPlays: 'desc' },
+        orderBy: { weeklyPlays: "desc" },
         take: limit,
       });
     }
@@ -467,7 +500,7 @@ export class MusicService {
         ],
       },
       select: MUSIC_VIDEO_SELECT,
-      orderBy: { weeklyPlays: 'desc' },
+      orderBy: { weeklyPlays: "desc" },
       take: limit,
     });
 
@@ -494,7 +527,7 @@ export class MusicService {
         ],
       },
       select: MUSIC_VIDEO_SELECT,
-      orderBy: { weeklyPlays: 'desc' },
+      orderBy: { weeklyPlays: "desc" },
       take: limit,
     });
   }

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-interface SubtitleResult {
+export interface SubtitleResult {
   id: string;
   language: string;
   url: string;
@@ -8,6 +8,28 @@ interface SubtitleResult {
   hearingImpaired: boolean;
   hd: boolean;
   downloads: number;
+}
+
+interface OpenSubtitlesFile {
+  file_id: number;
+  file_name: string;
+  cd_number?: number;
+  file_type?: string;
+}
+
+interface OpenSubtitlesAttributes {
+  language: string;
+  files: OpenSubtitlesFile[];
+  hearing_impaired?: boolean;
+  hd?: boolean;
+  download_count?: number;
+  [key: string]: unknown;
+}
+
+interface OpenSubtitlesSubtitle {
+  id: string;
+  type: string;
+  attributes: OpenSubtitlesAttributes;
 }
 
 /**
@@ -23,16 +45,16 @@ interface SubtitleResult {
  */
 export function srtToVtt(srtContent: string): string {
   // Add WEBVTT header
-  let vtt = 'WEBVTT\n\n';
+  let vtt = "WEBVTT\n\n";
 
   // Remove BOM if present
-  const content = srtContent.replace(/^\uFEFF/, '');
+  const content = srtContent.replace(/^\uFEFF/, "");
 
   // Split by subtitle blocks (separated by empty lines)
   const blocks = content.split(/\n\s*\n/);
 
   for (const block of blocks) {
-    const lines = block.trim().split('\n');
+    const lines = block.trim().split("\n");
     if (lines.length < 2) continue;
 
     // First line might be a number (subtitle index) - skip it
@@ -47,13 +69,13 @@ export function srtToVtt(srtContent: string): string {
     // SRT: 00:00:01,000 --> 00:00:04,000
     // VTT: 00:00:01.000 --> 00:00:04.000
     const timeLine = lines[timeLineIndex];
-    const vttTimeLine = timeLine.replace(/,/g, '.');
+    const vttTimeLine = timeLine.replace(/,/g, ".");
 
     // Collect subtitle text lines
     const textLines = lines.slice(timeLineIndex + 1);
     if (textLines.length === 0) continue;
 
-    vtt += `${vttTimeLine}\n${textLines.join('\n')}\n\n`;
+    vtt += `${vttTimeLine}\n${textLines.join("\n")}\n\n`;
   }
 
   return vtt.trim();
@@ -62,24 +84,27 @@ export function srtToVtt(srtContent: string): string {
 /**
  * Downloads a subtitle and converts to VTT format
  */
-export async function downloadAndConvertSubtitle(downloadUrl: string, fileName: string): Promise<{ content: string; isVtt: boolean }> {
+export async function downloadAndConvertSubtitle(
+  downloadUrl: string,
+  fileName: string,
+): Promise<{ content: string; isVtt: boolean }> {
   try {
     const response = await axios.get(downloadUrl, {
-      responseType: 'text',
+      responseType: "text",
       timeout: 30000,
     });
 
     const content = response.data;
-    const isSrt = fileName.toLowerCase().endsWith('.srt');
+    const isSrt = fileName.toLowerCase().endsWith(".srt");
 
     if (isSrt) {
       return { content: srtToVtt(content), isVtt: true };
     } else {
-      return { content, isVtt: fileName.toLowerCase().endsWith('.vtt') };
+      return { content, isVtt: fileName.toLowerCase().endsWith(".vtt") };
     }
   } catch (error) {
-    console.error('Failed to download subtitle:', error);
-    throw new Error('Failed to download subtitle');
+    console.error("Failed to download subtitle:", error);
+    throw new Error("Failed to download subtitle");
   }
 }
 
@@ -89,11 +114,16 @@ export class SubtitleService {
 
   constructor() {
     if (!this.API_KEY) {
-      console.warn("⚠️  OPENSUBTITLES_KEY not set. Subtitle service will not work.");
+      console.warn(
+        "⚠️  OPENSUBTITLES_KEY not set. Subtitle service will not work.",
+      );
     }
   }
 
-  async search(imdbId: string, language: string = "en"): Promise<SubtitleResult[]> {
+  async search(
+    imdbId: string,
+    language: string = "en",
+  ): Promise<SubtitleResult[]> {
     if (!this.API_KEY) {
       console.warn("OpenSubtitles API key not configured");
       return [];
@@ -103,24 +133,21 @@ export class SubtitleService {
       // Clean IMDB ID (remove 'tt' prefix if present)
       const cleanId = imdbId.replace(/^tt/i, "");
 
-      const response = await axios.get(
-        `${this.API_URL}/subtitles`,
-        {
-          params: {
-            imdb_id: cleanId,
-            languages: language,
-            order_by: "download_count",
-            order_direction: "desc",
-            per_page: 10,
-          },
-          headers: {
-            "Api-Key": this.API_KEY,
-            "User-Agent": "NaijasPride/1.0",
-            "Content-Type": "application/json",
-          },
-          timeout: 10000,
-        }
-      );
+      const response = await axios.get(`${this.API_URL}/subtitles`, {
+        params: {
+          imdb_id: cleanId,
+          languages: language,
+          order_by: "download_count",
+          order_direction: "desc",
+          per_page: 10,
+        },
+        headers: {
+          "Api-Key": this.API_KEY,
+          "User-Agent": "NaijasPride/1.0",
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      });
 
       if (!response.data.data || !Array.isArray(response.data.data)) {
         return [];
@@ -128,9 +155,14 @@ export class SubtitleService {
 
       // Transform to our format
       return response.data.data
-        .filter((sub: any) => sub.attributes && sub.attributes.files && sub.attributes.files.length > 0)
+        .filter(
+          (sub: OpenSubtitlesSubtitle) =>
+            sub.attributes &&
+            sub.attributes.files &&
+            sub.attributes.files.length > 0,
+        )
         .slice(0, 5)
-        .map((sub: any) => ({
+        .map((sub: OpenSubtitlesSubtitle) => ({
           id: sub.id,
           language: sub.attributes.language,
           url: sub.attributes.files[0].file_id.toString(),
@@ -139,16 +171,19 @@ export class SubtitleService {
           hd: sub.attributes.hd || false,
           downloads: sub.attributes.download_count || 0,
         }));
-    } catch (error: any) {
-      console.error("Subtitle fetch failed:", error.message);
-      if (error.response) {
-        console.error("API Response:", error.response.status, error.response.data);
+    } catch (error: unknown) {
+      const err = error as any;
+      console.error("Subtitle fetch failed:", err.message);
+      if (err.response) {
+        console.error("API Response:", err.response.status, err.response.data);
       }
       return [];
     }
   }
 
-  async getDownloadLink(fileId: string): Promise<{ link: string; fileName: string } | null> {
+  async getDownloadLink(
+    fileId: string,
+  ): Promise<{ link: string; fileName: string } | null> {
     if (!this.API_KEY) return null;
 
     try {
@@ -164,7 +199,7 @@ export class SubtitleService {
             "Content-Type": "application/json",
           },
           timeout: 10000,
-        }
+        },
       );
 
       if (response.data && response.data.link) {
@@ -175,18 +210,23 @@ export class SubtitleService {
       }
 
       return null;
-    } catch (error: any) {
-      console.error("Download link fetch failed:", error.message);
+    } catch (error: unknown) {
+      const err = error as any;
+      console.error("Download link fetch failed:", err.message);
       return null;
     }
   }
 
   // Search by movie name and year
-  async searchByTitle(title: string, year?: number, language: string = "en"): Promise<SubtitleResult[]> {
+  async searchByTitle(
+    title: string,
+    year?: number,
+    language: string = "en",
+  ): Promise<SubtitleResult[]> {
     if (!this.API_KEY) return [];
 
     try {
-      const params: any = {
+      const params: Record<string, string | number> = {
         query: title,
         languages: language,
         order_by: "download_count",
@@ -213,9 +253,14 @@ export class SubtitleService {
       }
 
       return response.data.data
-        .filter((sub: any) => sub.attributes && sub.attributes.files && sub.attributes.files.length > 0)
+        .filter(
+          (sub: OpenSubtitlesSubtitle) =>
+            sub.attributes &&
+            sub.attributes.files &&
+            sub.attributes.files.length > 0,
+        )
         .slice(0, 5)
-        .map((sub: any) => ({
+        .map((sub: OpenSubtitlesSubtitle) => ({
           id: sub.id,
           language: sub.attributes.language,
           url: sub.attributes.files[0].file_id.toString(),
@@ -224,8 +269,9 @@ export class SubtitleService {
           hd: sub.attributes.hd || false,
           downloads: sub.attributes.download_count || 0,
         }));
-    } catch (error: any) {
-      console.error("Subtitle search by title failed:", error.message);
+    } catch (error: unknown) {
+      const err = error as any;
+      console.error("Subtitle search by title failed:", err.message);
       return [];
     }
   }

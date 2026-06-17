@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule } from "@angular/common";
 import {
   AfterViewInit,
   Component,
@@ -11,12 +11,22 @@ import {
   SimpleChanges,
   ViewChild,
   inject,
-} from '@angular/core';
+} from "@angular/core";
 
-import { ReaderProgressService } from '../services/reader-progress.service';
-import { ReaderStorageService } from '../services/reader-storage.service';
-import type { HighlightColor, HighlightEntry, SearchResultEntry } from '../models/reader.models';
-import { PdfSearchIndexService } from '../services/pdf-search-index.service';
+import { ReaderProgressService } from "../services/reader-progress.service";
+import { ReaderStorageService } from "../services/reader-storage.service";
+import type {
+  HighlightColor,
+  HighlightEntry,
+  SearchResultEntry,
+} from "../models/reader.models";
+import { PdfSearchIndexService } from "../services/pdf-search-index.service";
+import type {
+  PDFDocumentProxy,
+  PDFPageProxy,
+  PDFPageViewport,
+  PDFTextItem,
+} from "pdfjs-dist/build/pdf.mjs";
 
 type ServerProgress = { page: number; updatedAt: number } | null;
 
@@ -32,7 +42,7 @@ type PdfTextContent = {
 };
 
 @Component({
-  selector: 'app-pdf-viewer',
+  selector: "app-pdf-viewer",
   standalone: true,
   imports: [CommonModule],
   styles: [
@@ -72,8 +82,8 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private progressApi = inject(ReaderProgressService);
   private searchIndex = inject(PdfSearchIndexService);
 
-  @ViewChild('canvas') canvas?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('wrap') wrap?: ElementRef<HTMLElement>;
+  @ViewChild("canvas") canvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild("wrap") wrap?: ElementRef<HTMLElement>;
 
   @Input() slug: string | null = null;
   @Input() fileUrl: string | null = null;
@@ -84,7 +94,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() serverProgressLoaded = false;
 
   @Input() highlightMode = false;
-  @Input() highlightColor: HighlightColor = 'yellow';
+  @Input() highlightColor: HighlightColor = "yellow";
   @Input() highlights: HighlightEntry[] = [];
 
   @Output() loadingChange = new EventEmitter<boolean>();
@@ -99,13 +109,19 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Output() searchErrorChange = new EventEmitter<string | null>();
   @Output() searchResultsChange = new EventEmitter<SearchResultEntry[]>();
 
-  @Output() createHighlight = new EventEmitter<{ page: number; rect: { x: number; y: number; w: number; h: number }; color: HighlightColor }>();
+  @Output() createHighlight = new EventEmitter<{
+    page: number;
+    rect: { x: number; y: number; w: number; h: number };
+    color: HighlightColor;
+  }>();
 
   private viewReady = false;
   private initKey: string | null = null;
 
-  private pdfLibPromise: Promise<any> | null = null;
-  private pdfDoc: any = null;
+  private pdfLibPromise: Promise<
+    typeof import("pdfjs-dist/build/pdf.mjs")
+  > | null = null;
+  private pdfDoc: PDFDocumentProxy | null = null;
   private rendering = false;
   private currentPage = 1;
   private totalPages = 0;
@@ -120,7 +136,12 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  selectionBox: { left: number; top: number; width: number; height: number } | null = null;
+  selectionBox: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null = null;
   private drag: {
     pointerId: number;
     startX: number;
@@ -136,21 +157,22 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   ngOnChanges(changes: SimpleChanges): void {
     if (!this.viewReady) return;
 
-    const shouldReinit = 'fileUrl' in changes || 'slug' in changes || 'cacheVersion' in changes;
+    const shouldReinit =
+      "fileUrl" in changes || "slug" in changes || "cacheVersion" in changes;
     if (shouldReinit) {
       void this.ensureInit();
       return;
     }
 
-    if ('zoom' in changes) {
+    if ("zoom" in changes) {
       void this.renderPage(this.currentPage);
     }
 
-    if ('highlights' in changes) {
+    if ("highlights" in changes) {
       void this.renderPage(this.currentPage);
     }
 
-    if ('serverProgress' in changes || 'serverProgressLoaded' in changes) {
+    if ("serverProgress" in changes || "serverProgressLoaded" in changes) {
       // If we haven't applied a page yet, ensureInit will handle start page.
     }
   }
@@ -169,12 +191,12 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   async getReadableText(maxChars = 4000): Promise<string> {
     const n = Math.max(200, Math.min(40_000, Math.floor(maxChars)));
-    if (!this.pdfDoc) return '';
+    if (!this.pdfDoc) return "";
     try {
       const text = await this.getPageText(this.currentPage);
       return text.slice(0, n);
     } catch {
-      return '';
+      return "";
     }
   }
 
@@ -188,12 +210,13 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (!this.highlightMode) return;
     const canvas = this.canvas?.nativeElement;
     if (!canvas) return;
-    if (event.pointerType !== 'touch' && event.button !== 0) return;
+    if (event.pointerType !== "touch" && event.button !== 0) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX;
     const y = event.clientY;
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom)
+      return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -204,10 +227,17 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       startY: y,
       canvasRect: rect,
     };
-    this.selectionBox = { left: x - rect.left, top: y - rect.top, width: 0, height: 0 };
+    this.selectionBox = {
+      left: x - rect.left,
+      top: y - rect.top,
+      width: 0,
+      height: 0,
+    };
 
     try {
-      (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+      (event.target as HTMLElement | null)?.setPointerCapture?.(
+        event.pointerId,
+      );
     } catch {
       // ignore
     }
@@ -275,10 +305,10 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   async search(query: string): Promise<void> {
-    const q = (query || '').trim();
+    const q = (query || "").trim();
     if (!q) return;
     if (!this.pdfDoc) {
-      this.searchErrorChange.emit('Search is not available yet.');
+      this.searchErrorChange.emit("Search is not available yet.");
       return;
     }
 
@@ -306,7 +336,9 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         const now = Date.now();
         if (now - lastStatusAt > 120) {
           lastStatusAt = now;
-          this.searchStatusChange.emit(`Searching page ${page}/${total} (${results.length} hits)...`);
+          this.searchStatusChange.emit(
+            `Searching page ${page}/${total} (${results.length} hits)...`,
+          );
         }
 
         const text = await this.getPageText(page);
@@ -338,7 +370,9 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       this.searchResultsChange.emit(results);
     } catch (error) {
       if (mySearchId !== this.searchId) return;
-      this.searchErrorChange.emit(error instanceof Error ? error.message : 'Search failed');
+      this.searchErrorChange.emit(
+        error instanceof Error ? error.message : "Search failed",
+      );
     } finally {
       if (mySearchId === this.searchId) {
         this.searchingChange.emit(false);
@@ -355,7 +389,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       return;
     }
 
-    const key = [slug, url].join('|');
+    const key = [slug, url].join("|");
     if (this.initKey === key && this.pdfDoc) {
       return;
     }
@@ -391,12 +425,17 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
             ? local.page
             : 1;
 
-      const nextPage = Math.max(1, Math.min(this.totalPages || 1, Math.floor(startPage)));
+      const nextPage = Math.max(
+        1,
+        Math.min(this.totalPages || 1, Math.floor(startPage)),
+      );
       await this.renderPage(nextPage);
       this.loadingChange.emit(false);
     } catch (error) {
       this.loadingChange.emit(false);
-      this.errorChange.emit(error instanceof Error ? error.message : 'Failed to open PDF');
+      this.errorChange.emit(
+        error instanceof Error ? error.message : "Failed to open PDF",
+      );
     }
   }
 
@@ -419,7 +458,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
 
     const canvas = this.canvas?.nativeElement;
     if (canvas) {
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
@@ -433,9 +472,13 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (cached != null) return cached;
 
     const slug = this.slug;
-    const version = (this.cacheVersion || '').trim();
+    const version = (this.cacheVersion || "").trim();
     if (slug && version) {
-      const fromDb = await this.searchIndex.getPageText({ slug, version, page });
+      const fromDb = await this.searchIndex.getPageText({
+        slug,
+        version,
+        page,
+      });
       if (fromDb != null) {
         this.pageTextCache.set(page, fromDb);
         return fromDb;
@@ -446,18 +489,19 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (inflight) return inflight;
 
     const promise = (async () => {
+      if (!this.pdfDoc) throw new Error("PDF not loaded");
       const pdfPage = await this.pdfDoc.getPage(page);
       const content = await pdfPage.getTextContent();
       this.pageTextContentCache.set(page, content);
       const parts: string[] = [];
 
       for (const item of this.getTextItems(content)) {
-        const str = typeof item?.str === 'string' ? item.str : '';
+        const str = typeof item?.str === "string" ? item.str : "";
         if (str) parts.push(str);
       }
 
-      const raw = parts.join(' ');
-      const normalized = raw.replace(/\s+/g, ' ').trim();
+      const raw = parts.join(" ");
+      const normalized = raw.replace(/\s+/g, " ").trim();
       this.pageTextCache.set(page, normalized);
 
       if (slug && version) {
@@ -472,11 +516,15 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     return promise;
   }
 
-  private buildExcerpt(text: string, matchIndex: number, matchLength: number): string {
+  private buildExcerpt(
+    text: string,
+    matchIndex: number,
+    matchLength: number,
+  ): string {
     const start = Math.max(0, matchIndex - 42);
     const end = Math.min(text.length, matchIndex + matchLength + 64);
-    const prefix = start > 0 ? '...' : '';
-    const suffix = end < text.length ? '...' : '';
+    const prefix = start > 0 ? "..." : "";
+    const suffix = end < text.length ? "..." : "";
     return prefix + text.slice(start, end).trim() + suffix;
   }
 
@@ -486,12 +534,15 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     const canvas = this.canvas?.nativeElement;
     if (!canvas) return;
 
-    const page = Math.max(1, Math.min(this.totalPages || 1, Math.floor(pageNumber)));
+    const page = Math.max(
+      1,
+      Math.min(this.totalPages || 1, Math.floor(pageNumber)),
+    );
     this.rendering = true;
     try {
       const pdfPage = await this.pdfDoc.getPage(page);
       const viewport = pdfPage.getViewport({ scale: this.zoom });
-      const ctx = canvas.getContext('2d', { alpha: false });
+      const ctx = canvas.getContext("2d", { alpha: false });
       if (!ctx) return;
 
       canvas.width = Math.floor(viewport.width);
@@ -510,7 +561,10 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       const pct = this.totalPages > 1 ? (page - 1) / (this.totalPages - 1) : 0;
       this.progressChange.emit(Math.max(0, Math.min(1, pct)));
 
-      this.storage.savePdfProgress(this.slug as string, { page, at: Date.now() });
+      this.storage.savePdfProgress(this.slug as string, {
+        page,
+        at: Date.now(),
+      });
       this.scheduleServerSave(page);
     } finally {
       this.rendering = false;
@@ -519,41 +573,52 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   private async drawSearchHighlightsIfNeeded(
     page: number,
-    pdfPage: any,
-    viewport: any,
-    ctx: CanvasRenderingContext2D
+    pdfPage: PDFPageProxy,
+    viewport: PDFPageViewport,
+    ctx: CanvasRenderingContext2D,
   ): Promise<void> {
-    const q = (this.lastSearchQuery || '').trim();
+    const q = (this.lastSearchQuery || "").trim();
     if (!q) return;
     if (Date.now() > this.highlightUntil) return;
 
     const needle = q.toLowerCase();
 
     try {
-      const content = this.pageTextContentCache.get(page) ?? (await pdfPage.getTextContent());
+      const content =
+        this.pageTextContentCache.get(page) ?? (await pdfPage.getTextContent());
       this.pageTextContentCache.set(page, content);
 
       const items = this.getTextItems(content);
       if (!items.length) return;
 
-      const scale = typeof viewport?.scale === 'number' ? viewport.scale : this.zoom;
+      const scale =
+        typeof viewport?.scale === "number" ? viewport.scale : this.zoom;
       ctx.save();
-      ctx.fillStyle = 'rgba(255, 209, 102, 0.28)';
-      ctx.strokeStyle = 'rgba(255, 209, 102, 0.55)';
+      ctx.fillStyle = "rgba(255, 209, 102, 0.28)";
+      ctx.strokeStyle = "rgba(255, 209, 102, 0.55)";
       ctx.lineWidth = 1;
 
       for (const item of items) {
-        const str = typeof item?.str === 'string' ? item.str : '';
+        const str = typeof item?.str === "string" ? item.str : "";
         if (!str) continue;
         if (!str.toLowerCase().includes(needle)) continue;
 
-        const rect = this.computeTextItemRect(item, viewport, scale);
+        const rect = this.computeTextItemRect(
+          item as PDFTextItem,
+          viewport,
+          scale,
+        );
         if (!rect) continue;
         const { x, y, w, h } = rect;
         if (w < 2 || h < 2) continue;
 
         ctx.fillRect(x, y, w, h);
-        ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
+        ctx.strokeRect(
+          x + 0.5,
+          y + 0.5,
+          Math.max(0, w - 1),
+          Math.max(0, h - 1),
+        );
       }
 
       ctx.restore();
@@ -563,9 +628,9 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   private computeTextItemRect(
-    item: any,
-    viewport: any,
-    scale: number
+    item: PDFTextItem,
+    viewport: PDFPageViewport,
+    scale: number,
   ): { x: number; y: number; w: number; h: number } | null {
     const vT = viewport?.transform as number[] | undefined;
     const iT = item?.transform as number[] | undefined;
@@ -576,14 +641,21 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     const x = tx[4];
     const y = tx[5];
 
-    const width = typeof item?.width === 'number' ? Math.abs(item.width * scale) : 0;
-    const heightFromItem = typeof item?.height === 'number' ? Math.abs(item.height * scale) : 0;
+    const width =
+      typeof item?.width === "number" ? Math.abs(item.width * scale) : 0;
+    const heightFromItem =
+      typeof item?.height === "number" ? Math.abs(item.height * scale) : 0;
     const fontHeight = Math.max(1, Math.hypot(tx[2], tx[3]));
 
     const h = heightFromItem > 0.5 ? heightFromItem : fontHeight;
     const w = width > 0.5 ? width : 0;
 
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) {
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(w) ||
+      !Number.isFinite(h)
+    ) {
       return null;
     }
 
@@ -591,7 +663,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   private getTextItems(content: unknown): PdfTextItem[] {
-    if (!content || typeof content !== 'object') return [];
+    if (!content || typeof content !== "object") return [];
     const items = (content as PdfTextContent).items;
     return Array.isArray(items) ? items : [];
   }
@@ -621,8 +693,14 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     }, 700);
   }
 
-  private drawStoredHighlights(page: number, ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): void {
-    const list = (this.highlights || []).filter((h) => h.kind === 'pdf') as Extract<HighlightEntry, { kind: 'pdf' }>[];
+  private drawStoredHighlights(
+    page: number,
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+  ): void {
+    const list = (this.highlights || []).filter(
+      (h) => h.kind === "pdf",
+    ) as Extract<HighlightEntry, { kind: "pdf" }>[];
     const matches = list.filter((h) => h.page === page);
     if (matches.length === 0) return;
 
@@ -641,25 +719,27 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   private highlightFill(color: HighlightColor): string {
     switch (color) {
-      case 'green':
-        return 'rgba(74, 222, 128, 0.22)';
-      case 'blue':
-        return 'rgba(96, 165, 250, 0.22)';
-      case 'pink':
-        return 'rgba(244, 114, 182, 0.22)';
+      case "green":
+        return "rgba(74, 222, 128, 0.22)";
+      case "blue":
+        return "rgba(96, 165, 250, 0.22)";
+      case "pink":
+        return "rgba(244, 114, 182, 0.22)";
       default:
-        return 'rgba(252, 211, 77, 0.22)';
+        return "rgba(252, 211, 77, 0.22)";
     }
   }
 
-  private async getPdfLib(): Promise<any> {
+  private async getPdfLib(): Promise<
+    typeof import("pdfjs-dist/build/pdf.mjs")
+  > {
     if (this.pdfLibPromise) return this.pdfLibPromise;
-    this.pdfLibPromise = import('pdfjs-dist/build/pdf.mjs').then((module: any) => {
+    this.pdfLibPromise = import("pdfjs-dist/build/pdf.mjs").then((module) => {
       const lib = module;
       try {
         lib.GlobalWorkerOptions.workerSrc = new URL(
-          'pdfjs-dist/build/pdf.worker.min.mjs',
-          import.meta.url
+          "pdfjs-dist/build/pdf.worker.min.mjs",
+          import.meta.url,
         ).toString();
       } catch {
         // ignore

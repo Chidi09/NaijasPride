@@ -1,9 +1,9 @@
-import { Injectable, computed, signal } from '@angular/core';
-import { MusicVideoSummary } from '@naijaspride/types';
+import { Injectable, computed, signal } from "@angular/core";
+import { MusicVideoSummary } from "@naijaspride/types";
 
-export type RepeatMode = 'none' | 'one' | 'all';
+export type RepeatMode = "none" | "one" | "all";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class MusicPlayerService {
   // ── State signals ─────────────────────────────────────────────────────
   readonly currentTrack = signal<MusicVideoSummary | null>(null);
@@ -11,14 +11,14 @@ export class MusicPlayerService {
   readonly queueIndex = signal<number>(-1);
   readonly isPlaying = signal(false);
   readonly isShuffle = signal(false);
-  readonly repeatMode = signal<RepeatMode>('none');
+  readonly repeatMode = signal<RepeatMode>("none");
   readonly isMinimized = signal(false);
 
   // ── Computed ──────────────────────────────────────────────────────────
   readonly hasNext = computed(() => {
     const q = this.queue();
     const i = this.queueIndex();
-    if (this.repeatMode() === 'all') return q.length > 0;
+    if (this.repeatMode() === "all") return q.length > 0;
     return i < q.length - 1;
   });
 
@@ -73,7 +73,7 @@ export class MusicPlayerService {
       const next = current + 1;
       this.queueIndex.set(next);
       this.currentTrack.set(q[next]);
-    } else if (this.repeatMode() === 'all') {
+    } else if (this.repeatMode() === "all") {
       this.queueIndex.set(0);
       this.currentTrack.set(q[0]);
     }
@@ -90,7 +90,7 @@ export class MusicPlayerService {
   }
 
   onTrackEnd(): void {
-    if (this.repeatMode() === 'one') {
+    if (this.repeatMode() === "one") {
       // Signal the player to restart — just keep isPlaying true
       this.isPlaying.set(false);
       setTimeout(() => this.isPlaying.set(true), 50);
@@ -108,7 +108,7 @@ export class MusicPlayerService {
   }
 
   cycleRepeat(): void {
-    const modes: RepeatMode[] = ['none', 'all', 'one'];
+    const modes: RepeatMode[] = ["none", "all", "one"];
     const current = modes.indexOf(this.repeatMode());
     this.repeatMode.set(modes[(current + 1) % modes.length]);
   }

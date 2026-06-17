@@ -1,8 +1,8 @@
-import { Component, inject, output } from '@angular/core';
-import { UserPreferencesService } from '../../../core/services/user-preferences.service';
+import { Component, inject, output } from "@angular/core";
+import { UserPreferencesService } from "../../../core/services/user-preferences.service";
 
 @Component({
-  selector: 'app-cinema-splash',
+  selector: "app-cinema-splash",
   standalone: true,
   template: `
     <div
@@ -10,12 +10,21 @@ import { UserPreferencesService } from '../../../core/services/user-preferences.
       style="animation: splash-out 800ms ease-in 3.2s forwards"
     >
       <!-- Ambient glow -->
-      <div class="absolute w-96 h-96 rounded-full bg-cinema-500/20 blur-[120px]" style="animation: splash-glow 3s ease-in-out"></div>
+      <div
+        class="absolute w-96 h-96 rounded-full bg-cinema-500/20 blur-[120px]"
+        style="animation: splash-glow 3s ease-in-out"
+      ></div>
 
       <!-- Logo mark -->
-      <div class="relative" style="animation: splash-logo 1.2s cubic-bezier(0.34,1.56,0.64,1) forwards">
-        <div class="text-5xl md:text-7xl font-serif font-bold tracking-tight text-white">
-          <span class="text-cinema-500">Naijas</span><span class="text-white">Pride</span>
+      <div
+        class="relative"
+        style="animation: splash-logo 1.2s cubic-bezier(0.34,1.56,0.64,1) forwards"
+      >
+        <div
+          class="text-5xl md:text-7xl font-serif font-bold tracking-tight text-white"
+        >
+          <span class="text-cinema-500">Naijas</span
+          ><span class="text-white">Pride</span>
         </div>
       </div>
 
@@ -37,29 +46,64 @@ import { UserPreferencesService } from '../../../core/services/user-preferences.
       </button>
     </div>
   `,
-  styles: [`
-    @keyframes splash-out {
-      0% { opacity: 1; }
-      100% { opacity: 0; pointer-events: none; visibility: hidden; }
-    }
-    @keyframes splash-glow {
-      0% { opacity: 0; transform: scale(0.3); }
-      50% { opacity: 1; transform: scale(1); }
-      100% { opacity: 0.3; transform: scale(1.2); }
-    }
-    @keyframes splash-logo {
-      0% { opacity: 0; transform: scale(0.9) translateY(10px); letter-spacing: 0.2em; }
-      100% { opacity: 1; transform: scale(1) translateY(0); letter-spacing: normal; }
-    }
-    @keyframes splash-tagline {
-      0% { opacity: 0; transform: translateY(8px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes splash-skip {
-      0% { opacity: 0; }
-      100% { opacity: 0.5; }
-    }
-  `],
+  styles: [
+    `
+      @keyframes splash-out {
+        0% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+          pointer-events: none;
+          visibility: hidden;
+        }
+      }
+      @keyframes splash-glow {
+        0% {
+          opacity: 0;
+          transform: scale(0.3);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        100% {
+          opacity: 0.3;
+          transform: scale(1.2);
+        }
+      }
+      @keyframes splash-logo {
+        0% {
+          opacity: 0;
+          transform: scale(0.9) translateY(10px);
+          letter-spacing: 0.2em;
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+          letter-spacing: normal;
+        }
+      }
+      @keyframes splash-tagline {
+        0% {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes splash-skip {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 0.5;
+        }
+      }
+    `,
+  ],
 })
 export class CinemaSplashComponent {
   private prefs = inject(UserPreferencesService);

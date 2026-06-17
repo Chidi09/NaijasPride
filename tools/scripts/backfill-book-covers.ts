@@ -1,13 +1,18 @@
-import path from 'node:path';
-import dotenv from 'dotenv';
-import { Prisma, PrismaClient } from '@prisma/client';
-import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import path from "node:path";
+import dotenv from "dotenv";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { Queue } from "bullmq";
+import IORedis from "ioredis";
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
-const parsePositiveInt = (value: string | undefined, fallback: number, min: number, max: number): number => {
-  const parsed = Number.parseInt(value || '', 10);
+const parsePositiveInt = (
+  value: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number => {
+  const parsed = Number.parseInt(value || "", 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(min, Math.min(parsed, max));
 };
@@ -20,31 +25,36 @@ const readArgValue = (name: string): string | undefined => {
   return process.argv[index + 1];
 };
 
-const limit = parsePositiveInt(readArgValue('--limit'), 1_000, 1, 200_000);
-const batchSize = parsePositiveInt(readArgValue('--batch'), 100, 1, 1_000);
-const attempts = parsePositiveInt(readArgValue('--attempts'), Number.parseInt(process.env.BOOK_COVER_JOB_ATTEMPTS || '3', 10), 1, 8);
+const limit = parsePositiveInt(readArgValue("--limit"), 1_000, 1, 200_000);
+const batchSize = parsePositiveInt(readArgValue("--batch"), 100, 1, 1_000);
+const attempts = parsePositiveInt(
+  readArgValue("--attempts"),
+  Number.parseInt(process.env.BOOK_COVER_JOB_ATTEMPTS || "3", 10),
+  1,
+  8,
+);
 const backoffMs = parsePositiveInt(
-  readArgValue('--backoff-ms'),
-  Number.parseInt(process.env.BOOK_COVER_JOB_BACKOFF_MS || '30000', 10),
+  readArgValue("--backoff-ms"),
+  Number.parseInt(process.env.BOOK_COVER_JOB_BACKOFF_MS || "30000", 10),
   1_000,
   10 * 60 * 1_000,
 );
-const force = hasArg('--force');
-const dryRun = hasArg('--dry-run');
+const force = hasArg("--force");
+const dryRun = hasArg("--dry-run");
 
-const REDIS_URL = (process.env.REDIS_URL || '').trim();
+const REDIS_URL = (process.env.REDIS_URL || "").trim();
 
 if (!REDIS_URL) {
-  console.error('[BackfillBookCovers] REDIS_URL is required.');
+  console.error("[BackfillBookCovers] REDIS_URL is required.");
   process.exit(1);
 }
 
 const prisma = new PrismaClient();
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
-const queue = new Queue('book-cover-processing', { connection });
+const queue = new Queue("book-cover-processing", { connection });
 
 const run = async () => {
-  console.log('[BackfillBookCovers] Starting...');
+  console.log("[BackfillBookCovers] Starting...");
   console.log(
     JSON.stringify(
       {
@@ -61,8 +71,8 @@ const run = async () => {
   );
 
   const where: Prisma.BookWhereInput = {
-    status: 'active',
-    ...(force ? {} : { OR: [{ coverUrl: null }, { coverUrl: '' }] }),
+    status: "active",
+    ...(force ? {} : { OR: [{ coverUrl: null }, { coverUrl: "" }] }),
   };
 
   let cursor: string | null = null;
@@ -73,7 +83,7 @@ const run = async () => {
     const take = Math.min(batchSize, limit - scanned);
     const books = await prisma.book.findMany({
       where,
-      orderBy: { id: 'asc' },
+      orderBy: { id: "asc" },
       ...(cursor
         ? {
             cursor: { id: cursor },
@@ -99,34 +109,39 @@ const run = async () => {
       const payload = {
         bookId: book.id,
         force,
-        reason: 'backfill-script',
+        reason: "backfill-script",
         timestamp: Date.now(),
       };
 
       if (!dryRun) {
         try {
-          await queue.add('extract-book-cover', payload, {
+          await queue.add("extract-book-cover", payload, {
             jobId: `book-cover:${book.id}`,
             removeOnComplete: true,
             removeOnFail: false,
             attempts,
             backoff: {
-              type: 'exponential',
+              type: "exponential",
               delay: backoffMs,
             },
           });
           queued++;
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message =
+            error instanceof Error ? error.message : String(error);
           if (/job.+exists/i.test(message)) {
             continue;
           }
-          console.error(`[BackfillBookCovers] Failed queue add for ${book.slug}: ${message}`);
+          console.error(
+            `[BackfillBookCovers] Failed queue add for ${book.slug}: ${message}`,
+          );
         }
       }
     }
 
-    console.log(`[BackfillBookCovers] Progress: scanned=${scanned} queued=${queued}`);
+    console.log(
+      `[BackfillBookCovers] Progress: scanned=${scanned} queued=${queued}`,
+    );
   }
 
   console.log(
@@ -146,7 +161,7 @@ const run = async () => {
 
 run()
   .catch((error) => {
-    console.error('[BackfillBookCovers] Failed:', error);
+    console.error("[BackfillBookCovers] Failed:", error);
     process.exitCode = 1;
   })
   .finally(async () => {

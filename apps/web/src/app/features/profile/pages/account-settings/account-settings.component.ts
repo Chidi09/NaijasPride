@@ -424,7 +424,7 @@ export class AccountSettingsComponent implements OnInit {
 
     const data = this.profileForm.value;
     this.http.patch("/api/v1/profile", data).subscribe({
-      next: (res: any) => {
+      next: () => {
         this.updating = false;
         this.successMessage = "Profile updated successfully";
         // Update the local user state

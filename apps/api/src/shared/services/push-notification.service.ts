@@ -12,9 +12,9 @@
  * rather than awaiting and risking request failures from downstream FCM errors.
  */
 
-import { PrismaClient } from '@prisma/client';
-import type { ServiceAccount } from 'firebase-admin/app';
-import type { Messaging, MulticastMessage } from 'firebase-admin/messaging';
+import { PrismaClient } from "@prisma/client";
+import type { ServiceAccount } from "firebase-admin/app";
+import type { Messaging, MulticastMessage } from "firebase-admin/messaging";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,24 +30,24 @@ export interface PushPayload {
 }
 
 export const PUSH_EVENTS = {
-  WELCOME: 'welcome',
-  EMAIL_VERIFIED: 'email_verified',
-  SUBSCRIPTION_ACTIVATED: 'subscription_activated',
-  PAYMENT_RECEIVED: 'payment_received',
-  SUBSCRIPTION_EXPIRING: 'subscription_expiring',
-  SUBSCRIPTION_EXPIRED: 'subscription_expired',
-  MOVIE_AVAILABLE: 'movie_available',
-  NEW_CONTENT: 'new_content',
-  WATCHLIST_AVAILABLE: 'watchlist_available',
-  NEW_MUSIC_VIDEO: 'new_music_video',
-  PASSWORD_CHANGED: 'password_changed',
-  SECURITY_LOGIN: 'security_login',
-  NEW_MANGA_CHAPTER: 'new_manga_chapter',
-  NEW_BOOK: 'new_book',
-  DOWNLOAD_COMPLETE: 'download_complete',
-  DOWNLOAD_FAILED: 'download_failed',
-  ANNOUNCEMENT: 'announcement',
-  GENERIC: 'generic',
+  WELCOME: "welcome",
+  EMAIL_VERIFIED: "email_verified",
+  SUBSCRIPTION_ACTIVATED: "subscription_activated",
+  PAYMENT_RECEIVED: "payment_received",
+  SUBSCRIPTION_EXPIRING: "subscription_expiring",
+  SUBSCRIPTION_EXPIRED: "subscription_expired",
+  MOVIE_AVAILABLE: "movie_available",
+  NEW_CONTENT: "new_content",
+  WATCHLIST_AVAILABLE: "watchlist_available",
+  NEW_MUSIC_VIDEO: "new_music_video",
+  PASSWORD_CHANGED: "password_changed",
+  SECURITY_LOGIN: "security_login",
+  NEW_MANGA_CHAPTER: "new_manga_chapter",
+  NEW_BOOK: "new_book",
+  DOWNLOAD_COMPLETE: "download_complete",
+  DOWNLOAD_FAILED: "download_failed",
+  ANNOUNCEMENT: "announcement",
+  GENERIC: "generic",
 } as const;
 
 export type PushEventType = (typeof PUSH_EVENTS)[keyof typeof PUSH_EVENTS];
@@ -58,61 +58,70 @@ let _messaging: Messaging | null = null;
 let _messagingInitPromise: Promise<Messaging | null> | null = null;
 
 const STALE_TOKEN_ERROR_CODES = new Set([
-  'messaging/registration-token-not-registered',
-  'messaging/invalid-registration-token',
+  "messaging/registration-token-not-registered",
+  "messaging/invalid-registration-token",
 ]);
 
 const TRANSIENT_ERROR_CODES = new Set([
-  'messaging/internal-error',
-  'messaging/server-unavailable',
-  'messaging/unknown-error',
-  'app/network-error',
-  'ETIMEDOUT',
-  'ECONNRESET',
+  "messaging/internal-error",
+  "messaging/server-unavailable",
+  "messaging/unknown-error",
+  "app/network-error",
+  "ETIMEDOUT",
+  "ECONNRESET",
 ]);
 
 const BATCH_SIZE = 500;
 const MAX_BATCH_ATTEMPTS = 3;
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const parseServiceAccount = (rawJson: string): ServiceAccount | null => {
   let raw: unknown;
   try {
     raw = JSON.parse(rawJson);
   } catch (error) {
-    console.error('[Push] FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON:', error);
+    console.error(
+      "[Push] FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON:",
+      error,
+    );
     return null;
   }
 
-  if (!raw || typeof raw !== 'object') {
-    console.error('[Push] FIREBASE_SERVICE_ACCOUNT_JSON must be an object');
+  if (!raw || typeof raw !== "object") {
+    console.error("[Push] FIREBASE_SERVICE_ACCOUNT_JSON must be an object");
     return null;
   }
 
   const obj = raw as Record<string, unknown>;
-  const projectId = typeof obj.projectId === 'string'
-    ? obj.projectId
-    : typeof obj.project_id === 'string'
-      ? obj.project_id
-      : null;
-  const clientEmail = typeof obj.clientEmail === 'string'
-    ? obj.clientEmail
-    : typeof obj.client_email === 'string'
-      ? obj.client_email
-      : null;
-  const rawPrivateKey = typeof obj.privateKey === 'string'
-    ? obj.privateKey
-    : typeof obj.private_key === 'string'
-      ? obj.private_key
-      : null;
+  const projectId =
+    typeof obj.projectId === "string"
+      ? obj.projectId
+      : typeof obj.project_id === "string"
+        ? obj.project_id
+        : null;
+  const clientEmail =
+    typeof obj.clientEmail === "string"
+      ? obj.clientEmail
+      : typeof obj.client_email === "string"
+        ? obj.client_email
+        : null;
+  const rawPrivateKey =
+    typeof obj.privateKey === "string"
+      ? obj.privateKey
+      : typeof obj.private_key === "string"
+        ? obj.private_key
+        : null;
 
   if (!projectId || !clientEmail || !rawPrivateKey) {
-    console.error('[Push] FIREBASE_SERVICE_ACCOUNT_JSON is missing required fields: project_id/projectId, client_email/clientEmail, private_key/privateKey');
+    console.error(
+      "[Push] FIREBASE_SERVICE_ACCOUNT_JSON is missing required fields: project_id/projectId, client_email/clientEmail, private_key/privateKey",
+    );
     return null;
   }
 
-  const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+  const privateKey = rawPrivateKey.replace(/\\n/g, "\n");
 
   return {
     projectId,
@@ -122,9 +131,9 @@ const parseServiceAccount = (rawJson: string): ServiceAccount | null => {
 };
 
 const getErrorCode = (error: unknown): string | null => {
-  if (!error || typeof error !== 'object') return null;
+  if (!error || typeof error !== "object") return null;
   const candidate = error as { code?: unknown };
-  return typeof candidate.code === 'string' ? candidate.code : null;
+  return typeof candidate.code === "string" ? candidate.code : null;
 };
 
 const isTransientError = (error: unknown): boolean => {
@@ -139,7 +148,9 @@ async function getMessaging(): Promise<Messaging | null> {
   _messagingInitPromise = (async () => {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if (!serviceAccountJson) {
-      console.warn('[Push] FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications disabled');
+      console.warn(
+        "[Push] FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications disabled",
+      );
       return null;
     }
 
@@ -147,18 +158,20 @@ async function getMessaging(): Promise<Messaging | null> {
     if (!serviceAccount) return null;
 
     try {
-      const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-      const { getMessaging: _getMsg } = await import('firebase-admin/messaging');
+      const { initializeApp, getApps, cert } =
+        await import("firebase-admin/app");
+      const { getMessaging: _getMsg } =
+        await import("firebase-admin/messaging");
 
       if (!getApps().length) {
         initializeApp({ credential: cert(serviceAccount) });
       }
 
       _messaging = _getMsg();
-      console.log('[Push] Firebase Admin SDK initialised');
+      console.log("[Push] Firebase Admin SDK initialised");
       return _messaging;
     } catch (err) {
-      console.error('[Push] Failed to initialise Firebase Admin SDK:', err);
+      console.error("[Push] Failed to initialise Firebase Admin SDK:", err);
       return null;
     }
   })();
@@ -218,9 +231,9 @@ export class PushNotificationService {
   /** 1. Welcome — sent on new account creation */
   async sendWelcome(userId: string, name?: string) {
     return this.sendToUser(userId, {
-      title: 'Welcome to NaijasPride!',
-      body: `Hi ${name ?? 'there'} — your account is live. Start streaming movies, music, books, and manga now.`,
-      url: '/browse',
+      title: "Welcome to NaijasPride!",
+      body: `Hi ${name ?? "there"} — your account is live. Start streaming movies, music, books, and manga now.`,
+      url: "/browse",
       data: { event: PUSH_EVENTS.WELCOME },
     });
   }
@@ -228,33 +241,41 @@ export class PushNotificationService {
   /** 2. Email verified */
   async sendEmailVerified(userId: string) {
     return this.sendToUser(userId, {
-      title: 'Email Verified',
-      body: 'Your email address is confirmed. Your account is fully active.',
-      url: '/browse',
+      title: "Email Verified",
+      body: "Your email address is confirmed. Your account is fully active.",
+      url: "/browse",
       data: { event: PUSH_EVENTS.EMAIL_VERIFIED },
     });
   }
 
   /** 3. Subscription activated / renewed */
-  async sendSubscriptionActivated(userId: string, planName: string, nextBillingDate: Date) {
-    const renewalStr = nextBillingDate.toLocaleDateString('en-NG', {
-      timeZone: 'Africa/Lagos',
-      dateStyle: 'medium',
+  async sendSubscriptionActivated(
+    userId: string,
+    planName: string,
+    nextBillingDate: Date,
+  ) {
+    const renewalStr = nextBillingDate.toLocaleDateString("en-NG", {
+      timeZone: "Africa/Lagos",
+      dateStyle: "medium",
     });
     return this.sendToUser(userId, {
-      title: 'PRO Activated!',
+      title: "PRO Activated!",
       body: `Your ${planName} subscription is live. 4K streaming, no ads, unlimited downloads. Renews ${renewalStr}.`,
-      url: '/browse',
+      url: "/browse",
       data: { event: PUSH_EVENTS.SUBSCRIPTION_ACTIVATED, plan: planName },
     });
   }
 
   /** 4. Payment received */
-  async sendPaymentReceived(userId: string, amountFormatted: string, planName: string) {
+  async sendPaymentReceived(
+    userId: string,
+    amountFormatted: string,
+    planName: string,
+  ) {
     return this.sendToUser(userId, {
-      title: 'Payment Received',
+      title: "Payment Received",
       body: `${amountFormatted} received for ${planName}. Your PRO benefits are now active.`,
-      url: '/profile',
+      url: "/profile",
       data: { event: PUSH_EVENTS.PAYMENT_RECEIVED, plan: planName },
     });
   }
@@ -262,19 +283,22 @@ export class PushNotificationService {
   /** 5. Subscription expiring soon (3 days) */
   async sendSubscriptionExpiringSoon(userId: string, daysLeft: number) {
     return this.sendToUser(userId, {
-      title: 'Subscription Expiring Soon',
-      body: `Your NaijasPride PRO expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Renew now to keep streaming.`,
-      url: '/profile',
-      data: { event: PUSH_EVENTS.SUBSCRIPTION_EXPIRING, daysLeft: String(daysLeft) },
+      title: "Subscription Expiring Soon",
+      body: `Your NaijasPride PRO expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}. Renew now to keep streaming.`,
+      url: "/profile",
+      data: {
+        event: PUSH_EVENTS.SUBSCRIPTION_EXPIRING,
+        daysLeft: String(daysLeft),
+      },
     });
   }
 
   /** 6. Subscription expired */
   async sendSubscriptionExpired(userId: string) {
     return this.sendToUser(userId, {
-      title: 'Subscription Expired',
-      body: 'Your PRO access has ended. Renew to regain 4K streaming, no ads, and downloads.',
-      url: '/profile',
+      title: "Subscription Expired",
+      body: "Your PRO access has ended. Renew to regain 4K streaming, no ads, and downloads.",
+      url: "/profile",
       data: { event: PUSH_EVENTS.SUBSCRIPTION_EXPIRED },
     });
   }
@@ -288,7 +312,7 @@ export class PushNotificationService {
     thumbnailUrl?: string,
   ) {
     return this.sendToUsers(userIds, {
-      title: 'Now Available!',
+      title: "Now Available!",
       body: `${movieTitle} is now streaming in ${quality} on NaijasPride.`,
       url: `/movies/${movieSlug}`,
       imageUrl: thumbnailUrl,
@@ -305,7 +329,7 @@ export class PushNotificationService {
     thumbnailUrl?: string,
   ) {
     return this.sendToUsers(userIds, {
-      title: 'New on NaijasPride',
+      title: "New on NaijasPride",
       body: `${title} just dropped in ${genre}. Watch it now!`,
       url: `/movies/${slug}`,
       imageUrl: thumbnailUrl,
@@ -314,9 +338,14 @@ export class PushNotificationService {
   }
 
   /** 9. Watchlist item now available */
-  async sendWatchlistAvailable(userId: string, movieTitle: string, movieSlug: string, thumbnailUrl?: string) {
+  async sendWatchlistAvailable(
+    userId: string,
+    movieTitle: string,
+    movieSlug: string,
+    thumbnailUrl?: string,
+  ) {
     return this.sendToUser(userId, {
-      title: 'Watchlist Alert',
+      title: "Watchlist Alert",
       body: `${movieTitle} from your watchlist is now available to stream!`,
       url: `/movies/${movieSlug}`,
       imageUrl: thumbnailUrl,
@@ -325,9 +354,15 @@ export class PushNotificationService {
   }
 
   /** 10. New music video from a favourite artist */
-  async sendNewMusicVideo(userIds: string[], artist: string, title: string, slug: string, thumbnailUrl?: string) {
+  async sendNewMusicVideo(
+    userIds: string[],
+    artist: string,
+    title: string,
+    slug: string,
+    thumbnailUrl?: string,
+  ) {
     return this.sendToUsers(userIds, {
-      title: 'New Music Video',
+      title: "New Music Video",
       body: `${artist} just dropped "${title}" — watch it on NaijasPride.`,
       url: `/music/${slug}`,
       imageUrl: thumbnailUrl,
@@ -338,25 +373,29 @@ export class PushNotificationService {
   /** 11. Password changed security alert */
   async sendPasswordChanged(userId: string) {
     return this.sendToUser(userId, {
-      title: 'Password Changed',
-      body: 'Your NaijasPride password was just changed. If this wasn\'t you, contact support immediately.',
-      url: '/profile',
+      title: "Password Changed",
+      body: "Your NaijasPride password was just changed. If this wasn't you, contact support immediately.",
+      url: "/profile",
       data: { event: PUSH_EVENTS.PASSWORD_CHANGED },
     });
   }
 
   /** 12. Security alert for new login */
-  async sendSecurityLoginAlert(userId: string, ipAddress?: string, deviceLabel?: string) {
-    const location = ipAddress ? `IP: ${ipAddress}` : 'Unknown location';
-    const device = deviceLabel ? ` on ${deviceLabel}` : '';
+  async sendSecurityLoginAlert(
+    userId: string,
+    ipAddress?: string,
+    deviceLabel?: string,
+  ) {
+    const location = ipAddress ? `IP: ${ipAddress}` : "Unknown location";
+    const device = deviceLabel ? ` on ${deviceLabel}` : "";
     return this.sendToUser(userId, {
-      title: 'Security Alert',
+      title: "Security Alert",
       body: `New sign-in detected${device}. ${location}. If this was not you, reset your password now.`,
-      url: '/profile',
+      url: "/profile",
       data: {
         event: PUSH_EVENTS.SECURITY_LOGIN,
-        ipAddress: ipAddress ?? 'unknown',
-        deviceLabel: deviceLabel ?? 'unknown',
+        ipAddress: ipAddress ?? "unknown",
+        deviceLabel: deviceLabel ?? "unknown",
       },
     });
   }
@@ -374,7 +413,11 @@ export class PushNotificationService {
       body: `${chapterLabel} is now available. Tap to read!`,
       url: `/books/manga/${encodeURIComponent(mangaId)}`,
       imageUrl: coverUrl,
-      data: { event: PUSH_EVENTS.NEW_MANGA_CHAPTER, mangaId, chapter: chapterLabel },
+      data: {
+        event: PUSH_EVENTS.NEW_MANGA_CHAPTER,
+        mangaId,
+        chapter: chapterLabel,
+      },
     });
   }
 
@@ -387,7 +430,7 @@ export class PushNotificationService {
     coverUrl?: string,
   ) {
     return this.sendToUsers(userIds, {
-      title: 'New Book in Library',
+      title: "New Book in Library",
       body: `"${bookTitle}" by ${author} is now available to read on NaijasPride.`,
       url: `/books/${bookSlug}`,
       imageUrl: coverUrl,
@@ -398,14 +441,14 @@ export class PushNotificationService {
   /** Download completed on this account (from another session/device) */
   async sendDownloadComplete(
     userId: string,
-    contentType: 'movie' | 'manga' | 'book',
+    contentType: "movie" | "manga" | "book",
     contentTitle: string,
     targetUrl: string,
     imageUrl?: string,
   ) {
     return this.sendToUser(userId, {
-      title: 'Download Complete',
-      body: `${contentTitle} is ready for offline ${contentType === 'movie' ? 'playback' : 'reading'}.`,
+      title: "Download Complete",
+      body: `${contentTitle} is ready for offline ${contentType === "movie" ? "playback" : "reading"}.`,
       url: targetUrl,
       imageUrl,
       data: {
@@ -419,15 +462,15 @@ export class PushNotificationService {
   /** Download failed */
   async sendDownloadFailed(
     userId: string,
-    contentType: 'movie' | 'manga' | 'book',
+    contentType: "movie" | "manga" | "book",
     contentTitle: string,
     reason: string,
     targetUrl?: string,
   ) {
     return this.sendToUser(userId, {
-      title: 'Download Failed',
+      title: "Download Failed",
       body: `${contentTitle} could not be saved offline (${reason}). Please retry.`,
-      url: targetUrl ?? '/profile',
+      url: targetUrl ?? "/profile",
       data: {
         event: PUSH_EVENTS.DOWNLOAD_FAILED,
         contentType,
@@ -438,17 +481,28 @@ export class PushNotificationService {
   }
 
   /** 15. Generic promotional / announcement message */
-  async sendAnnouncement(userIds: string[], title: string, body: string, url?: string) {
+  async sendAnnouncement(
+    userIds: string[],
+    title: string,
+    body: string,
+    url?: string,
+  ) {
     return this.sendToUsers(userIds, {
       title,
       body,
-      url: url ?? '/browse',
+      url: url ?? "/browse",
       data: { event: PUSH_EVENTS.ANNOUNCEMENT },
     });
   }
 
   /** Generic event payload */
-  async sendGeneric(userId: string, title: string, body: string, url = '/browse', data?: Record<string, string>) {
+  async sendGeneric(
+    userId: string,
+    title: string,
+    body: string,
+    url = "/browse",
+    data?: Record<string, string>,
+  ) {
     return this.sendToUser(userId, {
       title,
       body,
@@ -464,9 +518,9 @@ export class PushNotificationService {
     payload: PushPayload,
     messaging: Messaging,
   ): Promise<number> {
-    const FRONTEND_URL = process.env.FRONTEND_URL ?? 'https://naijaspride.com';
+    const FRONTEND_URL = process.env.FRONTEND_URL ?? "https://naijaspride.com";
     const clickUrl = payload.url
-      ? payload.url.startsWith('http')
+      ? payload.url.startsWith("http")
         ? payload.url
         : `${FRONTEND_URL}${payload.url}`
       : FRONTEND_URL;
@@ -486,7 +540,11 @@ export class PushNotificationService {
         attempt += 1;
         totalAttempts += 1;
 
-        const message = this._buildMessage(pending.map((item) => item.token), payload, clickUrl);
+        const message = this._buildMessage(
+          pending.map((item) => item.token),
+          payload,
+          clickUrl,
+        );
 
         try {
           const result = await messaging.sendEachForMulticast(message);
@@ -501,14 +559,15 @@ export class PushNotificationService {
               return;
             }
 
-            const code = resp.error?.code ?? '';
+            const code = resp.error?.code ?? "";
             if (STALE_TOKEN_ERROR_CODES.has(code)) {
               staleIds.add(tokenObj.id);
               failureCount += 1;
               return;
             }
 
-            const canRetry = TRANSIENT_ERROR_CODES.has(code) && attempt < MAX_BATCH_ATTEMPTS;
+            const canRetry =
+              TRANSIENT_ERROR_CODES.has(code) && attempt < MAX_BATCH_ATTEMPTS;
             if (canRetry) {
               retryCandidates.push(tokenObj);
             } else {
@@ -529,14 +588,15 @@ export class PushNotificationService {
 
           pending = [];
         } catch (error) {
-          const canRetry = isTransientError(error) && attempt < MAX_BATCH_ATTEMPTS;
+          const canRetry =
+            isTransientError(error) && attempt < MAX_BATCH_ATTEMPTS;
           if (canRetry) {
             retriedCount += pending.length;
             await sleep(Math.min(1200, 250 * 2 ** (attempt - 1)));
             continue;
           }
           failureCount += pending.length;
-          console.error('[Push] Batch send failed:', error);
+          console.error("[Push] Batch send failed:", error);
           pending = [];
         }
       }
@@ -545,7 +605,10 @@ export class PushNotificationService {
     // Deactivate stale tokens in the background
     if (staleIds.size > 0) {
       this.prisma.pushNotificationToken
-        .updateMany({ where: { id: { in: [...staleIds] } }, data: { isActive: false } })
+        .updateMany({
+          where: { id: { in: [...staleIds] } },
+          data: { isActive: false },
+        })
         .catch(console.error);
     }
 
@@ -556,7 +619,11 @@ export class PushNotificationService {
     return successCount;
   }
 
-  private _buildMessage(tokens: string[], payload: PushPayload, clickUrl: string): MulticastMessage {
+  private _buildMessage(
+    tokens: string[],
+    payload: PushPayload,
+    clickUrl: string,
+  ): MulticastMessage {
     return {
       tokens,
       notification: {
@@ -568,8 +635,8 @@ export class PushNotificationService {
         notification: {
           title: payload.title,
           body: payload.body,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-96x96.png',
+          icon: "/icons/icon-192x192.png",
+          badge: "/icons/icon-96x96.png",
           image: payload.imageUrl,
           data: { url: clickUrl },
         },
@@ -587,7 +654,7 @@ export class PushNotificationService {
         payload: {
           aps: {
             alert: { title: payload.title, body: payload.body },
-            sound: 'default',
+            sound: "default",
           },
         },
       },
@@ -608,7 +675,7 @@ export function getPushService(prisma: PrismaClient): PushNotificationService {
 
 export async function getPushDiagnostics(
   prisma: PrismaClient,
-  opts?: { userId?: string; email?: string }
+  opts?: { userId?: string; email?: string },
 ): Promise<{
   firebaseConfigured: boolean;
   firebaseReady: boolean;

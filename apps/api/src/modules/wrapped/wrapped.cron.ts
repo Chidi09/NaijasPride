@@ -251,26 +251,28 @@ export class WrappedCronService {
           pushService.sendGeneric(
             record.userId,
             `Your ${year} Wrapped has arrived! 🎉`,
-            'Your year in entertainment is ready. Discover your top movies, music, and more!',
+            "Your year in entertainment is ready. Discover your top movies, music, and more!",
             `/wrapped/${period}`,
-            { event: 'annual_wrapped', period }
-          )
-        )
+            { event: "annual_wrapped", period },
+          ),
+        ),
       );
 
       results.forEach((result, idx) => {
-        if (result.status === 'fulfilled') {
+        if (result.status === "fulfilled") {
           sent++;
         } else {
           failed++;
           this.app.log.error(
             { error: result.reason, userId: batch[idx].userId },
-            '[WrappedCron] Failed to send annual notification'
+            "[WrappedCron] Failed to send annual notification",
           );
         }
       });
     }
 
-    this.app.log.info(`[WrappedCron] Sent ${sent} annual notifications, ${failed} failed`);
+    this.app.log.info(
+      `[WrappedCron] Sent ${sent} annual notifications, ${failed} failed`,
+    );
   }
 }

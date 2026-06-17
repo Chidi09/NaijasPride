@@ -1,11 +1,11 @@
-import axios from 'axios';
+import axios from "axios";
 
-const GOOGLE_BOOKS_API_BASE = 'https://www.googleapis.com/books/v1/volumes';
+const GOOGLE_BOOKS_API_BASE = "https://www.googleapis.com/books/v1/volumes";
 
 /** Google Books API returns http:// URLs — upgrade to https to avoid mixed content. */
 function httpsUrl(url: string | undefined | null): string | null {
   if (!url) return null;
-  return url.replace(/^http:\/\//, 'https://');
+  return url.replace(/^http:\/\//, "https://");
 }
 
 export interface GoogleBooksVolume {
@@ -72,18 +72,23 @@ export async function fetchGoogleBooksCover(
       let score = 0;
 
       // Exact title match gets highest score
-      const itemTitle = (info.title || '').toLowerCase().trim();
+      const itemTitle = (info.title || "").toLowerCase().trim();
       const searchTitle = title.toLowerCase().trim();
       if (itemTitle === searchTitle) {
         score += 100;
-      } else if (itemTitle.includes(searchTitle) || searchTitle.includes(itemTitle)) {
+      } else if (
+        itemTitle.includes(searchTitle) ||
+        searchTitle.includes(itemTitle)
+      ) {
         score += 50;
       }
 
       // Author match
       if (author && info.authors) {
         const authorMatch = info.authors.some(
-          (a) => a.toLowerCase().includes(author.toLowerCase()) || author.toLowerCase().includes(a.toLowerCase()),
+          (a) =>
+            a.toLowerCase().includes(author.toLowerCase()) ||
+            author.toLowerCase().includes(a.toLowerCase()),
         );
         if (authorMatch) {
           score += 30;
@@ -131,7 +136,7 @@ export async function fetchGoogleBooksCover(
 
     return httpsUrl(coverUrl);
   } catch (error) {
-    console.error('[GoogleBooks] Failed to fetch cover:', error);
+    console.error("[GoogleBooks] Failed to fetch cover:", error);
     return null;
   }
 }
@@ -187,27 +192,37 @@ export async function enrichBookFromGoogleBooks(
     for (const item of response.data.items) {
       const info = item.volumeInfo;
       let score = 0;
-      const itemTitle = (info.title || '').toLowerCase().trim();
+      const itemTitle = (info.title || "").toLowerCase().trim();
 
       if (itemTitle === searchTitle) score += 100;
-      else if (itemTitle.includes(searchTitle) || searchTitle.includes(itemTitle)) score += 50;
+      else if (
+        itemTitle.includes(searchTitle) ||
+        searchTitle.includes(itemTitle)
+      )
+        score += 50;
 
       if (author && info.authors) {
         const match = info.authors.some(
-          (a) => a.toLowerCase().includes(author.toLowerCase()) || author.toLowerCase().includes(a.toLowerCase()),
+          (a) =>
+            a.toLowerCase().includes(author.toLowerCase()) ||
+            author.toLowerCase().includes(a.toLowerCase()),
         );
         if (match) score += 30;
       }
 
       if (year && info.publishedDate) {
         const pubYear = Number.parseInt(info.publishedDate.substring(0, 4), 10);
-        if (Number.isFinite(pubYear) && Math.abs(pubYear - year) <= 1) score += 20;
+        if (Number.isFinite(pubYear) && Math.abs(pubYear - year) <= 1)
+          score += 20;
       }
 
       if (info.imageLinks?.thumbnail) score += 10;
       if (info.authors?.length) score += 5;
 
-      if (score > bestScore) { bestScore = score; bestMatch = item; }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = item;
+      }
     }
 
     const info = bestMatch.volumeInfo;
@@ -228,12 +243,14 @@ export async function enrichBookFromGoogleBooks(
       description: info.description || null,
       pageCount: info.pageCount || null,
       categories: info.categories || null,
-      publishedYear: info.publishedDate ? Number.parseInt(info.publishedDate.substring(0, 4), 10) || null : null,
+      publishedYear: info.publishedDate
+        ? Number.parseInt(info.publishedDate.substring(0, 4), 10) || null
+        : null,
       publisher: info.publisher || null,
       language: info.language || null,
     };
   } catch (error) {
-    console.error('[GoogleBooks] Failed to enrich book:', error);
+    console.error("[GoogleBooks] Failed to enrich book:", error);
     return empty;
   }
 }

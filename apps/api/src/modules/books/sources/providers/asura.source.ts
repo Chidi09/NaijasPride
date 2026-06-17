@@ -1,6 +1,6 @@
-import * as cheerio from 'cheerio';
-import { sourceMetrics } from '../observability/source-metrics';
-import { BaseHtmlSource } from '../base/base-html.source';
+import * as cheerio from "cheerio";
+import { sourceMetrics } from "../observability/source-metrics";
+import { BaseHtmlSource } from "../base/base-html.source";
 import {
   MangaChapter,
   MangaDetail,
@@ -10,15 +10,15 @@ import {
   MangaSource,
   MangaSummary,
   MangaTag,
-} from '../types';
-import { summarizeSourceError } from '../utils/error-summary';
+} from "../types";
+import { summarizeSourceError } from "../utils/error-summary";
 
-const BASE_URL = 'https://asuracomic.net';
+const BASE_URL = "https://asuracomic.net";
 
 export class AsuraSource extends BaseHtmlSource {
-  readonly id = 'asura';
-  readonly displayName = 'Asura';
-  readonly capabilities: MangaSource['capabilities'] = {
+  readonly id = "asura";
+  readonly displayName = "Asura";
+  readonly capabilities: MangaSource["capabilities"] = {
     supportsFilters: true,
     supportsLanguages: false,
     supportsSimilar: false,
@@ -31,18 +31,18 @@ export class AsuraSource extends BaseHtmlSource {
   constructor() {
     super({
       baseUrl: BASE_URL,
-      cachePrefix: 'asura',
+      cachePrefix: "asura",
       defaultCacheTtlSeconds: 600,
     });
   }
 
   private titleFromSeriesPath(id: string): string {
-    const slug = id.split('/').filter(Boolean).pop() || '';
+    const slug = id.split("/").filter(Boolean).pop() || "";
     const normalized = decodeURIComponent(slug)
-      .replace(/[-_]+/g, ' ')
+      .replace(/[-_]+/g, " ")
       .replace(/\b\w/g, (value) => value.toUpperCase())
       .trim();
-    return normalized || 'Unknown Title';
+    return normalized || "Unknown Title";
   }
 
   private extractSeriesId(href: string): string | null {
@@ -77,59 +77,77 @@ export class AsuraSource extends BaseHtmlSource {
     return `/chapter/${chapterId}`;
   }
 
-  async searchManga(query?: string, limit = 20, _filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
+  async searchManga(
+    query?: string,
+    limit = 20,
+    _filters: MangaSearchFilters = {},
+  ): Promise<MangaSummary[]> {
     const normalized = this.strip(query);
     if (!normalized) {
       const discover = await this.getDiscoverManga(Math.min(limit, 20));
       return discover.trending.slice(0, limit);
     }
 
-    const cacheKey = this.buildCacheKey('search', normalized.toLowerCase(), limit);
+    const cacheKey = this.buildCacheKey(
+      "search",
+      normalized.toLowerCase(),
+      limit,
+    );
     const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
     if (cached) return cached;
 
     try {
       // Kotatsu: /series?page=1&name={query}
-      const html = await this.fetchHtml('/series', { page: 1, name: normalized });
-      
+      const html = await this.fetchHtml("/series", {
+        page: 1,
+        name: normalized,
+      });
+
       if (!html || html.length < 100) {
-        console.error('[Asura] Search returned empty HTML');
+        console.error("[Asura] Search returned empty HTML");
         return [];
       }
-      
+
       const $ = cheerio.load(html);
       const map = new Map<string, MangaSummary>();
 
       // Kotatsu: div.grid > a[href] - specific selector for manga cards
-      $('div.grid > a[href]').each((_idx, el) => {
+      $("div.grid > a[href]").each((_idx, el) => {
         const $el = $(el);
-        const href = $el.attr('href');
+        const href = $el.attr("href");
         if (!href) return;
-        
+
         const id = this.extractSeriesId(href);
         if (!id || map.has(id)) return;
-        
+
         // Kotatsu: div.block > span.block for title
-        const title = this.strip($el.find('div.block > span.block').text()) ||
-                     this.strip($el.find('span.block').first().text());
-        
+        const title =
+          this.strip($el.find("div.block > span.block").text()) ||
+          this.strip($el.find("span.block").first().text());
+
         if (!title || title.length < 2) return;
-        
+
         // Filter by search query
         if (!title.toLowerCase().includes(normalized.toLowerCase())) return;
-        
+
         // Kotatsu: img for cover
-        const coverUrl = this.toAbsoluteUrl($el.find('img').first().attr('src') || null);
-        
+        const coverUrl = this.toAbsoluteUrl(
+          $el.find("img").first().attr("src") || null,
+        );
+
         // Kotatsu: span.status for status
-        const statusText = this.strip($el.find('span.status').last().text());
-        const status = statusText === 'Ongoing' ? 'ongoing' : 
-                      statusText === 'Completed' ? 'completed' : null;
-        
+        const statusText = this.strip($el.find("span.status").last().text());
+        const status =
+          statusText === "Ongoing"
+            ? "ongoing"
+            : statusText === "Completed"
+              ? "completed"
+              : null;
+
         map.set(id, {
           id,
           title,
-          description: '',
+          description: "",
           coverUrl,
           status,
           year: null,
@@ -151,49 +169,56 @@ export class AsuraSource extends BaseHtmlSource {
 
   async getDiscoverManga(limit = 12): Promise<MangaDiscoverResult> {
     const safeLimit = Math.min(24, Math.max(1, limit));
-    const cacheKey = this.buildCacheKey('discover', safeLimit);
+    const cacheKey = this.buildCacheKey("discover", safeLimit);
     const cached = await this.getFromCache<MangaDiscoverResult>(cacheKey);
     if (cached) return cached;
 
     try {
       // Kotatsu: /series?page=1
-      const html = await this.fetchHtml('/series', { page: 1 });
-      
+      const html = await this.fetchHtml("/series", { page: 1 });
+
       if (!html || html.length < 100) {
-        console.error('[Asura] Discover returned empty HTML');
+        console.error("[Asura] Discover returned empty HTML");
         return { trending: [], recentlyUpdated: [], newTitles: [] };
       }
-      
+
       const $ = cheerio.load(html);
       const map = new Map<string, MangaSummary>();
-      
+
       // Kotatsu: div.grid > a[href] - specific selector for manga cards
-      $('div.grid > a[href]').each((_idx, el) => {
+      $("div.grid > a[href]").each((_idx, el) => {
         const $el = $(el);
-        const href = $el.attr('href');
+        const href = $el.attr("href");
         if (!href) return;
-        
+
         const id = this.extractSeriesId(href);
         if (!id || map.has(id)) return;
-        
+
         // Kotatsu: div.block > span.block for title
-        const title = this.strip($el.find('div.block > span.block').text()) ||
-                     this.strip($el.find('span.block').first().text());
-        
+        const title =
+          this.strip($el.find("div.block > span.block").text()) ||
+          this.strip($el.find("span.block").first().text());
+
         if (!title || title.length < 2) return;
-        
+
         // Kotatsu: img for cover
-        const coverUrl = this.toAbsoluteUrl($el.find('img').first().attr('src') || null);
-        
+        const coverUrl = this.toAbsoluteUrl(
+          $el.find("img").first().attr("src") || null,
+        );
+
         // Kotatsu: span.status for status
-        const statusText = this.strip($el.find('span.status').last().text());
-        const status = statusText === 'Ongoing' ? 'ongoing' : 
-                      statusText === 'Completed' ? 'completed' : null;
-        
+        const statusText = this.strip($el.find("span.status").last().text());
+        const status =
+          statusText === "Ongoing"
+            ? "ongoing"
+            : statusText === "Completed"
+              ? "completed"
+              : null;
+
         map.set(id, {
           id,
           title,
-          description: '',
+          description: "",
           coverUrl,
           status,
           year: null,
@@ -223,20 +248,25 @@ export class AsuraSource extends BaseHtmlSource {
     // Kotatsu: Fetches from https://gg.asuracomic.net/api/series/filters
     // Returns genres array with id and name
     try {
-      const cacheKey = this.buildCacheKey('tags');
+      const cacheKey = this.buildCacheKey("tags");
       const cached = await this.getFromCache<MangaTag[]>(cacheKey);
       if (cached) return cached;
 
-      const response = await this.fetchGateway.get(`https://gg.${BASE_URL.replace('https://', '')}/api/series/filters`, {
-        sourceId: this.id,
-        timeoutMs: 10_000,
-      });
+      const response = await this.fetchGateway.get(
+        `https://gg.${BASE_URL.replace("https://", "")}/api/series/filters`,
+        {
+          sourceId: this.id,
+          timeoutMs: 10_000,
+        },
+      );
 
       if (response.status !== 200 || !response.body) {
         return [];
       }
 
-      const data = JSON.parse(response.body) as { genres?: Array<{ id: number; name: string }> };
+      const data = JSON.parse(response.body) as {
+        genres?: Array<{ id: number; name: string }>;
+      };
       const tags: MangaTag[] = [];
 
       if (data.genres && Array.isArray(data.genres)) {
@@ -245,7 +275,7 @@ export class AsuraSource extends BaseHtmlSource {
             tags.push({
               id: String(genre.id),
               name: genre.name,
-              group: 'genre',
+              group: "genre",
             });
           }
         }
@@ -254,7 +284,9 @@ export class AsuraSource extends BaseHtmlSource {
       await this.setCache(cacheKey, tags, this.defaultCacheTtlSeconds * 12);
       return tags;
     } catch (error) {
-      console.error(`[Asura] tags fetch failed: ${summarizeSourceError(error)}`);
+      console.error(
+        `[Asura] tags fetch failed: ${summarizeSourceError(error)}`,
+      );
       return [];
     }
   }
@@ -264,49 +296,65 @@ export class AsuraSource extends BaseHtmlSource {
     if (!seriesId) return null;
 
     const seriesPath = this.toSeriesPath(seriesId);
-    const cacheKey = this.buildCacheKey('detail', seriesId);
+    const cacheKey = this.buildCacheKey("detail", seriesId);
     const cached = await this.getFromCache<MangaDetail>(cacheKey);
     if (cached) return cached;
 
     try {
       const html = await this.fetchHtml(seriesPath);
-      
+
       if (!html || html.length < 100) {
         console.error(`[Asura] Detail page returned empty HTML for ${mangaId}`);
         return null;
       }
-      
+
       const $ = cheerio.load(html);
 
       // Debug: Log what we're finding
-      const titleElements = $('h1').length;
-      const descElements = $('span.font-medium.text-sm').length;
-      const tagElements = $('div[class^="space"] > div.flex > button.text-white').length;
-      console.log(`[Asura] Detail parse: title=${titleElements}, desc=${descElements}, tags=${tagElements}`);
+      const titleElements = $("h1").length;
+      const descElements = $("span.font-medium.text-sm").length;
+      const tagElements = $(
+        'div[class^="space"] > div.flex > button.text-white',
+      ).length;
+      console.log(
+        `[Asura] Detail parse: title=${titleElements}, desc=${descElements}, tags=${tagElements}`,
+      );
 
       // Kotatsu: tags from div[class^=space] > div.flex > button.text-white
-      const tagElements2 = $('div[class^="space"] > div.flex > button.text-white');
-      const tags = tagElements2.map((_idx, el) => this.strip($(el).text())).get().filter(Boolean);
+      const tagElements2 = $(
+        'div[class^="space"] > div.flex > button.text-white',
+      );
+      const tags = tagElements2
+        .map((_idx, el) => this.strip($(el).text()))
+        .get()
+        .filter(Boolean);
 
       // Kotatsu: author from div.grid > div:has(h3:eq(0):containsOwn(Author)) > h3:eq(1)
-      const authorText = this.strip($('div.grid > div').filter((_i, el) => {
-        return $(el).find('h3').eq(0).text().includes('Author');
-      }).find('h3').eq(1).text());
+      const authorText = this.strip(
+        $("div.grid > div")
+          .filter((_i, el) => {
+            return $(el).find("h3").eq(0).text().includes("Author");
+          })
+          .find("h3")
+          .eq(1)
+          .text(),
+      );
 
       // Kotatsu: description from span.font-medium.text-sm
-      const description = this.strip($('span.font-medium.text-sm').first().text()) ||
-        this.strip($('meta[property="og:description"]').attr('content'));
+      const description =
+        this.strip($("span.font-medium.text-sm").first().text()) ||
+        this.strip($('meta[property="og:description"]').attr("content"));
 
       const detail: MangaDetail = {
         id: seriesId,
         title:
-          this.strip($('h1').first().text()) ||
-          this.strip($('meta[property="og:title"]').attr('content')) ||
+          this.strip($("h1").first().text()) ||
+          this.strip($('meta[property="og:title"]').attr("content")) ||
           this.titleFromSeriesPath(seriesId),
         description,
         coverUrl:
-          this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
-          this.toAbsoluteUrl($('img').first().attr('src') || null),
+          this.toAbsoluteUrl($('meta[property="og:image"]').attr("content")) ||
+          this.toAbsoluteUrl($("img").first().attr("src") || null),
         status: null,
         year: null,
         originalLanguage: null,
@@ -331,27 +379,35 @@ export class AsuraSource extends BaseHtmlSource {
     return [];
   }
 
-  async getChapters(mangaId: string, _translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
+  async getChapters(
+    mangaId: string,
+    _translatedLanguage?: string,
+    limit = 100,
+  ): Promise<MangaChapter[]> {
     const seriesId = this.coerceSeriesId(mangaId);
     if (!seriesId) return [];
 
     const seriesPath = this.toSeriesPath(seriesId);
-    const cacheKey = this.buildCacheKey('chapters', seriesId, limit);
+    const cacheKey = this.buildCacheKey("chapters", seriesId, limit);
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
     try {
       const html = await this.fetchHtml(seriesPath);
-      
+
       if (!html || html.length < 100) {
-        console.error(`[Asura] Chapter list returned empty HTML for ${mangaId}`);
+        console.error(
+          `[Asura] Chapter list returned empty HTML for ${mangaId}`,
+        );
         return [];
       }
-      
+
       const $ = cheerio.load(html);
 
       // Kotatsu: div.scrollbar-thumb-themecolor > div.group
-      const chapterGroups = $('div.scrollbar-thumb-themecolor > div.group, div[class*="scrollbar"] > div.group');
+      const chapterGroups = $(
+        'div.scrollbar-thumb-themecolor > div.group, div[class*="scrollbar"] > div.group',
+      );
       const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
 
@@ -367,17 +423,17 @@ export class AsuraSource extends BaseHtmlSource {
         const group = $(el);
 
         // Kotatsu: a is the last element in the group
-        const link = group.find('a').last();
-        const href = link.attr('href');
-        
+        const link = group.find("a").last();
+        const href = link.attr("href");
+
         // Kotatsu: URL constructed as /series/ + href
         const chapterId = href ? this.coerceChapterId(href) : null;
         if (!chapterId || seen.has(chapterId)) return;
         seen.add(chapterId);
 
         // Kotatsu: title from first h3, date from last h3
-        const titleEl = group.find('h3').first();
-        const dateEl = group.find('h3').last();
+        const titleEl = group.find("h3").first();
+        const dateEl = group.find("h3").last();
 
         const title = this.strip(titleEl.text()) || null;
 
@@ -386,7 +442,7 @@ export class AsuraSource extends BaseHtmlSource {
         let publishedAt: string | null = null;
         if (dateText) {
           // Remove ordinal suffixes (1st, 2nd, 3rd, 4th)
-          const cleanDate = dateText.replace(/(\d+)(st|nd|rd|th)/, '$1');
+          const cleanDate = dateText.replace(/(\d+)(st|nd|rd|th)/, "$1");
           // Try to parse as date
           try {
             const date = new Date(cleanDate);
@@ -417,7 +473,9 @@ export class AsuraSource extends BaseHtmlSource {
       await this.setCache(cacheKey, chapters);
       return chapters;
     } catch (error) {
-      console.error(`[Asura] chapter fetch failed: ${summarizeSourceError(error)}`);
+      console.error(
+        `[Asura] chapter fetch failed: ${summarizeSourceError(error)}`,
+      );
       return [];
     }
   }
@@ -427,7 +485,7 @@ export class AsuraSource extends BaseHtmlSource {
     if (!chapterRawId) {
       return {
         chapterId,
-        readerMode: 'standard',
+        readerMode: "standard",
         pages: [],
         externalUrl: null,
         isExternal: false,
@@ -435,45 +493,52 @@ export class AsuraSource extends BaseHtmlSource {
     }
 
     const chapterPath = this.toChapterPath(chapterRawId);
-    const cacheKey = this.buildCacheKey('pages', chapterRawId);
+    const cacheKey = this.buildCacheKey("pages", chapterRawId);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
-    if (cached && (cached.pages.length > 0 || cached.externalUrl)) return cached;
+    if (cached && (cached.pages.length > 0 || cached.externalUrl))
+      return cached;
 
     try {
       const html = await this.fetchHtml(chapterPath);
-      
+
       if (!html || html.length < 100) {
-        console.error(`[Asura] Chapter page returned empty HTML for ${chapterId}`);
+        console.error(
+          `[Asura] Chapter page returned empty HTML for ${chapterId}`,
+        );
         return {
           chapterId: chapterRawId,
-          readerMode: 'standard',
+          readerMode: "standard",
           pages: [],
           externalUrl: `${BASE_URL}${chapterPath}`,
           isExternal: true,
         };
       }
-      
+
       // Kotatsu page extraction: Parse JSON from script tags
       // Look for self.__next_f.push(...) calls containing page data
       const pages = this.extractChapterImageUrls(html);
-      
+
       if (pages.length === 0) {
         console.error(`[Asura] No pages found for chapter ${chapterId}`);
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
           chapterId: chapterRawId,
-          readerMode: 'standard',
+          readerMode: "standard",
           pages: [],
           externalUrl: `${BASE_URL}${chapterPath}`,
           isExternal: true,
         };
-        await this.setCache(cacheKey, externalResult, this.defaultCacheTtlSeconds * 2);
+        await this.setCache(
+          cacheKey,
+          externalResult,
+          this.defaultCacheTtlSeconds * 2,
+        );
         return externalResult;
       }
 
       const result: MangaPagesResult = {
         chapterId: chapterRawId,
-        readerMode: 'standard',
+        readerMode: "standard",
         pages,
         externalUrl: null,
         isExternal: false,
@@ -482,10 +547,12 @@ export class AsuraSource extends BaseHtmlSource {
       await this.setCache(cacheKey, result, this.defaultCacheTtlSeconds * 2);
       return result;
     } catch (error) {
-      console.error(`[Asura] page fetch failed: ${summarizeSourceError(error)}`);
+      console.error(
+        `[Asura] page fetch failed: ${summarizeSourceError(error)}`,
+      );
       return {
         chapterId: chapterRawId,
-        readerMode: 'standard',
+        readerMode: "standard",
         pages: [],
         externalUrl: `${BASE_URL}${chapterPath}`,
         isExternal: true,
@@ -501,12 +568,12 @@ export class AsuraSource extends BaseHtmlSource {
     try {
       const $ = cheerio.load(html);
       const pages: string[] = [];
-      
+
       // Kotatsu: Extract from script tags containing self.__next_f.push(...)
       const scriptData: string[] = [];
-      $('script').each((_idx, el) => {
-        const scriptContent = $(el).html() || '';
-        
+      $("script").each((_idx, el) => {
+        const scriptContent = $(el).html() || "";
+
         // Find self.__next_f.push calls
         const pushRegex = /self\.__next_f\.push\((.*?)\)/g;
         let match;
@@ -519,18 +586,22 @@ export class AsuraSource extends BaseHtmlSource {
       });
 
       // Join all script data and split by newlines
-      const allData = scriptData.join('\n');
-      const lines = allData.split('\n');
+      const allData = scriptData.join("\n");
+      const lines = allData.split("\n");
 
       // Parse each line as JSON and look for page objects
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('{')) continue;
-        
+        if (!trimmed || !trimmed.startsWith("{")) continue;
+
         try {
           const obj = JSON.parse(trimmed) as Record<string, unknown>;
           // Kotatsu: Look for objects with "order" and "url" keys
-          if (obj && typeof obj.order === 'number' && typeof obj.url === 'string') {
+          if (
+            obj &&
+            typeof obj.order === "number" &&
+            typeof obj.url === "string"
+          ) {
             pages.push(obj.url);
           }
         } catch {
@@ -540,10 +611,18 @@ export class AsuraSource extends BaseHtmlSource {
 
       // If no pages found via script parsing, try image tags as fallback
       if (pages.length === 0) {
-        console.log('[Asura] No pages from script parsing, trying image fallback');
-        $('img').each((_idx, el) => {
-          const src = $(el).attr('src');
-          if (src && (src.includes('.jpg') || src.includes('.jpeg') || src.includes('.png') || src.includes('.webp'))) {
+        console.log(
+          "[Asura] No pages from script parsing, trying image fallback",
+        );
+        $("img").each((_idx, el) => {
+          const src = $(el).attr("src");
+          if (
+            src &&
+            (src.includes(".jpg") ||
+              src.includes(".jpeg") ||
+              src.includes(".png") ||
+              src.includes(".webp"))
+          ) {
             pages.push(src);
           }
         });
@@ -563,13 +642,13 @@ export class AsuraSource extends BaseHtmlSource {
    */
   private extractJsonStrings(input: string): string[] {
     const results: string[] = [];
-    
+
     try {
       // Try to parse as array
       const arr = JSON.parse(input) as unknown[];
       if (Array.isArray(arr)) {
         for (const item of arr) {
-          if (typeof item === 'string') {
+          if (typeof item === "string") {
             results.push(item);
           }
         }
@@ -582,11 +661,15 @@ export class AsuraSource extends BaseHtmlSource {
         results.push(match[1]);
       }
     }
-    
+
     return results;
   }
 
-  async healthCheck(): Promise<{ ok: boolean; latencyMs: number; message?: string }> {
+  async healthCheck(): Promise<{
+    ok: boolean;
+    latencyMs: number;
+    message?: string;
+  }> {
     const startedAt = Date.now();
     try {
       const response = await this.fetchGateway.get(BASE_URL, {

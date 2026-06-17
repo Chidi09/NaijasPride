@@ -1,17 +1,11 @@
 import { Component, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
-import { HttpClient } from "@angular/common/http";
 import { RouterLink } from "@angular/router";
+import { AuthService } from "../../../../core/auth/auth.service";
 import { ToastService } from "../../../../core/services/toast.service";
 import { BrandLogoComponent } from "../../../../shared/components/brand-logo/brand-logo.component";
 import { CheckIconComponent } from "../../../../shared/components/icons/check-icon.component";
-
-interface ForgotPasswordResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
-}
 
 @Component({
   selector: "app-forgot-password",
@@ -145,7 +139,7 @@ interface ForgotPasswordResponse {
 })
 export class ForgotPasswordComponent {
   private fb = inject(FormBuilder);
-  private http = inject(HttpClient);
+  private authService = inject(AuthService);
   private toast = inject(ToastService);
 
   form = this.fb.group({
@@ -161,31 +155,25 @@ export class ForgotPasswordComponent {
       this.isLoading = true;
       this.error = "";
 
-      this.http
-        .post<ForgotPasswordResponse>("/api/v1/auth/forgot-password", {
-          email: this.form.value.email,
-        })
-        .subscribe({
-          next: (response) => {
-            this.isLoading = false;
-            if (response.success) {
-              this.success = true;
-              this.toast.success("Reset link sent! Check your email.");
-            } else {
-              this.error =
-                response.error ||
-                "Failed to send reset link. Please try again.";
-              this.toast.error(this.error);
-            }
-          },
-          error: (err) => {
-            this.isLoading = false;
+      this.authService.forgotPassword(this.form.value.email ?? "").subscribe({
+        next: (response) => {
+          this.isLoading = false;
+          if (response.success) {
+            this.success = true;
+            this.toast.success("Reset link sent! Check your email.");
+          } else {
             this.error =
-              err.error?.error ||
-              "Failed to send reset link. Please try again.";
+              response.error || "Failed to send reset link. Please try again.";
             this.toast.error(this.error);
-          },
-        });
+          }
+        },
+        error: (err) => {
+          this.isLoading = false;
+          this.error =
+            err.error?.error || "Failed to send reset link. Please try again.";
+          this.toast.error(this.error);
+        },
+      });
     }
   }
 }

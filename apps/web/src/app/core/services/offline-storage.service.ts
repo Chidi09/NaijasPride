@@ -10,19 +10,25 @@
  * - Failure reporting endpoint for push + monitoring
  */
 
-import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, computed, inject, signal } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { firstValueFrom } from "rxjs";
 
-const OFFLINE_CACHE_NAME = 'np-offline-v1';
-const OFFLINE_META_DB = 'np_offline_meta_v1';
-const OFFLINE_META_STORE = 'downloads';
-const OFFLINE_CACHE_URL_PREFIX = '/offline/movie/';
+const OFFLINE_CACHE_NAME = "np-offline-v1";
+const OFFLINE_META_DB = "np_offline_meta_v1";
+const OFFLINE_META_STORE = "downloads";
+const OFFLINE_CACHE_URL_PREFIX = "/offline/movie/";
 
 const MAX_PARALLEL_DOWNLOADS = 1;
 const MAX_BATCH_PERSIST_INTERVAL_MS = 250;
 
-export type DownloadStatus = 'idle' | 'queued' | 'downloading' | 'complete' | 'error' | 'paused';
+export type DownloadStatus =
+  | "idle"
+  | "queued"
+  | "downloading"
+  | "complete"
+  | "error"
+  | "paused";
 
 export interface OfflineDownloadMeta {
   id: string;
@@ -47,7 +53,7 @@ type Deferred = {
   reject: (error: unknown) => void;
 };
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class OfflineStorageService {
   private http = inject(HttpClient);
 
@@ -65,10 +71,10 @@ export class OfflineStorageService {
   get isSupported(): boolean {
     if (this._supported !== null) return this._supported;
     this._supported =
-      typeof caches !== 'undefined' &&
-      typeof indexedDB !== 'undefined' &&
-      typeof fetch !== 'undefined' &&
-      typeof ReadableStream !== 'undefined';
+      typeof caches !== "undefined" &&
+      typeof indexedDB !== "undefined" &&
+      typeof fetch !== "undefined" &&
+      typeof ReadableStream !== "undefined";
     return this._supported;
   }
 
@@ -76,11 +82,14 @@ export class OfflineStorageService {
     if (this.isSupported) {
       this._loadMetaFromDb()
         .then(() => this._restoreQueue())
-        .catch((err) => console.warn('[OfflineStorage] Init failed:', err));
+        .catch((err) => console.warn("[OfflineStorage] Init failed:", err));
     }
   }
 
-  async getOfflineUrl(movieId: string, quality: string): Promise<string | null> {
+  async getOfflineUrl(
+    movieId: string,
+    quality: string,
+  ): Promise<string | null> {
     if (!this.isSupported) return null;
     try {
       const cache = await caches.open(OFFLINE_CACHE_NAME);
@@ -94,19 +103,19 @@ export class OfflineStorageService {
 
   isAvailableOffline(movieId: string, quality: string): boolean {
     const id = this._metaId(movieId, quality);
-    return this._downloads().get(id)?.status === 'complete';
+    return this._downloads().get(id)?.status === "complete";
   }
 
   getProgress(movieId: string, quality: string): number | null {
     const id = this._metaId(movieId, quality);
     const meta = this._downloads().get(id);
-    if (!meta || meta.status === 'idle') return null;
+    if (!meta || meta.status === "idle") return null;
     return meta.progress;
   }
 
   getStatus(movieId: string, quality: string): DownloadStatus {
     const id = this._metaId(movieId, quality);
-    return this._downloads().get(id)?.status ?? 'idle';
+    return this._downloads().get(id)?.status ?? "idle";
   }
 
   async download(params: {
@@ -119,22 +128,36 @@ export class OfflineStorageService {
     thumbnailUrl?: string;
   }): Promise<void> {
     if (!this.isSupported) {
-      throw new Error('Offline storage is not supported in this browser.');
+      throw new Error("Offline storage is not supported in this browser.");
     }
 
-    const { movieId, movieTitle, movieSlug, quality, fileUrl, fileSizeBytes, thumbnailUrl } = params;
+    const {
+      movieId,
+      movieTitle,
+      movieSlug,
+      quality,
+      fileUrl,
+      fileSizeBytes,
+      thumbnailUrl,
+    } = params;
     const id = this._metaId(movieId, quality);
     const existing = this._downloads().get(id);
 
-    if (existing?.status === 'complete') return;
-    if (existing?.status === 'downloading' || existing?.status === 'queued') {
+    if (existing?.status === "complete") return;
+    if (existing?.status === "downloading" || existing?.status === "queued") {
       return this._getDeferred(id).promise;
     }
 
-    if (!existing || existing.status === 'error' || existing.status === 'paused') {
+    if (
+      !existing ||
+      existing.status === "error" ||
+      existing.status === "paused"
+    ) {
       const hasSpace = await this._checkStorageQuota(fileSizeBytes ?? 0);
       if (!hasSpace) {
-        throw new Error('Not enough storage space on this device. Free up space and try again.');
+        throw new Error(
+          "Not enough storage space on this device. Free up space and try again.",
+        );
       }
     }
 
@@ -146,8 +169,8 @@ export class OfflineStorageService {
       quality,
       fileUrl,
       thumbnailUrl,
-      status: 'queued',
-      progress: existing?.status === 'paused' ? existing.progress : 0,
+      status: "queued",
+      progress: existing?.status === "paused" ? existing.progress : 0,
       bytesDownloaded: 0,
       totalBytes: fileSizeBytes ?? existing?.totalBytes ?? 0,
       savedAt: Date.now(),
@@ -182,7 +205,7 @@ export class OfflineStorageService {
 
     const db = await this._openDb();
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(OFFLINE_META_STORE, 'readwrite');
+      const tx = db.transaction(OFFLINE_META_STORE, "readwrite");
       tx.objectStore(OFFLINE_META_STORE).delete(id);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -192,13 +215,13 @@ export class OfflineStorageService {
     map.delete(id);
     this._downloads.set(map);
 
-    this._rejectDeferred(id, new Error('Download removed'));
+    this._rejectDeferred(id, new Error("Download removed"));
 
     firstValueFrom(
-      this.http.delete('/api/v1/profile/offline', {
+      this.http.delete("/api/v1/profile/offline", {
         body: { movieId, quality },
       }),
-    ).catch(console.error);
+    ).catch(() => {});
   }
 
   async clearAll(): Promise<void> {
@@ -216,7 +239,7 @@ export class OfflineStorageService {
 
     const db = await this._openDb();
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(OFFLINE_META_STORE, 'readwrite');
+      const tx = db.transaction(OFFLINE_META_STORE, "readwrite");
       tx.objectStore(OFFLINE_META_STORE).clear();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -225,7 +248,7 @@ export class OfflineStorageService {
     this._downloads.set(new Map());
 
     for (const id of this._deferred.keys()) {
-      this._rejectDeferred(id, new Error('Downloads cleared'));
+      this._rejectDeferred(id, new Error("Downloads cleared"));
     }
   }
 
@@ -244,7 +267,7 @@ export class OfflineStorageService {
   }
 
   private _mimeForQuality(): string {
-    return 'video/mp4';
+    return "video/mp4";
   }
 
   private _enqueue(id: string): void {
@@ -257,14 +280,23 @@ export class OfflineStorageService {
     const map = new Map(this._downloads());
 
     for (const item of items) {
-      if ((item.status === 'queued' || item.status === 'downloading' || item.status === 'paused') && item.fileUrl) {
-        map.set(item.id, { ...item, status: 'queued', error: undefined });
+      if (
+        (item.status === "queued" ||
+          item.status === "downloading" ||
+          item.status === "paused") &&
+        item.fileUrl
+      ) {
+        map.set(item.id, { ...item, status: "queued", error: undefined });
         this._enqueue(item.id);
-      } else if (item.status === 'queued' || item.status === 'downloading' || item.status === 'paused') {
+      } else if (
+        item.status === "queued" ||
+        item.status === "downloading" ||
+        item.status === "paused"
+      ) {
         map.set(item.id, {
           ...item,
-          status: 'error',
-          error: 'Download metadata is incomplete. Retry download.',
+          status: "error",
+          error: "Download metadata is incomplete. Retry download.",
         });
       }
     }
@@ -287,7 +319,7 @@ export class OfflineStorageService {
         const id = this._queue.shift();
         if (!id) continue;
         const meta = this._downloads().get(id);
-        if (!meta || meta.status === 'complete') {
+        if (!meta || meta.status === "complete") {
           this._resolveDeferred(id);
           continue;
         }
@@ -301,7 +333,10 @@ export class OfflineStorageService {
       }
     } finally {
       this._isProcessing = false;
-      if (this._queue.length > 0 && this._active.size < MAX_PARALLEL_DOWNLOADS) {
+      if (
+        this._queue.length > 0 &&
+        this._active.size < MAX_PARALLEL_DOWNLOADS
+      ) {
         void this._processQueue();
       }
     }
@@ -313,7 +348,7 @@ export class OfflineStorageService {
 
     const current: OfflineDownloadMeta = {
       ...meta,
-      status: 'downloading',
+      status: "downloading",
       progress: 0,
       bytesDownloaded: 0,
       error: undefined,
@@ -322,18 +357,23 @@ export class OfflineStorageService {
 
     try {
       const response = await fetch(current.fileUrl, {
-        mode: 'cors',
-        cache: 'no-store',
+        mode: "cors",
+        cache: "no-store",
         signal: controller.signal,
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      if (!response.body) throw new Error('ReadableStream not supported by this response');
+      if (!response.body)
+        throw new Error("ReadableStream not supported by this response");
 
-      const contentLength = Number.parseInt(response.headers.get('content-length') ?? '0', 10);
-      const totalBytes = Number.isFinite(contentLength) && contentLength > 0
-        ? contentLength
-        : current.totalBytes;
+      const contentLength = Number.parseInt(
+        response.headers.get("content-length") ?? "0",
+        10,
+      );
+      const totalBytes =
+        Number.isFinite(contentLength) && contentLength > 0
+          ? contentLength
+          : current.totalBytes;
 
       current.totalBytes = totalBytes;
       this._updateMeta(current);
@@ -341,17 +381,20 @@ export class OfflineStorageService {
       const [cacheStream, progressStream] = response.body.tee();
       const cacheKey = this._cacheKey(current.movieId, current.quality);
 
-      const contentType = response.headers.get('content-type') || this._mimeForQuality();
+      const contentType =
+        response.headers.get("content-type") || this._mimeForQuality();
       const headers = new Headers({
-        'Content-Type': contentType,
+        "Content-Type": contentType,
       });
       if (totalBytes > 0) {
-        headers.set('Content-Length', String(totalBytes));
+        headers.set("Content-Length", String(totalBytes));
       }
 
-      const cachePutPromise = caches.open(OFFLINE_CACHE_NAME).then((cache) =>
-        cache.put(cacheKey, new Response(cacheStream, { headers })),
-      );
+      const cachePutPromise = caches
+        .open(OFFLINE_CACHE_NAME)
+        .then((cache) =>
+          cache.put(cacheKey, new Response(cacheStream, { headers })),
+        );
 
       const reader = progressStream.getReader();
       let downloaded = 0;
@@ -364,18 +407,22 @@ export class OfflineStorageService {
 
         downloaded += value.byteLength;
         const now = Date.now();
-        const shouldPersist = now - lastPersistAt >= MAX_BATCH_PERSIST_INTERVAL_MS;
+        const shouldPersist =
+          now - lastPersistAt >= MAX_BATCH_PERSIST_INTERVAL_MS;
         if (!shouldPersist) continue;
 
         lastPersistAt = now;
         current.bytesDownloaded = downloaded;
-        current.progress = totalBytes > 0 ? Math.min(99, Math.round((downloaded / totalBytes) * 100)) : 0;
+        current.progress =
+          totalBytes > 0
+            ? Math.min(99, Math.round((downloaded / totalBytes) * 100))
+            : 0;
         this._updateMeta({ ...current });
       }
 
       await cachePutPromise;
 
-      current.status = 'complete';
+      current.status = "complete";
       current.progress = 100;
       current.bytesDownloaded = totalBytes > 0 ? totalBytes : downloaded;
       current.totalBytes = totalBytes > 0 ? totalBytes : downloaded;
@@ -384,34 +431,35 @@ export class OfflineStorageService {
       this._updateMeta({ ...current });
 
       firstValueFrom(
-        this.http.post('/api/v1/profile/offline', {
+        this.http.post("/api/v1/profile/offline", {
           movieId: current.movieId,
           quality: current.quality,
           fileSizeBytes: current.bytesDownloaded,
         }),
-      ).catch(console.error);
+      ).catch(() => {});
     } catch (error) {
-      const reason = error instanceof DOMException && error.name === 'AbortError'
-        ? 'Download cancelled'
-        : error instanceof Error
-          ? error.message
-          : 'Download failed';
+      const reason =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Download cancelled"
+          : error instanceof Error
+            ? error.message
+            : "Download failed";
 
       const failed: OfflineDownloadMeta = {
         ...current,
-        status: 'error',
+        status: "error",
         error: reason,
         retryCount: (current.retryCount || 0) + 1,
       };
       this._updateMeta(failed);
 
       firstValueFrom(
-        this.http.post('/api/v1/profile/offline/failure', {
+        this.http.post("/api/v1/profile/offline/failure", {
           movieId: failed.movieId,
           quality: failed.quality,
           reason,
         }),
-      ).catch(console.error);
+      ).catch(() => {});
 
       throw error;
     } finally {
@@ -423,13 +471,13 @@ export class OfflineStorageService {
     const map = new Map(this._downloads());
     map.set(meta.id, { ...meta });
     this._downloads.set(map);
-    this._persistMeta(meta).catch(console.error);
+    this._persistMeta(meta).catch(() => {});
   }
 
   private async _persistMeta(meta: OfflineDownloadMeta): Promise<void> {
     const db = await this._openDb();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(OFFLINE_META_STORE, 'readwrite');
+      const tx = db.transaction(OFFLINE_META_STORE, "readwrite");
       tx.objectStore(OFFLINE_META_STORE).put(meta);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -439,12 +487,14 @@ export class OfflineStorageService {
   private async _loadMetaFromDb(): Promise<void> {
     try {
       const db = await this._openDb();
-      const items = await new Promise<OfflineDownloadMeta[]>((resolve, reject) => {
-        const tx = db.transaction(OFFLINE_META_STORE, 'readonly');
-        const req = tx.objectStore(OFFLINE_META_STORE).getAll();
-        req.onsuccess = () => resolve(req.result as OfflineDownloadMeta[]);
-        req.onerror = () => reject(req.error);
-      });
+      const items = await new Promise<OfflineDownloadMeta[]>(
+        (resolve, reject) => {
+          const tx = db.transaction(OFFLINE_META_STORE, "readonly");
+          const req = tx.objectStore(OFFLINE_META_STORE).getAll();
+          req.onsuccess = () => resolve(req.result as OfflineDownloadMeta[]);
+          req.onerror = () => reject(req.error);
+        },
+      );
 
       const map = new Map<string, OfflineDownloadMeta>();
       for (const item of items) {
@@ -452,7 +502,7 @@ export class OfflineStorageService {
       }
       this._downloads.set(map);
     } catch (err) {
-      console.warn('[OfflineStorage] Failed to load meta from IndexedDB:', err);
+      console.warn("[OfflineStorage] Failed to load meta from IndexedDB:", err);
     }
   }
 
@@ -464,7 +514,7 @@ export class OfflineStorageService {
       req.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains(OFFLINE_META_STORE)) {
-          db.createObjectStore(OFFLINE_META_STORE, { keyPath: 'id' });
+          db.createObjectStore(OFFLINE_META_STORE, { keyPath: "id" });
         }
       };
       req.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result);

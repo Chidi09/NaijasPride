@@ -1,11 +1,11 @@
-import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { MovieSummary } from '@naijaspride/types';
+import { CommonModule } from "@angular/common";
+import { HttpClient } from "@angular/common/http";
+import { Component, OnInit, OnDestroy, inject, signal } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { Router, RouterLink } from "@angular/router";
+import { MovieSummary } from "@naijaspride/types";
 
-type AnimPhase = 'glitch' | 'dissolve' | 'hero';
+type AnimPhase = "glitch" | "dissolve" | "hero";
 
 interface ComingSoonMovie {
   id: string;
@@ -20,18 +20,18 @@ interface ComingSoonMovie {
 }
 
 @Component({
-  selector: 'app-landing',
+  selector: "app-landing",
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
-  templateUrl: './landing.component.html',
-  styleUrl: './landing.component.scss'
+  templateUrl: "./landing.component.html",
+  styleUrl: "./landing.component.scss",
 })
 export class LandingComponent implements OnInit, OnDestroy {
-  email = signal('');
-  phase = signal<AnimPhase>('glitch');
+  email = signal("");
+  phase = signal<AnimPhase>("glitch");
 
   /** Characters of "NAIJAsPRIDE" revealed one-by-one */
-  readonly brandName = 'NAIJAsPRIDE';
+  readonly brandName = "NAIJAsPRIDE";
   /** Characters 0-5 ("NAIJAs") are burgundy, 6-10 ("PRIDE") are white */
   readonly burgundyCount = 6;
   revealedChars = signal(0);
@@ -59,12 +59,12 @@ export class LandingComponent implements OnInit, OnDestroy {
   ngOnInit() {
     // Check if user prefers reduced motion
     const prefersReduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (prefersReduced) {
       this.revealedChars.set(this.brandName.length);
-      this.phase.set('hero');
+      this.phase.set("hero");
     } else {
       this.startSequence();
     }
@@ -84,66 +84,71 @@ export class LandingComponent implements OnInit, OnDestroy {
   }
 
   private loadYoutubeMovies() {
-    this.http.get<{
-      status?: string;
-      success?: boolean;
-      data?: MovieSummary[] | { movies?: MovieSummary[] };
-    }>('/api/v1/movies', {
-      params: {
-        isStreamOnly: 'true',
-        limit: '10',
-        sortBy: 'latest',
-      },
-    }).subscribe({
-      next: (response) => {
-        const data = response.data;
-        const movies = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.movies)
-            ? data.movies
-            : [];
-        this.youtubeMovies.set(movies);
-        this.isLoadingYoutube.set(false);
-      },
-      error: (error) => {
-        console.error('Error loading YouTube movies:', error);
-        this.youtubeMovies.set([]);
-        this.isLoadingYoutube.set(false);
-      },
-    });
+    this.http
+      .get<{
+        status?: string;
+        success?: boolean;
+        data?: MovieSummary[] | { movies?: MovieSummary[] };
+      }>("/api/v1/movies", {
+        params: {
+          isStreamOnly: "true",
+          limit: "10",
+          sortBy: "latest",
+        },
+      })
+      .subscribe({
+        next: (response) => {
+          const data = response.data;
+          const movies = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.movies)
+              ? data.movies
+              : [];
+          this.youtubeMovies.set(movies);
+          this.isLoadingYoutube.set(false);
+        },
+        error: (error) => {
+          this.youtubeMovies.set([]);
+          this.isLoadingYoutube.set(false);
+        },
+      });
   }
 
   private loadFeatured() {
-    this.http.get<{
-      success: boolean;
-      data: { mostWatched: MovieSummary[]; comingSoon: ComingSoonMovie[] };
-    }>('/api/v1/movies/featured').subscribe({
-      next: (res) => {
-        this.mostWatched.set(res.data?.mostWatched ?? []);
-        this.comingSoon.set(res.data?.comingSoon ?? []);
-        this.isLoadingMostWatched.set(false);
-        this.isLoadingComingSoon.set(false);
-      },
-      error: () => {
-        this.isLoadingMostWatched.set(false);
-        this.isLoadingComingSoon.set(false);
-      },
-    });
+    this.http
+      .get<{
+        success: boolean;
+        data: { mostWatched: MovieSummary[]; comingSoon: ComingSoonMovie[] };
+      }>("/api/v1/movies/featured")
+      .subscribe({
+        next: (res) => {
+          this.mostWatched.set(res.data?.mostWatched ?? []);
+          this.comingSoon.set(res.data?.comingSoon ?? []);
+          this.isLoadingMostWatched.set(false);
+          this.isLoadingComingSoon.set(false);
+        },
+        error: () => {
+          this.isLoadingMostWatched.set(false);
+          this.isLoadingComingSoon.set(false);
+        },
+      });
   }
 
   private loadTrendingMovies() {
     this.isLoadingTrending.set(true);
     this.http
-      .get<{ success?: boolean; status?: string; data?: MovieSummary[]; meta?: any }>(
-        '/api/v1/movies',
-        {
-          params: {
-            sortBy: 'trending',
-            limit: '12',
-            page: '1',
-          },
+      .get<{
+        success?: boolean;
+        status?: string;
+        data?: MovieSummary[];
+        meta?: Record<string, unknown>;
+      }>("/api/v1/movies", {
+        params: {
+          sortBy: "trending",
+          limit: "12",
+          page: "1",
         },
-      )
+      })
       .subscribe({
         next: (response) => {
           // API returns { success: true, data: MovieSummary[] }
@@ -152,7 +157,6 @@ export class LandingComponent implements OnInit, OnDestroy {
           this.isLoadingTrending.set(false);
         },
         error: (error) => {
-          console.error('Error loading trending movies:', error);
           this.trendingMovies.set([]);
           this.isLoadingTrending.set(false);
         },
@@ -160,10 +164,10 @@ export class LandingComponent implements OnInit, OnDestroy {
   }
 
   getStarted() {
-    this.router.navigate(['/login'], {
+    this.router.navigate(["/login"], {
       queryParams: {
         email: this.email() || undefined,
-        returnUrl: '/home',
+        returnUrl: "/home",
       },
     });
   }
@@ -178,7 +182,7 @@ export class LandingComponent implements OnInit, OnDestroy {
     this.timers.forEach(clearTimeout);
     this.timers = [];
     this.revealedChars.set(this.brandName.length);
-    this.phase.set('hero');
+    this.phase.set("hero");
   }
 
   private startSequence() {
@@ -197,14 +201,14 @@ export class LandingComponent implements OnInit, OnDestroy {
     // Phase 2: Hold the full name, then dissolve
     const dissolveStart = this.brandName.length * charDelay + holdTime;
     const t2 = setTimeout(() => {
-      this.phase.set('dissolve');
+      this.phase.set("dissolve");
     }, dissolveStart);
     this.timers.push(t2);
 
     // Phase 3: Transition to hero content
     const heroStart = dissolveStart + dissolveTime;
     const t3 = setTimeout(() => {
-      this.phase.set('hero');
+      this.phase.set("hero");
     }, heroStart);
     this.timers.push(t3);
   }

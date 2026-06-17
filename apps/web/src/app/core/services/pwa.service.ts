@@ -1,6 +1,15 @@
-import { Injectable, signal, effect, inject } from '@angular/core';
-import { Platform } from '@angular/cdk/platform';
-import { detectTvEnvironment } from '../utils/tv-detection';
+import { Injectable, signal, inject } from "@angular/core";
+import { Platform } from "@angular/cdk/platform";
+import { detectTvEnvironment } from "../utils/tv-detection";
+
+export interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: Array<string>;
+  readonly userChoice: Promise<{
+    outcome: "accepted" | "dismissed";
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
+}
 
 export interface PWAState {
   isStandalone: boolean;
@@ -8,11 +17,11 @@ export interface PWAState {
   isAndroid: boolean;
   isTV: boolean;
   canInstall: boolean;
-  installPrompt: any | null;
+  installPrompt: BeforeInstallPromptEvent | null;
 }
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: "root",
 })
 export class PwaService {
   private platform = inject(Platform);
@@ -23,7 +32,7 @@ export class PwaService {
     isAndroid: false,
     isTV: false,
     canInstall: false,
-    installPrompt: null
+    installPrompt: null,
   });
 
   readonly state = this.pwaState.asReadonly();
@@ -40,37 +49,44 @@ export class PwaService {
   private detectPWA(): void {
     // Check if running in standalone mode (PWA installed)
     const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true;
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone ===
+        true;
 
     // Check platform
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const isAndroid = /Android/.test(navigator.userAgent);
 
-    this.pwaState.update(state => ({
+    this.pwaState.update((state) => ({
       ...state,
       isStandalone,
       isIOS,
-      isAndroid
+      isAndroid,
     }));
 
     this.isStandalone.set(isStandalone);
     this.isAppMode.set(isStandalone || this.isTV());
 
     // Listen for display mode changes
-    window.matchMedia('(display-mode: standalone)').addEventListener('change', (e) => {
-      const standalone = e.matches;
-      this.pwaState.update(state => ({ ...state, isStandalone: standalone }));
-      this.isStandalone.set(standalone);
-      this.isAppMode.set(standalone || this.isTV());
-    });
+    window
+      .matchMedia("(display-mode: standalone)")
+      .addEventListener("change", (e) => {
+        const standalone = e.matches;
+        this.pwaState.update((state) => ({
+          ...state,
+          isStandalone: standalone,
+        }));
+        this.isStandalone.set(standalone);
+        this.isAppMode.set(standalone || this.isTV());
+      });
   }
 
   private detectTV(): void {
     const isTV = detectTvEnvironment();
 
-    this.pwaState.update(state => ({ ...state, isTV }));
+    this.pwaState.update((state) => ({ ...state, isTV }));
     this.isTV.set(isTV);
     if (isTV) {
       this.isAppMode.set(true);
@@ -79,22 +95,22 @@ export class PwaService {
 
   private listenForInstallPrompt(): void {
     // Capture the install prompt event
-    window.addEventListener('beforeinstallprompt', (e) => {
+    window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
-      this.pwaState.update(state => ({
+      this.pwaState.update((state) => ({
         ...state,
         canInstall: true,
-        installPrompt: e
+        installPrompt: e as BeforeInstallPromptEvent,
       }));
     });
 
     // Handle when app is installed
-    window.addEventListener('appinstalled', () => {
-      this.pwaState.update(state => ({
+    window.addEventListener("appinstalled", () => {
+      this.pwaState.update((state) => ({
         ...state,
         canInstall: false,
         installPrompt: null,
-        isStandalone: true
+        isStandalone: true,
       }));
       this.isStandalone.set(true);
       this.isAppMode.set(true);
@@ -107,23 +123,23 @@ export class PwaService {
 
     prompt.prompt();
     const result = await prompt.userChoice;
-    
-    if (result.outcome === 'accepted') {
-      this.pwaState.update(state => ({
+
+    if (result.outcome === "accepted") {
+      this.pwaState.update((state) => ({
         ...state,
         canInstall: false,
-        installPrompt: null
+        installPrompt: null,
       }));
       return true;
     }
-    
+
     return false;
   }
 
   dismissInstallPrompt(): void {
-    this.pwaState.update(state => ({
+    this.pwaState.update((state) => ({
       ...state,
-      canInstall: false
+      canInstall: false,
     }));
   }
 
@@ -135,10 +151,10 @@ export class PwaService {
   // Check if bottom nav should be hidden (when watching/reading in immersive views)
   shouldHideBottomNav(currentRoute: string): boolean {
     const hidePatterns = [
-      '/watch',          // Movie watch room: /movies/:slug/watch
-      '/read',           // Book reader: /books/novel/:slug/read, manga reader: /books/manga/:id/read/:chapter
+      "/watch", // Movie watch room: /movies/:slug/watch
+      "/read", // Book reader: /books/novel/:slug/read, manga reader: /books/manga/:id/read/:chapter
     ];
-    
-    return hidePatterns.some(pattern => currentRoute.includes(pattern));
+
+    return hidePatterns.some((pattern) => currentRoute.includes(pattern));
   }
 }

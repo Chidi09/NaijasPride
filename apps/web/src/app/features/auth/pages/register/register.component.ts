@@ -6,19 +6,6 @@ import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { ToastService } from "../../../../core/services/toast.service";
 import { BrandLogoComponent } from "../../../../shared/components/brand-logo/brand-logo.component";
 import { CheckIconComponent } from "../../../../shared/components/icons/check-icon.component";
-import { HttpClient } from "@angular/common/http";
-
-interface SignupResponse {
-  success: boolean;
-  data?: {
-    id: string;
-    email: string;
-    name: string | null;
-    isPremium: boolean;
-    role: string;
-  };
-  error?: string;
-}
 
 type GoogleCredentialResponse = { credential?: string };
 
@@ -265,7 +252,6 @@ type RegisterWindow = Window & {
 })
 export class RegisterComponent implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
-  private http = inject(HttpClient);
   private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -311,12 +297,8 @@ export class RegisterComponent implements OnInit, OnDestroy {
 
       const { name, email, password } = this.form.value;
 
-      this.http
-        .post<SignupResponse>("/api/v1/auth/signup", {
-          name,
-          email,
-          password,
-        })
+      this.authService
+        .signup({ name, email: email ?? "", password: password ?? "" })
         .subscribe({
           next: (response) => {
             this.isLoading = false;

@@ -1,35 +1,37 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal } from "@angular/core";
 
-type ThemeMode = 'light' | 'dark';
-type ThemePreference = ThemeMode | 'system';
+type ThemeMode = "light" | "dark";
+type ThemePreference = ThemeMode | "system";
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: "root",
 })
 export class ThemeService {
-  private readonly storageKey = 'naijaspride-theme';
+  private readonly storageKey = "naijaspride-theme";
   private mediaQuery: MediaQueryList | null = null;
 
-  preference = signal<ThemePreference>('system');
-  theme = signal<ThemeMode>('dark');
+  preference = signal<ThemePreference>("system");
+  theme = signal<ThemeMode>("dark");
 
   init() {
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
+    if (typeof window === "undefined" || typeof document === "undefined") {
       return;
     }
 
-    this.mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const saved = localStorage.getItem(this.storageKey) as ThemePreference | null;
-    if (saved === 'light' || saved === 'dark' || saved === 'system') {
+    this.mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const saved = localStorage.getItem(
+      this.storageKey,
+    ) as ThemePreference | null;
+    if (saved === "light" || saved === "dark" || saved === "system") {
       this.preference.set(saved);
     }
 
     this.applyTheme();
-    this.mediaQuery.addEventListener('change', this.handleSystemThemeChange);
+    this.mediaQuery.addEventListener("change", this.handleSystemThemeChange);
   }
 
   toggleTheme() {
-    this.setTheme(this.theme() === 'dark' ? 'light' : 'dark');
+    this.setTheme(this.theme() === "dark" ? "light" : "dark");
   }
 
   setTheme(theme: ThemePreference) {
@@ -39,7 +41,7 @@ export class ThemeService {
   }
 
   private handleSystemThemeChange = () => {
-    if (this.preference() === 'system') {
+    if (this.preference() === "system") {
       this.applyTheme();
     }
   };
@@ -49,16 +51,16 @@ export class ThemeService {
     this.theme.set(activeTheme);
 
     const root = document.documentElement;
-    root.classList.toggle('dark', activeTheme === 'dark');
+    root.classList.toggle("dark", activeTheme === "dark");
     root.style.colorScheme = activeTheme;
   }
 
   private resolveTheme(): ThemeMode {
     const preference = this.preference();
-    if (preference === 'light' || preference === 'dark') {
+    if (preference === "light" || preference === "dark") {
       return preference;
     }
 
-    return this.mediaQuery?.matches ? 'dark' : 'light';
+    return this.mediaQuery?.matches ? "dark" : "light";
   }
 }

@@ -1,7 +1,11 @@
 import { Component, computed, inject, signal } from "@angular/core";
 import { CommonModule, Location } from "@angular/common";
 import { ActivatedRoute, RouterLink } from "@angular/router";
-import { AnimeApiService } from "../../services/anime-api.service";
+import {
+  AnimeApiService,
+  AnilistMedia,
+  AnimeEpisode,
+} from "../../services/anime-api.service";
 import { StarIconComponent } from "../../../../shared/components/icons/star-icon.component";
 
 @Component({
@@ -174,8 +178,8 @@ export class AnimeDetailComponent {
 
   provider = "auto";
   loading = signal(true);
-  anime = signal<any | null>(null);
-  episodes = signal<any[]>([]);
+  anime = signal<AnilistMedia | null>(null);
+  episodes = signal<AnimeEpisode[]>([]);
   bridgeAvailable = signal(true);
 
   title = computed(

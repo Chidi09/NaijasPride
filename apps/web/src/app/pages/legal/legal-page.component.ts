@@ -1,21 +1,33 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { Component, inject } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { ActivatedRoute, RouterLink } from "@angular/router";
+import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
+import { HttpClient } from "@angular/common/http";
 
 @Component({
-  selector: 'app-legal-page',
+  selector: "app-legal-page",
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
     <div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <div class="max-w-3xl mx-auto px-4 py-12">
-        <a routerLink="/" class="text-sm text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white transition-colors">← Back</a>
+        <a
+          routerLink="/"
+          class="text-sm text-[#8a756e] hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white transition-colors"
+          >← Back</a
+        >
 
-        <h1 class="mt-4 text-3xl md:text-4xl font-serif font-bold text-[#24181b] dark:text-white">{{ title }}</h1>
-        <p class="mt-2 text-sm text-[#8a756e] dark:text-gray-500">Last updated: {{ lastUpdated }}</p>
+        <h1
+          class="mt-4 text-3xl md:text-4xl font-serif font-bold text-[#24181b] dark:text-white"
+        >
+          {{ title }}
+        </h1>
+        <p class="mt-2 text-sm text-[#8a756e] dark:text-gray-500">
+          Last updated: {{ lastUpdated }}
+        </p>
 
-        <div class="mt-8 prose prose-sm max-w-none
+        <div
+          class="mt-8 prose prose-sm max-w-none
           prose-headings:font-serif prose-headings:text-[#24181b] dark:prose-headings:text-white
           prose-p:text-[#5f4d47] dark:prose-p:text-gray-300
           prose-li:text-[#5f4d47] dark:prose-li:text-gray-300
@@ -29,15 +41,39 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
         ></div>
       </div>
     </div>
-  `
+  `,
 })
 export class LegalPageComponent {
   private route = inject(ActivatedRoute);
   private sanitizer = inject(DomSanitizer);
+  private http = inject(HttpClient);
 
-  title: string = this.route.snapshot.data['title'] || 'Legal';
-  lastUpdated: string = this.route.snapshot.data['lastUpdated'] || 'February 2026';
-  html: SafeHtml = this.sanitizer.bypassSecurityTrustHtml(
-    this.route.snapshot.data['html'] || ''
-  );
+  title = "Loading...";
+  lastUpdated = "";
+  html: SafeHtml = "";
+
+  constructor() {
+    const docId = this.route.snapshot.data["documentId"];
+    if (docId) {
+      this.http
+        .get<{
+          title: string;
+          lastUpdated: string;
+          html: string;
+        }>(`/assets/legal/${docId}.json`)
+        .subscribe({
+          next: (data) => {
+            this.title = data.title;
+            this.lastUpdated = data.lastUpdated;
+            this.html = this.sanitizer.bypassSecurityTrustHtml(data.html);
+          },
+          error: (_err) => {
+            this.title = "Error";
+            this.html = this.sanitizer.bypassSecurityTrustHtml(
+              "<p>Failed to load document.</p>",
+            );
+          },
+        });
+    }
+  }
 }

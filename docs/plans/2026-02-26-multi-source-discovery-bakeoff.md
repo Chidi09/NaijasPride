@@ -13,6 +13,7 @@
 ### Task 1: Add parser coverage for API sources
 
 **Files:**
+
 - Modify: `apps/api/src/modules/movies/torrent-discovery.service.test.ts`
 - Modify: `apps/api/src/modules/movies/torrent-discovery.service.ts`
 
@@ -37,6 +38,7 @@ Expected: pass.
 ### Task 2: Extend discovery service for source types
 
 **Files:**
+
 - Modify: `apps/api/src/modules/movies/torrent-discovery.service.ts`
 
 **Step 1: Add config fields**
@@ -59,6 +61,7 @@ Expected: pass.
 ### Task 3: Add scheduler approach and bakeoff elimination
 
 **Files:**
+
 - Modify: `apps/api/src/app.ts`
 
 **Step 1: Add source groups and approach mode**
@@ -81,6 +84,7 @@ Expected: pass.
 ### Task 4: Expose new env knobs for operations
 
 **Files:**
+
 - Modify: `.env.example`
 - Modify: `apps/api/.env.production.example`
 
@@ -96,22 +100,26 @@ Expected: pass.
 ### Task 5: Verification checklist
 
 **Files:**
+
 - None
 
 **Step 1: Build and run focused tests**
 
 Run:
+
 - `cd apps/api && npm run build`
 - `cd apps/api && node --test "dist/modules/movies/torrent-discovery.service.test.js"`
 
 **Step 2: Runtime validation on server**
 
 Run on host:
+
 - check startup log for `approachMode`, source counts, and `minSeeders`
 - verify source run logs include gate object (`burstPass`, `conversionPass`, `activeWithin6h`, `activeWithin12h`)
 
 **Step 3: Production gate confirmation**
 
 Confirm winner only after a source shows:
+
 - one run with 10 queued/created
 - and 10 active within 12h (6h preferred).

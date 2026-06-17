@@ -1,11 +1,11 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
-import { randomBytes } from 'crypto';
-import { emailService } from '../../shared/services/email.service';
-import { getPushService } from '../../shared/services/push-notification.service';
-import { OAuth2Client } from 'google-auth-library';
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { z } from "zod";
+import { randomBytes } from "crypto";
+import { emailService } from "../../shared/services/email.service";
+import { getPushService } from "../../shared/services/push-notification.service";
+import { OAuth2Client } from "google-auth-library";
 
 const requireEnv = (name: string) => {
   const value = process.env[name];
@@ -15,14 +15,16 @@ const requireEnv = (name: string) => {
   return value;
 };
 
-const getJwtAccessSecret = () => requireEnv('JWT_SECRET');
-const getJwtRefreshSecret = () => requireEnv('JWT_REFRESH_SECRET');
+const getJwtAccessSecret = () => requireEnv("JWT_SECRET");
+const getJwtRefreshSecret = () => requireEnv("JWT_REFRESH_SECRET");
 
-const ACCESS_TOKEN_TTL = (process.env.JWT_ACCESS_TOKEN_TTL || '7d') as jwt.SignOptions['expiresIn'];
-const REFRESH_TOKEN_TTL = (process.env.JWT_REFRESH_TOKEN_TTL || '120d') as jwt.SignOptions['expiresIn'];
+const ACCESS_TOKEN_TTL = (process.env.JWT_ACCESS_TOKEN_TTL ||
+  "7d") as jwt.SignOptions["expiresIn"];
+const REFRESH_TOKEN_TTL = (process.env.JWT_REFRESH_TOKEN_TTL ||
+  "120d") as jwt.SignOptions["expiresIn"];
 
-const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_IDS || '')
-  .split(',')
+const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_IDS || "")
+  .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
 
@@ -63,13 +65,13 @@ export const verifyEmailSchema = z.object({
 type AccessPayload = {
   id: string;
   email: string;
-  role: 'USER' | 'ADMIN';
-  type: 'access';
+  role: "USER" | "ADMIN";
+  type: "access";
 };
 
 type RefreshPayload = {
   id: string;
-  type: 'refresh';
+  type: "refresh";
 };
 
 type LoginContext = {
@@ -81,8 +83,10 @@ export class AuthService {
   constructor(private prisma: PrismaClient) {}
 
   async signup(data: z.infer<typeof signupSchema>) {
-    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) throw new Error('User already exists');
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (existing) throw new Error("User already exists");
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
@@ -92,13 +96,17 @@ export class AuthService {
         password: hashedPassword,
         name: data.name,
         isPremium: false,
-        subStatus: 'inactive',
+        subStatus: "inactive",
       },
     });
 
     // Send welcome + verification emails (fire-and-forget)
-    emailService.sendWelcomeEmail(user.email, user.name || undefined).catch(console.error);
-    getPushService(this.prisma).sendWelcome(user.id, user.name || undefined).catch(console.error);
+    emailService
+      .sendWelcomeEmail(user.email, user.name || undefined)
+      .catch(console.error);
+    getPushService(this.prisma)
+      .sendWelcome(user.id, user.name || undefined)
+      .catch(console.error);
 
     // Auto-send verification email on signup
     this.sendVerificationEmail(user.id).catch(console.error);
@@ -108,11 +116,13 @@ export class AuthService {
   }
 
   async login(data: z.infer<typeof loginSchema>, context?: LoginContext) {
-    const user = await this.prisma.user.findUnique({ where: { email: data.email } });
-    if (!user) throw new Error('Invalid credentials');
+    const user = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (!user) throw new Error("Invalid credentials");
 
     const isValid = await bcrypt.compare(data.password, user.password);
-    if (!isValid) throw new Error('Invalid credentials');
+    if (!isValid) throw new Error("Invalid credentials");
 
     const session = this.createSession(user);
     this.maybeSendSecurityLoginAlert(user.id, context).catch(console.error);
@@ -122,18 +132,23 @@ export class AuthService {
   async refreshSession(refreshToken: string) {
     let decoded: RefreshPayload;
     try {
-      decoded = jwt.verify(refreshToken, getJwtRefreshSecret() as jwt.Secret) as RefreshPayload;
+      decoded = jwt.verify(
+        refreshToken,
+        getJwtRefreshSecret() as jwt.Secret,
+      ) as RefreshPayload;
     } catch {
-      throw new Error('Invalid refresh token');
+      throw new Error("Invalid refresh token");
     }
 
-    if (decoded.type !== 'refresh' || !decoded.id) {
-      throw new Error('Invalid refresh token');
+    if (decoded.type !== "refresh" || !decoded.id) {
+      throw new Error("Invalid refresh token");
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: decoded.id } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: decoded.id },
+    });
     if (!user) {
-      throw new Error('Invalid refresh token');
+      throw new Error("Invalid refresh token");
     }
 
     return this.createSession(user);
@@ -141,7 +156,7 @@ export class AuthService {
 
   async loginWithGoogleIdToken(idToken: string, context?: LoginContext) {
     if (GOOGLE_CLIENT_IDS.length === 0) {
-      throw new Error('Google auth is not configured. Set GOOGLE_CLIENT_IDS.');
+      throw new Error("Google auth is not configured. Set GOOGLE_CLIENT_IDS.");
     }
 
     const ticket = await googleClient.verifyIdToken({
@@ -151,10 +166,10 @@ export class AuthService {
 
     const payload = ticket.getPayload();
     if (!payload?.email) {
-      throw new Error('Google account has no email address.');
+      throw new Error("Google account has no email address.");
     }
     if (!payload.email_verified) {
-      throw new Error('Google email is not verified.');
+      throw new Error("Google email is not verified.");
     }
 
     const email = payload.email.toLowerCase().trim();
@@ -172,12 +187,16 @@ export class AuthService {
           password: hashedPassword,
           name,
           isPremium: false,
-          subStatus: 'inactive',
+          subStatus: "inactive",
         },
       });
 
-      emailService.sendWelcomeEmail(user.email, user.name || undefined).catch(console.error);
-      getPushService(this.prisma).sendWelcome(user.id, user.name || undefined).catch(console.error);
+      emailService
+        .sendWelcomeEmail(user.email, user.name || undefined)
+        .catch(console.error);
+      getPushService(this.prisma)
+        .sendWelcome(user.id, user.name || undefined)
+        .catch(console.error);
     } else if (!user.name && name) {
       user = await this.prisma.user.update({
         where: { id: user.id },
@@ -197,7 +216,7 @@ export class AuthService {
       return { success: true };
     }
 
-    const resetToken = randomBytes(32).toString('hex');
+    const resetToken = randomBytes(32).toString("hex");
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await this.prisma.user.update({
@@ -209,7 +228,9 @@ export class AuthService {
     });
 
     // Send email asynchronously
-    emailService.sendPasswordResetEmail(user.email, resetToken, user.name || undefined).catch(console.error);
+    emailService
+      .sendPasswordResetEmail(user.email, resetToken, user.name || undefined)
+      .catch(console.error);
 
     return { success: true };
   }
@@ -223,7 +244,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('Invalid or expired reset token');
+      throw new Error("Invalid or expired reset token");
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -237,18 +258,22 @@ export class AuthService {
       },
     });
 
-    emailService.sendPasswordChangedEmail(user.email, user.name || undefined).catch(console.error);
-    getPushService(this.prisma).sendPasswordChanged(user.id).catch(console.error);
+    emailService
+      .sendPasswordChangedEmail(user.email, user.name || undefined)
+      .catch(console.error);
+    getPushService(this.prisma)
+      .sendPasswordChanged(user.id)
+      .catch(console.error);
 
     return { success: true };
   }
 
   async sendVerificationEmail(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
-    if (user.emailVerified) throw new Error('Email already verified');
+    if (!user) throw new Error("User not found");
+    if (user.emailVerified) throw new Error("Email already verified");
 
-    const verificationToken = randomBytes(32).toString('hex');
+    const verificationToken = randomBytes(32).toString("hex");
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     await this.prisma.user.update({
@@ -259,7 +284,13 @@ export class AuthService {
       },
     });
 
-    emailService.sendVerificationEmail(user.email, verificationToken, user.name || undefined).catch(console.error);
+    emailService
+      .sendVerificationEmail(
+        user.email,
+        verificationToken,
+        user.name || undefined,
+      )
+      .catch(console.error);
 
     return { success: true };
   }
@@ -273,7 +304,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('Invalid or expired verification token');
+      throw new Error("Invalid or expired verification token");
     }
 
     await this.prisma.user.update({
@@ -290,30 +321,44 @@ export class AuthService {
     return { success: true, email: user.email };
   }
 
-  private createSession(user: { id: string; email: string; role: string; password: string; isPremium?: boolean; subStatus?: string }) {
+  private createSession(user: {
+    id: string;
+    email: string;
+    role: string;
+    password: string;
+    isPremium?: boolean;
+    subStatus?: string;
+  }) {
     const accessPayload: AccessPayload = {
       id: user.id,
       email: user.email,
-      role: user.role === 'ADMIN' ? 'ADMIN' : 'USER',
-      type: 'access',
+      role: user.role === "ADMIN" ? "ADMIN" : "USER",
+      type: "access",
     };
     const refreshPayload: RefreshPayload = {
       id: user.id,
-      type: 'refresh',
+      type: "refresh",
     };
 
     const token = jwt.sign(accessPayload, getJwtAccessSecret() as jwt.Secret, {
       expiresIn: ACCESS_TOKEN_TTL,
     });
-    const refreshToken = jwt.sign(refreshPayload, getJwtRefreshSecret() as jwt.Secret, {
-      expiresIn: REFRESH_TOKEN_TTL,
-    });
+    const refreshToken = jwt.sign(
+      refreshPayload,
+      getJwtRefreshSecret() as jwt.Secret,
+      {
+        expiresIn: REFRESH_TOKEN_TTL,
+      },
+    );
 
     const { password, ...userWithoutPass } = user;
     return { user: userWithoutPass, token, refreshToken };
   }
 
-  private async maybeSendSecurityLoginAlert(userId: string, context?: LoginContext) {
+  private async maybeSendSecurityLoginAlert(
+    userId: string,
+    context?: LoginContext,
+  ) {
     if (!context?.userAgent) return;
 
     const normalizedUa = context.userAgent.trim().slice(0, 255);
@@ -340,38 +385,38 @@ export class AuthService {
 
   private deriveDeviceLabel(userAgent: string): string {
     const ua = userAgent.toLowerCase();
-    const platform = ua.includes('android')
-      ? 'Android'
-      : ua.includes('iphone') || ua.includes('ipad')
-        ? 'iOS'
-        : ua.includes('mac os')
-          ? 'macOS'
-          : ua.includes('windows')
-            ? 'Windows'
-            : ua.includes('linux')
-              ? 'Linux'
-              : 'Device';
+    const platform = ua.includes("android")
+      ? "Android"
+      : ua.includes("iphone") || ua.includes("ipad")
+        ? "iOS"
+        : ua.includes("mac os")
+          ? "macOS"
+          : ua.includes("windows")
+            ? "Windows"
+            : ua.includes("linux")
+              ? "Linux"
+              : "Device";
 
-    const browser = ua.includes('edg/')
-      ? 'Edge'
-      : ua.includes('chrome/')
-        ? 'Chrome'
-        : ua.includes('safari/') && !ua.includes('chrome/')
-          ? 'Safari'
-          : ua.includes('firefox/')
-            ? 'Firefox'
-            : 'Browser';
+    const browser = ua.includes("edg/")
+      ? "Edge"
+      : ua.includes("chrome/")
+        ? "Chrome"
+        : ua.includes("safari/") && !ua.includes("chrome/")
+          ? "Safari"
+          : ua.includes("firefox/")
+            ? "Firefox"
+            : "Browser";
 
     return `${platform} ${browser}`;
   }
 
   async createGuestAccount() {
     // Generate a unique guest ID
-    const guestId = randomBytes(8).toString('hex');
+    const guestId = randomBytes(8).toString("hex");
     const email = `guest_${guestId}@naijaspride.guest`;
-    const password = randomBytes(32).toString('hex');
+    const password = randomBytes(32).toString("hex");
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // Guest accounts expire in 30 days
     const guestExpiresAt = new Date();
     guestExpiresAt.setDate(guestExpiresAt.getDate() + 30);
@@ -380,7 +425,7 @@ export class AuthService {
       data: {
         email,
         password: hashedPassword,
-        name: 'Guest User',
+        name: "Guest User",
         isGuest: true,
         guestExpiresAt,
         emailVerified: true, // Auto-verify guest accounts
@@ -391,17 +436,22 @@ export class AuthService {
     return { ...session, isGuest: true };
   }
 
-  async convertGuestToUser(guestUserId: string, data: z.infer<typeof signupSchema>) {
+  async convertGuestToUser(
+    guestUserId: string,
+    data: z.infer<typeof signupSchema>,
+  ) {
     const guestUser = await this.prisma.user.findUnique({
       where: { id: guestUserId },
     });
 
     if (!guestUser || !guestUser.isGuest) {
-      throw new Error('Invalid guest account');
+      throw new Error("Invalid guest account");
     }
 
-    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) throw new Error('Email already in use');
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (existing) throw new Error("Email already in use");
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
@@ -418,13 +468,20 @@ export class AuthService {
     });
 
     // Send welcome email
-    emailService.sendWelcomeEmail(updatedUser.email, updatedUser.name || undefined).catch(console.error);
-    getPushService(this.prisma).sendWelcome(updatedUser.id, updatedUser.name || undefined).catch(console.error);
+    emailService
+      .sendWelcomeEmail(updatedUser.email, updatedUser.name || undefined)
+      .catch(console.error);
+    getPushService(this.prisma)
+      .sendWelcome(updatedUser.id, updatedUser.name || undefined)
+      .catch(console.error);
 
     // Send verification email
     this.sendVerificationEmail(updatedUser.id).catch(console.error);
 
     const { password, ...result } = updatedUser;
-    return { ...result, message: 'Account converted successfully. Please verify your email.' };
+    return {
+      ...result,
+      message: "Account converted successfully. Please verify your email.",
+    };
   }
 }

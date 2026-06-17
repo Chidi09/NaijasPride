@@ -3,11 +3,7 @@
   "name": "NaijasPride Anime Extractor",
   "version": "1.0.0",
   "description": "Extracts video URLs from anime sites for NaijasPride playback",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "https://*/"
-  ],
+  "permissions": ["activeTab", "storage", "https://*/"],
   "host_permissions": [
     "*://9anime.to/*",
     "*://9anime.id/*",

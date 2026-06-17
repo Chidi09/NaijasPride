@@ -367,7 +367,6 @@ export class BookDetailComponent implements OnInit {
           }
         },
         error: (error) => {
-          console.error("Error loading book:", error);
           this.book.set(null);
           this.isLoading.set(false);
         },

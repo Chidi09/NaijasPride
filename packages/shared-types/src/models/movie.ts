@@ -1,4 +1,4 @@
-import { Quality, Genre, ContentStatus } from '../enums';
+import { Quality, Genre, ContentStatus } from "../enums";
 
 export interface MovieMetadata {
   director?: string;
@@ -13,7 +13,7 @@ export interface MovieMetadata {
   source?: string;
   originalName?: string;
   processingJobId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface CastMember {
@@ -46,11 +46,11 @@ export interface Movie {
   trailerUrl: string | null;
   fileUrls: Record<string, string>; // Key is Quality enum string
   fileSizes: Record<string, number>;
-  
+
   // Streaming fields
   youtubeId: string | null;
   isStreamOnly: boolean;
-  
+
   downloadCount: number;
   viewCount: number;
   status: ContentStatus;

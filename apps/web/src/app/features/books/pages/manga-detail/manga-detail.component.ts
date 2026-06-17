@@ -22,7 +22,6 @@ import { AuthService } from "../../../../core/auth/auth.service";
 import { PwaService } from "../../../../core/services/pwa.service";
 import { SymbolIconComponent } from "../../../../shared/components/symbol-icon/symbol-icon.component";
 import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-group.directive";
-import { StarIconComponent } from "../../../../shared/components/icons/star-icon.component";
 
 type MangaDetail = {
   id: string;

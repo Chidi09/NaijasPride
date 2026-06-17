@@ -1,14 +1,14 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Injectable, inject } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { of } from "rxjs";
+import { catchError, map } from "rxjs/operators";
 
-import { AuthStateService } from '../../../../core/auth/auth-state.service';
-import type { HighlightColor, HighlightEntry } from '../models/reader.models';
+import { AuthStateService } from "../../../../core/auth/auth-state.service";
+import type { HighlightColor, HighlightEntry } from "../models/reader.models";
 
 type ApiHighlight = {
   id: string;
-  kind: 'epub' | 'pdf' | string;
+  kind: "epub" | "pdf" | string;
   color: HighlightColor | string;
   cfiRange?: string | null;
   excerpt?: string | null;
@@ -19,11 +19,21 @@ type ApiHighlight = {
 };
 
 const isColor = (value: unknown): value is HighlightColor =>
-  value === 'yellow' || value === 'green' || value === 'blue' || value === 'pink';
+  value === "yellow" ||
+  value === "green" ||
+  value === "blue" ||
+  value === "pink";
 
-const parseRect = (value: unknown): { x: number; y: number; w: number; h: number } | null => {
-  if (!value || typeof value !== 'object') return null;
-  const candidate = value as { x?: unknown; y?: unknown; w?: unknown; h?: unknown };
+const parseRect = (
+  value: unknown,
+): { x: number; y: number; w: number; h: number } | null => {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as {
+    x?: unknown;
+    y?: unknown;
+    w?: unknown;
+    h?: unknown;
+  };
   const x = Number(candidate.x);
   const y = Number(candidate.y);
   const w = Number(candidate.w);
@@ -33,7 +43,7 @@ const parseRect = (value: unknown): { x: number; y: number; w: number; h: number
 };
 
 @Injectable({
-  providedIn: 'root',
+  providedIn: "root",
 })
 export class ReaderHighlightsService {
   private http = inject(HttpClient);
@@ -49,9 +59,10 @@ export class ReaderHighlightsService {
     }
 
     return this.http
-      .get<{ status: string; data: ApiHighlight[] }>(
-        `/api/v1/books/highlights/${encodeURIComponent(slug)}`
-      )
+      .get<{
+        status: string;
+        data: ApiHighlight[];
+      }>(`/api/v1/books/highlights/${encodeURIComponent(slug)}`)
       .pipe(
         map((response) => {
           const list = Array.isArray(response?.data) ? response.data : [];
@@ -59,28 +70,28 @@ export class ReaderHighlightsService {
             .map((h): HighlightEntry | null => {
               const createdAt = Date.parse(h.createdAt);
               const at = Number.isFinite(createdAt) ? createdAt : Date.now();
-              const color = isColor(h.color) ? h.color : 'yellow';
+              const color = isColor(h.color) ? h.color : "yellow";
 
-              if (h.kind === 'epub') {
-                const cfiRange = (h.cfiRange || '').trim();
+              if (h.kind === "epub") {
+                const cfiRange = (h.cfiRange || "").trim();
                 if (!cfiRange) return null;
                 return {
                   id: String(h.id),
-                  kind: 'epub',
+                  kind: "epub",
                   cfiRange,
-                  excerpt: String(h.excerpt || '').trim(),
+                  excerpt: String(h.excerpt || "").trim(),
                   color,
                   createdAt: at,
                 };
               }
 
-              if (h.kind === 'pdf') {
+              if (h.kind === "pdf") {
                 const page = Math.max(1, Math.floor(Number(h.page) || 1));
                 const rect = parseRect(h.rect);
                 if (!rect) return null;
                 return {
                   id: String(h.id),
-                  kind: 'pdf',
+                  kind: "pdf",
                   page,
                   rect,
                   color,
@@ -92,7 +103,7 @@ export class ReaderHighlightsService {
             })
             .filter(Boolean) as HighlightEntry[];
         }),
-        catchError(() => of([] as HighlightEntry[]))
+        catchError(() => of([] as HighlightEntry[])),
       );
   }
 
@@ -108,7 +119,7 @@ export class ReaderHighlightsService {
       createdAt: highlight.createdAt,
     };
 
-    if (highlight.kind === 'epub') {
+    if (highlight.kind === "epub") {
       body.cfiRange = highlight.cfiRange;
       body.excerpt = highlight.excerpt;
     } else {
@@ -127,7 +138,9 @@ export class ReaderHighlightsService {
     }
 
     return this.http
-      .delete(`/api/v1/books/highlights/${encodeURIComponent(slug)}/${encodeURIComponent(id)}`)
+      .delete(
+        `/api/v1/books/highlights/${encodeURIComponent(slug)}/${encodeURIComponent(id)}`,
+      )
       .pipe(catchError(() => of(null)));
   }
 

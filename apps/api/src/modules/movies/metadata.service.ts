@@ -1,7 +1,7 @@
-import axios from 'axios';
-import { PrismaClient } from '@prisma/client';
+import axios from "axios";
+import { PrismaClient } from "@prisma/client";
 
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 
 type TmdbSearchResult = {
   id: number;
@@ -51,13 +51,19 @@ type OmdbResponse = {
 export class MetadataService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async fetchAndSaveMetadata(movieId: string, movieTitle: string, year?: number) {
+  async fetchAndSaveMetadata(
+    movieId: string,
+    movieTitle: string,
+    year?: number,
+  ) {
     // Accept both TMDB_KEY and TMDB_API_KEY so either name works in .env
     const tmdbKey = process.env.TMDB_KEY || process.env.TMDB_API_KEY;
     const omdbKey = process.env.OMDB_KEY;
 
     if (!tmdbKey) {
-      throw new Error('TMDB_KEY (or TMDB_API_KEY) is missing. Set it in your API environment.');
+      throw new Error(
+        "TMDB_KEY (or TMDB_API_KEY) is missing. Set it in your API environment.",
+      );
     }
 
     const searchParams = new URLSearchParams({
@@ -65,7 +71,7 @@ export class MetadataService {
       query: movieTitle,
     });
     if (year) {
-      searchParams.set('year', String(year));
+      searchParams.set("year", String(year));
     }
 
     const searchRes = await axios.get<{ results: TmdbSearchResult[] }>(
@@ -74,7 +80,10 @@ export class MetadataService {
     const tmdbResult = searchRes.data.results[0];
 
     if (!tmdbResult) {
-      return { success: false, message: 'No TMDB result found for this title.' };
+      return {
+        success: false,
+        message: "No TMDB result found for this title.",
+      };
     }
 
     const detailsRes = await axios.get<TmdbMovieDetails>(
@@ -82,7 +91,7 @@ export class MetadataService {
       {
         params: {
           api_key: tmdbKey,
-          append_to_response: 'credits,videos,external_ids',
+          append_to_response: "credits,videos,external_ids",
         },
       },
     );
@@ -104,42 +113,60 @@ export class MetadataService {
     const shouldUseOmdb =
       !!details.imdb_id &&
       !!omdbKey &&
-      (!existing?.rottenTomatoes || existing.rottenTomatoes === 'N/A' || !existing.imdbRating);
+      (!existing?.rottenTomatoes ||
+        existing.rottenTomatoes === "N/A" ||
+        !existing.imdbRating);
 
     if (shouldUseOmdb) {
       try {
-        const omdbRes = await axios.get<OmdbResponse>('https://www.omdbapi.com/', {
-          params: {
-            apikey: omdbKey,
-            i: details.imdb_id,
+        const omdbRes = await axios.get<OmdbResponse>(
+          "https://www.omdbapi.com/",
+          {
+            params: {
+              apikey: omdbKey,
+              i: details.imdb_id,
+            },
+            timeout: 8000,
           },
-          timeout: 8000,
-        });
+        );
 
-        const rt = omdbRes.data.Ratings?.find((rating) => rating.Source === 'Rotten Tomatoes');
+        const rt = omdbRes.data.Ratings?.find(
+          (rating) => rating.Source === "Rotten Tomatoes",
+        );
         rottenTomatoes = rt?.Value ?? rottenTomatoes;
         omdbPoster = this.normalizeOmdbPosterUrl(omdbRes.data.Poster);
 
-        if (omdbRes.data.imdbRating && omdbRes.data.imdbRating !== 'N/A') {
+        if (omdbRes.data.imdbRating && omdbRes.data.imdbRating !== "N/A") {
           const parsedImdbRating = Number.parseFloat(omdbRes.data.imdbRating);
           if (Number.isFinite(parsedImdbRating)) {
             imdbRating = parsedImdbRating;
           }
         }
       } catch (error) {
-        console.warn('[MetadataService] OMDB enrichment failed, continuing with TMDB only:',
-          error instanceof Error ? error.message : String(error));
+        console.warn(
+          "[MetadataService] OMDB enrichment failed, continuing with TMDB only:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
 
-    const youtubeTrailer = details.videos?.results?.find(
-      (video) => video.type === 'Trailer' && video.site === 'YouTube' && video.official,
-    ) ?? details.videos?.results?.find(
-      (video) => video.type === 'Trailer' && video.site === 'YouTube',
-    );
+    const youtubeTrailer =
+      details.videos?.results?.find(
+        (video) =>
+          video.type === "Trailer" &&
+          video.site === "YouTube" &&
+          video.official,
+      ) ??
+      details.videos?.results?.find(
+        (video) => video.type === "Trailer" && video.site === "YouTube",
+      );
 
-    const posterUrl = this.tmdbImage(details.poster_path, 'w500') || omdbPoster || existing?.posterUrl || null;
-    const backdropUrl = this.tmdbImage(details.backdrop_path, 'original');
+    const posterUrl =
+      this.tmdbImage(details.poster_path, "w500") ||
+      omdbPoster ||
+      existing?.posterUrl ||
+      null;
+    const backdropUrl = this.tmdbImage(details.backdrop_path, "original");
 
     await this.prisma.movie.update({
       where: { id: movieId },
@@ -153,13 +180,15 @@ export class MetadataService {
         tmdbRating: details.vote_average ?? null,
         imdbRating,
         rottenTomatoes,
-        trailerUrl: youtubeTrailer ? `https://www.youtube.com/watch?v=${youtubeTrailer.key}` : null,
+        trailerUrl: youtubeTrailer
+          ? `https://www.youtube.com/watch?v=${youtubeTrailer.key}`
+          : null,
         cast: {
           deleteMany: {},
           create: (details.credits?.cast ?? []).slice(0, 8).map((actor) => ({
             name: actor.name,
             character: actor.character ?? null,
-            photoUrl: this.tmdbImage(actor.profile_path ?? null, 'w200'),
+            photoUrl: this.tmdbImage(actor.profile_path ?? null, "w200"),
           })),
         },
       },
@@ -168,7 +197,10 @@ export class MetadataService {
     return { success: true, title: details.title };
   }
 
-  private tmdbImage(path: string | null | undefined, size: 'w200' | 'w500' | 'original') {
+  private tmdbImage(
+    path: string | null | undefined,
+    size: "w200" | "w500" | "original",
+  ) {
     if (!path) {
       return null;
     }
@@ -177,7 +209,7 @@ export class MetadataService {
   }
 
   private normalizeOmdbPosterUrl(poster: string | undefined): string | null {
-    if (!poster || poster === 'N/A') {
+    if (!poster || poster === "N/A") {
       return null;
     }
 

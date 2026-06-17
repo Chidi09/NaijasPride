@@ -14,10 +14,13 @@ const makeEventId = () =>
     .join("");
 
 const readMeta = (name: string) =>
-  document.querySelector(`meta[name="${name}"]`)?.getAttribute("content") || undefined;
+  document.querySelector(`meta[name="${name}"]`)?.getAttribute("content") ||
+  undefined;
 
 const buildConfig = (): SentryWebConfig => {
-  const dsn = (window as { __SENTRY_DSN__?: string }).__SENTRY_DSN__ || readMeta("sentry-dsn");
+  const dsn =
+    (window as { __SENTRY_DSN__?: string }).__SENTRY_DSN__ ||
+    readMeta("sentry-dsn");
   if (!dsn) return null;
 
   try {
@@ -54,7 +57,10 @@ const postEvent = async (payload: unknown) => {
   }
 };
 
-export const captureSentryWebException = (error: unknown, context: SentryWebContext = {}) => {
+export const captureSentryWebException = (
+  error: unknown,
+  context: SentryWebContext = {},
+) => {
   if (!config) return;
   const normalized = error instanceof Error ? error : new Error(String(error));
   const event = {
@@ -72,10 +78,12 @@ export const captureSentryWebException = (error: unknown, context: SentryWebCont
           type: normalized.name || "Error",
           value: normalized.message,
           stacktrace: {
-            frames: (normalized.stack?.split("\n") || []).map((line, index) => ({
-              function: line.trim(),
-              lineno: index + 1,
-            })),
+            frames: (normalized.stack?.split("\n") || []).map(
+              (line, index) => ({
+                function: line.trim(),
+                lineno: index + 1,
+              }),
+            ),
           },
         },
       ],

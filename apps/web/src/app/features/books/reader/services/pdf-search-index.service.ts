@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable } from "@angular/core";
 
 type PageKey = {
   slug: string;
@@ -16,12 +16,12 @@ type PageRow = {
   sv: string;
 };
 
-const DB_NAME = 'np_reader_pdf_search_v1';
+const DB_NAME = "np_reader_pdf_search_v1";
 const DB_VERSION = 1;
-const STORE = 'pages';
+const STORE = "pages";
 
 @Injectable({
-  providedIn: 'root',
+  providedIn: "root",
 })
 export class PdfSearchIndexService {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -31,7 +31,7 @@ export class PdfSearchIndexService {
       const db = await this.open();
       const id = this.rowId(key);
       return await new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readonly');
+        const tx = db.transaction(STORE, "readonly");
         const store = tx.objectStore(STORE);
         const req = store.get(id);
         req.onsuccess = () => {
@@ -60,7 +60,7 @@ export class PdfSearchIndexService {
       };
 
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
+        const tx = db.transaction(STORE, "readwrite");
         const store = tx.objectStore(STORE);
         const req = store.put(row);
         req.onsuccess = () => resolve();
@@ -77,9 +77,9 @@ export class PdfSearchIndexService {
       const sv = this.slugVersion(slug, version);
 
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
+        const tx = db.transaction(STORE, "readwrite");
         const store = tx.objectStore(STORE);
-        const index = store.index('sv');
+        const index = store.index("sv");
         const range = IDBKeyRange.only(sv);
         const req = index.openCursor(range);
         req.onsuccess = () => {
@@ -106,8 +106,8 @@ export class PdfSearchIndexService {
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(STORE)) {
-          const store = db.createObjectStore(STORE, { keyPath: 'id' });
-          store.createIndex('sv', 'sv', { unique: false });
+          const store = db.createObjectStore(STORE, { keyPath: "id" });
+          store.createIndex("sv", "sv", { unique: false });
         }
       };
       req.onsuccess = () => resolve(req.result);

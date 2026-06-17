@@ -1,53 +1,83 @@
-import { FastifyPluginAsync } from 'fastify';
-import { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { z } from 'zod';
-import { PassThrough } from 'node:stream';
-import { getAnimepaheRuntimeStats, resolveAnimepaheEpisodesByTitles, resolveAnimepaheWatchByTitles } from './animepahe-resolver';
-import { resolveDirectMediaFromEmbed } from './embed-stream-resolver';
-import { extractVideoSources, VideoSource } from './video-source-extractor';
+import { FastifyPluginAsync } from "fastify";
+import { ZodTypeProvider } from "fastify-type-provider-zod";
+import { z } from "zod";
+import {
+  NotFoundError,
+  ExternalServiceError,
+  BadRequestError,
+} from "../../shared/errors/app-error";
+import { PassThrough } from "node:stream";
+import {
+  getAnimepaheRuntimeStats,
+  resolveAnimepaheEpisodesByTitles,
+  resolveAnimepaheWatchByTitles,
+} from "./animepahe-resolver";
+import { resolveDirectMediaFromEmbed } from "./embed-stream-resolver";
+import { extractVideoSources, VideoSource } from "./video-source-extractor";
 import {
   createResolutionTrace,
   pushResolutionEvent,
   summarizeResolutionTrace,
   type ResolutionTraceEvent,
-} from './anime-resolution-observability';
-import { searchAniWatch, getAniWatchEpisodes, getAniWatchSources } from './aniwatch-provider';
+} from "./anime-resolution-observability";
+import {
+  searchAniWatch,
+  getAniWatchEpisodes,
+  getAniWatchSources,
+} from "./aniwatch-provider";
 import {
   getEpisodesMultiProvider,
   getSourcesMultiProvider,
   getProvidersHealth,
-  type ProviderType
-} from './anime-provider-manager';
-import { getEmbedSources, isEmbedProviderAvailable } from './embed-provider';
-import { resolveGoGoAnimeByEpisode } from './gogoanime-by-provider';
+  type ProviderType,
+} from "./anime-provider-manager";
+import { getEmbedSources, isEmbedProviderAvailable } from "./embed-provider";
+import { resolveGoGoAnimeByEpisode } from "./gogoanime-by-provider";
 
-const ANILIST_API_URL = 'https://graphql.anilist.co';
+const ANILIST_API_URL = "https://graphql.anilist.co";
 const ANILIST_TIMEOUT_MS = 12_000;
 const ANIME_BRIDGE_BASE_URLS = (
-  process.env.ANIME_BRIDGE_BASE_URLS || process.env.ANIME_BRIDGE_BASE_URL || ''
+  process.env.ANIME_BRIDGE_BASE_URLS ||
+  process.env.ANIME_BRIDGE_BASE_URL ||
+  ""
 )
-  .split(',')
-  .map((entry) => entry.trim().replace(/\/+$/, ''))
+  .split(",")
+  .map((entry) => entry.trim().replace(/\/+$/, ""))
   .filter(Boolean);
-const ANIME_BRIDGE_DEFAULT_PROVIDER = process.env.ANIME_BRIDGE_PROVIDER || 'auto';
+const ANIME_BRIDGE_DEFAULT_PROVIDER =
+  process.env.ANIME_BRIDGE_PROVIDER || "auto";
 const ANIME_BRIDGE_TIMEOUT_MS = 15_000;
 // Prioritize working providers - gogoanime/zoro are often down
-const ANIME_BRIDGE_FALLBACK_PROVIDERS = ['aniwatch', 'animepahe'];
+const ANIME_BRIDGE_FALLBACK_PROVIDERS = ["aniwatch", "animepahe"];
 
-const mediaSeasonSchema = z.enum(['WINTER', 'SPRING', 'SUMMER', 'FALL']);
-const mediaFormatSchema = z.enum(['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC']);
-const mediaStatusSchema = z.enum(['FINISHED', 'RELEASING', 'NOT_YET_RELEASED', 'CANCELLED', 'HIATUS']);
-const mediaSortSchema = z.enum([
-  'TRENDING_DESC',
-  'POPULARITY_DESC',
-  'SCORE_DESC',
-  'FAVOURITES_DESC',
-  'START_DATE_DESC',
-  'START_DATE',
-  'TITLE_ROMAJI',
-  'TITLE_ROMAJI_DESC',
+const mediaSeasonSchema = z.enum(["WINTER", "SPRING", "SUMMER", "FALL"]);
+const mediaFormatSchema = z.enum([
+  "TV",
+  "TV_SHORT",
+  "MOVIE",
+  "SPECIAL",
+  "OVA",
+  "ONA",
+  "MUSIC",
 ]);
-const countryCodeSchema = z.enum(['JP', 'KR', 'CN', 'TW', 'US']);
+const mediaStatusSchema = z.enum([
+  "FINISHED",
+  "RELEASING",
+  "NOT_YET_RELEASED",
+  "CANCELLED",
+  "HIATUS",
+]);
+const mediaSortSchema = z.enum([
+  "TRENDING_DESC",
+  "POPULARITY_DESC",
+  "SCORE_DESC",
+  "FAVOURITES_DESC",
+  "START_DATE_DESC",
+  "START_DATE",
+  "TITLE_ROMAJI",
+  "TITLE_ROMAJI_DESC",
+]);
+const countryCodeSchema = z.enum(["JP", "KR", "CN", "TW", "US"]);
 
 const animeSearchQuerySchema = z.object({
   q: z.string().trim().optional(),
@@ -59,7 +89,7 @@ const animeSearchQuerySchema = z.object({
   status: mediaStatusSchema.optional(),
   genre: z.string().trim().min(2).max(50).optional(),
   countryOfOrigin: countryCodeSchema.optional(),
-  sort: mediaSortSchema.default('TRENDING_DESC'),
+  sort: mediaSortSchema.default("TRENDING_DESC"),
   isAdult: z.coerce.boolean().default(false),
 });
 
@@ -68,7 +98,12 @@ const animeByIdParamsSchema = z.object({
 });
 
 const animeEpisodesQuerySchema = z.object({
-  provider: z.string().trim().min(2).max(32).default(ANIME_BRIDGE_DEFAULT_PROVIDER),
+  provider: z
+    .string()
+    .trim()
+    .min(2)
+    .max(32)
+    .default(ANIME_BRIDGE_DEFAULT_PROVIDER),
 });
 
 const animeWatchParamsSchema = z.object({
@@ -77,9 +112,14 @@ const animeWatchParamsSchema = z.object({
 });
 
 const animeWatchQuerySchema = z.object({
-  provider: z.string().trim().min(2).max(32).default(ANIME_BRIDGE_DEFAULT_PROVIDER),
+  provider: z
+    .string()
+    .trim()
+    .min(2)
+    .max(32)
+    .default(ANIME_BRIDGE_DEFAULT_PROVIDER),
   server: z.string().trim().min(2).max(64).optional(),
-  type: z.enum(['sub', 'dub']).default('sub'),
+  type: z.enum(["sub", "dub"]).default("sub"),
 });
 
 const animeProxyQuerySchema = z.object({
@@ -89,14 +129,27 @@ const animeProxyQuerySchema = z.object({
 
 // Simple in-memory cache with TTL for video sources
 const VIDEO_SOURCE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const videoSourceCache = new Map<string, { sources: VideoSource[]; timestamp: number }>();
+const videoSourceCache = new Map<
+  string,
+  { sources: VideoSource[]; timestamp: number }
+>();
 
 const ANIME_EPISODES_CACHE_TTL_MS = 90 * 1000;
 const ANIME_WATCH_CACHE_TTL_MS = 60 * 1000;
-const animeEpisodesCache = new Map<string, { payload: unknown; timestamp: number }>();
-const animeWatchCache = new Map<string, { payload: unknown; timestamp: number }>();
+const animeEpisodesCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
+const animeWatchCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
 
-const readCachedPayload = (cache: Map<string, { payload: unknown; timestamp: number }>, key: string, ttlMs: number): unknown | null => {
+const readCachedPayload = (
+  cache: Map<string, { payload: unknown; timestamp: number }>,
+  key: string,
+  ttlMs: number,
+): unknown | null => {
   const cached = cache.get(key);
   if (!cached) return null;
   if (Date.now() - cached.timestamp > ttlMs) {
@@ -106,20 +159,24 @@ const readCachedPayload = (cache: Map<string, { payload: unknown; timestamp: num
   return cached.payload;
 };
 
-const writeCachedPayload = (cache: Map<string, { payload: unknown; timestamp: number }>, key: string, payload: unknown): void => {
+const writeCachedPayload = (
+  cache: Map<string, { payload: unknown; timestamp: number }>,
+  key: string,
+  payload: unknown,
+): void => {
   cache.set(key, { payload, timestamp: Date.now() });
 };
 
 function getCachedVideoSources(key: string): VideoSource[] | null {
   const cached = videoSourceCache.get(key);
   if (!cached) return null;
-  
+
   const now = Date.now();
   if (now - cached.timestamp > VIDEO_SOURCE_CACHE_TTL_MS) {
     videoSourceCache.delete(key);
     return null;
   }
-  
+
   return cached.sources;
 }
 
@@ -313,16 +370,19 @@ type BridgeWatchResponse = {
   link?: string;
 };
 
-async function anilistRequest<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+async function anilistRequest<T>(
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANILIST_TIMEOUT_MS);
 
   try {
     const response = await fetch(ANILIST_API_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({ query, variables }),
       signal: controller.signal,
@@ -334,10 +394,12 @@ async function anilistRequest<T>(query: string, variables: Record<string, unknow
 
     const payload = (await response.json()) as AniListResponse<T>;
     if (payload.errors?.length) {
-      throw new Error(payload.errors[0]?.message || 'AniList returned an error');
+      throw new Error(
+        payload.errors[0]?.message || "AniList returned an error",
+      );
     }
     if (!payload.data) {
-      throw new Error('AniList returned an empty response');
+      throw new Error("AniList returned an empty response");
     }
 
     return payload.data;
@@ -347,28 +409,36 @@ async function anilistRequest<T>(query: string, variables: Record<string, unknow
 }
 
 async function bridgeRequest<T>(path: string): Promise<T> {
-  const candidates = ANIME_BRIDGE_BASE_URLS.length > 0 ? ANIME_BRIDGE_BASE_URLS : ['https://api.consumet.org'];
+  const candidates =
+    ANIME_BRIDGE_BASE_URLS.length > 0
+      ? ANIME_BRIDGE_BASE_URLS
+      : ["https://api.consumet.org"];
   let lastError: Error | null = null;
 
   for (const baseUrl of candidates) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      ANIME_BRIDGE_TIMEOUT_MS,
+    );
 
     try {
       const response = await fetch(`${baseUrl}${path}`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          Accept: 'application/json',
+          Accept: "application/json",
         },
         signal: controller.signal,
       });
 
       if (!response.ok) {
-        throw new Error(`Anime bridge request failed with status ${response.status} (${baseUrl})`);
+        throw new Error(
+          `Anime bridge request failed with status ${response.status} (${baseUrl})`,
+        );
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
         throw new Error(`Anime bridge returned non-JSON response (${baseUrl})`);
       }
 
@@ -381,12 +451,17 @@ async function bridgeRequest<T>(path: string): Promise<T> {
     }
   }
 
-  throw lastError || new Error('All anime bridge endpoints failed');
+  throw lastError || new Error("All anime bridge endpoints failed");
 }
 
 const mapEpisodes = (episodes: BridgeInfoEpisode[] = []) =>
   episodes
-    .filter((entry) => !!entry?.id && Number.isFinite(entry?.number || 0) && (entry?.number || 0) > 0)
+    .filter(
+      (entry) =>
+        !!entry?.id &&
+        Number.isFinite(entry?.number || 0) &&
+        (entry?.number || 0) > 0,
+    )
     .map((entry) => ({
       id: String(entry.id),
       number: Math.floor(Number(entry.number)),
@@ -438,7 +513,9 @@ const hianimeEpisodeIdsFromBridgeId = (bridgeEpisodeId: string): string[] => {
   return Array.from(candidates);
 };
 
-async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFallbackResult> {
+async function hianimeEmbedFallback(
+  bridgeEpisodeId: string,
+): Promise<HianimeFallbackResult> {
   const hianimeEpisodeIds = hianimeEpisodeIdsFromBridgeId(bridgeEpisodeId);
   if (hianimeEpisodeIds.length === 0) return { sources: [], headers: {} };
 
@@ -451,18 +528,26 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
         `https://hianimez.to/ajax/v2/episode/servers?episodeId=${encodeURIComponent(hianimeEpisodeId)}`,
         {
           headers: {
-            Accept: 'application/json',
-            'User-Agent': 'Mozilla/5.0',
+            Accept: "application/json",
+            "User-Agent": "Mozilla/5.0",
           },
           signal: controller.signal,
         },
       );
 
       if (!serversResponse.ok) continue;
-      const serversPayload = (await serversResponse.json()) as { html?: string };
-      const html = serversPayload.html || '';
+      const serversPayload = (await serversResponse.json()) as {
+        html?: string;
+      };
+      const html = serversPayload.html || "";
 
-      const serverIds = Array.from(new Set(Array.from(html.matchAll(/data-id="(\d+)"/g)).map((entry) => entry[1])));
+      const serverIds = Array.from(
+        new Set(
+          Array.from(html.matchAll(/data-id="(\d+)"/g)).map(
+            (entry) => entry[1],
+          ),
+        ),
+      );
       if (serverIds.length === 0) continue;
 
       const sources: HianimeFallbackSource[] = [];
@@ -472,15 +557,18 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
           `https://hianimez.to/ajax/v2/episode/sources?id=${encodeURIComponent(serverId)}`,
           {
             headers: {
-              Accept: 'application/json',
-              'User-Agent': 'Mozilla/5.0',
+              Accept: "application/json",
+              "User-Agent": "Mozilla/5.0",
             },
             signal: controller.signal,
           },
         );
         if (!sourceResponse.ok) continue;
 
-        const payload = (await sourceResponse.json()) as { link?: string; sources?: Array<{url: string; quality?: string; isM3U8?: boolean}> };
+        const payload = (await sourceResponse.json()) as {
+          link?: string;
+          sources?: Array<{ url: string; quality?: string; isM3U8?: boolean }>;
+        };
         if (!payload.link) continue;
 
         // Check if we have direct sources
@@ -490,18 +578,18 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
               sources.push({
                 url: source.url,
                 quality: source.quality || `server-${serverId}`,
-                isM3U8: source.isM3U8 || source.url.includes('.m3u8'),
+                isM3U8: source.isM3U8 || source.url.includes(".m3u8"),
                 isEmbed: false,
               });
             }
           }
         }
-        
+
         // Try to extract video sources from embed using Playwright (with timeout)
         if (sources.length === 0) {
           const cacheKey = `${hianimeEpisodeId}-${serverId}`;
           const cachedSources = getCachedVideoSources(cacheKey);
-          
+
           if (cachedSources && cachedSources.length > 0) {
             for (const src of cachedSources) {
               sources.push({
@@ -513,14 +601,16 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
             }
           } else {
             // Try extraction with timeout - don't block response
-            extractVideoSources(payload.link).then(extractedSources => {
-              if (extractedSources.length > 0) {
-                setCachedVideoSources(cacheKey, extractedSources);
-              }
-            }).catch(() => {
-              // Extraction failed, cache will remain empty
-            });
-            
+            extractVideoSources(payload.link)
+              .then((extractedSources) => {
+                if (extractedSources.length > 0) {
+                  setCachedVideoSources(cacheKey, extractedSources);
+                }
+              })
+              .catch(() => {
+                // Extraction failed, cache will remain empty
+              });
+
             // Return embed URL immediately while extraction happens in background
             sources.push({
               url: payload.link,
@@ -530,7 +620,7 @@ async function hianimeEmbedFallback(bridgeEpisodeId: string): Promise<HianimeFal
             });
           }
         }
-        
+
         if (!preferredReferer) {
           preferredReferer = payload.link;
         }
@@ -560,7 +650,9 @@ const extractHianimeAnimeIdsFromSuggestHtml = (html: string): string[] => {
   return Array.from(ids);
 };
 
-const hianimeSearchAnimeIdsByTitles = async (titles: string[]): Promise<string[]> => {
+const hianimeSearchAnimeIdsByTitles = async (
+  titles: string[],
+): Promise<string[]> => {
   const ids = new Set<string>();
 
   for (const title of titles.slice(0, 4)) {
@@ -568,22 +660,28 @@ const hianimeSearchAnimeIdsByTitles = async (titles: string[]): Promise<string[]
     if (!query) continue;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      ANIME_BRIDGE_TIMEOUT_MS,
+    );
     try {
       const response = await fetch(
         `https://hianimez.to/ajax/search/suggest?keyword=${encodeURIComponent(query)}`,
         {
           headers: {
-            Accept: 'application/json',
-            'User-Agent': 'Mozilla/5.0',
+            Accept: "application/json",
+            "User-Agent": "Mozilla/5.0",
           },
           signal: controller.signal,
         },
       );
       if (!response.ok) continue;
       const payload = (await response.json()) as { html?: string };
-      const html = payload.html || '';
-      for (const id of extractHianimeAnimeIdsFromSuggestHtml(html).slice(0, 5)) {
+      const html = payload.html || "";
+      for (const id of extractHianimeAnimeIdsFromSuggestHtml(html).slice(
+        0,
+        5,
+      )) {
         ids.add(id);
       }
     } catch {
@@ -597,31 +695,41 @@ const hianimeSearchAnimeIdsByTitles = async (titles: string[]): Promise<string[]
 };
 
 const extractAttr = (tag: string, name: string): string | null => {
-  const match = tag.match(new RegExp(`${name}="([^"]+)"`, 'i'));
+  const match = tag.match(new RegExp(`${name}="([^"]+)"`, "i"));
   return match?.[1] || null;
 };
 
-const hianimeEpisodeIdByAnimeIdAndNumber = async (animeId: string, episodeNumber: number): Promise<string | null> => {
+const hianimeEpisodeIdByAnimeIdAndNumber = async (
+  animeId: string,
+  episodeNumber: number,
+): Promise<string | null> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANIME_BRIDGE_TIMEOUT_MS);
   try {
-    const response = await fetch(`https://hianime.to/ajax/v2/episode/list/${encodeURIComponent(animeId)}`, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Mozilla/5.0',
+    const response = await fetch(
+      `https://hianime.to/ajax/v2/episode/list/${encodeURIComponent(animeId)}`,
+      {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "Mozilla/5.0",
+        },
+        signal: controller.signal,
       },
-      signal: controller.signal,
-    });
+    );
     if (!response.ok) return null;
 
     const payload = (await response.json()) as { html?: string };
-    const html = payload.html || '';
+    const html = payload.html || "";
     for (const tagMatch of html.matchAll(/<a\b[^>]*>/gi)) {
-      const tag = tagMatch[0] || '';
-      const numberAttr = extractAttr(tag, 'data-number');
-      const idAttr = extractAttr(tag, 'data-id');
+      const tag = tagMatch[0] || "";
+      const numberAttr = extractAttr(tag, "data-number");
+      const idAttr = extractAttr(tag, "data-id");
       const number = Number(numberAttr || 0);
-      if (idAttr && Number.isFinite(number) && Math.floor(number) === episodeNumber) {
+      if (
+        idAttr &&
+        Number.isFinite(number) &&
+        Math.floor(number) === episodeNumber
+      ) {
         return idAttr;
       }
     }
@@ -634,10 +742,16 @@ const hianimeEpisodeIdByAnimeIdAndNumber = async (animeId: string, episodeNumber
   }
 };
 
-const hianimeEmbedFallbackByTitles = async (titles: string[], episodeNumber: number): Promise<HianimeFallbackResult> => {
+const hianimeEmbedFallbackByTitles = async (
+  titles: string[],
+  episodeNumber: number,
+): Promise<HianimeFallbackResult> => {
   const animeIds = await hianimeSearchAnimeIdsByTitles(titles);
   for (const animeId of animeIds.slice(0, 6)) {
-    const episodeId = await hianimeEpisodeIdByAnimeIdAndNumber(animeId, episodeNumber);
+    const episodeId = await hianimeEpisodeIdByAnimeIdAndNumber(
+      animeId,
+      episodeNumber,
+    );
     if (!episodeId) continue;
 
     const result = await hianimeEmbedFallback(episodeId);
@@ -650,26 +764,41 @@ const hianimeEmbedFallbackByTitles = async (titles: string[], episodeNumber: num
 const providersForRequest = (provider: string): string[] => {
   const normalized = provider.trim().toLowerCase();
   // Aniwatch is now the primary working provider
-  if (!normalized || normalized === 'auto') {
-    return ['aniwatch', ...ANIME_BRIDGE_FALLBACK_PROVIDERS];
+  if (!normalized || normalized === "auto") {
+    return ["aniwatch", ...ANIME_BRIDGE_FALLBACK_PROVIDERS];
   }
   // If specific provider requested, try it first then fall back to aniwatch
-  if (normalized !== 'aniwatch') {
-    return [normalized, 'aniwatch', ...ANIME_BRIDGE_FALLBACK_PROVIDERS.filter((entry) => entry !== normalized && entry !== 'aniwatch')];
+  if (normalized !== "aniwatch") {
+    return [
+      normalized,
+      "aniwatch",
+      ...ANIME_BRIDGE_FALLBACK_PROVIDERS.filter(
+        (entry) => entry !== normalized && entry !== "aniwatch",
+      ),
+    ];
   }
-  return [normalized, ...ANIME_BRIDGE_FALLBACK_PROVIDERS.filter((entry) => entry !== normalized)];
+  return [
+    normalized,
+    ...ANIME_BRIDGE_FALLBACK_PROVIDERS.filter((entry) => entry !== normalized),
+  ];
 };
 
 const shouldTryAnimepahePrimary = (provider: string): boolean => {
   // Disabled: animepahe uses Playwright which causes timeouts
   // Only enable if explicitly requested with provider=animepahe
   const normalized = provider.trim().toLowerCase();
-  return normalized === 'animepahe';
+  return normalized === "animepahe";
 };
 
 const isPrivateHost = (hostname: string): boolean => {
   const host = hostname.toLowerCase();
-  if (host === 'localhost' || host === '0.0.0.0' || host === '::1' || host.endsWith('.local')) return true;
+  if (
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host.endsWith(".local")
+  )
+    return true;
   if (/^127\./.test(host)) return true;
   if (/^10\./.test(host)) return true;
   if (/^192\.168\./.test(host)) return true;
@@ -682,14 +811,18 @@ const proxifyUrl = (target: string, referer: string): string => {
   return `/api/v1/anime/proxy/stream?${params.toString()}`;
 };
 
-const rewritePlaylist = (playlist: string, playlistUrl: URL, referer: string): string => {
-  const lines = playlist.split('\n');
+const rewritePlaylist = (
+  playlist: string,
+  playlistUrl: URL,
+  referer: string,
+): string => {
+  const lines = playlist.split("\n");
   return lines
     .map((line) => {
       const trimmed = line.trim();
       if (!trimmed) return line;
 
-      if (trimmed.startsWith('#')) {
+      if (trimmed.startsWith("#")) {
         if (trimmed.includes('URI="')) {
           return line.replace(/URI="([^"]+)"/g, (_, uri) => {
             try {
@@ -710,7 +843,7 @@ const rewritePlaylist = (playlist: string, playlistUrl: URL, referer: string): s
         return line;
       }
     })
-    .join('\n');
+    .join("\n");
 };
 
 const proxyReadableBody = (body: ReadableStream<Uint8Array>): PassThrough => {
@@ -736,7 +869,10 @@ const proxyReadableBody = (body: ReadableStream<Uint8Array>): PassThrough => {
 };
 
 const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
-  const data = await anilistRequest<{ Media: AniListMediaWithTitle | null }>(ANIME_DETAIL_QUERY, { id });
+  const data = await anilistRequest<{ Media: AniListMediaWithTitle | null }>(
+    ANIME_DETAIL_QUERY,
+    { id },
+  );
   const media = data.Media;
   if (!media) return [];
 
@@ -750,7 +886,7 @@ const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
   return Array.from(
     new Set(
       values
-        .filter((entry): entry is string => typeof entry === 'string')
+        .filter((entry): entry is string => typeof entry === "string")
         .map((entry) => entry.trim())
         .filter(Boolean),
     ),
@@ -760,796 +896,582 @@ const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
-  const logResolutionTrace = (request: { log: { info: (payload: unknown, message: string) => void } }, trace: ResolutionTraceEvent[]) => {
-    request.log.info({ traceSummary: summarizeResolutionTrace(trace), trace }, 'Anime resolution trace');
+  const logResolutionTrace = (
+    request: { log: { info: (payload: unknown, message: string) => void } },
+    trace: ResolutionTraceEvent[],
+  ) => {
+    request.log.info(
+      { traceSummary: summarizeResolutionTrace(trace), trace },
+      "Anime resolution trace",
+    );
   };
 
   // Health check endpoint for anime providers
-  app.get('/health', async (request, reply) => {
-    try {
-      const health = await getProvidersHealth();
-      return reply.send({
-        success: true,
-        data: health,
-      });
-    } catch (error) {
-      return reply.status(500).send({
-        success: false,
-        error: {
-          code: 'HEALTH_CHECK_FAILED',
-          message: error instanceof Error ? error.message : 'Health check failed',
-        },
-      });
-    }
+  app.get("/health", async (request, reply) => {
+    const health = await getProvidersHealth();
+    return reply.send({
+      success: true,
+      data: health,
+    });
   });
 
-  app.get('/search', {
-    schema: {
-      querystring: animeSearchQuerySchema,
-    },
-  }, async (request, reply) => {
-    try {
-      const query = request.query;
-      const data = await anilistRequest<{ Page: unknown }>(SEARCH_ANIME_QUERY, {
-        page: query.page,
-        perPage: query.perPage,
-        search: query.q,
-        season: query.season,
-        seasonYear: query.seasonYear,
-        format: query.format,
-        status: query.status,
-        genre: query.genre,
-        countryOfOrigin: query.countryOfOrigin,
-        sort: [query.sort],
-        isAdult: query.isAdult,
-      });
-
-      return reply.send({
-        success: true,
-        data: data.Page,
-      });
-    } catch (error) {
-      request.log.error({ error }, 'AniList anime search failed');
-      return reply.status(502).send({
-        success: false,
-        error: {
-          code: 'ANILIST_SEARCH_FAILED',
-          message: error instanceof Error ? error.message : 'AniList anime search failed',
-        },
-      });
-    }
-  });
-
-  app.get('/proxy/stream', {
-    schema: {
-      querystring: animeProxyQuerySchema,
-    },
-    config: {
-      rateLimit: {
-        max: 120,
-        timeWindow: '1 minute',
+  app.get(
+    "/search",
+    {
+      schema: {
+        querystring: animeSearchQuerySchema,
       },
     },
-  }, async (request, reply) => {
-    const { url, referer } = request.query;
-
-    let targetUrl: URL;
-    try {
-      targetUrl = new URL(url);
-    } catch {
-      return reply.status(400).send({ success: false, error: { code: 'INVALID_URL', message: 'Invalid target URL' } });
-    }
-
-    if (!['http:', 'https:'].includes(targetUrl.protocol) || isPrivateHost(targetUrl.hostname)) {
-      return reply.status(400).send({ success: false, error: { code: 'DISALLOWED_URL', message: 'Target URL is not allowed' } });
-    }
-
-    const upstreamReferer = referer || `${targetUrl.protocol}//${targetUrl.hostname}/`;
-    let upstreamOrigin: string | undefined;
-    try {
-      upstreamOrigin = new URL(upstreamReferer).origin;
-    } catch {
-      upstreamOrigin = undefined;
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20_000);
-    try {
-      const upstream = await fetch(targetUrl.toString(), {
-        headers: {
-          Accept: '*/*',
-          Referer: upstreamReferer,
-          ...(upstreamOrigin ? { Origin: upstreamOrigin } : {}),
-          'User-Agent': 'Mozilla/5.0',
-        },
-        signal: controller.signal,
-      });
-
-      if (!upstream.ok) {
-        return reply.status(upstream.status).send({
-          success: false,
-          error: {
-            code: 'UPSTREAM_FAILED',
-            message: `Proxy upstream failed with status ${upstream.status}`,
+    async (request, reply) => {
+      try {
+        const query = request.query;
+        const data = await anilistRequest<{ Page: unknown }>(
+          SEARCH_ANIME_QUERY,
+          {
+            page: query.page,
+            perPage: query.perPage,
+            search: query.q,
+            season: query.season,
+            seasonYear: query.seasonYear,
+            format: query.format,
+            status: query.status,
+            genre: query.genre,
+            countryOfOrigin: query.countryOfOrigin,
+            sort: [query.sort],
+            isAdult: query.isAdult,
           },
+        );
+
+        return reply.send({
+          success: true,
+          data: data.Page,
         });
+      } catch (error) {
+        request.log.error({ error }, "AniList anime search failed");
+        throw new ExternalServiceError();
       }
-
-      const contentType = upstream.headers.get('content-type') || '';
-      const cacheControl = upstream.headers.get('cache-control') || 'no-store';
-      reply.header('Cache-Control', cacheControl);
-      if (contentType) reply.header('Content-Type', contentType);
-      reply.header('Access-Control-Allow-Origin', '*');
-
-      if (contentType.includes('application/vnd.apple.mpegurl') || contentType.includes('application/x-mpegURL') || targetUrl.pathname.endsWith('.m3u8')) {
-        const rawPlaylist = await upstream.text();
-        const rewritten = rewritePlaylist(rawPlaylist, targetUrl, upstreamReferer);
-        reply.header('Content-Type', 'application/vnd.apple.mpegurl');
-        return reply.send(rewritten);
-      }
-
-      const contentLength = upstream.headers.get('content-length');
-      if (contentLength) reply.header('Content-Length', contentLength);
-
-      if (!upstream.body) {
-        const buffer = Buffer.from(await upstream.arrayBuffer());
-        return reply.send(buffer);
-      }
-
-      return reply.send(proxyReadableBody(upstream.body as ReadableStream<Uint8Array>));
-    } catch (error) {
-      request.log.warn({ error, target: targetUrl.toString() }, 'Anime stream proxy failed');
-      return reply.status(502).send({
-        success: false,
-        error: {
-          code: 'PROXY_FAILED',
-          message: 'Failed to proxy stream URL',
-        },
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-  });
-
-  app.get('/:id', {
-    schema: {
-      params: animeByIdParamsSchema,
     },
-  }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const data = await anilistRequest<{ Media: unknown | null }>(ANIME_DETAIL_QUERY, { id });
+  );
 
-      if (!data.Media) {
-        return reply.status(404).send({
-          success: false,
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Anime not found on AniList',
+  app.get(
+    "/proxy/stream",
+    {
+      schema: {
+        querystring: animeProxyQuerySchema,
+      },
+      config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      const { url, referer } = request.query;
+
+      let targetUrl: URL;
+      try {
+        targetUrl = new URL(url);
+      } catch {
+        throw new BadRequestError();
+      }
+
+      if (
+        !["http:", "https:"].includes(targetUrl.protocol) ||
+        isPrivateHost(targetUrl.hostname)
+      ) {
+        throw new BadRequestError();
+      }
+
+      const upstreamReferer =
+        referer || `${targetUrl.protocol}//${targetUrl.hostname}/`;
+      let upstreamOrigin: string | undefined;
+      try {
+        upstreamOrigin = new URL(upstreamReferer).origin;
+      } catch {
+        upstreamOrigin = undefined;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20_000);
+      try {
+        const upstream = await fetch(targetUrl.toString(), {
+          headers: {
+            Accept: "*/*",
+            Referer: upstreamReferer,
+            ...(upstreamOrigin ? { Origin: upstreamOrigin } : {}),
+            "User-Agent": "Mozilla/5.0",
           },
+          signal: controller.signal,
         });
-      }
 
-      return reply.send({
-        success: true,
-        data: data.Media,
-      });
-    } catch (error) {
-      request.log.error({ error }, 'AniList anime detail fetch failed');
-      return reply.status(502).send({
-        success: false,
-        error: {
-          code: 'ANILIST_DETAIL_FAILED',
-          message: error instanceof Error ? error.message : 'AniList anime detail fetch failed',
-        },
-      });
-    }
-  });
-
-  app.get('/:id/episodes', {
-    schema: {
-      params: animeByIdParamsSchema,
-      querystring: animeEpisodesQuerySchema,
-    },
-    config: {
-      rateLimit: {
-        max: 45,
-        timeWindow: '1 minute',
-      },
-    },
-  }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const { provider } = request.query;
-      const episodesCacheKey = `${id}|${provider}`;
-      const cachedEpisodes = readCachedPayload(animeEpisodesCache, episodesCacheKey, ANIME_EPISODES_CACHE_TTL_MS);
-      if (cachedEpisodes) {
-        return reply.send(cachedEpisodes);
-      }
-      const resolutionTrace = createResolutionTrace();
-      const sendEpisodesSuccess = (payload: unknown) => {
-        writeCachedPayload(animeEpisodesCache, episodesCacheKey, payload);
-        return reply.send(payload);
-      };
-
-      if (shouldTryAnimepahePrimary(provider)) {
-        try {
-          const titles = await anilistTitlesForAnime(id);
-          const animepahe = await resolveAnimepaheEpisodesByTitles(titles);
-          if (animepahe && animepahe.episodes.length > 0) {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'animepahe-episodes',
-              provider: 'animepahe',
-              outcome: 'success',
-            });
-            logResolutionTrace(request, resolutionTrace);
-            return sendEpisodesSuccess({
-              success: true,
-              data: {
-                id,
-                provider: 'animepahe',
-                requestedProvider: provider,
-                animeTitle: animepahe.animeTitle,
-                episodes: animepahe.episodes,
-                bridgeAvailable: true,
-                message: null,
-                resolutionTrace,
-                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-                animepaheRuntime: getAnimepaheRuntimeStats(),
-              },
-            });
-          }
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'animepahe-episodes',
-            provider: 'animepahe',
-            outcome: 'miss',
-            detail: 'No animepahe episodes resolved',
-          });
-          request.log.warn({ animeId: id, provider }, 'Animepahe episodes primary miss');
-        } catch {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'animepahe-episodes',
-            provider: 'animepahe',
-            outcome: 'error',
-            detail: 'Animepahe episodes resolver error',
-          });
-          request.log.warn({ animeId: id, provider, animepaheRuntime: getAnimepaheRuntimeStats() }, 'Animepahe episodes primary error');
-          // Fall through to bridge providers
-        }
-      }
-
-      let usedProvider: string | null = null;
-      let info: BridgeInfoResponse | null = null;
-      let episodes: ReturnType<typeof mapEpisodes> = [];
-
-      for (const candidate of providersForRequest(provider)) {
-        try {
-          const attempt = await bridgeRequest<BridgeInfoResponse>(`/meta/anilist/info/${id}?provider=${encodeURIComponent(candidate)}`);
-          const mapped = mapEpisodes(attempt.episodes);
-          if (mapped.length > 0) {
-            usedProvider = candidate;
-            info = attempt;
-            episodes = mapped;
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'bridge-episodes',
-              provider: candidate,
-              outcome: 'success',
-            });
-            break;
-          }
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'bridge-episodes',
-            provider: candidate,
-            outcome: 'miss',
-            detail: 'No bridge episodes from provider',
-          });
-          if (!info) {
-            info = attempt;
-          }
-        } catch {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'bridge-episodes',
-            provider: candidate,
-            outcome: 'error',
-            detail: 'Bridge episodes request failed',
-          });
-          continue;
-        }
-      }
-
-      const bridgeAvailable = episodes.length > 0;
-      if (!usedProvider) {
-        usedProvider = bridgeAvailable ? providersForRequest(provider)[0] || 'gogoanime' : 'auto';
-      }
-
-      return sendEpisodesSuccess({
-        success: true,
-        data: {
-          id,
-          provider: usedProvider,
-          requestedProvider: provider,
-          animeTitle: info?.title || null,
-          episodes,
-          bridgeAvailable,
-          message: bridgeAvailable ? null : 'No stream episodes resolved from bridge providers right now.',
-          resolutionTrace,
-          resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-          animepaheRuntime: getAnimepaheRuntimeStats(),
-        },
-      });
-    } catch (error) {
-      request.log.error({ error }, 'Anime bridge episodes fetch failed');
-      return reply.status(502).send({
-        success: false,
-        error: {
-          code: 'ANIME_EPISODES_FAILED',
-          message: error instanceof Error ? error.message : 'Anime episodes fetch failed',
-        },
-      });
-    }
-  });
-
-  app.get('/:id/watch/:episodeNumber', {
-    schema: {
-      params: animeWatchParamsSchema,
-      querystring: animeWatchQuerySchema,
-    },
-    config: {
-      rateLimit: {
-        max: 24,
-        timeWindow: '1 minute',
-      },
-    },
-  }, async (request, reply) => {
-    try {
-      const { id, episodeNumber } = request.params;
-      const { provider, server, type } = request.query;
-      const watchCacheKey = `${id}|${episodeNumber}|${provider}|${server || ''}|${type}`;
-      const cachedWatch = readCachedPayload(animeWatchCache, watchCacheKey, ANIME_WATCH_CACHE_TTL_MS);
-      if (cachedWatch) {
-        return reply.send(cachedWatch);
-      }
-      const resolutionTrace = createResolutionTrace();
-      const sendWatchSuccess = (payload: unknown) => {
-        writeCachedPayload(animeWatchCache, watchCacheKey, payload);
-        return reply.send(payload);
-      };
-      let anilistTitlesCache: string[] | null = null;
-
-      const getAnilistTitles = async (): Promise<string[]> => {
-        if (anilistTitlesCache) return anilistTitlesCache;
-        anilistTitlesCache = await anilistTitlesForAnime(id);
-        return anilistTitlesCache;
-      };
-
-      // Try multi-provider system first (embed, gogoanime-by, etc.)
-      if (provider === 'auto' || provider === 'nineanime' || provider === 'aniwatch') {
-        try {
-          const titles = await getAnilistTitles();
-          const result = await getSourcesMultiProvider(titles.slice(0, 4), episodeNumber, {
-            preferredProvider: provider === 'auto' ? undefined : provider as ProviderType,
-            type: type || 'sub',
-            anilistId: id,
-          });
-
-          if (result.sources && result.sources.length > 0) {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'multi-provider-watch',
-              provider: result.provider,
-              outcome: 'success',
-            });
-            logResolutionTrace(request, resolutionTrace);
-            return sendWatchSuccess({
-              success: true,
-              data: {
-                animeId: id,
-                episode: {
-                  id: result.episode?.id || `ep-${episodeNumber}`,
-                  number: episodeNumber,
-                  title: result.episode?.title || null,
-                  image: result.episode?.image || null,
-                  url: null,
-                  isFiller: false,
-                },
-                provider: result.provider,
-                requestedProvider: provider,
-                server: server || null,
-                sources: result.sources.map(s => ({
-                  url: s.url,
-                  quality: s.quality,
-                  isM3U8: s.isM3U8,
-                  isEmbed: s.isEmbed,
-                })),
-                subtitles: result.subtitles || [],
-                headers: result.sources[0]?.referer ? { Referer: result.sources[0].referer } : {},
-                download: null,
-                resolutionTrace,
-                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-                animepaheRuntime: getAnimepaheRuntimeStats(),
-              },
-            });
-          }
-
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'multi-provider-watch',
-            provider: 'multi',
-            outcome: 'miss',
-            detail: 'No sources found from any provider',
-          });
-
-          // If multi-provider tried embed+gogoanime-by and failed,
-          // skip slow bridge providers for 'auto' — they are unreliable
-          if (provider === 'auto') {
-            logResolutionTrace(request, resolutionTrace);
-            return reply.status(404).send({
-              success: false,
-              data: {
-                animeId: id,
-                error: 'No playable sources found. Try switching providers manually.',
-                resolutionTrace,
-                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-              },
-            });
-          }
-        } catch (err) {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'multi-provider-watch',
-            provider: 'multi',
-            outcome: 'error',
-            detail: err instanceof Error ? err.message : 'Multi-provider error',
-          });
-        }
-      }
-
-      if (shouldTryAnimepahePrimary(provider)) {
-        try {
-          const titles = await getAnilistTitles();
-          const animepahe = await resolveAnimepaheWatchByTitles(titles, episodeNumber);
-          if (animepahe && animepahe.sources.length > 0) {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'animepahe-watch',
-              provider: 'animepahe',
-              outcome: 'success',
-            });
-            logResolutionTrace(request, resolutionTrace);
-            return sendWatchSuccess({
-              success: true,
-              data: {
-                animeId: id,
-                episode: {
-                  id: animepahe.releaseSession || `animepahe-ep-${episodeNumber}`,
-                  number: episodeNumber,
-                  title: null,
-                  image: null,
-                  url: null,
-                  isFiller: false,
-                },
-                provider: 'animepahe',
-                requestedProvider: provider,
-                server: server || null,
-                sources: animepahe.sources,
-                subtitles: [],
-                headers: animepahe.headers,
-                download: null,
-                resolutionTrace,
-                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-                animepaheRuntime: getAnimepaheRuntimeStats(),
-              },
-            });
-          }
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'animepahe-watch',
-            provider: 'animepahe',
-            outcome: 'miss',
-            detail: 'No animepahe watch sources resolved',
-          });
-          request.log.warn({ animeId: id, episodeNumber, provider }, 'Animepahe watch primary miss');
-        } catch {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'animepahe-watch',
-            provider: 'animepahe',
-            outcome: 'error',
-            detail: 'Animepahe watch resolver error',
-          });
-          request.log.warn(
-            { animeId: id, episodeNumber, provider, animepaheRuntime: getAnimepaheRuntimeStats() },
-            'Animepahe watch primary error',
-          );
-          // Fall through to bridge providers
-        }
-      }
-
-      // ── Embed provider (iframe-based, TMDB ID) ───────────────────────────
-      // When explicitly requested OR as an additional fallback before bridge
-      if (provider === 'embed' && isEmbedProviderAvailable()) {
-        try {
-          const titles = await getAnilistTitles();
-          const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub', id);
-          if (embedResult.sources.length > 0) {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'embed-provider',
-              provider: 'embed',
-              outcome: 'success',
-              detail: `TMDB ${embedResult.tmdbId} → ${embedResult.sources.length} embeds`,
-            });
-            logResolutionTrace(request, resolutionTrace);
-            return sendWatchSuccess({
-              success: true,
-              data: {
-                animeId: id,
-                episode: {
-                  id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
-                  number: episodeNumber,
-                  title: null,
-                  image: null,
-                  url: null,
-                  isFiller: false,
-                },
-                provider: 'embed',
-                requestedProvider: provider,
-                server: server || null,
-                sources: embedResult.sources.map(s => ({
-                  url: s.url,
-                  quality: s.quality,
-                  isM3U8: s.isM3U8,
-                  isEmbed: s.isEmbed,
-                })),
-                subtitles: [],
-                headers: {},
-                download: null,
-                resolutionTrace,
-                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-                animepaheRuntime: getAnimepaheRuntimeStats(),
-              },
-            });
-          }
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'embed-provider',
-            provider: 'embed',
-            outcome: 'miss',
-            detail: 'No TMDB match found',
-          });
-        } catch (err) {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'embed-provider',
-            provider: 'embed',
-            outcome: 'error',
-            detail: err instanceof Error ? err.message : 'Embed provider error',
-          });
-        }
-      }
-
-      // ── GoGoAnime.by provider (FlareSolverr scraper) ──────────────────────
-      if (provider === 'gogoanime-by') {
-        try {
-          const titles = await getAnilistTitles();
-          const gogoResult = await resolveGoGoAnimeByEpisode(titles[0] || String(id), episodeNumber, type || 'sub');
-          if (gogoResult.sources.length > 0) {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'gogoanime-by',
-              provider: 'gogoanime-by',
-              outcome: 'success',
-              detail: `${gogoResult.sources.length} sources from gogoanime.by`,
-            });
-            logResolutionTrace(request, resolutionTrace);
-            return sendWatchSuccess({
-              success: true,
-              data: {
-                animeId: id,
-                episode: {
-                  id: `gogo-by-${episodeNumber}`,
-                  number: episodeNumber,
-                  title: null,
-                  image: null,
-                  url: gogoResult.episodeUrl || null,
-                  isFiller: false,
-                },
-                provider: 'gogoanime-by',
-                requestedProvider: provider,
-                server: server || null,
-                sources: gogoResult.sources.map(s => ({
-                  url: s.url,
-                  quality: s.quality,
-                  isM3U8: s.isM3U8,
-                  isEmbed: s.isEmbed,
-                })),
-                subtitles: gogoResult.subtitles || [],
-                headers: {},
-                download: null,
-                resolutionTrace,
-                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-                animepaheRuntime: getAnimepaheRuntimeStats(),
-              },
-            });
-          }
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'gogoanime-by',
-            provider: 'gogoanime-by',
-            outcome: 'miss',
-            detail: 'No sources found',
-          });
-        } catch (err) {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'gogoanime-by',
-            provider: 'gogoanime-by',
-            outcome: 'error',
-            detail: err instanceof Error ? err.message : 'GoGoAnime.by error',
-          });
-        }
-      }
-
-      let resolvedProvider: string | null = null;
-      let episode: ReturnType<typeof mapEpisodes>[number] | null = null;
-      let watch: BridgeWatchResponse | null = null;
-      let sources: Array<{ url: string; quality: string; isM3U8: boolean; isEmbed?: boolean }> = [];
-      let fallbackEpisodeId: string | null = null;
-      let fallbackEpisodeIdForHianime: string | null = null;
-
-      for (const candidate of providersForRequest(provider)) {
-        try {
-          const info = await bridgeRequest<BridgeInfoResponse>(`/meta/anilist/info/${id}?provider=${encodeURIComponent(candidate)}`);
-          const episodes = mapEpisodes(info.episodes);
-          if (!fallbackEpisodeIdForHianime) {
-            const hianimeCompatible = episodes.find(
-              (entry) => entry.number === episodeNumber && hianimeEpisodeIdsFromBridgeId(entry.id).length > 0,
-            ) || episodes.find((entry) => hianimeEpisodeIdsFromBridgeId(entry.id).length > 0);
-            if (hianimeCompatible) {
-              fallbackEpisodeIdForHianime = hianimeCompatible.id;
-            }
-          }
-          const targetEpisode = episodes.find((entry) => entry.number === episodeNumber);
-          if (!targetEpisode) {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'bridge-watch',
-              provider: candidate,
-              outcome: 'miss',
-              detail: `Episode ${episodeNumber} not found in provider episode list`,
-            });
-            continue;
-          }
-          if (!fallbackEpisodeId) {
-            fallbackEpisodeId = targetEpisode.id;
-          }
-          if (!fallbackEpisodeIdForHianime && hianimeEpisodeIdsFromBridgeId(targetEpisode.id).length > 0) {
-            fallbackEpisodeIdForHianime = targetEpisode.id;
-          }
-
-          const query = new URLSearchParams({ provider: candidate });
-          if (server) query.set('server', server);
-
-          const watchAttempt = await bridgeRequest<BridgeWatchResponse>(
-            `/meta/anilist/watch/${encodeURIComponent(targetEpisode.id)}?${query.toString()}`,
-          );
-
-          const mappedSources: Array<{ url: string; quality: string; isM3U8: boolean; isEmbed?: boolean }> = [];
-
-          // Direct sources - use as-is
-          for (const source of watchAttempt.sources || []) {
-            if (source.url) {
-              mappedSources.push({
-                url: source.url as string,
-                quality: source.quality || 'auto',
-                isM3U8: !!source.isM3U8,
-                isEmbed: false,
-              });
-            }
-          }
-
-          // Skip embed links that can't be resolved quickly
-          // Playwright-based resolution is too slow for API requests
-          if (mappedSources.length === 0 && watchAttempt.link) {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'bridge-watch',
-              provider: candidate,
-              outcome: 'miss',
-              detail: 'Provider returned embed link without direct sources',
-            });
-            continue;
-          }
-
-          if (mappedSources.length === 0) continue;
-
-          resolvedProvider = candidate;
-          episode = targetEpisode;
-          watch = watchAttempt;
-          sources = mappedSources;
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'bridge-watch',
-            provider: candidate,
-            outcome: 'success',
-          });
-          break;
-        } catch {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'bridge-watch',
-            provider: candidate,
-            outcome: 'error',
-            detail: 'Bridge watch request failed',
-          });
-          continue;
-        }
-      }
-
-      // Try hianime fallback if bridge providers failed
-      if (!episode || !watch || !resolvedProvider || sources.length === 0) {
-        let fallback: HianimeFallbackResult = { sources: [], headers: {} };
-        let fallbackEpisodeRef = fallbackEpisodeIdForHianime || fallbackEpisodeId;
-
-        if (fallbackEpisodeIdForHianime) {
-          fallback = await hianimeEmbedFallback(fallbackEpisodeIdForHianime);
-        }
-
-        if (fallback.sources.length === 0) {
-          try {
-            const titles = await getAnilistTitles();
-            if (titles.length > 0) {
-              fallback = await hianimeEmbedFallbackByTitles(titles, episodeNumber);
-              if (fallback.sources.length > 0 && !fallbackEpisodeRef) {
-                fallbackEpisodeRef = `hianime-title-${episodeNumber}`;
-              }
-            }
-          } catch {
-            pushResolutionEvent(resolutionTrace, {
-              stage: 'hianime-title-fallback',
-              provider: 'hianime',
-              outcome: 'error',
-              detail: 'Title-based hianime fallback failed',
-            });
-          }
-        }
-
-        if (fallback.sources.length > 0) {
-          pushResolutionEvent(resolutionTrace, {
-            stage: 'hianime-fallback',
-            provider: 'hianime',
-            outcome: 'success',
-          });
-          logResolutionTrace(request, resolutionTrace);
-          return sendWatchSuccess({
-            success: true,
-            data: {
-              animeId: id,
-              episode: episode || {
-                id: fallbackEpisodeRef || `hianime-fallback-${episodeNumber}`,
-                number: episodeNumber,
-                title: null,
-                image: null,
-                url: null,
-                isFiller: false,
-              },
-              provider: 'hianime-fallback',
-              requestedProvider: provider,
-              server: server || null,
-              sources: fallback.sources,
-              subtitles: [],
-              headers: fallback.headers,
-              download: null,
-              resolutionTrace,
-              resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-              animepaheRuntime: getAnimepaheRuntimeStats(),
+        if (!upstream.ok) {
+          return reply.status(upstream.status).send({
+            success: false,
+            error: {
+              code: "UPSTREAM_FAILED",
+              message: `Proxy upstream failed with status ${upstream.status}`,
             },
           });
         }
 
-        pushResolutionEvent(resolutionTrace, {
-          stage: 'hianime-fallback',
-          provider: 'hianime',
-          outcome: 'miss',
-          detail: 'No hianime fallback embeds resolved',
+        const contentType = upstream.headers.get("content-type") || "";
+        const cacheControl =
+          upstream.headers.get("cache-control") || "no-store";
+        reply.header("Cache-Control", cacheControl);
+        if (contentType) reply.header("Content-Type", contentType);
+        reply.header("Access-Control-Allow-Origin", "*");
+
+        if (
+          contentType.includes("application/vnd.apple.mpegurl") ||
+          contentType.includes("application/x-mpegURL") ||
+          targetUrl.pathname.endsWith(".m3u8")
+        ) {
+          const rawPlaylist = await upstream.text();
+          const rewritten = rewritePlaylist(
+            rawPlaylist,
+            targetUrl,
+            upstreamReferer,
+          );
+          reply.header("Content-Type", "application/vnd.apple.mpegurl");
+          return reply.send(rewritten);
+        }
+
+        const contentLength = upstream.headers.get("content-length");
+        if (contentLength) reply.header("Content-Length", contentLength);
+
+        if (!upstream.body) {
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          return reply.send(buffer);
+        }
+
+        return reply.send(
+          proxyReadableBody(upstream.body as ReadableStream<Uint8Array>),
+        );
+      } catch (error) {
+        request.log.warn(
+          { error, target: targetUrl.toString() },
+          "Anime stream proxy failed",
+        );
+        throw new ExternalServiceError();
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  );
+
+  app.get(
+    "/:id",
+    {
+      schema: {
+        params: animeByIdParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const data = await anilistRequest<{ Media: unknown | null }>(
+          ANIME_DETAIL_QUERY,
+          { id },
+        );
+
+        if (!data.Media) {
+          throw new NotFoundError("Anime not found on AniList");
+        }
+
+        return {
+          success: true,
+          data: data.Media,
+        };
+      } catch (error) {
+        if (error instanceof NotFoundError) throw error;
+        request.log.error({ error }, "AniList anime detail fetch failed");
+        throw new ExternalServiceError("AniList anime detail fetch failed", {
+          cause: error,
         });
       }
+    },
+  );
 
-      if (!episode || !watch || !resolvedProvider) {
-        // Last-resort: embed provider (iframe fallback before giving up)
-        if (provider !== 'embed' && isEmbedProviderAvailable()) {
+  app.get(
+    "/:id/episodes",
+    {
+      schema: {
+        params: animeByIdParamsSchema,
+        querystring: animeEpisodesQuerySchema,
+      },
+      config: {
+        rateLimit: {
+          max: 45,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const { provider } = request.query;
+        const episodesCacheKey = `${id}|${provider}`;
+        const cachedEpisodes = readCachedPayload(
+          animeEpisodesCache,
+          episodesCacheKey,
+          ANIME_EPISODES_CACHE_TTL_MS,
+        );
+        if (cachedEpisodes) {
+          return reply.send(cachedEpisodes);
+        }
+        const resolutionTrace = createResolutionTrace();
+        const sendEpisodesSuccess = (payload: unknown) => {
+          writeCachedPayload(animeEpisodesCache, episodesCacheKey, payload);
+          return reply.send(payload);
+        };
+
+        if (shouldTryAnimepahePrimary(provider)) {
+          try {
+            const titles = await anilistTitlesForAnime(id);
+            const animepahe = await resolveAnimepaheEpisodesByTitles(titles);
+            if (animepahe && animepahe.episodes.length > 0) {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "animepahe-episodes",
+                provider: "animepahe",
+                outcome: "success",
+              });
+              logResolutionTrace(request, resolutionTrace);
+              return sendEpisodesSuccess({
+                success: true,
+                data: {
+                  id,
+                  provider: "animepahe",
+                  requestedProvider: provider,
+                  animeTitle: animepahe.animeTitle,
+                  episodes: animepahe.episodes,
+                  bridgeAvailable: true,
+                  message: null,
+                  resolutionTrace,
+                  resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                  animepaheRuntime: getAnimepaheRuntimeStats(),
+                },
+              });
+            }
+            pushResolutionEvent(resolutionTrace, {
+              stage: "animepahe-episodes",
+              provider: "animepahe",
+              outcome: "miss",
+              detail: "No animepahe episodes resolved",
+            });
+            request.log.warn(
+              { animeId: id, provider },
+              "Animepahe episodes primary miss",
+            );
+          } catch {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "animepahe-episodes",
+              provider: "animepahe",
+              outcome: "error",
+              detail: "Animepahe episodes resolver error",
+            });
+            request.log.warn(
+              {
+                animeId: id,
+                provider,
+                animepaheRuntime: getAnimepaheRuntimeStats(),
+              },
+              "Animepahe episodes primary error",
+            );
+            // Fall through to bridge providers
+          }
+        }
+
+        let usedProvider: string | null = null;
+        let info: BridgeInfoResponse | null = null;
+        let episodes: ReturnType<typeof mapEpisodes> = [];
+
+        for (const candidate of providersForRequest(provider)) {
+          try {
+            const attempt = await bridgeRequest<BridgeInfoResponse>(
+              `/meta/anilist/info/${id}?provider=${encodeURIComponent(candidate)}`,
+            );
+            const mapped = mapEpisodes(attempt.episodes);
+            if (mapped.length > 0) {
+              usedProvider = candidate;
+              info = attempt;
+              episodes = mapped;
+              pushResolutionEvent(resolutionTrace, {
+                stage: "bridge-episodes",
+                provider: candidate,
+                outcome: "success",
+              });
+              break;
+            }
+            pushResolutionEvent(resolutionTrace, {
+              stage: "bridge-episodes",
+              provider: candidate,
+              outcome: "miss",
+              detail: "No bridge episodes from provider",
+            });
+            if (!info) {
+              info = attempt;
+            }
+          } catch {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "bridge-episodes",
+              provider: candidate,
+              outcome: "error",
+              detail: "Bridge episodes request failed",
+            });
+            continue;
+          }
+        }
+
+        const bridgeAvailable = episodes.length > 0;
+        if (!usedProvider) {
+          usedProvider = bridgeAvailable
+            ? providersForRequest(provider)[0] || "gogoanime"
+            : "auto";
+        }
+
+        return sendEpisodesSuccess({
+          success: true,
+          data: {
+            id,
+            provider: usedProvider,
+            requestedProvider: provider,
+            animeTitle: info?.title || null,
+            episodes,
+            bridgeAvailable,
+            message: bridgeAvailable
+              ? null
+              : "No stream episodes resolved from bridge providers right now.",
+            resolutionTrace,
+            resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+            animepaheRuntime: getAnimepaheRuntimeStats(),
+          },
+        });
+      } catch (error) {
+        request.log.error({ error }, "Anime bridge episodes fetch failed");
+        throw new ExternalServiceError();
+      }
+    },
+  );
+
+  app.get(
+    "/:id/watch/:episodeNumber",
+    {
+      schema: {
+        params: animeWatchParamsSchema,
+        querystring: animeWatchQuerySchema,
+      },
+      config: {
+        rateLimit: {
+          max: 24,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { id, episodeNumber } = request.params;
+        const { provider, server, type } = request.query;
+        const watchCacheKey = `${id}|${episodeNumber}|${provider}|${server || ""}|${type}`;
+        const cachedWatch = readCachedPayload(
+          animeWatchCache,
+          watchCacheKey,
+          ANIME_WATCH_CACHE_TTL_MS,
+        );
+        if (cachedWatch) {
+          return reply.send(cachedWatch);
+        }
+        const resolutionTrace = createResolutionTrace();
+        const sendWatchSuccess = (payload: unknown) => {
+          writeCachedPayload(animeWatchCache, watchCacheKey, payload);
+          return reply.send(payload);
+        };
+        let anilistTitlesCache: string[] | null = null;
+
+        const getAnilistTitles = async (): Promise<string[]> => {
+          if (anilistTitlesCache) return anilistTitlesCache;
+          anilistTitlesCache = await anilistTitlesForAnime(id);
+          return anilistTitlesCache;
+        };
+
+        // Try multi-provider system first (embed, gogoanime-by, etc.)
+        if (
+          provider === "auto" ||
+          provider === "nineanime" ||
+          provider === "aniwatch"
+        ) {
           try {
             const titles = await getAnilistTitles();
-            const embedResult = await getEmbedSources(titles, 1, episodeNumber, type || 'sub', id);
+            const result = await getSourcesMultiProvider(
+              titles.slice(0, 4),
+              episodeNumber,
+              {
+                preferredProvider:
+                  provider === "auto" ? undefined : (provider as ProviderType),
+                type: type || "sub",
+                anilistId: id,
+              },
+            );
+
+            if (result.sources && result.sources.length > 0) {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "multi-provider-watch",
+                provider: result.provider,
+                outcome: "success",
+              });
+              logResolutionTrace(request, resolutionTrace);
+              return sendWatchSuccess({
+                success: true,
+                data: {
+                  animeId: id,
+                  episode: {
+                    id: result.episode?.id || `ep-${episodeNumber}`,
+                    number: episodeNumber,
+                    title: result.episode?.title || null,
+                    image: result.episode?.image || null,
+                    url: null,
+                    isFiller: false,
+                  },
+                  provider: result.provider,
+                  requestedProvider: provider,
+                  server: server || null,
+                  sources: result.sources.map((s) => ({
+                    url: s.url,
+                    quality: s.quality,
+                    isM3U8: s.isM3U8,
+                    isEmbed: s.isEmbed,
+                  })),
+                  subtitles: result.subtitles || [],
+                  headers: result.sources[0]?.referer
+                    ? { Referer: result.sources[0].referer }
+                    : {},
+                  download: null,
+                  resolutionTrace,
+                  resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                  animepaheRuntime: getAnimepaheRuntimeStats(),
+                },
+              });
+            }
+
+            pushResolutionEvent(resolutionTrace, {
+              stage: "multi-provider-watch",
+              provider: "multi",
+              outcome: "miss",
+              detail: "No sources found from any provider",
+            });
+
+            // If multi-provider tried embed+gogoanime-by and failed,
+            // skip slow bridge providers for 'auto' — they are unreliable
+            if (provider === "auto") {
+              logResolutionTrace(request, resolutionTrace);
+              throw new NotFoundError(
+                "No playable sources found. Try switching providers manually.",
+                {
+                  animeId: id,
+                  resolutionTrace,
+                  resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                },
+              );
+            }
+          } catch (err) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "multi-provider-watch",
+              provider: "multi",
+              outcome: "error",
+              detail:
+                err instanceof Error ? err.message : "Multi-provider error",
+            });
+          }
+        }
+
+        if (shouldTryAnimepahePrimary(provider)) {
+          try {
+            const titles = await getAnilistTitles();
+            const animepahe = await resolveAnimepaheWatchByTitles(
+              titles,
+              episodeNumber,
+            );
+            if (animepahe && animepahe.sources.length > 0) {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "animepahe-watch",
+                provider: "animepahe",
+                outcome: "success",
+              });
+              logResolutionTrace(request, resolutionTrace);
+              return sendWatchSuccess({
+                success: true,
+                data: {
+                  animeId: id,
+                  episode: {
+                    id:
+                      animepahe.releaseSession ||
+                      `animepahe-ep-${episodeNumber}`,
+                    number: episodeNumber,
+                    title: null,
+                    image: null,
+                    url: null,
+                    isFiller: false,
+                  },
+                  provider: "animepahe",
+                  requestedProvider: provider,
+                  server: server || null,
+                  sources: animepahe.sources,
+                  subtitles: [],
+                  headers: animepahe.headers,
+                  download: null,
+                  resolutionTrace,
+                  resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                  animepaheRuntime: getAnimepaheRuntimeStats(),
+                },
+              });
+            }
+            pushResolutionEvent(resolutionTrace, {
+              stage: "animepahe-watch",
+              provider: "animepahe",
+              outcome: "miss",
+              detail: "No animepahe watch sources resolved",
+            });
+            request.log.warn(
+              { animeId: id, episodeNumber, provider },
+              "Animepahe watch primary miss",
+            );
+          } catch {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "animepahe-watch",
+              provider: "animepahe",
+              outcome: "error",
+              detail: "Animepahe watch resolver error",
+            });
+            request.log.warn(
+              {
+                animeId: id,
+                episodeNumber,
+                provider,
+                animepaheRuntime: getAnimepaheRuntimeStats(),
+              },
+              "Animepahe watch primary error",
+            );
+            // Fall through to bridge providers
+          }
+        }
+
+        // ── Embed provider (iframe-based, TMDB ID) ───────────────────────────
+        // When explicitly requested OR as an additional fallback before bridge
+        if (provider === "embed" && isEmbedProviderAvailable()) {
+          try {
+            const titles = await getAnilistTitles();
+            const embedResult = await getEmbedSources(
+              titles,
+              1,
+              episodeNumber,
+              type || "sub",
+              id,
+            );
             if (embedResult.sources.length > 0) {
               pushResolutionEvent(resolutionTrace, {
-                stage: 'embed-last-resort',
-                provider: 'embed',
-                outcome: 'success',
+                stage: "embed-provider",
+                provider: "embed",
+                outcome: "success",
                 detail: `TMDB ${embedResult.tmdbId} → ${embedResult.sources.length} embeds`,
               });
               logResolutionTrace(request, resolutionTrace);
@@ -1557,7 +1479,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 success: true,
                 data: {
                   animeId: id,
-                  episode: episode || {
+                  episode: {
                     id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
                     number: episodeNumber,
                     title: null,
@@ -1565,10 +1487,10 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                     url: null,
                     isFiller: false,
                   },
-                  provider: 'embed',
+                  provider: "embed",
                   requestedProvider: provider,
                   server: server || null,
-                  sources: embedResult.sources.map(s => ({
+                  sources: embedResult.sources.map((s) => ({
                     url: s.url,
                     quality: s.quality,
                     isM3U8: s.isM3U8,
@@ -1583,148 +1505,470 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 },
               });
             }
-          } catch {
             pushResolutionEvent(resolutionTrace, {
-              stage: 'embed-last-resort',
-              provider: 'embed',
-              outcome: 'error',
+              stage: "embed-provider",
+              provider: "embed",
+              outcome: "miss",
+              detail: "No TMDB match found",
+            });
+          } catch (err) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "embed-provider",
+              provider: "embed",
+              outcome: "error",
+              detail:
+                err instanceof Error ? err.message : "Embed provider error",
             });
           }
         }
 
+        // ── GoGoAnime.by provider (FlareSolverr scraper) ──────────────────────
+        if (provider === "gogoanime-by") {
+          try {
+            const titles = await getAnilistTitles();
+            const gogoResult = await resolveGoGoAnimeByEpisode(
+              titles[0] || String(id),
+              episodeNumber,
+              type || "sub",
+            );
+            if (gogoResult.sources.length > 0) {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "gogoanime-by",
+                provider: "gogoanime-by",
+                outcome: "success",
+                detail: `${gogoResult.sources.length} sources from gogoanime.by`,
+              });
+              logResolutionTrace(request, resolutionTrace);
+              return sendWatchSuccess({
+                success: true,
+                data: {
+                  animeId: id,
+                  episode: {
+                    id: `gogo-by-${episodeNumber}`,
+                    number: episodeNumber,
+                    title: null,
+                    image: null,
+                    url: gogoResult.episodeUrl || null,
+                    isFiller: false,
+                  },
+                  provider: "gogoanime-by",
+                  requestedProvider: provider,
+                  server: server || null,
+                  sources: gogoResult.sources.map((s) => ({
+                    url: s.url,
+                    quality: s.quality,
+                    isM3U8: s.isM3U8,
+                    isEmbed: s.isEmbed,
+                  })),
+                  subtitles: gogoResult.subtitles || [],
+                  headers: {},
+                  download: null,
+                  resolutionTrace,
+                  resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                  animepaheRuntime: getAnimepaheRuntimeStats(),
+                },
+              });
+            }
+            pushResolutionEvent(resolutionTrace, {
+              stage: "gogoanime-by",
+              provider: "gogoanime-by",
+              outcome: "miss",
+              detail: "No sources found",
+            });
+          } catch (err) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "gogoanime-by",
+              provider: "gogoanime-by",
+              outcome: "error",
+              detail: err instanceof Error ? err.message : "GoGoAnime.by error",
+            });
+          }
+        }
+
+        let resolvedProvider: string | null = null;
+        let episode: ReturnType<typeof mapEpisodes>[number] | null = null;
+        let watch: BridgeWatchResponse | null = null;
+        let sources: Array<{
+          url: string;
+          quality: string;
+          isM3U8: boolean;
+          isEmbed?: boolean;
+        }> = [];
+        let fallbackEpisodeId: string | null = null;
+        let fallbackEpisodeIdForHianime: string | null = null;
+
+        for (const candidate of providersForRequest(provider)) {
+          try {
+            const info = await bridgeRequest<BridgeInfoResponse>(
+              `/meta/anilist/info/${id}?provider=${encodeURIComponent(candidate)}`,
+            );
+            const episodes = mapEpisodes(info.episodes);
+            if (!fallbackEpisodeIdForHianime) {
+              const hianimeCompatible =
+                episodes.find(
+                  (entry) =>
+                    entry.number === episodeNumber &&
+                    hianimeEpisodeIdsFromBridgeId(entry.id).length > 0,
+                ) ||
+                episodes.find(
+                  (entry) => hianimeEpisodeIdsFromBridgeId(entry.id).length > 0,
+                );
+              if (hianimeCompatible) {
+                fallbackEpisodeIdForHianime = hianimeCompatible.id;
+              }
+            }
+            const targetEpisode = episodes.find(
+              (entry) => entry.number === episodeNumber,
+            );
+            if (!targetEpisode) {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "bridge-watch",
+                provider: candidate,
+                outcome: "miss",
+                detail: `Episode ${episodeNumber} not found in provider episode list`,
+              });
+              continue;
+            }
+            if (!fallbackEpisodeId) {
+              fallbackEpisodeId = targetEpisode.id;
+            }
+            if (
+              !fallbackEpisodeIdForHianime &&
+              hianimeEpisodeIdsFromBridgeId(targetEpisode.id).length > 0
+            ) {
+              fallbackEpisodeIdForHianime = targetEpisode.id;
+            }
+
+            const query = new URLSearchParams({ provider: candidate });
+            if (server) query.set("server", server);
+
+            const watchAttempt = await bridgeRequest<BridgeWatchResponse>(
+              `/meta/anilist/watch/${encodeURIComponent(targetEpisode.id)}?${query.toString()}`,
+            );
+
+            const mappedSources: Array<{
+              url: string;
+              quality: string;
+              isM3U8: boolean;
+              isEmbed?: boolean;
+            }> = [];
+
+            // Direct sources - use as-is
+            for (const source of watchAttempt.sources || []) {
+              if (source.url) {
+                mappedSources.push({
+                  url: source.url as string,
+                  quality: source.quality || "auto",
+                  isM3U8: !!source.isM3U8,
+                  isEmbed: false,
+                });
+              }
+            }
+
+            // Skip embed links that can't be resolved quickly
+            // Playwright-based resolution is too slow for API requests
+            if (mappedSources.length === 0 && watchAttempt.link) {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "bridge-watch",
+                provider: candidate,
+                outcome: "miss",
+                detail: "Provider returned embed link without direct sources",
+              });
+              continue;
+            }
+
+            if (mappedSources.length === 0) continue;
+
+            resolvedProvider = candidate;
+            episode = targetEpisode;
+            watch = watchAttempt;
+            sources = mappedSources;
+            pushResolutionEvent(resolutionTrace, {
+              stage: "bridge-watch",
+              provider: candidate,
+              outcome: "success",
+            });
+            break;
+          } catch {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "bridge-watch",
+              provider: candidate,
+              outcome: "error",
+              detail: "Bridge watch request failed",
+            });
+            continue;
+          }
+        }
+
+        // Try hianime fallback if bridge providers failed
+        if (!episode || !watch || !resolvedProvider || sources.length === 0) {
+          let fallback: HianimeFallbackResult = { sources: [], headers: {} };
+          let fallbackEpisodeRef =
+            fallbackEpisodeIdForHianime || fallbackEpisodeId;
+
+          if (fallbackEpisodeIdForHianime) {
+            fallback = await hianimeEmbedFallback(fallbackEpisodeIdForHianime);
+          }
+
+          if (fallback.sources.length === 0) {
+            try {
+              const titles = await getAnilistTitles();
+              if (titles.length > 0) {
+                fallback = await hianimeEmbedFallbackByTitles(
+                  titles,
+                  episodeNumber,
+                );
+                if (fallback.sources.length > 0 && !fallbackEpisodeRef) {
+                  fallbackEpisodeRef = `hianime-title-${episodeNumber}`;
+                }
+              }
+            } catch {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "hianime-title-fallback",
+                provider: "hianime",
+                outcome: "error",
+                detail: "Title-based hianime fallback failed",
+              });
+            }
+          }
+
+          if (fallback.sources.length > 0) {
+            pushResolutionEvent(resolutionTrace, {
+              stage: "hianime-fallback",
+              provider: "hianime",
+              outcome: "success",
+            });
+            logResolutionTrace(request, resolutionTrace);
+            return sendWatchSuccess({
+              success: true,
+              data: {
+                animeId: id,
+                episode: episode || {
+                  id: fallbackEpisodeRef || `hianime-fallback-${episodeNumber}`,
+                  number: episodeNumber,
+                  title: null,
+                  image: null,
+                  url: null,
+                  isFiller: false,
+                },
+                provider: "hianime-fallback",
+                requestedProvider: provider,
+                server: server || null,
+                sources: fallback.sources,
+                subtitles: [],
+                headers: fallback.headers,
+                download: null,
+                resolutionTrace,
+                resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+                animepaheRuntime: getAnimepaheRuntimeStats(),
+              },
+            });
+          }
+
+          pushResolutionEvent(resolutionTrace, {
+            stage: "hianime-fallback",
+            provider: "hianime",
+            outcome: "miss",
+            detail: "No hianime fallback embeds resolved",
+          });
+        }
+
+        if (!episode || !watch || !resolvedProvider) {
+          // Last-resort: embed provider (iframe fallback before giving up)
+          if (provider !== "embed" && isEmbedProviderAvailable()) {
+            try {
+              const titles = await getAnilistTitles();
+              const embedResult = await getEmbedSources(
+                titles,
+                1,
+                episodeNumber,
+                type || "sub",
+                id,
+              );
+              if (embedResult.sources.length > 0) {
+                pushResolutionEvent(resolutionTrace, {
+                  stage: "embed-last-resort",
+                  provider: "embed",
+                  outcome: "success",
+                  detail: `TMDB ${embedResult.tmdbId} → ${embedResult.sources.length} embeds`,
+                });
+                logResolutionTrace(request, resolutionTrace);
+                return sendWatchSuccess({
+                  success: true,
+                  data: {
+                    animeId: id,
+                    episode: episode || {
+                      id: `embed-tmdb-${embedResult.tmdbId}-${episodeNumber}`,
+                      number: episodeNumber,
+                      title: null,
+                      image: null,
+                      url: null,
+                      isFiller: false,
+                    },
+                    provider: "embed",
+                    requestedProvider: provider,
+                    server: server || null,
+                    sources: embedResult.sources.map((s) => ({
+                      url: s.url,
+                      quality: s.quality,
+                      isM3U8: s.isM3U8,
+                      isEmbed: s.isEmbed,
+                    })),
+                    subtitles: [],
+                    headers: {},
+                    download: null,
+                    resolutionTrace,
+                    resolutionSummary:
+                      summarizeResolutionTrace(resolutionTrace),
+                    animepaheRuntime: getAnimepaheRuntimeStats(),
+                  },
+                });
+              }
+            } catch {
+              pushResolutionEvent(resolutionTrace, {
+                stage: "embed-last-resort",
+                provider: "embed",
+                outcome: "error",
+              });
+            }
+          }
+
+          logResolutionTrace(request, resolutionTrace);
+          throw new NotFoundError(
+            `No playable sources found for episode ${episodeNumber}`,
+            {
+              resolutionTrace,
+              resolutionSummary: summarizeResolutionTrace(resolutionTrace),
+              animepaheRuntime: getAnimepaheRuntimeStats(),
+            },
+          );
+        }
+
         logResolutionTrace(request, resolutionTrace);
-        return reply.status(404).send({
-          success: false,
-          error: {
-            code: 'NOT_FOUND',
-            message: `No playable sources found for episode ${episodeNumber}`,
-          },
+        return sendWatchSuccess({
+          success: true,
           data: {
+            animeId: id,
+            episode,
+            provider: resolvedProvider,
+            requestedProvider: provider,
+            server: server || null,
+            sources,
+            subtitles: (watch.subtitles || [])
+              .filter((subtitle) => !!subtitle.url)
+              .map((subtitle) => ({
+                url: subtitle.url as string,
+                lang: subtitle.lang || "Unknown",
+              })),
+            headers: watch.headers || {},
+            download: watch.download || null,
             resolutionTrace,
             resolutionSummary: summarizeResolutionTrace(resolutionTrace),
             animepaheRuntime: getAnimepaheRuntimeStats(),
           },
         });
+      } catch (error) {
+        request.log.error({ error }, "Anime bridge watch fetch failed");
+        throw new ExternalServiceError();
       }
-
-      logResolutionTrace(request, resolutionTrace);
-      return sendWatchSuccess({
-        success: true,
-        data: {
-          animeId: id,
-          episode,
-          provider: resolvedProvider,
-          requestedProvider: provider,
-          server: server || null,
-          sources,
-          subtitles: (watch.subtitles || [])
-            .filter((subtitle) => !!subtitle.url)
-            .map((subtitle) => ({
-              url: subtitle.url as string,
-              lang: subtitle.lang || 'Unknown',
-            })),
-          headers: watch.headers || {},
-          download: watch.download || null,
-          resolutionTrace,
-          resolutionSummary: summarizeResolutionTrace(resolutionTrace),
-          animepaheRuntime: getAnimepaheRuntimeStats(),
-        },
-      });
-    } catch (error) {
-      request.log.error({ error }, 'Anime bridge watch fetch failed');
-      return reply.status(502).send({
-        success: false,
-        error: {
-          code: 'ANIME_WATCH_FAILED',
-          message: error instanceof Error ? error.message : 'Anime watch fetch failed',
-        },
-      });
-    }
-  });
+    },
+  );
 
   // === Anime Watch Progress ===
-  app.post('/progress', {
-    onRequest: [fastify.authenticate],
-    schema: {
-      body: z.object({
-        anilistId: z.number().int().positive(),
-        episodeNumber: z.number().int().positive(),
-        title: z.string().min(1),
-        imageUrl: z.string().optional(),
-        progress: z.number().int().min(0),
-        duration: z.number().int().min(0),
-      }),
+  app.post(
+    "/progress",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: z.object({
+          anilistId: z.number().int().positive(),
+          episodeNumber: z.number().int().positive(),
+          title: z.string().min(1),
+          imageUrl: z.string().optional(),
+          progress: z.number().int().min(0),
+          duration: z.number().int().min(0),
+        }),
+      },
     },
-  }, async (request, reply) => {
-    const userId = request.user.userId;
-    const body = request.body as {
-      anilistId: number;
-      episodeNumber: number;
-      title: string;
-      imageUrl?: string;
-      progress: number;
-      duration: number;
-    };
+    async (request, reply) => {
+      const userId = request.user.userId;
+      const body = request.body as {
+        anilistId: number;
+        episodeNumber: number;
+        title: string;
+        imageUrl?: string;
+        progress: number;
+        duration: number;
+      };
 
-    await fastify.prisma.animeWatchHistory.upsert({
-      where: {
-        userId_anilistId_episodeNumber: {
+      await fastify.prisma.animeWatchHistory.upsert({
+        where: {
+          userId_anilistId_episodeNumber: {
+            userId,
+            anilistId: body.anilistId,
+            episodeNumber: body.episodeNumber,
+          },
+        },
+        update: {
+          progress: body.progress,
+          duration: body.duration,
+          title: body.title,
+          ...(body.imageUrl ? { imageUrl: body.imageUrl } : {}),
+        },
+        create: {
           userId,
           anilistId: body.anilistId,
           episodeNumber: body.episodeNumber,
+          title: body.title,
+          imageUrl: body.imageUrl || null,
+          progress: body.progress,
+          duration: body.duration,
         },
-      },
-      update: {
-        progress: body.progress,
-        duration: body.duration,
-        title: body.title,
-        ...(body.imageUrl ? { imageUrl: body.imageUrl } : {}),
-      },
-      create: {
-        userId,
-        anilistId: body.anilistId,
-        episodeNumber: body.episodeNumber,
-        title: body.title,
-        imageUrl: body.imageUrl || null,
-        progress: body.progress,
-        duration: body.duration,
-      },
-    });
+      });
 
-    return reply.send({ success: true, message: 'Anime progress saved' });
-  });
-
-  app.get('/progress/:anilistId', {
-    onRequest: [fastify.authenticate],
-    schema: {
-      params: z.object({ anilistId: z.coerce.number().int().positive() }),
+      return reply.send({ success: true, message: "Anime progress saved" });
     },
-  }, async (request) => {
-    const userId = request.user.userId;
-    const { anilistId } = request.params as { anilistId: number };
+  );
 
-    const rows = await fastify.prisma.animeWatchHistory.findMany({
-      where: { userId, anilistId },
-      orderBy: { updatedAt: 'desc' },
-    });
+  app.get(
+    "/progress/:anilistId",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        params: z.object({ anilistId: z.coerce.number().int().positive() }),
+      },
+    },
+    async (request) => {
+      const userId = request.user.userId;
+      const { anilistId } = request.params as { anilistId: number };
 
-    return { success: true, data: rows };
-  });
+      const rows = await fastify.prisma.animeWatchHistory.findMany({
+        where: { userId, anilistId },
+        orderBy: { updatedAt: "desc" },
+      });
 
-  app.get('/history', {
-    onRequest: [fastify.authenticate],
-  }, async (request) => {
-    const userId = request.user.userId;
-    const { limit } = request.query as { limit?: string };
-    const take = Math.min(50, Math.max(1, parseInt(limit || '10') || 10));
+      return { success: true, data: rows };
+    },
+  );
 
-    const rows = await fastify.prisma.animeWatchHistory.findMany({
-      where: { userId },
-      orderBy: { updatedAt: 'desc' },
-      take,
-      distinct: ['anilistId'],
-    });
+  app.get(
+    "/history",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request) => {
+      const userId = request.user.userId;
+      const { limit } = request.query as { limit?: string };
+      const take = Math.min(50, Math.max(1, parseInt(limit || "10") || 10));
 
-    return { success: true, data: rows };
-  });
+      const rows = await fastify.prisma.animeWatchHistory.findMany({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        take,
+        distinct: ["anilistId"],
+      });
+
+      return { success: true, data: rows };
+    },
+  );
 };

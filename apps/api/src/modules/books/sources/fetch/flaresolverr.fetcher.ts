@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { FetchRequestOptions, FetchResponse, SourceFetcher } from './types';
+import axios from "axios";
+import { FetchRequestOptions, FetchResponse, SourceFetcher } from "./types";
 
 type FlareSolverrResponse = {
   status: string;
@@ -15,14 +15,18 @@ type FlareSolverrResponse = {
   sessions?: string[];
 };
 
-const DEFAULT_FLARESOLVERR_URL = 'http://flaresolverr:8191';
+const DEFAULT_FLARESOLVERR_URL = "http://flaresolverr:8191";
 
 const normalizeHeaders = (
-  headers: Record<string, unknown>
+  headers: Record<string, unknown>,
 ): Record<string, string | string[] | undefined> => {
   const normalized: Record<string, string | string[] | undefined> = {};
   for (const [key, value] of Object.entries(headers)) {
-    if (typeof value === 'string' || Array.isArray(value) || typeof value === 'undefined') {
+    if (
+      typeof value === "string" ||
+      Array.isArray(value) ||
+      typeof value === "undefined"
+    ) {
       normalized[key] = value;
       continue;
     }
@@ -36,19 +40,25 @@ const normalizeHeaders = (
 };
 
 export class FlareSolverrFetcher implements SourceFetcher {
-  readonly id = 'flaresolverr' as const;
+  readonly id = "flaresolverr" as const;
 
   private readonly flaresolverrUrl: string | null;
   private readonly sessionMaxAgeMs: number;
   private readonly sessions = new Map<string, number>();
 
   constructor() {
-    const configured = (process.env.FLARESOLVERR_URL || DEFAULT_FLARESOLVERR_URL).trim();
+    const configured = (
+      process.env.FLARESOLVERR_URL || DEFAULT_FLARESOLVERR_URL
+    ).trim();
     this.flaresolverrUrl = configured || DEFAULT_FLARESOLVERR_URL;
-    const configuredSessionTtl = Number.parseInt(process.env.FLARESOLVERR_SESSION_MAX_AGE_MS || '1800000', 10);
-    this.sessionMaxAgeMs = Number.isFinite(configuredSessionTtl) && configuredSessionTtl > 0
-      ? configuredSessionTtl
-      : 1_800_000;
+    const configuredSessionTtl = Number.parseInt(
+      process.env.FLARESOLVERR_SESSION_MAX_AGE_MS || "1800000",
+      10,
+    );
+    this.sessionMaxAgeMs =
+      Number.isFinite(configuredSessionTtl) && configuredSessionTtl > 0
+        ? configuredSessionTtl
+        : 1_800_000;
   }
 
   canHandle(): boolean {
@@ -56,18 +66,26 @@ export class FlareSolverrFetcher implements SourceFetcher {
   }
 
   async listSessions(): Promise<string[]> {
-    const data = await this.call<FlareSolverrResponse>({ cmd: 'sessions.list' }, 10_000);
-    if (data.status !== 'ok') {
-      throw new Error(data.message || 'FlareSolverr sessions.list failed');
+    const data = await this.call<FlareSolverrResponse>(
+      { cmd: "sessions.list" },
+      10_000,
+    );
+    if (data.status !== "ok") {
+      throw new Error(data.message || "FlareSolverr sessions.list failed");
     }
 
     return data.sessions || [];
   }
 
   async destroySession(sessionId: string): Promise<void> {
-    const data = await this.call<FlareSolverrResponse>({ cmd: 'sessions.destroy', session: sessionId }, 10_000);
-    if (data.status !== 'ok') {
-      throw new Error(data.message || `FlareSolverr failed to destroy session ${sessionId}`);
+    const data = await this.call<FlareSolverrResponse>(
+      { cmd: "sessions.destroy", session: sessionId },
+      10_000,
+    );
+    if (data.status !== "ok") {
+      throw new Error(
+        data.message || `FlareSolverr failed to destroy session ${sessionId}`,
+      );
     }
     this.sessions.delete(sessionId);
   }
@@ -79,17 +97,23 @@ export class FlareSolverrFetcher implements SourceFetcher {
     } catch (error) {
       return {
         ok: false,
-        message: error instanceof Error ? error.message : 'FlareSolverr health check failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : "FlareSolverr health check failed",
       };
     }
   }
 
-  async get(url: string, options: FetchRequestOptions = {}): Promise<FetchResponse> {
-    const session = options.sourceId ? `np-${options.sourceId}` : 'np-default';
+  async get(
+    url: string,
+    options: FetchRequestOptions = {},
+  ): Promise<FetchResponse> {
+    const session = options.sourceId ? `np-${options.sourceId}` : "np-default";
     await this.ensureSession(session);
 
     const payload: Record<string, unknown> = {
-      cmd: 'request.get',
+      cmd: "request.get",
       url,
       maxTimeout: options.timeoutMs ?? 60000,
       session,
@@ -100,26 +124,38 @@ export class FlareSolverrFetcher implements SourceFetcher {
       payload.headers = requestHeaders;
     }
 
-    const data = await this.call<FlareSolverrResponse>(payload, Math.max(65000, (options.timeoutMs ?? 60000) + 5000));
-    if (!data || data.status !== 'ok' || !data.solution) {
-      const message = data?.message || 'FlareSolverr request failed';
+    const data = await this.call<FlareSolverrResponse>(
+      payload,
+      Math.max(65000, (options.timeoutMs ?? 60000) + 5000),
+    );
+    if (!data || data.status !== "ok" || !data.solution) {
+      const message = data?.message || "FlareSolverr request failed";
       const normalizedMessage = message.toLowerCase();
       const isMissingSession =
-        normalizedMessage.includes('session') &&
-        (normalizedMessage.includes('not found') || normalizedMessage.includes('does not exist'));
+        normalizedMessage.includes("session") &&
+        (normalizedMessage.includes("not found") ||
+          normalizedMessage.includes("does not exist"));
 
       if (isMissingSession) {
         await this.recreateSession(session);
-        const retried = await this.call<FlareSolverrResponse>(payload, Math.max(65000, (options.timeoutMs ?? 60000) + 5000));
-        if (!retried || retried.status !== 'ok' || !retried.solution) {
-          throw new Error(retried?.message || 'FlareSolverr request failed after session recreation');
+        const retried = await this.call<FlareSolverrResponse>(
+          payload,
+          Math.max(65000, (options.timeoutMs ?? 60000) + 5000),
+        );
+        if (!retried || retried.status !== "ok" || !retried.solution) {
+          throw new Error(
+            retried?.message ||
+              "FlareSolverr request failed after session recreation",
+          );
         }
 
         return {
           url: retried.solution.url || url,
           status: retried.solution.status,
-          headers: normalizeHeaders((retried.solution.headers || {}) as Record<string, unknown>),
-          body: retried.solution.response || '',
+          headers: normalizeHeaders(
+            (retried.solution.headers || {}) as Record<string, unknown>,
+          ),
+          body: retried.solution.response || "",
           fetchedVia: this.id,
         };
       }
@@ -132,8 +168,10 @@ export class FlareSolverrFetcher implements SourceFetcher {
     return {
       url: data.solution.url || url,
       status: data.solution.status,
-      headers: normalizeHeaders((data.solution.headers || {}) as Record<string, unknown>),
-      body: data.solution.response || '',
+      headers: normalizeHeaders(
+        (data.solution.headers || {}) as Record<string, unknown>,
+      ),
+      body: data.solution.response || "",
       fetchedVia: this.id,
     };
   }
@@ -167,27 +205,40 @@ export class FlareSolverrFetcher implements SourceFetcher {
   }
 
   private async createSession(session: string): Promise<void> {
-    const data = await this.call<FlareSolverrResponse>({ cmd: 'sessions.create', session }, 15_000);
-    if (data.status !== 'ok') {
-      const message = data.message || `FlareSolverr failed to create session ${session}`;
-      if (message.toLowerCase().includes('already exists')) {
+    const data = await this.call<FlareSolverrResponse>(
+      { cmd: "sessions.create", session },
+      15_000,
+    );
+    if (data.status !== "ok") {
+      const message =
+        data.message || `FlareSolverr failed to create session ${session}`;
+      if (message.toLowerCase().includes("already exists")) {
         this.sessions.set(session, Date.now());
         return;
       }
 
-      throw new Error(data.message || `FlareSolverr failed to create session ${session}`);
+      throw new Error(
+        data.message || `FlareSolverr failed to create session ${session}`,
+      );
     }
     this.sessions.set(session, Date.now());
   }
 
-  private async call<T>(payload: Record<string, unknown>, timeoutMs: number): Promise<T> {
-    const response = await axios.post<FlareSolverrResponse>(`${this.flaresolverrUrl}/v1`, payload, {
-      timeout: timeoutMs,
-      validateStatus: () => true,
-    });
+  private async call<T>(
+    payload: Record<string, unknown>,
+    timeoutMs: number,
+  ): Promise<T> {
+    const response = await axios.post<FlareSolverrResponse>(
+      `${this.flaresolverrUrl}/v1`,
+      payload,
+      {
+        timeout: timeoutMs,
+        validateStatus: () => true,
+      },
+    );
 
     if (!response.data) {
-      throw new Error('FlareSolverr returned an empty response');
+      throw new Error("FlareSolverr returned an empty response");
     }
 
     return response.data as unknown as T;

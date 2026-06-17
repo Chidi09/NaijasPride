@@ -1,4 +1,4 @@
-import { MmrcmsBaseSource } from '../base/mmrcms.base';
+import { MmrcmsBaseSource } from "../base/mmrcms.base";
 
 export class MmrcmsSource extends MmrcmsBaseSource {
   readonly id: string;

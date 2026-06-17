@@ -142,89 +142,71 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
-      try {
-        const query = request.query;
+      const query = request.query;
+      let { movies, tvShows, books, music, manga } = await fetchMediaResults(
+        services,
+        query.q,
+        query,
+        fastify.log,
+      );
+      const totalInitial =
+        movies.length +
+        tvShows.length +
+        books.length +
+        music.length +
+        manga.length;
+      if (totalInitial < 4) {
+        const fuzzyTerms = tokenizeFuzzy(query.q);
+        for (const term of fuzzyTerms) {
+          const fallback = await fetchMediaResults(services, term, query);
 
-        let { movies, tvShows, books, music, manga } = await fetchMediaResults(
-          services,
-          query.q,
-          query,
-          fastify.log,
-        );
+          movies = uniqueById([...movies, ...fallback.movies]).slice(
+            0,
+            query.movieLimit,
+          );
+          tvShows = uniqueById([...tvShows, ...fallback.tvShows]).slice(
+            0,
+            query.tvLimit,
+          );
+          books = uniqueById([...books, ...fallback.books]).slice(
+            0,
+            query.bookLimit,
+          );
+          music = uniqueById([...music, ...fallback.music]).slice(
+            0,
+            query.musicLimit,
+          );
+          manga = uniqueById([...manga, ...fallback.manga]).slice(
+            0,
+            query.mangaLimit,
+          );
 
-        const totalInitial =
-          movies.length +
-          tvShows.length +
-          books.length +
-          music.length +
-          manga.length;
-
-        // Fuzzy fallback when direct query yields little/no results (typos / imperfect input).
-        if (totalInitial < 4) {
-          const fuzzyTerms = tokenizeFuzzy(query.q);
-          for (const term of fuzzyTerms) {
-            const fallback = await fetchMediaResults(services, term, query);
-
-            movies = uniqueById([...movies, ...fallback.movies]).slice(
-              0,
-              query.movieLimit,
-            );
-            tvShows = uniqueById([...tvShows, ...fallback.tvShows]).slice(
-              0,
-              query.tvLimit,
-            );
-            books = uniqueById([...books, ...fallback.books]).slice(
-              0,
-              query.bookLimit,
-            );
-            music = uniqueById([...music, ...fallback.music]).slice(
-              0,
-              query.musicLimit,
-            );
-            manga = uniqueById([...manga, ...fallback.manga]).slice(
-              0,
-              query.mangaLimit,
-            );
-
-            if (
-              movies.length +
-                tvShows.length +
-                books.length +
-                music.length +
-                manga.length >=
-              8
-            ) {
-              break;
-            }
+          if (
+            movies.length +
+              tvShows.length +
+              books.length +
+              music.length +
+              manga.length >=
+            8
+          ) {
+            break;
           }
         }
-
-        return reply.send({
-          success: true,
-          data: { movies, tvShows, books, music, manga },
-          meta: {
-            query: query.q,
-            counts: {
-              movies: movies.length,
-              tvShows: tvShows.length,
-              books: books.length,
-              music: music.length,
-              manga: manga.length,
-            },
-          },
-        });
-      } catch (error) {
-        return reply.status(500).send({
-          success: false,
-          error: {
-            code: "SEARCH_FAILED",
-            message:
-              error instanceof Error
-                ? error.message
-                : "Failed to run global search",
-          },
-        });
       }
+      return reply.send({
+        success: true,
+        data: { movies, tvShows, books, music, manga },
+        meta: {
+          query: query.q,
+          counts: {
+            movies: movies.length,
+            tvShows: tvShows.length,
+            books: books.length,
+            music: music.length,
+            manga: manga.length,
+          },
+        },
+      });
     },
   );
 };

@@ -32,7 +32,9 @@ const buildSentryConfig = (): SentryConfig => {
 };
 
 const toError = (value: unknown) =>
-  value instanceof Error ? value : new Error(typeof value === "string" ? value : "Unknown error");
+  value instanceof Error
+    ? value
+    : new Error(typeof value === "string" ? value : "Unknown error");
 
 export class SentryService {
   private readonly config = buildSentryConfig();

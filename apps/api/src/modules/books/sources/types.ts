@@ -10,7 +10,12 @@ export type MangaSearchFilters = {
   originalLanguage?: string[];
   contentRating?: string[];
   demographic?: string[];
-  sort?: 'relevance' | 'latestUploadedChapter' | 'followedCount' | 'createdAt' | 'year';
+  sort?:
+    | "relevance"
+    | "latestUploadedChapter"
+    | "followedCount"
+    | "createdAt"
+    | "year";
   year?: number;
 };
 
@@ -50,7 +55,7 @@ export type MangaChapter = {
 export type MangaPagesResult = {
   chapterId: string;
   // Kotatsu reader modes: standard (ltr), reversed (rtl/manga), double-page, webtoon
-  readerMode: 'standard' | 'reversed' | 'double-page' | 'webtoon';
+  readerMode: "standard" | "reversed" | "double-page" | "webtoon";
   pages: string[];
   externalUrl: string | null;
   isExternal: boolean;
@@ -77,12 +82,20 @@ export interface MangaSource {
   displayName: string;
   capabilities: MangaSourceCapabilities;
 
-  searchManga(query?: string, limit?: number, filters?: MangaSearchFilters): Promise<MangaSummary[]>;
+  searchManga(
+    query?: string,
+    limit?: number,
+    filters?: MangaSearchFilters,
+  ): Promise<MangaSummary[]>;
   getDiscoverManga(limit?: number): Promise<MangaDiscoverResult>;
   getMangaTags(): Promise<MangaTag[]>;
   getMangaDetail(mangaId: string): Promise<MangaDetail | null>;
   getSimilarManga(mangaId: string, limit?: number): Promise<MangaSummary[]>;
-  getChapters(mangaId: string, translatedLanguage?: string, limit?: number): Promise<MangaChapter[]>;
+  getChapters(
+    mangaId: string,
+    translatedLanguage?: string,
+    limit?: number,
+  ): Promise<MangaChapter[]>;
   getChapterPages(chapterId: string): Promise<MangaPagesResult>;
   healthCheck(): Promise<{ ok: boolean; latencyMs: number; message?: string }>;
 }

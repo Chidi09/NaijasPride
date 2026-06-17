@@ -1,24 +1,26 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { 
-  MovieSearchParams, 
-  ApiResponse, 
+import { Injectable, inject } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import {
+  MovieSearchParams,
+  ApiResponse,
   MovieSummary,
-  Movie
-} from '@naijaspride/types';
+  Movie,
+} from "@naijaspride/types";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class MoviesApiService {
   private http = inject(HttpClient);
 
-  private toHttpParams(params: MovieSearchParams): Record<string, string | number | boolean> {
+  private toHttpParams(
+    params: MovieSearchParams,
+  ): Record<string, string | number | boolean> {
     const out: Record<string, string | number | boolean> = {};
 
     for (const [key, value] of Object.entries(params || {})) {
-      if (value === undefined || value === null || value === '') continue;
+      if (value === undefined || value === null || value === "") continue;
       if (Array.isArray(value)) {
         if (value.length === 0) continue;
-        out[key] = value.join(',');
+        out[key] = value.join(",");
         continue;
       }
       out[key] = value as string | number | boolean;
@@ -28,7 +30,7 @@ export class MoviesApiService {
   }
 
   getMovies(params: MovieSearchParams) {
-    return this.http.get<ApiResponse<MovieSummary[]>>('/api/v1/movies', {
+    return this.http.get<ApiResponse<MovieSummary[]>>("/api/v1/movies", {
       params: this.toHttpParams(params),
     });
   }
@@ -38,7 +40,7 @@ export class MoviesApiService {
       q: query,
       page: 1,
       limit,
-      sortBy: 'popular',
+      sortBy: "popular",
     });
   }
 

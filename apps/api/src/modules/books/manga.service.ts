@@ -1,12 +1,12 @@
-import { PrismaClient } from '@prisma/client';
-import { AsuraSource } from './sources/providers/asura.source';
-import { ManhwaTopSource } from './sources/providers/manhwatop.source';
-import { MangaDexSource } from './sources/providers/mangadex.source';
-import { MangabuddySource } from './sources/providers/mangabuddy.source';
-import { WeebCentralSource } from './sources/providers/weebcentral.source';
-import { ReadComicsOnlineSource } from './sources/providers/readcomicsonline.source';
-import { MangaSourceManager } from './sources/source-manager';
-import { MangaSourceRegistry } from './sources/source-registry';
+import { PrismaClient } from "@prisma/client";
+import { AsuraSource } from "./sources/providers/asura.source";
+import { ManhwaTopSource } from "./sources/providers/manhwatop.source";
+import { MangaDexSource } from "./sources/providers/mangadex.source";
+import { MangabuddySource } from "./sources/providers/mangabuddy.source";
+import { WeebCentralSource } from "./sources/providers/weebcentral.source";
+import { ReadComicsOnlineSource } from "./sources/providers/readcomicsonline.source";
+import { MangaSourceManager } from "./sources/source-manager";
+import { MangaSourceRegistry } from "./sources/source-registry";
 import {
   MangaChapter,
   MangaDetail,
@@ -15,7 +15,7 @@ import {
   MangaSearchFilters,
   MangaSummary,
   MangaTag,
-} from './sources/types';
+} from "./sources/types";
 
 export type {
   MangaChapter,
@@ -25,25 +25,21 @@ export type {
   MangaSearchFilters,
   MangaSummary,
   MangaTag,
-} from './sources/types';
+} from "./sources/types";
 
 export class MangaService {
   private readonly sourceManager: MangaSourceManager;
-  private sourceHealthCache:
-    | {
-        expiresAt: number;
-        data: {
-          sources: Awaited<ReturnType<MangaSourceManager['getHealthStatus']>>;
-          solver: Awaited<ReturnType<MangaSourceManager['getFetchGatewayHealth']>>;
-        };
-      }
-    | null = null;
-  private sourceHealthInFlight:
-    | Promise<{
-        sources: Awaited<ReturnType<MangaSourceManager['getHealthStatus']>>;
-        solver: Awaited<ReturnType<MangaSourceManager['getFetchGatewayHealth']>>;
-      }>
-    | null = null;
+  private sourceHealthCache: {
+    expiresAt: number;
+    data: {
+      sources: Awaited<ReturnType<MangaSourceManager["getHealthStatus"]>>;
+      solver: Awaited<ReturnType<MangaSourceManager["getFetchGatewayHealth"]>>;
+    };
+  } | null = null;
+  private sourceHealthInFlight: Promise<{
+    sources: Awaited<ReturnType<MangaSourceManager["getHealthStatus"]>>;
+    solver: Awaited<ReturnType<MangaSourceManager["getFetchGatewayHealth"]>>;
+  }> | null = null;
 
   constructor(private prisma: PrismaClient) {
     const registry = new MangaSourceRegistry();
@@ -60,18 +56,28 @@ export class MangaService {
       registry.register(new MangaDexSource());
     }
 
-    this.sourceManager = new MangaSourceManager(registry, this.resolveDefaultSourceId(registry));
+    this.sourceManager = new MangaSourceManager(
+      registry,
+      this.resolveDefaultSourceId(registry),
+    );
   }
 
   private resolveDefaultSourceId(registry: MangaSourceRegistry): string {
-    const preferredOrder = ['weebcentral', 'asura', 'manhwatop', 'mangabuddy', 'readcomicsonline', 'mangadex'];
+    const preferredOrder = [
+      "weebcentral",
+      "asura",
+      "manhwatop",
+      "mangabuddy",
+      "readcomicsonline",
+      "mangadex",
+    ];
     for (const sourceId of preferredOrder) {
       if (registry.has(sourceId)) {
         return sourceId;
       }
     }
 
-    return registry.list()[0]?.id || 'mangadex';
+    return registry.list()[0]?.id || "mangadex";
   }
 
   getSources() {
@@ -92,7 +98,10 @@ export class MangaService {
       return this.sourceHealthInFlight;
     }
 
-    const ttlMsRaw = Number.parseInt(process.env.MANGA_SOURCE_HEALTH_CACHE_MS || '30000', 10);
+    const ttlMsRaw = Number.parseInt(
+      process.env.MANGA_SOURCE_HEALTH_CACHE_MS || "30000",
+      10,
+    );
     const ttlMs = Number.isFinite(ttlMsRaw) && ttlMsRaw > 0 ? ttlMsRaw : 30_000;
 
     this.sourceHealthInFlight = Promise.all([
@@ -114,7 +123,11 @@ export class MangaService {
     return this.sourceHealthInFlight;
   }
 
-  async searchManga(query?: string, limit = 20, filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
+  async searchManga(
+    query?: string,
+    limit = 20,
+    filters: MangaSearchFilters = {},
+  ): Promise<MangaSummary[]> {
     return this.sourceManager.searchManga(query, limit, filters);
   }
 
@@ -122,16 +135,24 @@ export class MangaService {
     sourceId: string,
     query?: string,
     limit = 20,
-    filters: MangaSearchFilters = {}
+    filters: MangaSearchFilters = {},
   ): Promise<MangaSummary[]> {
-    return this.sourceManager.searchMangaBySource(sourceId, query, limit, filters);
+    return this.sourceManager.searchMangaBySource(
+      sourceId,
+      query,
+      limit,
+      filters,
+    );
   }
 
   async getDiscoverManga(limit = 12): Promise<MangaDiscoverResult> {
     return this.sourceManager.getDiscoverManga(limit);
   }
 
-  async getDiscoverMangaBySource(sourceId: string, limit = 12): Promise<MangaDiscoverResult> {
+  async getDiscoverMangaBySource(
+    sourceId: string,
+    limit = 12,
+  ): Promise<MangaDiscoverResult> {
     return this.sourceManager.getDiscoverMangaBySource(sourceId, limit);
   }
 
@@ -147,7 +168,10 @@ export class MangaService {
     return this.sourceManager.getMangaDetail(mangaId);
   }
 
-  async getMangaDetailBySource(sourceId: string, mangaId: string): Promise<MangaDetail | null> {
+  async getMangaDetailBySource(
+    sourceId: string,
+    mangaId: string,
+  ): Promise<MangaDetail | null> {
     return this.sourceManager.getMangaDetailBySource(sourceId, mangaId);
   }
 
@@ -155,11 +179,19 @@ export class MangaService {
     return this.sourceManager.getSimilarManga(mangaId, limit);
   }
 
-  async getSimilarMangaBySource(sourceId: string, mangaId: string, limit = 6): Promise<MangaSummary[]> {
+  async getSimilarMangaBySource(
+    sourceId: string,
+    mangaId: string,
+    limit = 6,
+  ): Promise<MangaSummary[]> {
     return this.sourceManager.getSimilarMangaBySource(sourceId, mangaId, limit);
   }
 
-  async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
+  async getChapters(
+    mangaId: string,
+    translatedLanguage?: string,
+    limit = 100,
+  ): Promise<MangaChapter[]> {
     return this.sourceManager.getChapters(mangaId, translatedLanguage, limit);
   }
 
@@ -167,16 +199,24 @@ export class MangaService {
     sourceId: string,
     mangaId: string,
     translatedLanguage?: string,
-    limit = 100
+    limit = 100,
   ): Promise<MangaChapter[]> {
-    return this.sourceManager.getChaptersBySource(sourceId, mangaId, translatedLanguage, limit);
+    return this.sourceManager.getChaptersBySource(
+      sourceId,
+      mangaId,
+      translatedLanguage,
+      limit,
+    );
   }
 
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
     return this.sourceManager.getChapterPages(chapterId);
   }
 
-  async getChapterPagesBySource(sourceId: string, chapterId: string): Promise<MangaPagesResult> {
+  async getChapterPagesBySource(
+    sourceId: string,
+    chapterId: string,
+  ): Promise<MangaPagesResult> {
     return this.sourceManager.getChapterPagesBySource(sourceId, chapterId);
   }
 
@@ -195,7 +235,7 @@ export class MangaService {
     totalPages: number,
     isCompleted = false,
     mangaTitle?: string,
-    chapterTitle?: string
+    chapterTitle?: string,
   ) {
     return this.prisma.mangaReadingProgress.upsert({
       where: { userId_chapterId: { userId, chapterId } },
@@ -223,7 +263,7 @@ export class MangaService {
   async getUserReadingHistory(userId: string, limit = 20) {
     return this.prisma.mangaReadingProgress.findMany({
       where: { userId },
-      orderBy: { lastReadAt: 'desc' },
+      orderBy: { lastReadAt: "desc" },
       take: limit,
     });
   }
@@ -243,12 +283,18 @@ export class MangaService {
   async getMangaProgressForUser(userId: string, mangaId: string) {
     return this.prisma.mangaReadingProgress.findMany({
       where: { userId, mangaId },
-      orderBy: { lastReadAt: 'desc' },
+      orderBy: { lastReadAt: "desc" },
     });
   }
 
   // === Favorites Methods ===
-  async addFavorite(userId: string, mangaId: string, title: string, coverUrl?: string, status?: string) {
+  async addFavorite(
+    userId: string,
+    mangaId: string,
+    title: string,
+    coverUrl?: string,
+    status?: string,
+  ) {
     return this.prisma.mangaFavorite.upsert({
       where: { userId_mangaId: { userId, mangaId } },
       update: {
@@ -276,7 +322,7 @@ export class MangaService {
   async getUserFavorites(userId: string) {
     return this.prisma.mangaFavorite.findMany({
       where: { userId },
-      orderBy: { addedAt: 'desc' },
+      orderBy: { addedAt: "desc" },
     });
   }
 

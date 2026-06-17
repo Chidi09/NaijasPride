@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync } from "fastify";
 
 /**
  * GET /api/v1/plans
@@ -6,9 +6,9 @@ import { FastifyPluginAsync } from 'fastify';
  * Public endpoint — no auth required.
  */
 export const plansRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/', async (_request, reply) => {
+  fastify.get("/", async (_request, reply) => {
     const plans = await fastify.prisma.plan.findMany({
-      orderBy: { priority: 'asc' },
+      orderBy: { priority: "asc" },
       select: {
         id: true,
         name: true,

@@ -1,7 +1,7 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input } from "@angular/core";
 
 @Component({
-  selector: 'app-symbol-icon',
+  selector: "app-symbol-icon",
   standalone: true,
   template: `
     <span
@@ -10,7 +10,8 @@ import { Component, computed, input } from '@angular/core';
       [style.fontSize.px]="size()"
       [style.fontVariationSettings]="fontVariation()"
       aria-hidden="true"
-    >{{ name() }}</span>
+      >{{ name() }}</span
+    >
   `,
 })
 export class SymbolIconComponent {
@@ -19,5 +20,8 @@ export class SymbolIconComponent {
   fill = input(false);
   weight = input(400);
 
-  fontVariation = computed(() => `'FILL' ${this.fill() ? 1 : 0}, 'wght' ${this.weight()}, 'GRAD' 0, 'opsz' 24`);
+  fontVariation = computed(
+    () =>
+      `'FILL' ${this.fill() ? 1 : 0}, 'wght' ${this.weight()}, 'GRAD' 0, 'opsz' 24`,
+  );
 }

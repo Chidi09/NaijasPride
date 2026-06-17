@@ -1,9 +1,16 @@
-import { AfterViewInit, Directive, ElementRef, HostListener, Input, OnDestroy } from '@angular/core';
+import {
+  AfterViewInit,
+  Directive,
+  ElementRef,
+  HostListener,
+  Input,
+  OnDestroy,
+} from "@angular/core";
 
 type FocusableElement = HTMLElement & { disabled?: boolean };
 
 @Directive({
-  selector: '[appTvFocusGroup]',
+  selector: "[appTvFocusGroup]",
   standalone: true,
 })
 export class TvFocusGroupDirective implements AfterViewInit, OnDestroy {
@@ -25,16 +32,22 @@ export class TvFocusGroupDirective implements AfterViewInit, OnDestroy {
       }
     });
 
-    this.observer.observe(this.host.nativeElement, { childList: true, subtree: true });
+    this.observer.observe(this.host.nativeElement, {
+      childList: true,
+      subtree: true,
+    });
   }
 
   ngOnDestroy(): void {
     this.observer?.disconnect();
   }
 
-  @HostListener('keydown', ['$event'])
+  @HostListener("keydown", ["$event"])
   onKeydown(event: KeyboardEvent): void {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    if (
+      !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
+    )
+      return;
 
     const focusables = this.getFocusableElements();
     if (focusables.length === 0) return;
@@ -60,21 +73,31 @@ export class TvFocusGroupDirective implements AfterViewInit, OnDestroy {
 
   private getFocusableElements(): FocusableElement[] {
     const selector = [
-      'a[href]',
-      'button:not([disabled])',
-      'input:not([disabled])',
-      'select:not([disabled])',
-      'textarea:not([disabled])',
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
       '[tabindex]:not([tabindex="-1"])',
-    ].join(',');
+    ].join(",");
 
-    return Array.from(this.host.nativeElement.querySelectorAll<FocusableElement>(selector)).filter((element) => {
+    return Array.from(
+      this.host.nativeElement.querySelectorAll<FocusableElement>(selector),
+    ).filter((element) => {
       const style = window.getComputedStyle(element);
-      return style.display !== 'none' && style.visibility !== 'hidden' && element.offsetParent !== null;
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        element.offsetParent !== null
+      );
     });
   }
 
-  private findNextFocusable(current: FocusableElement, all: FocusableElement[], key: string): FocusableElement | null {
+  private findNextFocusable(
+    current: FocusableElement,
+    all: FocusableElement[],
+    key: string,
+  ): FocusableElement | null {
     const currentRect = current.getBoundingClientRect();
     const currentCenterX = currentRect.left + currentRect.width / 2;
     const currentCenterY = currentRect.top + currentRect.height / 2;
@@ -90,13 +113,19 @@ export class TvFocusGroupDirective implements AfterViewInit, OnDestroy {
       const deltaX = centerX - currentCenterX;
       const deltaY = centerY - currentCenterY;
 
-      if (key === 'ArrowRight' && deltaX <= 0) continue;
-      if (key === 'ArrowLeft' && deltaX >= 0) continue;
-      if (key === 'ArrowDown' && deltaY <= 0) continue;
-      if (key === 'ArrowUp' && deltaY >= 0) continue;
+      if (key === "ArrowRight" && deltaX <= 0) continue;
+      if (key === "ArrowLeft" && deltaX >= 0) continue;
+      if (key === "ArrowDown" && deltaY <= 0) continue;
+      if (key === "ArrowUp" && deltaY >= 0) continue;
 
-      const primary = key === 'ArrowLeft' || key === 'ArrowRight' ? Math.abs(deltaX) : Math.abs(deltaY);
-      const secondary = key === 'ArrowLeft' || key === 'ArrowRight' ? Math.abs(deltaY) : Math.abs(deltaX);
+      const primary =
+        key === "ArrowLeft" || key === "ArrowRight"
+          ? Math.abs(deltaX)
+          : Math.abs(deltaY);
+      const secondary =
+        key === "ArrowLeft" || key === "ArrowRight"
+          ? Math.abs(deltaY)
+          : Math.abs(deltaX);
       const score = primary + secondary * 0.45;
 
       if (score < bestScore) {

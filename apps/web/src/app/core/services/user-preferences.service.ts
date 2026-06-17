@@ -1,6 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal } from "@angular/core";
 
-export type FeedMood = 'all' | 'chill' | 'intense' | 'family' | 'nollywood';
+export type FeedMood = "all" | "chill" | "intense" | "family" | "nollywood";
 
 export interface UserPreferences {
   feedMood: FeedMood;
@@ -9,16 +9,16 @@ export interface UserPreferences {
   hasSeenOnboarding: boolean;
 }
 
-const STORAGE_KEY = 'np_user_prefs';
+const STORAGE_KEY = "np_user_prefs";
 
 const DEFAULTS: UserPreferences = {
-  feedMood: 'all',
+  feedMood: "all",
   highContrast: false,
   fontScale: 1,
   hasSeenOnboarding: false,
 };
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class UserPreferencesService {
   readonly feedMood = signal<FeedMood>(DEFAULTS.feedMood);
   readonly highContrast = signal(DEFAULTS.highContrast);
@@ -41,7 +41,7 @@ export class UserPreferencesService {
 
   setHighContrast(on: boolean) {
     this.highContrast.set(on);
-    document.documentElement.classList.toggle('high-contrast', on);
+    document.documentElement.classList.toggle("high-contrast", on);
     this.persist();
   }
 
@@ -65,14 +65,16 @@ export class UserPreferencesService {
       if (saved.feedMood) this.feedMood.set(saved.feedMood);
       if (saved.highContrast) {
         this.highContrast.set(true);
-        document.documentElement.classList.add('high-contrast');
+        document.documentElement.classList.add("high-contrast");
       }
       if (saved.fontScale && saved.fontScale !== 1) {
         this.fontScale.set(saved.fontScale);
         document.documentElement.style.fontSize = `${saved.fontScale * 100}%`;
       }
       if (saved.hasSeenOnboarding) this.hasSeenOnboarding.set(true);
-    } catch { /* corrupted storage, use defaults */ }
+    } catch {
+      /* corrupted storage, use defaults */
+    }
   }
 
   private persist() {

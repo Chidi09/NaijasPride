@@ -1,4 +1,4 @@
-export type HealthState = 'healthy' | 'degraded' | 'unhealthy';
+export type HealthState = "healthy" | "degraded" | "unhealthy";
 
 export type HealthStatus = {
   service: string;
@@ -36,10 +36,16 @@ export class HealthMonitorService {
     current.totalRequests++;
     current.lastChecked = new Date();
 
-    if (current.state === 'unhealthy' && current.consecutiveSuccesses >= this.options.successThreshold) {
-      current.state = 'degraded';
-    } else if (current.state === 'degraded' && current.consecutiveSuccesses >= this.options.successThreshold * 2) {
-      current.state = 'healthy';
+    if (
+      current.state === "unhealthy" &&
+      current.consecutiveSuccesses >= this.options.successThreshold
+    ) {
+      current.state = "degraded";
+    } else if (
+      current.state === "degraded" &&
+      current.consecutiveSuccesses >= this.options.successThreshold * 2
+    ) {
+      current.state = "healthy";
     }
 
     this.services.set(service, current);
@@ -54,9 +60,9 @@ export class HealthMonitorService {
     current.failureRate = current.consecutiveFailures / current.totalRequests;
 
     if (current.consecutiveFailures >= this.options.failureThreshold) {
-      current.state = 'unhealthy';
+      current.state = "unhealthy";
     } else if (current.consecutiveFailures > 0) {
-      current.state = 'degraded';
+      current.state = "degraded";
     }
 
     this.services.set(service, current);
@@ -65,7 +71,7 @@ export class HealthMonitorService {
   isHealthy(service: string): boolean {
     const status = this.services.get(service);
     if (!status) return true;
-    return status.state !== 'unhealthy';
+    return status.state !== "unhealthy";
   }
 
   getHealth(service: string): HealthStatus | undefined {
@@ -78,21 +84,23 @@ export class HealthMonitorService {
 
   shouldAttempt(service: string): boolean {
     const status = this.services.get(service);
-    if (!status || status.state !== 'unhealthy') return true;
-    
+    if (!status || status.state !== "unhealthy") return true;
+
     const timeSinceLastCheck = Date.now() - status.lastChecked.getTime();
     return timeSinceLastCheck >= this.options.recoveryMs;
   }
 
   private getOrCreateStatus(service: string): HealthStatus {
-    return this.services.get(service) ?? {
-      service,
-      state: 'healthy',
-      lastChecked: new Date(),
-      consecutiveFailures: 0,
-      consecutiveSuccesses: 0,
-      totalRequests: 0,
-      failureRate: 0,
-    };
+    return (
+      this.services.get(service) ?? {
+        service,
+        state: "healthy",
+        lastChecked: new Date(),
+        consecutiveFailures: 0,
+        consecutiveSuccesses: 0,
+        totalRequests: 0,
+        failureRate: 0,
+      }
+    );
   }
 }

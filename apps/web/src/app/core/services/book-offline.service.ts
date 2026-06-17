@@ -4,19 +4,24 @@
  * Offline book downloader with persisted queue + stream-to-cache writes.
  */
 
-import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, computed, inject, signal } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { firstValueFrom } from "rxjs";
 
-const BOOK_CACHE = 'np-books-v1';
-const BOOK_META_DB = 'np_book_offline_v1';
-const BOOK_META_STORE = 'books';
-const BOOK_URL_PREFIX = '/offline/book/';
+const BOOK_CACHE = "np-books-v1";
+const BOOK_META_DB = "np_book_offline_v1";
+const BOOK_META_STORE = "books";
+const BOOK_URL_PREFIX = "/offline/book/";
 
 const MAX_PARALLEL_DOWNLOADS = 1;
 const PERSIST_INTERVAL_MS = 250;
 
-export type BookDLStatus = 'idle' | 'queued' | 'downloading' | 'complete' | 'error';
+export type BookDLStatus =
+  | "idle"
+  | "queued"
+  | "downloading"
+  | "complete"
+  | "error";
 
 export interface BookOfflineMeta {
   id: string;
@@ -41,7 +46,7 @@ type Deferred = {
   reject: (error: unknown) => void;
 };
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class BookOfflineService {
   private http = inject(HttpClient);
 
@@ -55,23 +60,27 @@ export class BookOfflineService {
   private _isProcessing = false;
 
   get isSupported(): boolean {
-    return typeof caches !== 'undefined' && typeof indexedDB !== 'undefined' && typeof ReadableStream !== 'undefined';
+    return (
+      typeof caches !== "undefined" &&
+      typeof indexedDB !== "undefined" &&
+      typeof ReadableStream !== "undefined"
+    );
   }
 
   constructor() {
     if (this.isSupported) {
       this._loadFromDb()
         .then(() => this._restoreQueue())
-        .catch((err) => console.warn('[BookOffline] Init failed:', err));
+        .catch((err) => console.warn("[BookOffline] Init failed:", err));
     }
   }
 
   isAvailable(bookId: string): boolean {
-    return this._books().get(bookId)?.status === 'complete';
+    return this._books().get(bookId)?.status === "complete";
   }
 
   getStatus(bookId: string): BookDLStatus {
-    return this._books().get(bookId)?.status ?? 'idle';
+    return this._books().get(bookId)?.status ?? "idle";
   }
 
   getProgress(bookId: string): number {
@@ -92,12 +101,12 @@ export class BookOfflineService {
     coverUrl?: string;
     fileSizeBytes?: number;
   }): Promise<void> {
-    if (!this.isSupported) throw new Error('Offline storage not supported');
+    if (!this.isSupported) throw new Error("Offline storage not supported");
 
     const { bookId } = params;
     const existing = this._books().get(bookId);
-    if (existing?.status === 'complete') return;
-    if (existing?.status === 'downloading' || existing?.status === 'queued') {
+    if (existing?.status === "complete") return;
+    if (existing?.status === "downloading" || existing?.status === "queued") {
       return this._getDeferred(bookId).promise;
     }
 
@@ -110,7 +119,7 @@ export class BookOfflineService {
       format: params.format,
       apiFileUrl: params.apiFileUrl,
       coverUrl: params.coverUrl,
-      status: 'queued',
+      status: "queued",
       progress: 0,
       fileSizeBytes: params.fileSizeBytes ?? existing?.fileSizeBytes ?? 0,
       savedAt: Date.now(),
@@ -143,7 +152,7 @@ export class BookOfflineService {
 
     const db = await this._openDb();
     await new Promise<void>((res, rej) => {
-      const tx = db.transaction(BOOK_META_STORE, 'readwrite');
+      const tx = db.transaction(BOOK_META_STORE, "readwrite");
       tx.objectStore(BOOK_META_STORE).delete(bookId);
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
@@ -153,9 +162,11 @@ export class BookOfflineService {
     map.delete(bookId);
     this._books.set(map);
 
-    this._rejectDeferred(bookId, new Error('Download removed'));
+    this._rejectDeferred(bookId, new Error("Download removed"));
 
-    firstValueFrom(this.http.delete(`/api/v1/library/books/offline/${bookId}`)).catch(console.error);
+    firstValueFrom(
+      this.http.delete(`/api/v1/library/books/offline/${bookId}`),
+    ).catch(() => {});
   }
 
   private _enqueue(bookId: string) {
@@ -166,13 +177,16 @@ export class BookOfflineService {
   private _restoreQueue() {
     const map = new Map(this._books());
     for (const item of map.values()) {
-      if ((item.status === 'queued' || item.status === 'downloading') && item.apiFileUrl) {
-        item.status = 'queued';
+      if (
+        (item.status === "queued" || item.status === "downloading") &&
+        item.apiFileUrl
+      ) {
+        item.status = "queued";
         item.error = undefined;
         this._enqueue(item.bookId);
-      } else if (item.status === 'queued' || item.status === 'downloading') {
-        item.status = 'error';
-        item.error = 'Download metadata missing. Retry download.';
+      } else if (item.status === "queued" || item.status === "downloading") {
+        item.status = "error";
+        item.error = "Download metadata missing. Retry download.";
       }
     }
     this._books.set(map);
@@ -193,7 +207,7 @@ export class BookOfflineService {
         if (!bookId) continue;
 
         const meta = this._books().get(bookId);
-        if (!meta || meta.status === 'complete') {
+        if (!meta || meta.status === "complete") {
           this._resolveDeferred(bookId);
           continue;
         }
@@ -207,7 +221,10 @@ export class BookOfflineService {
       }
     } finally {
       this._isProcessing = false;
-      if (this._queue.length > 0 && this._active.size < MAX_PARALLEL_DOWNLOADS) {
+      if (
+        this._queue.length > 0 &&
+        this._active.size < MAX_PARALLEL_DOWNLOADS
+      ) {
         void this._processQueue();
       }
     }
@@ -219,7 +236,7 @@ export class BookOfflineService {
 
     const current: BookOfflineMeta = {
       ...meta,
-      status: 'downloading',
+      status: "downloading",
       progress: 0,
       error: undefined,
     };
@@ -227,30 +244,42 @@ export class BookOfflineService {
 
     try {
       const response = await fetch(current.apiFileUrl, {
-        credentials: 'include',
-        cache: 'no-store',
+        credentials: "include",
+        cache: "no-store",
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      if (!response.body) throw new Error('ReadableStream not supported');
+      if (!response.body) throw new Error("ReadableStream not supported");
 
-      const contentLength = Number.parseInt(response.headers.get('content-length') ?? '0', 10);
-      const total = Number.isFinite(contentLength) && contentLength > 0 ? contentLength : current.fileSizeBytes;
+      const contentLength = Number.parseInt(
+        response.headers.get("content-length") ?? "0",
+        10,
+      );
+      const total =
+        Number.isFinite(contentLength) && contentLength > 0
+          ? contentLength
+          : current.fileSizeBytes;
 
       const [cacheStream, progressStream] = response.body.tee();
 
-      const mimeType = current.format.toLowerCase() === 'pdf' ? 'application/pdf' : 'application/epub+zip';
+      const mimeType =
+        current.format.toLowerCase() === "pdf"
+          ? "application/pdf"
+          : "application/epub+zip";
       const headers = new Headers({
-        'Content-Type': mimeType,
-        'Content-Disposition': `inline; filename="${current.bookSlug}.${current.format.toLowerCase()}"`,
+        "Content-Type": mimeType,
+        "Content-Disposition": `inline; filename="${current.bookSlug}.${current.format.toLowerCase()}"`,
       });
       if (total > 0) {
-        headers.set('Content-Length', String(total));
+        headers.set("Content-Length", String(total));
       }
 
       const cache = await caches.open(BOOK_CACHE);
       const cacheKey = this.getOfflineFileUrl(current.bookId);
-      const cachePromise = cache.put(cacheKey, new Response(cacheStream, { headers }));
+      const cachePromise = cache.put(
+        cacheKey,
+        new Response(cacheStream, { headers }),
+      );
 
       const reader = progressStream.getReader();
       let downloaded = 0;
@@ -266,7 +295,8 @@ export class BookOfflineService {
         if (now - lastPersist < PERSIST_INTERVAL_MS) continue;
         lastPersist = now;
 
-        current.progress = total > 0 ? Math.min(99, Math.round((downloaded / total) * 100)) : 0;
+        current.progress =
+          total > 0 ? Math.min(99, Math.round((downloaded / total) * 100)) : 0;
         current.fileSizeBytes = downloaded;
         this._update({ ...current });
       }
@@ -275,7 +305,7 @@ export class BookOfflineService {
 
       const done: BookOfflineMeta = {
         ...current,
-        status: 'complete',
+        status: "complete",
         progress: 100,
         fileSizeBytes: total > 0 ? total : downloaded,
         savedAt: Date.now(),
@@ -284,32 +314,33 @@ export class BookOfflineService {
       this._update(done);
 
       firstValueFrom(
-        this.http.post('/api/v1/library/books/offline', {
+        this.http.post("/api/v1/library/books/offline", {
           bookId: current.bookId,
           format: current.format,
           fileSizeBytes: done.fileSizeBytes,
         }),
-      ).catch(console.error);
+      ).catch(() => {});
     } catch (err) {
-      const reason = err instanceof DOMException && err.name === 'AbortError'
-        ? 'Download cancelled'
-        : err instanceof Error
-          ? err.message
-          : 'Download failed';
+      const reason =
+        err instanceof DOMException && err.name === "AbortError"
+          ? "Download cancelled"
+          : err instanceof Error
+            ? err.message
+            : "Download failed";
 
       this._update({
         ...current,
-        status: 'error',
+        status: "error",
         retryCount: (current.retryCount || 0) + 1,
         error: reason,
       });
 
       firstValueFrom(
-        this.http.post('/api/v1/library/books/offline/failure', {
+        this.http.post("/api/v1/library/books/offline/failure", {
           bookId: current.bookId,
           reason,
         }),
-      ).catch(console.error);
+      ).catch(() => {});
 
       throw err;
     } finally {
@@ -321,13 +352,13 @@ export class BookOfflineService {
     const map = new Map(this._books());
     map.set(meta.id, { ...meta });
     this._books.set(map);
-    this._persist(meta).catch(console.error);
+    this._persist(meta).catch(() => {});
   }
 
   private async _persist(meta: BookOfflineMeta): Promise<void> {
     const db = await this._openDb();
     return new Promise((res, rej) => {
-      const tx = db.transaction(BOOK_META_STORE, 'readwrite');
+      const tx = db.transaction(BOOK_META_STORE, "readwrite");
       tx.objectStore(BOOK_META_STORE).put(meta);
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
@@ -338,7 +369,7 @@ export class BookOfflineService {
     try {
       const db = await this._openDb();
       const all = await new Promise<BookOfflineMeta[]>((res, rej) => {
-        const tx = db.transaction(BOOK_META_STORE, 'readonly');
+        const tx = db.transaction(BOOK_META_STORE, "readonly");
         const req = tx.objectStore(BOOK_META_STORE).getAll();
         req.onsuccess = () => res(req.result as BookOfflineMeta[]);
         req.onerror = () => rej(req.error);
@@ -349,7 +380,7 @@ export class BookOfflineService {
       }
       this._books.set(map);
     } catch (err) {
-      console.warn('[BookOffline] Failed to load IndexedDB:', err);
+      console.warn("[BookOffline] Failed to load IndexedDB:", err);
     }
   }
 
@@ -360,7 +391,7 @@ export class BookOfflineService {
       req.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains(BOOK_META_STORE)) {
-          db.createObjectStore(BOOK_META_STORE, { keyPath: 'id' });
+          db.createObjectStore(BOOK_META_STORE, { keyPath: "id" });
         }
       };
       req.onsuccess = (e) => res((e.target as IDBOpenDBRequest).result);

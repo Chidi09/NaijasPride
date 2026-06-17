@@ -1,4 +1,4 @@
-import { ZeistMangaBaseSource } from '../base/zeistmanga.base';
+import { ZeistMangaBaseSource } from "../base/zeistmanga.base";
 
 export class ZeistMangaSource extends ZeistMangaBaseSource {
   readonly id: string;

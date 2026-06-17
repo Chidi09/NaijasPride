@@ -14,23 +14,27 @@ export type NineAnimeSource = {
   isEmbed?: boolean;
 };
 
-const NINEANIME_BASE = process.env.NINEANIME_BASE_URL || 'https://9anime.to';
+const NINEANIME_BASE = process.env.NINEANIME_BASE_URL || "https://9anime.to";
 const NINEANIME_API = `${NINEANIME_BASE}/ajax`;
-const FLARESOLVERR_URL = process.env.FLARESOLVERR_URL || 'http://flaresolverr:8191/v1';
+const FLARESOLVERR_URL =
+  process.env.FLARESOLVERR_URL || "http://flaresolverr:8191/v1";
 
 // Common browser headers to avoid blocking
 const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'application/json, text/html, application/xhtml+xml',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Accept-Encoding': 'gzip, deflate, br',
-  'Referer': NINEANIME_BASE,
-  'Origin': NINEANIME_BASE,
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept: "application/json, text/html, application/xhtml+xml",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  Referer: NINEANIME_BASE,
+  Origin: NINEANIME_BASE,
 };
 
 // Check if we should use FlareSolverr for Cloudflare bypass
 const shouldUseFlareSolverr = (): boolean => {
-  return !!process.env.FLARESOLVERR_URL || process.env.USE_FLARESOLVERR === 'true';
+  return (
+    !!process.env.FLARESOLVERR_URL || process.env.USE_FLARESOLVERR === "true"
+  );
 };
 
 // Make request through FlareSolverr for Cloudflare bypass
@@ -38,45 +42,52 @@ async function flaresolverrRequest(url: string): Promise<string | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000); // 60s for FlareSolverr
-    
+
     const response = await fetch(FLARESOLVERR_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        cmd: 'request.get',
+        cmd: "request.get",
         url: url,
         maxTimeout: 60000,
       }),
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeout);
-    
+
     if (!response.ok) {
       console.warn(`[9anime] FlareSolverr request failed: ${response.status}`);
       return null;
     }
-    
-    const data = await response.json() as { solution?: { response?: string; status?: number } };
-    
+
+    const data = (await response.json()) as {
+      solution?: { response?: string; status?: number };
+    };
+
     if (data.solution?.response && data.solution.status === 200) {
       return data.solution.response;
     }
-    
+
     return null;
   } catch (error) {
-    console.warn(`[9anime] FlareSolverr error: ${error instanceof Error ? error.message : String(error)}`);
+    console.warn(
+      `[9anime] FlareSolverr error: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }
 
-async function nineAnimeRequest<T>(url: string, options: RequestInit = {}): Promise<T | null> {
+async function nineAnimeRequest<T>(
+  url: string,
+  options: RequestInit = {},
+): Promise<T | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
-    
+
     // Try direct request first
     const response = await fetch(url, {
       ...options,
@@ -86,13 +97,15 @@ async function nineAnimeRequest<T>(url: string, options: RequestInit = {}): Prom
       },
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeout);
-    
+
     if (!response.ok) {
       // If blocked and FlareSolverr available, try that
       if (response.status === 403 && shouldUseFlareSolverr()) {
-        console.log(`[9anime] Direct request blocked, trying FlareSolverr for ${url}`);
+        console.log(
+          `[9anime] Direct request blocked, trying FlareSolverr for ${url}`,
+        );
         const flaresolverrHtml = await flaresolverrRequest(url);
         if (flaresolverrHtml) {
           return { html: flaresolverrHtml } as unknown as T;
@@ -101,17 +114,16 @@ async function nineAnimeRequest<T>(url: string, options: RequestInit = {}): Prom
       console.warn(`[9anime] Request failed: ${response.status} for ${url}`);
       return null;
     }
-    
-    const contentType = response.headers.get('content-type') || '';
-    
-    if (contentType.includes('application/json')) {
-      return await response.json() as T;
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      return (await response.json()) as T;
     }
-    
+
     // Return text for HTML responses
     const text = await response.text();
     return { html: text } as unknown as T;
-    
   } catch (error) {
     // If direct request failed and FlareSolverr available, try that
     if (shouldUseFlareSolverr()) {
@@ -121,20 +133,24 @@ async function nineAnimeRequest<T>(url: string, options: RequestInit = {}): Prom
         return { html: flaresolverrHtml } as unknown as T;
       }
     }
-    console.warn(`[9anime] Request error: ${error instanceof Error ? error.message : String(error)}`);
+    console.warn(
+      `[9anime] Request error: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }
 
-export async function searchNineAnime(query: string): Promise<Array<{ id: string; title: string; url: string }>> {
+export async function searchNineAnime(
+  query: string,
+): Promise<Array<{ id: string; title: string; url: string }>> {
   const encodedQuery = encodeURIComponent(query);
   const url = `${NINEANIME_BASE}/search?keyword=${encodedQuery}`;
-  
+
   const data = await nineAnimeRequest<{ html?: string }>(url);
   if (!data?.html) return [];
-  
+
   const results: Array<{ id: string; title: string; url: string }> = [];
-  
+
   // Parse anime items from HTML
   // 9anime uses various HTML structures, try multiple patterns
   const patterns = [
@@ -142,41 +158,43 @@ export async function searchNineAnime(query: string): Promise<Array<{ id: string
     /<a[^>]*href="\/watch\/([^"]+)"[^>]*class="[^"]*poster[^"]*"[^>]*>[^<]*<img[^>]*title="([^"]+)"/gi,
     /<div[^>]*class="[^"]*item[^"]*"[^>]*>[^<]*<a[^>]*href="\/watch\/([^"]+)"[^>]*>[^<]*<[^>]*title="([^"]+)"/gi,
   ];
-  
+
   for (const pattern of patterns) {
     const matches = data.html.matchAll(pattern);
     for (const match of matches) {
       if (match[1] && match[2]) {
         results.push({
-          id: match[1].split('?')[0]!, // Remove query params
+          id: match[1].split("?")[0]!, // Remove query params
           title: match[2].trim(),
           url: `${NINEANIME_BASE}/watch/${match[1]}`,
         });
       }
     }
-    
+
     if (results.length > 0) break; // Found matches with this pattern
   }
-  
+
   // Deduplicate by ID
   const seen = new Set<string>();
-  return results.filter(r => {
+  return results.filter((r) => {
     if (seen.has(r.id)) return false;
     seen.add(r.id);
     return true;
   });
 }
 
-export async function getNineAnimeEpisodes(animeId: string): Promise<NineAnimeEpisode[]> {
+export async function getNineAnimeEpisodes(
+  animeId: string,
+): Promise<NineAnimeEpisode[]> {
   // animeId might be full URL or just the ID part
-  const cleanId = animeId.replace(`${NINEANIME_BASE}/watch/`, '').split('?')[0];
+  const cleanId = animeId.replace(`${NINEANIME_BASE}/watch/`, "").split("?")[0];
   const url = `${NINEANIME_BASE}/watch/${cleanId}`;
-  
+
   const data = await nineAnimeRequest<{ html?: string }>(url);
   if (!data?.html) return [];
-  
+
   const episodes: NineAnimeEpisode[] = [];
-  
+
   // Try to find episode list in HTML
   // Look for episode data in various formats
   const episodePatterns = [
@@ -184,18 +202,18 @@ export async function getNineAnimeEpisodes(animeId: string): Promise<NineAnimeEp
     /href="#episode-(\d+)"[^>]*data-id="([^"]+)"/gi,
     /<a[^>]*ep-(\d+)[^>]*data-id="([^"]+)"/gi,
   ];
-  
+
   for (const pattern of episodePatterns) {
     const matches = data.html.matchAll(pattern);
     for (const match of matches) {
       let epNum: number;
       let epId: string;
-      
+
       if (match[1] && match[2]) {
         // Try to figure out which is episode number and which is ID
         const num1 = parseInt(match[1], 10);
         const num2 = parseInt(match[2], 10);
-        
+
         if (!isNaN(num1) && isNaN(num2)) {
           epNum = num1;
           epId = match[2]!;
@@ -214,8 +232,8 @@ export async function getNineAnimeEpisodes(animeId: string): Promise<NineAnimeEp
         } else {
           continue;
         }
-        
-        if (!episodes.some(e => e.number === epNum)) {
+
+        if (!episodes.some((e) => e.number === epNum)) {
           episodes.push({
             id: epId,
             number: epNum,
@@ -223,14 +241,15 @@ export async function getNineAnimeEpisodes(animeId: string): Promise<NineAnimeEp
         }
       }
     }
-    
+
     if (episodes.length > 0) break;
   }
-  
+
   // Alternative: Look for JSON data in page
   if (episodes.length === 0) {
-    const jsonMatch = data.html.match(/var\s+episodes\s*=\s*(\[.+?\]);/i) || 
-                      data.html.match(/"episodes":\s*(\[.+?\])/i);
+    const jsonMatch =
+      data.html.match(/var\s+episodes\s*=\s*(\[.+?\]);/i) ||
+      data.html.match(/"episodes":\s*(\[.+?\])/i);
     if (jsonMatch?.[1]) {
       try {
         const epData = JSON.parse(jsonMatch[1]);
@@ -250,40 +269,45 @@ export async function getNineAnimeEpisodes(animeId: string): Promise<NineAnimeEp
       }
     }
   }
-  
+
   return episodes.sort((a, b) => a.number - b.number);
 }
 
 export async function getNineAnimeSources(
   episodeId: string,
-  animeId?: string
-): Promise<{ sources: NineAnimeSource[]; subtitles?: Array<{url: string; lang: string}> }> {
+  animeId?: string,
+): Promise<{
+  sources: NineAnimeSource[];
+  subtitles?: Array<{ url: string; lang: string }>;
+}> {
   // Build episode watch URL
   let watchUrl: string;
-  if (episodeId.startsWith('http')) {
+  if (episodeId.startsWith("http")) {
     watchUrl = episodeId;
   } else if (animeId) {
-    const cleanAnimeId = animeId.replace(`${NINEANIME_BASE}/watch/`, '').split('?')[0];
+    const cleanAnimeId = animeId
+      .replace(`${NINEANIME_BASE}/watch/`, "")
+      .split("?")[0];
     watchUrl = `${NINEANIME_BASE}/watch/${cleanAnimeId}/ep-${episodeId}`;
   } else {
     return { sources: [] };
   }
-  
+
   const data = await nineAnimeRequest<{ html?: string }>(watchUrl);
   if (!data?.html) return { sources: [] };
-  
+
   const sources: NineAnimeSource[] = [];
-  const subtitles: Array<{url: string; lang: string}> = [];
-  
+  const subtitles: Array<{ url: string; lang: string }> = [];
+
   // Extract video URLs from page
   // Look for m3u8 and mp4 URLs
   const urlPatterns = [
     /https?:\/\/[^\s"'<>]+\.m3u8(?:\?[^\s"'<>]+)?/gi,
     /https?:\/\/[^\s"'<>]+\.mp4(?:\?[^\s"'<>]+)?/gi,
   ];
-  
+
   const seenUrls = new Set<string>();
-  
+
   for (const pattern of urlPatterns) {
     const matches = data.html.matchAll(pattern);
     for (const match of matches) {
@@ -293,19 +317,19 @@ export async function getNineAnimeSources(
         sources.push({
           url,
           quality: extractQuality(url),
-          isM3U8: url.includes('.m3u8'),
+          isM3U8: url.includes(".m3u8"),
         });
       }
     }
   }
-  
+
   // Look for source data in JSON
   const sourcePatterns = [
     /sources:\s*(\[[^\]]+\])/i,
     /"sources":\s*(\[[^\]]+\])/i,
     /var\s+sources\s*=\s*(\[[^\]]+\])/i,
   ];
-  
+
   for (const pattern of sourcePatterns) {
     const match = data.html.match(pattern);
     if (match?.[1]) {
@@ -320,7 +344,7 @@ export async function getNineAnimeSources(
                 sources.push({
                   url,
                   quality: src.label || src.quality || extractQuality(url),
-                  isM3U8: url.includes('.m3u8') || src.type === 'hls',
+                  isM3U8: url.includes(".m3u8") || src.type === "hls",
                 });
               }
             }
@@ -330,10 +354,10 @@ export async function getNineAnimeSources(
         // Parse failed
       }
     }
-    
+
     if (sources.length > 0) break;
   }
-  
+
   // Extract subtitle tracks
   const subtitlePattern = /tracks:\s*(\[[^\]]+\])/i;
   const subtitleMatch = data.html.match(subtitlePattern);
@@ -342,10 +366,10 @@ export async function getNineAnimeSources(
       const trackData = JSON.parse(subtitleMatch[1]);
       if (Array.isArray(trackData)) {
         for (const track of trackData) {
-          if (track.file && track.kind === 'captions') {
+          if (track.file && track.kind === "captions") {
             subtitles.push({
               url: track.file,
-              lang: track.label || track.srclang || 'Unknown',
+              lang: track.label || track.srclang || "Unknown",
             });
           }
         }
@@ -354,7 +378,7 @@ export async function getNineAnimeSources(
       // Parse failed
     }
   }
-  
+
   return { sources: sources.slice(0, 10), subtitles }; // Limit to top 10 sources
 }
 
@@ -365,33 +389,36 @@ function extractQuality(url: string): string {
     /quality[=_-]([^&/]+)/i,
     /([\d]+)k/i,
   ];
-  
+
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match?.[1]) {
       return match[1];
     }
   }
-  
-  return 'auto';
+
+  return "auto";
 }
 
 // Health check function
-export async function checkNineAnimeHealth(): Promise<{ healthy: boolean; message: string }> {
+export async function checkNineAnimeHealth(): Promise<{
+  healthy: boolean;
+  message: string;
+}> {
   try {
     const response = await fetch(NINEANIME_BASE, {
       headers: BROWSER_HEADERS,
-      method: 'HEAD',
+      method: "HEAD",
     });
-    
+
     if (response.ok) {
-      return { healthy: true, message: '9anime accessible' };
+      return { healthy: true, message: "9anime accessible" };
     }
     return { healthy: false, message: `9anime returned ${response.status}` };
   } catch (error) {
-    return { 
-      healthy: false, 
-      message: `9anime unreachable: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      healthy: false,
+      message: `9anime unreachable: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

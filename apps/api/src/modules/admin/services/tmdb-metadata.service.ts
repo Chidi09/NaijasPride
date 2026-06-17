@@ -1,9 +1,9 @@
-import axios from 'axios';
-import { PrismaClient } from '@prisma/client';
+import axios from "axios";
+import { PrismaClient } from "@prisma/client";
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const OMDB_API_KEY = process.env.OMDB_KEY;
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
 export interface TMDBMovieDetails {
   id: number;
@@ -38,9 +38,12 @@ export class TMDBMetadataService {
   /**
    * Search for a movie on TMDB and return the best match
    */
-  async searchMovie(title: string, year?: number): Promise<TMDBMovieDetails | null> {
+  async searchMovie(
+    title: string,
+    year?: number,
+  ): Promise<TMDBMovieDetails | null> {
     if (!TMDB_API_KEY) {
-      console.warn('[TMDB] No API key configured');
+      console.warn("[TMDB] No API key configured");
       return null;
     }
 
@@ -60,11 +63,11 @@ export class TMDBMetadataService {
 
       // Get the first result (best match)
       const bestMatch = results[0];
-      
+
       // Fetch full details including credits
       return await this.getMovieDetails(bestMatch.id);
     } catch (error) {
-      console.error('[TMDB] Search error:', error);
+      console.error("[TMDB] Search error:", error);
       return null;
     }
   }
@@ -79,14 +82,14 @@ export class TMDBMetadataService {
       const response = await axios.get(`${TMDB_BASE_URL}/movie/${tmdbId}`, {
         params: {
           api_key: TMDB_API_KEY,
-          append_to_response: 'credits',
+          append_to_response: "credits",
         },
         timeout: 10000,
       });
 
       return response.data;
     } catch (error) {
-      console.error('[TMDB] Details error:', error);
+      console.error("[TMDB] Details error:", error);
       return null;
     }
   }
@@ -94,9 +97,13 @@ export class TMDBMetadataService {
   /**
    * Enrich a movie with TMDB metadata after YouTube import
    */
-  async enrichMovieFromTMDB(movieId: string, title: string, year?: number): Promise<void> {
+  async enrichMovieFromTMDB(
+    movieId: string,
+    title: string,
+    year?: number,
+  ): Promise<void> {
     const tmdbData = await this.searchMovie(title, year);
-    
+
     if (!tmdbData) {
       console.log(`[TMDB] No match found for: ${title}`);
       return;
@@ -105,7 +112,7 @@ export class TMDBMetadataService {
     console.log(`[TMDB] Found match for: ${title} (TMDB ID: ${tmdbData.id})`);
 
     // Build update data
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       overview: tmdbData.overview || null,
       tagline: tmdbData.tagline || null,
     };
@@ -142,20 +149,20 @@ export class TMDBMetadataService {
     // Add cast members
     if (tmdbData.credits?.cast && tmdbData.credits.cast.length > 0) {
       const topCast = tmdbData.credits.cast.slice(0, 10); // Top 10 actors
-      
+
       for (const actor of topCast) {
         await this.prisma.cast.create({
           data: {
             name: actor.name,
             character: actor.character || null,
-            photoUrl: actor.profile_path 
-              ? `https://image.tmdb.org/t/p/w200${actor.profile_path}` 
+            photoUrl: actor.profile_path
+              ? `https://image.tmdb.org/t/p/w200${actor.profile_path}`
               : null,
             movieId: movieId,
           },
         });
       }
-      
+
       console.log(`[TMDB] Added ${topCast.length} cast members for: ${title}`);
     }
 
@@ -166,10 +173,10 @@ export class TMDBMetadataService {
    * Auto-find related movies based on genre and year
    */
   async findRelatedMovies(
-    movieId: string, 
-    genres: string[], 
+    movieId: string,
+    genres: string[],
     year: number,
-    limit: number = 5
+    limit: number = 5,
   ): Promise<{ id: string; title: string; thumbnailUrl: string | null }[]> {
     if (!TMDB_API_KEY) return [];
 
@@ -179,7 +186,7 @@ export class TMDBMetadataService {
         where: {
           id: { not: movieId },
           year: { gte: year - 2, lte: year + 2 },
-          status: 'active',
+          status: "active",
         },
         select: {
           id: true,
@@ -187,32 +194,37 @@ export class TMDBMetadataService {
           thumbnailUrl: true,
         },
         take: limit,
-        orderBy: { viewCount: 'desc' },
+        orderBy: { viewCount: "desc" },
       });
 
       return similarMovies;
     } catch (error) {
-      console.error('[TMDB] Related movies error:', error);
+      console.error("[TMDB] Related movies error:", error);
       return [];
     }
   }
 
-  private async getOmdbPoster(imdbId: string | null | undefined): Promise<string | null> {
+  private async getOmdbPoster(
+    imdbId: string | null | undefined,
+  ): Promise<string | null> {
     if (!OMDB_API_KEY || !imdbId) {
       return null;
     }
 
     try {
-      const response = await axios.get<{ Poster?: string }>('https://www.omdbapi.com/', {
-        params: {
-          apikey: OMDB_API_KEY,
-          i: imdbId,
+      const response = await axios.get<{ Poster?: string }>(
+        "https://www.omdbapi.com/",
+        {
+          params: {
+            apikey: OMDB_API_KEY,
+            i: imdbId,
+          },
+          timeout: 10000,
         },
-        timeout: 10000,
-      });
+      );
 
       const poster = response.data?.Poster;
-      if (!poster || poster === 'N/A') {
+      if (!poster || poster === "N/A") {
         return null;
       }
 

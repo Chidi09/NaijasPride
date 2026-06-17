@@ -1,13 +1,15 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ToastService } from '../../../core/services/toast.service';
+import { Component, inject } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { ToastService } from "../../../core/services/toast.service";
 
 @Component({
-  selector: 'app-toast-container',
+  selector: "app-toast-container",
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="fixed top-24 right-4 z-[100] flex w-[min(92vw,420px)] flex-col gap-2 pointer-events-none">
+    <div
+      class="fixed top-24 right-4 z-[100] flex w-[min(92vw,420px)] flex-col gap-2 pointer-events-none"
+    >
       @for (toast of toastService.toasts(); track toast.id) {
         <div
           class="pointer-events-auto rounded-md border-l-4 px-4 py-3 text-sm shadow-lg animate-[toast-in_220ms_ease-out]"

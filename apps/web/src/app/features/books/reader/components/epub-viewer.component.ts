@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule } from "@angular/common";
 import {
   AfterViewInit,
   Component,
@@ -11,8 +11,8 @@ import {
   SimpleChanges,
   ViewChild,
   inject,
-} from '@angular/core';
-import ePub from 'epubjs';
+} from "@angular/core";
+import ePub, { Book, Rendition } from "epubjs";
 
 import type {
   HighlightColor,
@@ -23,10 +23,10 @@ import type {
   ReaderTheme,
   SearchResultEntry,
   TocEntry,
-} from '../models/reader.models';
-import { ReaderProgressService } from '../services/reader-progress.service';
-import { ReaderStorageService } from '../services/reader-storage.service';
-import { AuthStateService } from '../../../../core/auth/auth-state.service';
+} from "../models/reader.models";
+import { ReaderProgressService } from "../services/reader-progress.service";
+import { ReaderStorageService } from "../services/reader-storage.service";
+import { AuthStateService } from "../../../../core/auth/auth-state.service";
 
 type ServerProgress = { page: number; updatedAt: number } | null;
 
@@ -41,8 +41,23 @@ type RenditionContent = {
   };
 };
 
+interface EpubSection {
+  linear?: boolean;
+  href?: string;
+  load(load: unknown): Promise<string>;
+  unload?(): void;
+  search(q: string): Array<{ cfi?: string; excerpt?: string }>;
+}
+
+interface EpubTocItem {
+  label?: string;
+  href?: string;
+  subitems?: EpubTocItem[];
+  [key: string]: unknown;
+}
+
 @Component({
-  selector: 'app-epub-viewer',
+  selector: "app-epub-viewer",
   standalone: true,
   imports: [CommonModule],
   styles: [
@@ -66,24 +81,24 @@ type RenditionContent = {
       }
     `,
   ],
-  template: `
-    <div #mount class="np-epub-mount"></div>
-  `,
+  template: ` <div #mount class="np-epub-mount"></div> `,
 })
-export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
+export class EpubViewerComponent
+  implements AfterViewInit, OnChanges, OnDestroy
+{
   private storage = inject(ReaderStorageService);
   private progressApi = inject(ReaderProgressService);
   private authState = inject(AuthStateService);
 
-  @ViewChild('mount') mount?: ElementRef<HTMLElement>;
+  @ViewChild("mount") mount?: ElementRef<HTMLElement>;
 
   @Input() slug: string | null = null;
   @Input() fileUrl: string | null = null;
 
-  @Input() flow: ReaderFlow = 'paginated';
-  @Input() spread: ReaderSpread = 'auto';
-  @Input() theme: ReaderTheme = 'paper';
-  @Input() fontFamily: ReaderFontFamily = 'serif';
+  @Input() flow: ReaderFlow = "paginated";
+  @Input() spread: ReaderSpread = "auto";
+  @Input() theme: ReaderTheme = "paper";
+  @Input() fontFamily: ReaderFontFamily = "serif";
   @Input() fontSize = 110;
   @Input() lineHeight = 1.6;
 
@@ -94,7 +109,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
   @Input() serverProgressLoaded = false;
 
   @Input() highlightMode = false;
-  @Input() highlightColor: HighlightColor = 'yellow';
+  @Input() highlightColor: HighlightColor = "yellow";
   @Input() highlights: HighlightEntry[] = [];
 
   @Output() readyChange = new EventEmitter<boolean>();
@@ -108,13 +123,17 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
   @Output() searchErrorChange = new EventEmitter<string | null>();
   @Output() searchResultsChange = new EventEmitter<SearchResultEntry[]>();
 
-  @Output() createHighlight = new EventEmitter<{ cfiRange: string; excerpt: string; color: HighlightColor }>();
+  @Output() createHighlight = new EventEmitter<{
+    cfiRange: string;
+    excerpt: string;
+    color: HighlightColor;
+  }>();
 
   private viewReady = false;
   private initKey: string | null = null;
 
-  private epubBook: any = null;
-  private rendition: any = null;
+  private epubBook: Book | null = null;
+  private rendition: Rendition | null = null;
 
   private locationsReady = false;
   private appliedServerProgress = false;
@@ -136,34 +155,39 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     if (!this.viewReady) return;
 
     const shouldReinit =
-      'fileUrl' in changes ||
-      'flow' in changes ||
-      'spread' in changes ||
-      'slug' in changes;
+      "fileUrl" in changes ||
+      "flow" in changes ||
+      "spread" in changes ||
+      "slug" in changes;
 
     if (shouldReinit) {
       void this.ensureInit();
       return;
     }
 
-    if ('theme' in changes || 'fontFamily' in changes || 'fontSize' in changes || 'lineHeight' in changes) {
+    if (
+      "theme" in changes ||
+      "fontFamily" in changes ||
+      "fontSize" in changes ||
+      "lineHeight" in changes
+    ) {
       this.registerThemes();
       this.applySettingsToRendition();
     }
 
-    if ('autoScrollEnabled' in changes || 'autoScrollSpeed' in changes) {
-      if (this.flow === 'scrolled' && this.autoScrollEnabled) {
+    if ("autoScrollEnabled" in changes || "autoScrollSpeed" in changes) {
+      if (this.flow === "scrolled" && this.autoScrollEnabled) {
         this.startAutoScroll();
       } else {
         this.stopAutoScroll();
       }
     }
 
-    if ('serverProgress' in changes || 'serverProgressLoaded' in changes) {
+    if ("serverProgress" in changes || "serverProgressLoaded" in changes) {
       this.applyServerProgressIfAvailable();
     }
 
-    if ('highlights' in changes || 'highlightColor' in changes) {
+    if ("highlights" in changes || "highlightColor" in changes) {
       this.applyHighlightsToRendition();
     }
   }
@@ -187,14 +211,14 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
       const parts: string[] = [];
       for (const c of contents) {
         const text = c?.document?.body?.innerText;
-        if (typeof text === 'string' && text.trim()) {
+        if (typeof text === "string" && text.trim()) {
           parts.push(text);
         }
       }
-      const joined = parts.join('\n\n').replace(/\s+/g, ' ').trim();
+      const joined = parts.join("\n\n").replace(/\s+/g, " ").trim();
       return joined.slice(0, n);
     } catch {
-      return '';
+      return "";
     }
   }
 
@@ -203,15 +227,15 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     try {
       const contents = this.getRenditionContents();
       for (const c of contents) {
-        const selected = c?.window?.getSelection?.()?.toString?.() || '';
-        const trimmed = String(selected).replace(/\s+/g, ' ').trim();
+        const selected = c?.window?.getSelection?.()?.toString?.() || "";
+        const trimmed = String(selected).replace(/\s+/g, " ").trim();
         if (trimmed) {
           return trimmed.slice(0, n);
         }
       }
-      return '';
+      return "";
     } catch {
-      return '';
+      return "";
     }
   }
 
@@ -224,10 +248,10 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
   }
 
   async search(query: string): Promise<void> {
-    const q = (query || '').trim();
+    const q = (query || "").trim();
     if (!q) return;
-    if (!this.epubBook?.spine?.spineItems) {
-      this.searchErrorChange.emit('Search is not available yet.');
+    if (!(this.epubBook?.spine as { spineItems?: EpubSection[] })?.spineItems) {
+      this.searchErrorChange.emit("Search is not available yet.");
       return;
     }
 
@@ -240,24 +264,31 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     const maxSections = 120;
 
     try {
-      const sections: any[] = this.epubBook.spine.spineItems || [];
+      const sections: EpubSection[] =
+        (this.epubBook?.spine as { spineItems?: EpubSection[] })?.spineItems ||
+        [];
       for (let i = 0; i < sections.length && i < maxSections; i++) {
         const section = sections[i];
         if (!section || !section.linear) continue;
         if (results.length >= maxResults) break;
 
         try {
-          await section.load(this.epubBook.load.bind(this.epubBook));
-          const matches = typeof section.search === 'function' ? section.search(q) : [];
+          await section.load(this.epubBook!.load.bind(this.epubBook!));
+          const matches =
+            typeof section.search === "function" ? section.search(q) : [];
           for (const match of matches || []) {
             if (results.length >= maxResults) break;
-            const cfi = typeof match?.cfi === 'string' ? match.cfi : null;
-            const excerpt = typeof match?.excerpt === 'string' ? match.excerpt : '';
+            const cfi = typeof match?.cfi === "string" ? match.cfi : null;
+            const excerpt =
+              typeof match?.excerpt === "string" ? match.excerpt : "";
             if (!cfi) continue;
             results.push({
               cfi,
               excerpt: excerpt ? excerpt : q,
-              href: typeof section.href === 'string' ? section.href : `Section ${i + 1}`,
+              href:
+                typeof section.href === "string"
+                  ? section.href
+                  : `Section ${i + 1}`,
             });
           }
         } catch {
@@ -273,7 +304,9 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
 
       this.searchResultsChange.emit(results);
     } catch (error) {
-      this.searchErrorChange.emit(error instanceof Error ? error.message : 'Search failed');
+      this.searchErrorChange.emit(
+        error instanceof Error ? error.message : "Search failed",
+      );
     } finally {
       this.searchingChange.emit(false);
     }
@@ -288,7 +321,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
       return;
     }
 
-    const key = [slug, url, this.flow, this.spread].join('|');
+    const key = [slug, url, this.flow, this.spread].join("|");
     if (this.initKey === key && this.rendition) {
       this.registerThemes();
       this.applySettingsToRendition();
@@ -316,14 +349,14 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
       // is non-OK/HTML, which surfaces as XML parsing errors.
       const token = this.authState.getToken();
       const headers: Record<string, string> = {
-        Accept: 'application/epub+zip,application/octet-stream,*/*',
+        Accept: "application/epub+zip,application/octet-stream,*/*",
       };
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
 
       const resp = await fetch(url, {
-        credentials: 'same-origin',
+        credentials: "same-origin",
         headers,
       });
 
@@ -333,23 +366,23 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
 
       const epubSource = await resp.arrayBuffer();
       if (!epubSource || epubSource.byteLength === 0) {
-        throw new Error('Received empty EPUB file');
+        throw new Error("Received empty EPUB file");
       }
 
-      this.epubBook = ePub(epubSource as any);
+      this.epubBook = ePub(epubSource as ArrayBuffer);
       const spreadSetting =
-        this.flow === 'paginated'
-          ? this.spread === 'double'
-            ? 'always'
-            : this.spread === 'single'
-              ? 'none'
-              : 'auto'
-          : 'none';
+        this.flow === "paginated"
+          ? this.spread === "double"
+            ? "always"
+            : this.spread === "single"
+              ? "none"
+              : "auto"
+          : "none";
 
       this.rendition = this.epubBook.renderTo(mount, {
-        width: '100%',
-        height: '100%',
-        flow: this.flow === 'scrolled' ? 'scrolled' : 'paginated',
+        width: "100%",
+        height: "100%",
+        flow: this.flow === "scrolled" ? "scrolled" : "paginated",
         spread: spreadSetting,
       });
 
@@ -357,67 +390,86 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
       this.registerThemes();
       this.applySettingsToRendition();
 
-      this.rendition.on('relocated', (location: any) => {
-        const cfi = location?.start?.cfi;
-        if (typeof cfi === 'string') {
-          this.currentCfiChange.emit(cfi);
-          this.persistLocalProgress(cfi);
-          this.scheduleServerProgressSave(cfi);
-        }
-
-        const pct = typeof location?.start?.percentage === 'number' ? location.start.percentage : null;
-        if (pct !== null && Number.isFinite(pct)) {
-          this.progressChange.emit(Math.max(0, Math.min(1, pct)));
-        }
-      });
-
-      this.rendition.on('selected', (cfiRange: string, contents: any) => {
-        try {
-          if (!this.highlightMode) {
-            contents?.window?.getSelection?.()?.removeAllRanges?.();
-            return;
+      this.rendition.on(
+        "relocated",
+        (location: { start?: { cfi?: string; percentage?: number } }) => {
+          const cfi = location?.start?.cfi;
+          if (typeof cfi === "string") {
+            this.currentCfiChange.emit(cfi);
+            this.persistLocalProgress(cfi);
+            this.scheduleServerProgressSave(cfi);
           }
-          const rawText = contents?.window?.getSelection?.()?.toString?.() || '';
-          const excerpt = (rawText || '').replace(/\s+/g, ' ').trim().slice(0, 180);
-          const cleanExcerpt = excerpt || 'Highlight';
 
-          if (typeof cfiRange === 'string' && cfiRange.trim()) {
-            this.addHighlightAnnotation(cfiRange.trim(), this.highlightColor);
-            this.createHighlight.emit({ cfiRange: cfiRange.trim(), excerpt: cleanExcerpt, color: this.highlightColor });
+          const pct =
+            typeof location?.start?.percentage === "number"
+              ? location.start.percentage
+              : null;
+          if (pct !== null && Number.isFinite(pct)) {
+            this.progressChange.emit(Math.max(0, Math.min(1, pct)));
           }
-        } finally {
+        },
+      );
+
+      this.rendition.on(
+        "selected",
+        (cfiRange: string, contents: RenditionContent) => {
           try {
-            contents?.window?.getSelection?.()?.removeAllRanges?.();
-          } catch {
-            // ignore
-          }
-        }
-      });
+            if (!this.highlightMode) {
+              contents?.window?.getSelection?.()?.removeAllRanges?.();
+              return;
+            }
+            const rawText =
+              contents?.window?.getSelection?.()?.toString?.() || "";
+            const excerpt = (rawText || "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 180);
+            const cleanExcerpt = excerpt || "Highlight";
 
-      const nav = await this.epubBook.loaded.navigation;
-      this.tocChange.emit(this.flattenToc(nav?.toc || []));
+            if (typeof cfiRange === "string" && cfiRange.trim()) {
+              this.addHighlightAnnotation(cfiRange.trim(), this.highlightColor);
+              this.createHighlight.emit({
+                cfiRange: cfiRange.trim(),
+                excerpt: cleanExcerpt,
+                color: this.highlightColor,
+              });
+            }
+          } finally {
+            try {
+              contents?.window?.getSelection?.()?.removeAllRanges?.();
+            } catch {
+              // ignore
+            }
+          }
+        },
+      );
+
+      const nav = await this.epubBook?.loaded.navigation;
+      this.tocChange.emit(
+        this.flattenToc((nav?.toc as unknown as EpubTocItem[]) || []),
+      );
 
       const localProgress = this.storage.loadEpubProgress(slug);
       await this.rendition.display(localProgress?.cfi || undefined);
 
       this.applyHighlightsToRendition();
 
-      if (this.flow === 'scrolled' && this.autoScrollEnabled) {
+      if (this.flow === "scrolled" && this.autoScrollEnabled) {
         this.startAutoScroll();
       }
 
       this.loadingChange.emit(false);
 
-      this.epubBook.ready
-        .then(() => this.epubBook.locations?.generate?.(1600))
+      this.epubBook?.ready
+        .then(() => this.epubBook?.locations?.generate?.(1600))
         .then(() => {
           this.locationsReady = true;
           this.applyServerProgressIfAvailable();
           this.flushServerProgressSave();
           const cfi = localProgress?.cfi || null;
           if (cfi && this.epubBook?.locations?.percentageFromCfi) {
-            const pct = this.epubBook.locations.percentageFromCfi(cfi);
-            if (typeof pct === 'number' && Number.isFinite(pct)) {
+            const pct = this.epubBook?.locations?.percentageFromCfi?.(cfi);
+            if (typeof pct === "number" && Number.isFinite(pct)) {
               this.progressChange.emit(Math.max(0, Math.min(1, pct)));
             }
           }
@@ -427,7 +479,9 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
         });
     } catch (error) {
       this.loadingChange.emit(false);
-      this.errorChange.emit(error instanceof Error ? error.message : 'Failed to open EPUB');
+      this.errorChange.emit(
+        error instanceof Error ? error.message : "Failed to open EPUB",
+      );
     }
   }
 
@@ -453,7 +507,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     this.appliedHighlightRanges.clear();
 
     if (this.mount?.nativeElement) {
-      this.mount.nativeElement.innerHTML = '';
+      this.mount.nativeElement.innerHTML = "";
     }
     this.readyChange.emit(false);
   }
@@ -461,45 +515,47 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
   private registerThemes(): void {
     if (!this.rendition?.themes) return;
 
-    this.rendition.themes.register('paper', {
+    this.rendition.themes.register("paper", {
       body: {
-        color: '#1d1416',
-        background: '#f7f2ec',
+        color: "#1d1416",
+        background: "#f7f2ec",
       },
-      a: { color: '#800020' },
-      p: { 'line-height': String(this.lineHeight) },
+      a: { color: "#800020" },
+      p: { "line-height": String(this.lineHeight) },
     });
 
-    this.rendition.themes.register('sepia', {
+    this.rendition.themes.register("sepia", {
       body: {
-        color: '#2b201b',
-        background: '#f4eadb',
+        color: "#2b201b",
+        background: "#f4eadb",
       },
-      a: { color: '#7a2f2f' },
-      p: { 'line-height': String(this.lineHeight) },
+      a: { color: "#7a2f2f" },
+      p: { "line-height": String(this.lineHeight) },
     });
 
-    this.rendition.themes.register('night', {
+    this.rendition.themes.register("night", {
       body: {
-        color: '#f2efe9',
-        background: '#070708',
+        color: "#f2efe9",
+        background: "#070708",
       },
-      a: { color: '#d6b87a' },
-      p: { 'line-height': String(this.lineHeight) },
+      a: { color: "#d6b87a" },
+      p: { "line-height": String(this.lineHeight) },
     });
   }
 
   private applyHighlightsToRendition(): void {
     if (!this.rendition?.annotations) return;
 
-    const wanted = (this.highlights || []).filter((h) => h.kind === 'epub') as Extract<HighlightEntry, { kind: 'epub' }>[];
+    const wanted = (this.highlights || []).filter(
+      (h) => h.kind === "epub",
+    ) as Extract<HighlightEntry, { kind: "epub" }>[];
     const wantedRanges = new Set(wanted.map((h) => h.cfiRange));
 
     // Remove ranges that are no longer present.
     for (const existing of this.appliedHighlightRanges) {
       if (wantedRanges.has(existing)) continue;
       try {
-        this.rendition.annotations.remove(existing, 'highlight');
+        this.rendition.annotations.remove(existing, "highlight");
       } catch {
         // ignore
       }
@@ -512,11 +568,21 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     }
   }
 
-  private addHighlightAnnotation(cfiRange: string, color: HighlightColor): void {
+  private addHighlightAnnotation(
+    cfiRange: string,
+    color: HighlightColor,
+  ): void {
     if (!this.rendition?.annotations) return;
     const styles = this.highlightStyles(color);
     try {
-      this.rendition.annotations.add('highlight', cfiRange, {}, undefined, 'np-hl', styles);
+      this.rendition.annotations.add(
+        "highlight",
+        cfiRange,
+        {},
+        undefined,
+        "np-hl",
+        styles,
+      );
       this.appliedHighlightRanges.add(cfiRange);
     } catch {
       // ignore
@@ -525,17 +591,17 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
 
   private highlightStyles(color: HighlightColor): Record<string, string> {
     const fill =
-      color === 'green'
-        ? '#4ade80'
-        : color === 'blue'
-          ? '#60a5fa'
-          : color === 'pink'
-            ? '#f472b6'
-            : '#fcd34d';
+      color === "green"
+        ? "#4ade80"
+        : color === "blue"
+          ? "#60a5fa"
+          : color === "pink"
+            ? "#f472b6"
+            : "#fcd34d";
     return {
       fill,
-      'fill-opacity': '0.28',
-      'mix-blend-mode': 'multiply',
+      "fill-opacity": "0.28",
+      "mix-blend-mode": "multiply",
     };
   }
 
@@ -546,22 +612,22 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     this.rendition.themes.fontSize(`${this.fontSize}%`);
 
     const fontValue =
-      this.fontFamily === 'sans'
-        ? 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif'
-        : this.fontFamily === 'mono'
+      this.fontFamily === "sans"
+        ? "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif"
+        : this.fontFamily === "mono"
           ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
           : 'Georgia, "Times New Roman", Times, serif';
-    this.rendition.themes.override('font-family', fontValue);
+    this.rendition.themes.override("font-family", fontValue);
 
-    this.rendition.themes.override('line-height', String(this.lineHeight));
-    this.rendition.themes.override('font-kerning', 'normal');
+    this.rendition.themes.override("line-height", String(this.lineHeight));
+    this.rendition.themes.override("font-kerning", "normal");
   }
 
-  private flattenToc(items: any[], level = 0): TocEntry[] {
+  private flattenToc(items: EpubTocItem[], level = 0): TocEntry[] {
     const result: TocEntry[] = [];
     for (const item of items || []) {
-      const label = typeof item?.label === 'string' ? item.label : '';
-      const href = typeof item?.href === 'string' ? item.href : '';
+      const label = typeof item?.label === "string" ? item.label : "";
+      const href = typeof item?.href === "string" ? item.href : "";
       if (label && href) {
         result.push({ label, href, level });
       }
@@ -603,7 +669,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     if (!this.epubBook?.locations?.locationFromCfi) return;
 
     const loc = this.epubBook.locations.locationFromCfi(cfi);
-    if (typeof loc !== 'number' || !Number.isFinite(loc) || loc < 0) return;
+    if (typeof loc !== "number" || !Number.isFinite(loc) || loc < 0) return;
     const page = Math.floor(loc) + 1;
 
     this.progressApi.saveProgress(slug, page).subscribe();
@@ -632,7 +698,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     const loc = Math.max(0, Math.floor(server.page) - 1);
     const cfi = this.epubBook.locations.cfiFromLocation(loc);
     this.appliedServerProgress = true;
-    if (typeof cfi === 'string' && cfi.trim()) {
+    if (typeof cfi === "string" && cfi.trim()) {
       this.rendition.display(cfi);
     }
   }
@@ -641,9 +707,9 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
     const mount = this.mount?.nativeElement;
     if (!mount) return null;
     const candidates = [
-      mount.querySelector('.epub-container'),
-      mount.querySelector('.epub-view'),
-      mount.querySelector('.epubjs'),
+      mount.querySelector(".epub-container"),
+      mount.querySelector(".epub-view"),
+      mount.querySelector(".epubjs"),
     ].filter(Boolean) as HTMLElement[];
     return candidates[0] || mount;
   }
@@ -660,7 +726,7 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
 
     this.autoScrollLastAt = performance.now();
     const tick = (now: number) => {
-      if (!this.autoScrollEnabled || this.flow !== 'scrolled') {
+      if (!this.autoScrollEnabled || this.flow !== "scrolled") {
         this.stopAutoScroll();
         return;
       }
@@ -669,7 +735,10 @@ export class EpubViewerComponent implements AfterViewInit, OnChanges, OnDestroy 
       const pxPerMs = this.autoScrollSpeed / 1000;
       container.scrollTop += dt * pxPerMs;
 
-      const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+      const maxScroll = Math.max(
+        0,
+        container.scrollHeight - container.clientHeight,
+      );
       if (container.scrollTop >= maxScroll - 2) {
         this.stopAutoScroll();
         return;

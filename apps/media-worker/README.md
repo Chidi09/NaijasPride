@@ -13,7 +13,6 @@ Cloudflare Worker that serves objects from R2 with:
    `npm i -g wrangler`
 
 2. Edit `apps/media-worker/wrangler.toml`:
-
    - Set `account_id`
    - Confirm `bucket_name`
    - Optionally configure `routes` for `media.naijaspride.com/*`

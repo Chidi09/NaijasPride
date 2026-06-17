@@ -1,18 +1,12 @@
 import { Component, inject, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
-import { HttpClient } from "@angular/common/http";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { AuthService } from "../../../../core/auth/auth.service";
 import { ToastService } from "../../../../core/services/toast.service";
 import { BrandLogoComponent } from "../../../../shared/components/brand-logo/brand-logo.component";
 import { CheckIconComponent } from "../../../../shared/components/icons/check-icon.component";
 import { CrossIconComponent } from "../../../../shared/components/icons/cross-icon.component";
-
-interface ResetPasswordResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
-}
 
 @Component({
   selector: "app-reset-password",
@@ -175,7 +169,7 @@ interface ResetPasswordResponse {
 })
 export class ResetPasswordComponent implements OnInit {
   private fb = inject(FormBuilder);
-  private http = inject(HttpClient);
+  private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private toast = inject(ToastService);
@@ -205,11 +199,8 @@ export class ResetPasswordComponent implements OnInit {
       this.isLoading = true;
       this.error = "";
 
-      this.http
-        .post<ResetPasswordResponse>("/api/v1/auth/reset-password", {
-          token: this.token,
-          password: this.form.value.password,
-        })
+      this.authService
+        .resetPassword(this.token, this.form.value.password ?? "")
         .subscribe({
           next: (response) => {
             this.isLoading = false;

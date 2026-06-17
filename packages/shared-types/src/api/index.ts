@@ -1,5 +1,5 @@
-import { Genre, Quality } from '../enums';
-import { MovieMetadata } from '../models/movie';
+import { Genre, Quality } from "../enums";
+import { MovieMetadata } from "../models/movie";
 
 // --- Requests ---
 export interface PaginationParams {
@@ -13,7 +13,7 @@ export interface MovieSearchParams extends PaginationParams {
   year?: number;
   quality?: Quality;
   language?: string;
-  sortBy?: 'latest' | 'popular' | 'rating' | 'title' | 'trending' | 'newest';
+  sortBy?: "latest" | "popular" | "rating" | "title" | "trending" | "newest";
   nollywoodOnly?: boolean;
   isStreamOnly?: boolean;
   youtubeOnly?: boolean;
@@ -24,7 +24,7 @@ export interface TvShowSearchParams extends PaginationParams {
   genre?: Genre[];
   year?: number;
   language?: string;
-  sortBy?: 'latest' | 'popular' | 'title' | 'trending';
+  sortBy?: "latest" | "popular" | "title" | "trending";
 }
 
 export interface CreateMovieRequest {
@@ -71,11 +71,9 @@ export interface ApiResponse<T> {
 
 export interface ApiErrorResponse {
   success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: Record<string, string[]>;
-  };
+  code: string;
+  message: string;
+  errors?: { field: string; message: string }[];
 }
 
 // --- Admin Uploads ---
@@ -122,10 +120,10 @@ export interface AdminBulkUploadRequest {
 
 export interface AdminJobProgressResponse {
   jobId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: "pending" | "processing" | "completed" | "failed";
   progress: number;
   message?: string;
-  data?: any;
+  data?: unknown;
 }
 
 // --- Revenue ---
@@ -147,3 +145,13 @@ export interface AdminRecordAdRevenueRequest {
   impressions?: number;
   clicks?: number;
 }
+
+export const isApiSuccess = <T>(
+  res: ApiResponse<T> | ApiErrorResponse,
+): res is ApiResponse<T> => res.success === true;
+
+export const isApiError = (value: unknown): value is ApiErrorResponse =>
+  typeof value === "object" &&
+  value !== null &&
+  "success" in value &&
+  (value as { success: unknown }).success === false;

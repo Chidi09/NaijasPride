@@ -4,11 +4,11 @@
 // Resolution chain: Redis cache → AniList GraphQL (MAL ID) → TMDB search.
 // Mappings are persisted in Redis (permanent) so each AniList ID is resolved once.
 
-import type { ProviderSource } from './anime-provider-manager';
-import { getRedis } from '../../shared/services/redis.service';
+import type { ProviderSource } from "./anime-provider-manager";
+import { getRedis } from "../../shared/services/redis.service";
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.TMDB_KEY || '';
-const REDIS_PREFIX = 'anilist-tmdb:';
+const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.TMDB_KEY || "";
+const REDIS_PREFIX = "anilist-tmdb:";
 
 // ── In-memory fallback cache (used when Redis is unavailable) ───────────────
 const memCache = new Map<number, { tmdbId: number | null; season: number }>();
@@ -26,7 +26,7 @@ const SEASON_PATTERNS = [
 function stripSeasonSuffix(title: string): string {
   let cleaned = title;
   for (const pattern of SEASON_PATTERNS) {
-    cleaned = cleaned.replace(pattern, '').trim();
+    cleaned = cleaned.replace(pattern, "").trim();
   }
   return cleaned;
 }
@@ -48,7 +48,13 @@ function detectSeasonNumber(titles: string[]): number {
     // Roman numerals at end
     const romanMatch = title.match(/\s+(II|III|IV|V|VI)\s*$/);
     if (romanMatch) {
-      const roman: Record<string, number> = { II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+      const roman: Record<string, number> = {
+        II: 2,
+        III: 3,
+        IV: 4,
+        V: 5,
+        VI: 6,
+      };
       return roman[romanMatch[1]!] || 1;
     }
   }
@@ -76,9 +82,9 @@ async function getAniListMetadata(anilistId: number): Promise<{
         }
       }
     `;
-    const res = await fetch('https://graphql.anilist.co', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables: { id: anilistId } }),
       signal: AbortSignal.timeout(6_000),
     });
@@ -148,9 +154,9 @@ async function resolveTmdbIdForAnilist(
     try {
       const cached = await redis.get(`${REDIS_PREFIX}${anilistId}`);
       if (cached !== null) {
-        if (cached === 'null') return { tmdbId: null, season: 1 };
+        if (cached === "null") return { tmdbId: null, season: 1 };
         // Format: "tmdbId:season" or just "tmdbId" (legacy)
-        const parts = cached.split(':');
+        const parts = cached.split(":");
         return {
           tmdbId: Number(parts[0]),
           season: parts[1] ? Number(parts[1]) : detectSeasonNumber(titles),
@@ -167,7 +173,9 @@ async function resolveTmdbIdForAnilist(
   }
 
   if (!TMDB_API_KEY) {
-    console.warn('[EmbedProvider] No TMDB_API_KEY configured — embed fallback disabled');
+    console.warn(
+      "[EmbedProvider] No TMDB_API_KEY configured — embed fallback disabled",
+    );
     return { tmdbId: null, season: 1 };
   }
 
@@ -184,7 +192,9 @@ async function resolveTmdbIdForAnilist(
   for (const title of allTitles.slice(0, 6)) {
     tmdbId = await searchTmdbTv(title);
     if (tmdbId) {
-      console.log(`[EmbedProvider] Mapped AniList ${anilistId} "${title}" → TMDB ${tmdbId} (direct match)`);
+      console.log(
+        `[EmbedProvider] Mapped AniList ${anilistId} "${title}" → TMDB ${tmdbId} (direct match)`,
+      );
       break;
     }
   }
@@ -202,7 +212,9 @@ async function resolveTmdbIdForAnilist(
     for (const stripped of strippedTitles) {
       tmdbId = await searchTmdbTv(stripped);
       if (tmdbId) {
-        console.log(`[EmbedProvider] Mapped AniList ${anilistId} "${stripped}" → TMDB ${tmdbId} (stripped season suffix, S${season})`);
+        console.log(
+          `[EmbedProvider] Mapped AniList ${anilistId} "${stripped}" → TMDB ${tmdbId} (stripped season suffix, S${season})`,
+        );
         break;
       }
     }
@@ -215,7 +227,7 @@ async function resolveTmdbIdForAnilist(
       if (tmdbId) {
         await redis.set(`${REDIS_PREFIX}${anilistId}`, `${tmdbId}:${season}`);
       } else {
-        await redis.set(`${REDIS_PREFIX}${anilistId}`, 'null', 'EX', 6 * 3600);
+        await redis.set(`${REDIS_PREFIX}${anilistId}`, "null", "EX", 6 * 3600);
       }
     } catch {
       // Redis write failed — still cache in memory
@@ -230,37 +242,38 @@ async function resolveTmdbIdForAnilist(
 
 interface EmbedDef {
   name: string;
-  buildUrl: (tmdbId: number, s: number, e: number, type: 'sub' | 'dub') => string;
+  buildUrl: (
+    tmdbId: number,
+    s: number,
+    e: number,
+    type: "sub" | "dub",
+  ) => string;
 }
 
 const EMBED_SOURCES: EmbedDef[] = [
   {
-    name: '2Embed',
-    buildUrl: (id, s, e) =>
-      `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+    name: "2Embed",
+    buildUrl: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
   },
   {
-    name: 'Videasy',
-    buildUrl: (id, s, e) =>
-      `https://videasy.net/tv/${id}/${s}/${e}`,
+    name: "Videasy",
+    buildUrl: (id, s, e) => `https://videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'SmashyStream',
+    name: "SmashyStream",
     buildUrl: (id, s, e) =>
       `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`,
   },
   {
-    name: 'NontonGo',
-    buildUrl: (id, s, e) =>
-      `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
+    name: "NontonGo",
+    buildUrl: (id, s, e) => `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'vidsrc.mov',
-    buildUrl: (id, s, e) =>
-      `https://vidsrc.mov/embed/tv/${id}/${s}/${e}`,
+    name: "vidsrc.mov",
+    buildUrl: (id, s, e) => `https://vidsrc.mov/embed/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'MultiEmbed',
+    name: "MultiEmbed",
     buildUrl: (id, s, e) =>
       `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
   },
@@ -279,7 +292,7 @@ export async function getEmbedSources(
   titles: string[],
   season: number,
   episode: number,
-  type: 'sub' | 'dub' = 'sub',
+  type: "sub" | "dub" = "sub",
   anilistId?: number,
 ): Promise<{ sources: ProviderSource[]; tmdbId: number | null }> {
   let tmdbId: number | null = null;
@@ -318,12 +331,14 @@ export async function getEmbedSources(
   // Build all embed URLs using the resolved season
   const sources: ProviderSource[] = EMBED_SOURCES.map((def) => ({
     url: def.buildUrl(tmdbId!, resolvedSeason, episode, type),
-    quality: type === 'dub' ? `${def.name} (Dub)` : def.name,
+    quality: type === "dub" ? `${def.name} (Dub)` : def.name,
     isM3U8: false,
     isEmbed: true,
   }));
 
-  console.log(`[EmbedProvider] Built ${sources.length} embed sources for TMDB ${tmdbId} S${resolvedSeason}E${episode} (${type})`);
+  console.log(
+    `[EmbedProvider] Built ${sources.length} embed sources for TMDB ${tmdbId} S${resolvedSeason}E${episode} (${type})`,
+  );
   return { sources, tmdbId };
 }
 

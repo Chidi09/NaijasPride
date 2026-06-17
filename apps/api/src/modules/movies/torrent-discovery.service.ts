@@ -1,17 +1,17 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
-import { PrismaClient } from '@prisma/client';
-import { Genre, Quality } from '@naijaspride/types';
-import { FlareSolverrFetcher } from '../books/sources/fetch/flaresolverr.fetcher';
-import { CircuitBreaker } from '../books/sources/resilience/circuit-breaker';
-import { QueueService } from '../../shared/services/queue.service';
-import { MetadataService } from './metadata.service';
-import { MoviesService } from './movies.service';
+import axios from "axios";
+import * as cheerio from "cheerio";
+import { PrismaClient } from "@prisma/client";
+import { Genre, Quality } from "@naijaspride/types";
+import { FlareSolverrFetcher } from "../books/sources/fetch/flaresolverr.fetcher";
+import { CircuitBreaker } from "../books/sources/resilience/circuit-breaker";
+import { QueueService } from "../../shared/services/queue.service";
+import { MetadataService } from "./metadata.service";
+import { MoviesService } from "./movies.service";
 
-const DEFAULT_SOURCE_URL = 'https://www.1377x.to/popular-movies-week';
+const DEFAULT_SOURCE_URL = "https://www.1377x.to/popular-movies-week";
 const DEFAULT_TIMEOUT_MS = 60_000;
 
-export type TorrentSourceType = 'html-1337x' | 'json-yts' | 'json-apibay';
+export type TorrentSourceType = "html-1337x" | "json-yts" | "json-apibay";
 
 type LoggerLike = {
   info: (...args: unknown[]) => void;
@@ -54,7 +54,7 @@ export type TorrentDiscoveryRunSummary = {
   approachName: string;
   dryRun: boolean;
   requireApproval: boolean;
-  skippedRunReason?: 'already-running' | 'circuit-open';
+  skippedRunReason?: "already-running" | "circuit-open";
   discovered: number;
   resolved: number;
   created: number;
@@ -67,28 +67,28 @@ export type TorrentDiscoveryRunSummary = {
 };
 
 const toNumber = (value: string | number): number => {
-  const parsed = Number.parseInt(String(value ?? '').replace(/[^\d]/g, ''), 10);
+  const parsed = Number.parseInt(String(value ?? "").replace(/[^\d]/g, ""), 10);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const buildMagnetLink = (infoHash: string, displayName: string): string => {
-  const hash = (infoHash || '').trim().toUpperCase();
-  const dn = encodeURIComponent((displayName || '').trim() || hash);
+  const hash = (infoHash || "").trim().toUpperCase();
+  const dn = encodeURIComponent((displayName || "").trim() || hash);
   return `magnet:?xt=urn:btih:${hash}&dn=${dn}`;
 };
 
 export const toMovieSlug = (title: string, year: number): string =>
-  `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}`;
+  `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
 
 const toTitleCase = (value: string): string =>
   value
-    .split(' ')
+    .split(" ")
     .filter(Boolean)
     .map((word) => {
       if (/^[ivxlcdm]+$/i.test(word)) return word.toUpperCase();
-      return `${word[0]?.toUpperCase() || ''}${word.slice(1).toLowerCase()}`;
+      return `${word[0]?.toUpperCase() || ""}${word.slice(1).toLowerCase()}`;
     })
-    .join(' ');
+    .join(" ");
 
 export const extractYearFromTitle = (value: string): number | null => {
   const currentYear = new Date().getFullYear() + 2;
@@ -103,11 +103,14 @@ export const extractYearFromTitle = (value: string): number | null => {
 };
 
 export const normalizeTorrentTitle = (rawTitle: string): string => {
-  const replaced = rawTitle.replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
+  const replaced = rawTitle.replace(/[._]/g, " ").replace(/\s+/g, " ").trim();
   const cutoff = replaced
-    .replace(/\b(19\d{2}|20\d{2})\b.*$/g, '')
-    .replace(/\b(2160p|1080p|720p|480p|x264|x265|h264|h265|webrip|web[- ]dl|bluray|brrip|hdrip|ddp|aac|dts|ac3|10bit|hevc|remastered|proper|repack)\b/gi, '')
-    .replace(/\s+/g, ' ')
+    .replace(/\b(19\d{2}|20\d{2})\b.*$/g, "")
+    .replace(
+      /\b(2160p|1080p|720p|480p|x264|x265|h264|h265|webrip|web[- ]dl|bluray|brrip|hdrip|ddp|aac|dts|ac3|10bit|hevc|remastered|proper|repack)\b/gi,
+      "",
+    )
+    .replace(/\s+/g, " ")
     .trim();
   return toTitleCase(cutoff || replaced);
 };
@@ -115,20 +118,20 @@ export const normalizeTorrentTitle = (rawTitle: string): string => {
 export const parseTorrentListing = (
   html: string,
   sourceUrl: string,
-  maxEntries: number
+  maxEntries: number,
 ): ListingCandidate[] => {
   const $ = cheerio.load(html);
-  const rows = $('table.table-list tbody tr');
+  const rows = $("table.table-list tbody tr");
   const results: ListingCandidate[] = [];
   const seenUrls = new Set<string>();
 
   rows.each((_, row) => {
     if (results.length >= maxEntries) return false;
 
-    const links = $(row).find('td.name a');
+    const links = $(row).find("td.name a");
     const titleAnchor = links.last();
     const rawTitle = titleAnchor.text().trim();
-    const detailHref = titleAnchor.attr('href');
+    const detailHref = titleAnchor.attr("href");
     if (!rawTitle || !detailHref) return;
 
     let detailUrl: string;
@@ -149,23 +152,25 @@ export const parseTorrentListing = (
       normalizedTitle: normalizeTorrentTitle(rawTitle),
       year,
       detailUrl,
-      seeds: toNumber($(row).find('td.seeds').first().text()),
-      leeches: toNumber($(row).find('td.leeches').first().text()),
+      seeds: toNumber($(row).find("td.seeds").first().text()),
+      leeches: toNumber($(row).find("td.leeches").first().text()),
     });
   });
 
   return results;
 };
 
-export const parseTorrentDetail = (html: string): { detailTitle?: string; magnetLink: string | null } => {
+export const parseTorrentDetail = (
+  html: string,
+): { detailTitle?: string; magnetLink: string | null } => {
   const $ = cheerio.load(html);
   const detailTitle =
-    $('.torrent-detail-info h3').first().text().trim() ||
-    $('h1').first().text().trim() ||
+    $(".torrent-detail-info h3").first().text().trim() ||
+    $("h1").first().text().trim() ||
     undefined;
 
   const magnetLink =
-    $('a[href^="magnet:?xt=urn:btih:"]').first().attr('href') ||
+    $('a[href^="magnet:?xt=urn:btih:"]').first().attr("href") ||
     html.match(/magnet:\?xt=urn:btih:[^"'\s<]+/i)?.[0] ||
     null;
 
@@ -193,35 +198,42 @@ type YtsMovieRecord = {
   }>;
 };
 
+interface YtsApiResponse {
+  data?: {
+    movies?: YtsMovieRecord[];
+  };
+}
+
 export const parseYtsListingJson = (
   json: string,
   maxEntries: number,
   sourceUrl: string,
 ): ResolvedTorrentCandidate[] => {
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(json);
   } catch {
     return [];
   }
 
-  const movies: YtsMovieRecord[] = Array.isArray(parsed?.data?.movies) ? parsed.data.movies : [];
+  const ytsData = parsed as YtsApiResponse;
+  const movies = (ytsData?.data?.movies || []) as YtsMovieRecord[];
   const output: ResolvedTorrentCandidate[] = [];
 
   for (const movie of movies) {
     if (output.length >= maxEntries) break;
 
-    const title = (movie.title || movie.title_long || '').trim();
+    const title = (movie.title || movie.title_long || "").trim();
     if (!title) continue;
 
     const year = Number.isFinite(movie.year)
       ? Number(movie.year)
-      : extractYearFromTitle(movie.title_long || movie.title || '') || 0;
+      : extractYearFromTitle(movie.title_long || movie.title || "") || 0;
     if (!year) continue;
 
     const torrents = Array.isArray(movie.torrents) ? movie.torrents : [];
     const ranked = torrents
-      .filter((item) => typeof item?.hash === 'string' && !!item.hash.trim())
+      .filter((item) => typeof item?.hash === "string" && !!item.hash.trim())
       .sort((a, b) => toNumber(b.seeds || 0) - toNumber(a.seeds || 0));
 
     const best = ranked[0];
@@ -232,7 +244,7 @@ export const parseYtsListingJson = (
 
     const normalizedTitle = normalizeTorrentTitle(title);
     const rawTitle = movie.title_long || title;
-    const detailUrl = (movie.url || sourceUrl || '').trim() || sourceUrl;
+    const detailUrl = (movie.url || sourceUrl || "").trim() || sourceUrl;
     const displayName = `${normalizedTitle} ${year}`.trim();
 
     output.push({
@@ -264,27 +276,29 @@ export const parseApibayListingJson = (
   maxEntries: number,
   sourceUrl: string,
 ): ResolvedTorrentCandidate[] => {
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(json);
   } catch {
     return [];
   }
 
-  const rows: ApibayRecord[] = Array.isArray(parsed) ? parsed : [];
+  const rows: ApibayRecord[] = Array.isArray(parsed)
+    ? (parsed as ApibayRecord[])
+    : [];
   const output: ResolvedTorrentCandidate[] = [];
 
   for (const row of rows) {
     if (output.length >= maxEntries) break;
 
-    const rawTitle = (row.name || '').trim();
-    const infoHash = (row.info_hash || '').trim().toUpperCase();
+    const rawTitle = (row.name || "").trim();
+    const infoHash = (row.info_hash || "").trim().toUpperCase();
     if (!rawTitle || !infoHash || !/^[A-F0-9]{40}$/i.test(infoHash)) continue;
 
     const year = extractYearFromTitle(rawTitle);
     if (!year) continue;
 
-    const id = String(row.id || '').trim();
+    const id = String(row.id || "").trim();
     const detailUrl = /^\d+$/.test(id)
       ? `https://thepiratebay.org/description.php?id=${id}`
       : sourceUrl;
@@ -310,11 +324,12 @@ export const parseApibayListingJson = (
 
 const inferGenres = (title: string): Genre[] => {
   const text = title.toLowerCase();
-  if (text.includes('nollywood')) return [Genre.Nollywood];
-  if (text.includes('yoruba')) return [Genre.Yoruba, Genre.Nollywood];
-  if (text.includes('igbo')) return [Genre.Igbo, Genre.Nollywood];
-  if (text.includes('hausa')) return [Genre.Hausa, Genre.Nollywood];
-  if (text.includes('bollywood') || text.includes('hindi')) return [Genre.Bollywood];
+  if (text.includes("nollywood")) return [Genre.Nollywood];
+  if (text.includes("yoruba")) return [Genre.Yoruba, Genre.Nollywood];
+  if (text.includes("igbo")) return [Genre.Igbo, Genre.Nollywood];
+  if (text.includes("hausa")) return [Genre.Hausa, Genre.Nollywood];
+  if (text.includes("bollywood") || text.includes("hindi"))
+    return [Genre.Bollywood];
   return [Genre.Hollywood];
 };
 
@@ -325,7 +340,7 @@ const normalizeUrlList = (values: string[]): string[] => {
   const seen = new Set<string>();
   const output: string[] = [];
   for (const raw of values) {
-    const url = (raw || '').trim();
+    const url = (raw || "").trim();
     if (!url) continue;
     if (seen.has(url)) continue;
     seen.add(url);
@@ -335,12 +350,15 @@ const normalizeUrlList = (values: string[]): string[] => {
 };
 
 const normalizeTitleForDedupe = (value: string): string =>
-  normalizeTorrentTitle(value || '')
+  normalizeTorrentTitle(value || "")
     .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\b(the|a|an|movie|film|proper|repack|extended|remastered|uncut|director|cut)\b/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(
+      /\b(the|a|an|movie|film|proper|repack|extended|remastered|uncut|director|cut)\b/g,
+      " ",
+    )
+    .replace(/\s+/g, " ")
     .trim();
 
 export class TorrentDiscoveryService {
@@ -353,36 +371,47 @@ export class TorrentDiscoveryService {
   private readonly circuitBreaker: CircuitBreaker;
   private isRunning = false;
 
-  constructor(private readonly prisma: PrismaClient, logger: LoggerLike = console, config: TorrentDiscoveryConfig = {}) {
+  constructor(
+    private readonly prisma: PrismaClient,
+    logger: LoggerLike = console,
+    config: TorrentDiscoveryConfig = {},
+  ) {
     this.logger = logger;
     this.config = {
       sourceUrl: (config.sourceUrl || DEFAULT_SOURCE_URL).trim(),
       sourceUrls: normalizeUrlList(
         (config.sourceUrls && config.sourceUrls.length > 0
           ? config.sourceUrls
-          : [config.sourceUrl || DEFAULT_SOURCE_URL]).map((value) => value.trim()),
+          : [config.sourceUrl || DEFAULT_SOURCE_URL]
+        ).map((value) => value.trim()),
       ),
-      sourceType: config.sourceType || 'html-1337x',
-      approachName: (config.approachName || 'direct').trim() || 'direct',
-      maxItemsPerRun: Number.isFinite(config.maxItemsPerRun) && (config.maxItemsPerRun as number) > 0
-        ? Math.min(config.maxItemsPerRun as number, 25)
-        : 8,
-      minSeeders: Number.isFinite(config.minSeeders) && (config.minSeeders as number) > 0
-        ? Math.min(Math.max(config.minSeeders as number, 1), 100_000)
-        : 1,
+      sourceType: config.sourceType || "html-1337x",
+      approachName: (config.approachName || "direct").trim() || "direct",
+      maxItemsPerRun:
+        Number.isFinite(config.maxItemsPerRun) &&
+        (config.maxItemsPerRun as number) > 0
+          ? Math.min(config.maxItemsPerRun as number, 25)
+          : 8,
+      minSeeders:
+        Number.isFinite(config.minSeeders) && (config.minSeeders as number) > 0
+          ? Math.min(Math.max(config.minSeeders as number, 1), 100_000)
+          : 1,
       requireApproval: config.requireApproval ?? true,
       requestTimeoutMs:
-        Number.isFinite(config.requestTimeoutMs) && (config.requestTimeoutMs as number) > 0
+        Number.isFinite(config.requestTimeoutMs) &&
+        (config.requestTimeoutMs as number) > 0
           ? Math.max(config.requestTimeoutMs as number, 10_000)
           : DEFAULT_TIMEOUT_MS,
       dryRun: config.dryRun ?? false,
       failureThreshold:
-        Number.isFinite(config.failureThreshold) && (config.failureThreshold as number) > 0
-          ? config.failureThreshold as number
+        Number.isFinite(config.failureThreshold) &&
+        (config.failureThreshold as number) > 0
+          ? (config.failureThreshold as number)
           : 5,
       recoveryTimeoutMs:
-        Number.isFinite(config.recoveryTimeoutMs) && (config.recoveryTimeoutMs as number) > 0
-          ? config.recoveryTimeoutMs as number
+        Number.isFinite(config.recoveryTimeoutMs) &&
+        (config.recoveryTimeoutMs as number) > 0
+          ? (config.recoveryTimeoutMs as number)
           : 300_000,
     };
     this.metadataService = new MetadataService(prisma);
@@ -422,22 +451,25 @@ export class TorrentDiscoveryService {
     if (this.isRunning) {
       return {
         ...baseSummary,
-        skippedRunReason: 'already-running',
+        skippedRunReason: "already-running",
       };
     }
 
     if (!this.circuitBreaker.canExecute()) {
-      this.logger.warn('[TorrentDiscovery] Skipping run: circuit is open');
+      this.logger.warn("[TorrentDiscovery] Skipping run: circuit is open");
       return {
         ...baseSummary,
-        skippedRunReason: 'circuit-open',
+        skippedRunReason: "circuit-open",
       };
     }
 
     this.isRunning = true;
 
     try {
-      const listingWindow = Math.min(Math.max(this.config.maxItemsPerRun * 12, this.config.maxItemsPerRun), 300);
+      const listingWindow = Math.min(
+        Math.max(this.config.maxItemsPerRun * 12, this.config.maxItemsPerRun),
+        300,
+      );
 
       let selectedSourceUrl = this.config.sourceUrl;
       let discoveredCount = 0;
@@ -447,16 +479,23 @@ export class TorrentDiscoveryService {
         try {
           const body = await this.fetchHtml(sourceUrl);
 
-          if (this.config.sourceType === 'html-1337x') {
-            const listingCandidates = parseTorrentListing(body, sourceUrl, listingWindow);
+          if (this.config.sourceType === "html-1337x") {
+            const listingCandidates = parseTorrentListing(
+              body,
+              sourceUrl,
+              listingWindow,
+            );
             if (listingCandidates.length === 0) {
-              this.logger.warn(`[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`);
+              this.logger.warn(
+                `[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`,
+              );
               continue;
             }
 
             const sourceResolved: ResolvedTorrentCandidate[] = [];
             for (const candidate of listingCandidates) {
-              if (sourceResolved.length >= this.config.maxItemsPerRun * 4) break;
+              if (sourceResolved.length >= this.config.maxItemsPerRun * 4)
+                break;
 
               try {
                 const detailHtml = await this.fetchHtml(candidate.detailUrl);
@@ -465,8 +504,12 @@ export class TorrentDiscoveryService {
                   continue;
                 }
 
-                const titleFromDetail = normalizeTorrentTitle(detail.detailTitle || candidate.rawTitle);
-                const yearFromDetail = extractYearFromTitle(detail.detailTitle || '') || candidate.year;
+                const titleFromDetail = normalizeTorrentTitle(
+                  detail.detailTitle || candidate.rawTitle,
+                );
+                const yearFromDetail =
+                  extractYearFromTitle(detail.detailTitle || "") ||
+                  candidate.year;
 
                 sourceResolved.push({
                   ...candidate,
@@ -478,12 +521,16 @@ export class TorrentDiscoveryService {
                 });
               } catch (error) {
                 baseSummary.failed += 1;
-                baseSummary.errors.push(`detail:${candidate.detailUrl} -> ${toErrorMessage(error)}`);
+                baseSummary.errors.push(
+                  `detail:${candidate.detailUrl} -> ${toErrorMessage(error)}`,
+                );
               }
             }
 
             if (sourceResolved.length === 0) {
-              this.logger.warn(`[TorrentDiscovery] No resolved torrents from ${sourceUrl}; trying next mirror`);
+              this.logger.warn(
+                `[TorrentDiscovery] No resolved torrents from ${sourceUrl}; trying next mirror`,
+              );
               continue;
             }
 
@@ -493,12 +540,15 @@ export class TorrentDiscoveryService {
             break;
           }
 
-          const sourceResolved = this.config.sourceType === 'json-yts'
-            ? parseYtsListingJson(body, listingWindow, sourceUrl)
-            : parseApibayListingJson(body, listingWindow, sourceUrl);
+          const sourceResolved =
+            this.config.sourceType === "json-yts"
+              ? parseYtsListingJson(body, listingWindow, sourceUrl)
+              : parseApibayListingJson(body, listingWindow, sourceUrl);
 
           if (sourceResolved.length === 0) {
-            this.logger.warn(`[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`);
+            this.logger.warn(
+              `[TorrentDiscovery] Empty listing from ${sourceUrl}; trying next mirror`,
+            );
             continue;
           }
 
@@ -514,7 +564,9 @@ export class TorrentDiscoveryService {
       }
 
       if (resolved.length === 0) {
-        throw new Error(`No torrent candidates found from any configured source mirror (${this.config.sourceUrls.length} tried)`);
+        throw new Error(
+          `No torrent candidates found from any configured source mirror (${this.config.sourceUrls.length} tried)`,
+        );
       }
 
       baseSummary.sourceUrl = selectedSourceUrl;
@@ -557,7 +609,7 @@ export class TorrentDiscoveryService {
             quality: [Quality.Q720p],
             fileUrls: {},
             metadata: {
-              source: 'torrent-discovery',
+              source: "torrent-discovery",
               discoveryApproach: this.config.approachName,
               discoverySourceType: this.config.sourceType,
               sourceUrl: baseSummary.sourceUrl,
@@ -569,32 +621,44 @@ export class TorrentDiscoveryService {
               sourceLeeches: candidate.leeches,
               discoveredAt: new Date().toISOString(),
             } as any,
-            status: 'pending',
+            status: "pending",
           });
 
           baseSummary.created += 1;
 
-          await this.tryMetadataEnrichment(movie.id, candidate.normalizedTitle, candidate.year);
+          await this.tryMetadataEnrichment(
+            movie.id,
+            candidate.normalizedTitle,
+            candidate.year,
+          );
 
           if (this.config.requireApproval) {
             baseSummary.awaitingApproval += 1;
           } else {
-            await this.queueService.addTorrentJob(candidate.magnetLink, movie.id);
+            await this.queueService.addTorrentJob(
+              candidate.magnetLink,
+              movie.id,
+            );
             baseSummary.queued += 1;
           }
         } catch (error) {
           baseSummary.failed += 1;
-          baseSummary.errors.push(`ingest:${candidate.detailUrl} -> ${toErrorMessage(error)}`);
+          baseSummary.errors.push(
+            `ingest:${candidate.detailUrl} -> ${toErrorMessage(error)}`,
+          );
         }
       }
 
       this.circuitBreaker.onSuccess();
-      this.logger.info({ summary: baseSummary }, '[TorrentDiscovery] Run completed');
+      this.logger.info(
+        { summary: baseSummary },
+        "[TorrentDiscovery] Run completed",
+      );
       return baseSummary;
     } catch (error) {
       this.circuitBreaker.onFailure();
       const message = toErrorMessage(error);
-      this.logger.error({ error: message }, '[TorrentDiscovery] Run failed');
+      this.logger.error({ error: message }, "[TorrentDiscovery] Run failed");
       baseSummary.failed += 1;
       baseSummary.errors.push(message);
       return baseSummary;
@@ -603,7 +667,10 @@ export class TorrentDiscoveryService {
     }
   }
 
-  private async isDuplicateCandidate(candidate: ResolvedTorrentCandidate, slug: string): Promise<boolean> {
+  private async isDuplicateCandidate(
+    candidate: ResolvedTorrentCandidate,
+    slug: string,
+  ): Promise<boolean> {
     const existingBySlug = await this.prisma.movie.findUnique({
       where: { slug },
       select: { id: true },
@@ -623,7 +690,7 @@ export class TorrentDiscoveryService {
       const existingByInfoHash = await this.prisma.movie.findFirst({
         where: {
           metadata: {
-            path: ['sourceInfoHash'],
+            path: ["sourceInfoHash"],
             equals: candidate.infoHash,
           },
         },
@@ -632,7 +699,9 @@ export class TorrentDiscoveryService {
       if (existingByInfoHash) return true;
     }
 
-    const candidateKey = normalizeTitleForDedupe(candidate.normalizedTitle || candidate.rawTitle);
+    const candidateKey = normalizeTitleForDedupe(
+      candidate.normalizedTitle || candidate.rawTitle,
+    );
     if (!candidateKey) return false;
 
     const nearby = await this.prisma.movie.findMany({
@@ -641,7 +710,7 @@ export class TorrentDiscoveryService {
           gte: candidate.year - 1,
           lte: candidate.year + 1,
         },
-        status: { not: 'deleted' },
+        status: { not: "deleted" },
       },
       select: {
         id: true,
@@ -650,33 +719,42 @@ export class TorrentDiscoveryService {
       },
     });
 
-    return nearby.some((item) => normalizeTitleForDedupe(item.title) === candidateKey);
+    return nearby.some(
+      (item) => normalizeTitleForDedupe(item.title) === candidateKey,
+    );
   }
 
   private async fetchHtml(url: string): Promise<string> {
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
     };
 
     // JSON APIs (YTS/ApiBay) should bypass FlareSolverr.
     // FlareSolverr can return an HTML challenge page with 200 status,
     // which makes downstream JSON parsing silently return zero candidates.
-    const shouldUseFlareSolverr = this.config.sourceType === 'html-1337x';
+    const shouldUseFlareSolverr = this.config.sourceType === "html-1337x";
 
     if (shouldUseFlareSolverr && this.flaresolverr.canHandle()) {
       try {
         const response = await this.flaresolverr.get(url, {
           headers,
           timeoutMs: this.config.requestTimeoutMs,
-          sourceId: 'torrent-discovery',
+          sourceId: "torrent-discovery",
         });
-        if (response.status >= 200 && response.status < 300 && response.body.trim().length > 0) {
+        if (
+          response.status >= 200 &&
+          response.status < 300 &&
+          response.body.trim().length > 0
+        ) {
           return response.body;
         }
-        throw new Error(`FlareSolverr returned status ${response.status} for ${url}`);
+        throw new Error(
+          `FlareSolverr returned status ${response.status} for ${url}`,
+        );
       } catch (error) {
         this.logger.warn(
-          `[TorrentDiscovery] FlareSolverr fetch failed, falling back to direct fetch for ${url}: ${toErrorMessage(error)}`
+          `[TorrentDiscovery] FlareSolverr fetch failed, falling back to direct fetch for ${url}: ${toErrorMessage(error)}`,
         );
       }
     }
@@ -684,23 +762,33 @@ export class TorrentDiscoveryService {
     const response = await axios.get<string>(url, {
       headers,
       timeout: this.config.requestTimeoutMs,
-      responseType: 'text',
+      responseType: "text",
       validateStatus: () => true,
     });
 
-    if (response.status < 200 || response.status >= 300 || typeof response.data !== 'string') {
-      throw new Error(`Direct fetch failed for ${url} (status ${response.status})`);
+    if (
+      response.status < 200 ||
+      response.status >= 300 ||
+      typeof response.data !== "string"
+    ) {
+      throw new Error(
+        `Direct fetch failed for ${url} (status ${response.status})`,
+      );
     }
 
     return response.data;
   }
 
-  private async tryMetadataEnrichment(movieId: string, title: string, year: number): Promise<void> {
+  private async tryMetadataEnrichment(
+    movieId: string,
+    title: string,
+    year: number,
+  ): Promise<void> {
     try {
       await this.metadataService.fetchAndSaveMetadata(movieId, title, year);
     } catch (error) {
       this.logger.warn(
-        `[TorrentDiscovery] Metadata enrichment failed for "${title}" (${year}): ${toErrorMessage(error)}`
+        `[TorrentDiscovery] Metadata enrichment failed for "${title}" (${year}): ${toErrorMessage(error)}`,
       );
     }
   }

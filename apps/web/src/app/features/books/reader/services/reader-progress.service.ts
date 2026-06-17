@@ -1,10 +1,10 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { of } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { Injectable, inject } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { of } from "rxjs";
+import { catchError, map, tap } from "rxjs/operators";
 
-import { AuthStateService } from '../../../../core/auth/auth-state.service';
-import { ToastService } from '../../../../core/services/toast.service';
+import { AuthStateService } from "../../../../core/auth/auth-state.service";
+import { ToastService } from "../../../../core/services/toast.service";
 
 export interface ServerBookProgress {
   page: number;
@@ -12,7 +12,7 @@ export interface ServerBookProgress {
 }
 
 @Injectable({
-  providedIn: 'root',
+  providedIn: "root",
 })
 export class ReaderProgressService {
   private http = inject(HttpClient);
@@ -30,9 +30,10 @@ export class ReaderProgressService {
     }
 
     return this.http
-      .get<{ status: string; data: { page: number; updatedAt: string } | null }>(
-        `/api/v1/books/progress/${encodeURIComponent(slug)}`
-      )
+      .get<{
+        status: string;
+        data: { page: number; updatedAt: string } | null;
+      }>(`/api/v1/books/progress/${encodeURIComponent(slug)}`)
       .pipe(
         map((response) => {
           if (!response?.data) return null;
@@ -42,7 +43,7 @@ export class ReaderProgressService {
             updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
           } satisfies ServerBookProgress;
         }),
-        catchError(() => of(null))
+        catchError(() => of(null)),
       );
   }
 
@@ -51,17 +52,15 @@ export class ReaderProgressService {
       return of(null);
     }
 
-    return this.http
-      .post(`/api/v1/books/progress`, { slug, page })
-      .pipe(
-        tap(() => {
-          const now = Date.now();
-          if (now - this.lastSyncToast > 120_000) {
-            this.lastSyncToast = now;
-            this.toast.info('Reading progress saved');
-          }
-        }),
-        catchError(() => of(null)),
-      );
+    return this.http.post(`/api/v1/books/progress`, { slug, page }).pipe(
+      tap(() => {
+        const now = Date.now();
+        if (now - this.lastSyncToast > 120_000) {
+          this.lastSyncToast = now;
+          this.toast.info("Reading progress saved");
+        }
+      }),
+      catchError(() => of(null)),
+    );
   }
 }

@@ -3,6 +3,7 @@
 ## Overview
 
 This guide helps diagnose and fix issues with external content discovery services:
+
 - 1337x torrent discovery (books)
 - Elsci light novels
 - Soap2Day stream resolver
@@ -19,6 +20,7 @@ curl http://localhost:3000/api/admin/health/external-services \
 ### 1337x Book Discovery Failures
 
 **Symptoms:**
+
 - Auto-library discovery returns 0 matches
 - Timeouts when searching for books
 - "Cloudflare challenge detected" errors
@@ -26,6 +28,7 @@ curl http://localhost:3000/api/admin/health/external-services \
 **Solutions:**
 
 1. **Check mirror availability:**
+
    ```bash
    curl -I https://www.1377x.to
    curl -I https://1337x.st
@@ -33,6 +36,7 @@ curl http://localhost:3000/api/admin/health/external-services \
    ```
 
 2. **Enable FlareSolverr for Cloudflare bypass:**
+
    ```bash
    # .env
    FLARESOLVERR_URL=http://localhost:8191/v1
@@ -47,6 +51,7 @@ curl http://localhost:3000/api/admin/health/external-services \
 ### Elsci Light Novel Failures
 
 **Symptoms:**
+
 - Empty catalog results
 - Timeout errors
 - 403/503 status codes
@@ -54,11 +59,13 @@ curl http://localhost:3000/api/admin/health/external-services \
 **Solutions:**
 
 1. **Check Elsci server health:**
+
    ```bash
    curl https://server.elsci.one/
    ```
 
 2. **Adjust cache settings:**
+
    ```bash
    ELSCI_CACHE_TTL_MS=600000  # Increase cache time
    ```
@@ -69,6 +76,7 @@ curl http://localhost:3000/api/admin/health/external-services \
 ### Soap2Day Resolver Failures
 
 **Symptoms:**
+
 - "No playable stream URL detected"
 - Browser launch failures
 - Hanging during resolution
@@ -76,16 +84,19 @@ curl http://localhost:3000/api/admin/health/external-services \
 **Solutions:**
 
 1. **Verify Playwright installation:**
+
    ```bash
    npx playwright install chromium
    ```
 
 2. **Configure allowed mirrors:**
+
    ```bash
    SOAP2DAY_ALLOWED_MIRRORS=soap2day.to,soap2day.se,s2dfree.is
    ```
 
 3. **Set up proxy rotation:**
+
    ```bash
    REMOTE_INGEST_PROXY_URLS=http://proxy1:8080,http://proxy2:8080
    ```
@@ -118,21 +129,25 @@ When using Docker (as with your VPS blue-green deployment):
 ## Environment Variables Reference
 
 ### Health Monitoring
+
 - `HEALTH_MONITOR_FAILURE_THRESHOLD` - Failures before marking unhealthy (default: 3)
 - `HEALTH_MONITOR_SUCCESS_THRESHOLD` - Successes to recover (default: 2)
 - `HEALTH_MONITOR_RECOVERY_MS` - Time before retrying unhealthy service (default: 300000)
 
 ### 1337x Configuration
+
 - `BOOK_AUTO_LIBRARY_SOURCE_URL` - Primary 1337x URL
 - `TORRENT_DISCOVERY_MIRROR_URLS` - Backup mirror URLs (comma-separated)
 - `FLARESOLVERR_URL` - FlareSolverr endpoint for Cloudflare bypass
 
 ### Elsci Configuration
+
 - `ELSCI_LIGHT_NOVELS_BASE_URL` - Elsci server URL
 - `ELSCI_CACHE_TTL_MS` - Catalog cache duration (default: 300000)
 - `ELSCI_LIGHT_NOVELS_REQUEST_TIMEOUT_MS` - Request timeout (default: 60000)
 
 ### Soap2Day Configuration
+
 - `SOAP2DAY_ALLOWED_MIRRORS` - Allowed mirror domains (comma-separated)
 - `SOAP2DAY_MAX_IFRAME_HOPS` - Max iframe navigation depth (default: 4)
 - `REMOTE_INGEST_PROXY_URLS` - Proxy servers for rotation (comma-separated)
@@ -149,6 +164,7 @@ curl http://localhost:3000/api/admin/health/external-services \
 ```
 
 Look for:
+
 - `healthy: true/false` - Overall service status
 - `responseTimeMs` - Performance indicator
 - `consecutiveFailures` - Error trend indicator
@@ -164,6 +180,7 @@ Since you're using blue-green deployment:
 ## Support
 
 For persistent issues:
+
 1. Check API logs for detailed error messages
 2. Verify all environment variables are set correctly
 3. Test services individually using the integration test script:

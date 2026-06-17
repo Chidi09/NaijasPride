@@ -1,7 +1,7 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input } from "@angular/core";
 
 @Component({
-  selector: 'app-brand-logo',
+  selector: "app-brand-logo",
   standalone: true,
   template: `
     <img
@@ -12,18 +12,18 @@ import { Component, Input } from '@angular/core';
       [attr.decoding]="decoding"
       [attr.width]="width"
       [attr.height]="height"
-    >
+    />
   `,
 })
 export class BrandLogoComponent {
-  @Input() variant: 'full' | 'mark' = 'full';
-  @Input() alt = 'NaijasPride';
-  @Input() className = '';
-  @Input() loading: 'eager' | 'lazy' = 'eager';
-  @Input() decoding: 'auto' | 'sync' | 'async' = 'async';
+  @Input() variant: "full" | "mark" = "full";
+  @Input() alt = "NaijasPride";
+  @Input() className = "";
+  @Input() loading: "eager" | "lazy" = "eager";
+  @Input() decoding: "auto" | "sync" | "async" = "async";
   @Input() width = 180;
   @Input() height = 52;
 
-  readonly fullSrc = 'assets/images/logo.svg';
-  readonly markSrc = 'assets/images/logo-mark.png';
+  readonly fullSrc = "assets/images/logo.svg";
+  readonly markSrc = "assets/images/logo-mark.png";
 }

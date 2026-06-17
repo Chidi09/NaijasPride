@@ -1,4 +1,4 @@
-type CircuitState = 'closed' | 'open' | 'half_open';
+type CircuitState = "closed" | "open" | "half_open";
 
 export type CircuitBreakerOptions = {
   failureThreshold: number;
@@ -13,12 +13,14 @@ const DEFAULT_OPTIONS: CircuitBreakerOptions = {
 };
 
 export class CircuitBreaker {
-  private state: CircuitState = 'closed';
+  private state: CircuitState = "closed";
   private failureCount = 0;
   private openedAt = 0;
   private halfOpenCalls = 0;
 
-  constructor(private readonly options: CircuitBreakerOptions = DEFAULT_OPTIONS) {}
+  constructor(
+    private readonly options: CircuitBreakerOptions = DEFAULT_OPTIONS,
+  ) {}
 
   getState(): CircuitState {
     this.refreshState();
@@ -28,11 +30,11 @@ export class CircuitBreaker {
   canExecute(): boolean {
     this.refreshState();
 
-    if (this.state === 'closed') {
+    if (this.state === "closed") {
       return true;
     }
 
-    if (this.state === 'open') {
+    if (this.state === "open") {
       return false;
     }
 
@@ -45,7 +47,7 @@ export class CircuitBreaker {
   }
 
   onSuccess(): void {
-    this.state = 'closed';
+    this.state = "closed";
     this.failureCount = 0;
     this.halfOpenCalls = 0;
     this.openedAt = 0;
@@ -54,7 +56,7 @@ export class CircuitBreaker {
   onFailure(): void {
     this.failureCount += 1;
 
-    if (this.state === 'half_open') {
+    if (this.state === "half_open") {
       this.trip();
       return;
     }
@@ -65,17 +67,17 @@ export class CircuitBreaker {
   }
 
   private trip(): void {
-    this.state = 'open';
+    this.state = "open";
     this.openedAt = Date.now();
     this.halfOpenCalls = 0;
   }
 
   private refreshState(): void {
-    if (this.state !== 'open') return;
+    if (this.state !== "open") return;
 
     const elapsed = Date.now() - this.openedAt;
     if (elapsed >= this.options.recoveryTimeoutMs) {
-      this.state = 'half_open';
+      this.state = "half_open";
       this.halfOpenCalls = 0;
     }
   }

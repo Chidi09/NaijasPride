@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal } from "@angular/core";
 
 export type TtsVoice = {
   uri: string;
@@ -15,13 +15,16 @@ type TtsState = {
   lastError: string | null;
 };
 
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
 
 @Injectable({
-  providedIn: 'root',
+  providedIn: "root",
 })
 export class ReaderTtsService {
-  readonly available = signal<boolean>(typeof window !== 'undefined' && 'speechSynthesis' in window);
+  readonly available = signal<boolean>(
+    typeof window !== "undefined" && "speechSynthesis" in window,
+  );
 
   readonly voices = signal<TtsVoice[]>([]);
 
@@ -51,19 +54,22 @@ export class ReaderTtsService {
   }
 
   setVoiceUri(uri: string | null): void {
-    const next = typeof uri === 'string' ? uri : null;
+    const next = typeof uri === "string" ? uri : null;
     this.state.update((s) => ({ ...s, voiceUri: next }));
   }
 
   speak(text: string): boolean {
     if (!this.available()) {
-      this.state.update((s) => ({ ...s, lastError: 'Text-to-speech is not available in this browser.' }));
+      this.state.update((s) => ({
+        ...s,
+        lastError: "Text-to-speech is not available in this browser.",
+      }));
       return false;
     }
 
-    const trimmed = (text || '').replace(/\s+/g, ' ').trim();
+    const trimmed = (text || "").replace(/\s+/g, " ").trim();
     if (!trimmed) {
-      this.state.update((s) => ({ ...s, lastError: 'Nothing to read.' }));
+      this.state.update((s) => ({ ...s, lastError: "Nothing to read." }));
       return false;
     }
 
@@ -89,8 +95,14 @@ export class ReaderTtsService {
       this.state.update((s) => ({ ...s, speaking: false, paused: false }));
     };
     u.onerror = (event: SpeechSynthesisErrorEvent) => {
-      const message = typeof event?.error === 'string' ? event.error : 'TTS error';
-      this.state.update((s) => ({ ...s, speaking: false, paused: false, lastError: message }));
+      const message =
+        typeof event?.error === "string" ? event.error : "TTS error";
+      this.state.update((s) => ({
+        ...s,
+        speaking: false,
+        paused: false,
+        lastError: message,
+      }));
     };
 
     this.utterance = u;
@@ -98,7 +110,12 @@ export class ReaderTtsService {
       window.speechSynthesis.speak(u);
       return true;
     } catch {
-      this.state.update((s) => ({ ...s, speaking: false, paused: false, lastError: 'Failed to start TTS.' }));
+      this.state.update((s) => ({
+        ...s,
+        speaking: false,
+        paused: false,
+        lastError: "Failed to start TTS.",
+      }));
       return false;
     }
   }
@@ -146,9 +163,9 @@ export class ReaderTtsService {
       const list = window.speechSynthesis.getVoices() || [];
       const normalized: TtsVoice[] = list
         .map((v) => ({
-          uri: String(v.voiceURI || ''),
-          name: String(v.name || ''),
-          lang: String(v.lang || ''),
+          uri: String(v.voiceURI || ""),
+          name: String(v.name || ""),
+          lang: String(v.lang || ""),
           isDefault: !!v.default,
         }))
         .filter((v) => !!v.uri && !!v.name);
@@ -167,7 +184,7 @@ export class ReaderTtsService {
         const def = list.find((v) => !!v.default);
         return def || null;
       }
-      const match = list.find((v) => String(v.voiceURI || '') === uri);
+      const match = list.find((v) => String(v.voiceURI || "") === uri);
       return match || null;
     } catch {
       return null;

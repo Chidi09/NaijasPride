@@ -22,18 +22,18 @@ type BookLike = {
 // Patterns that extract (seriesName, volumeNumber) from a title.
 // Tried in order; first match wins.
 const VOLUME_PATTERNS: Array<RegExp> = [
-  /^(.+?)\s*[-–]\s*volume\s+(\d+(?:\.\d+)?)/i,   // "Title - Volume 03"
-  /^(.+?)\s*[-–]\s*vol\.?\s*(\d+(?:\.\d+)?)/i,   // "Title - Vol. 3"
-  /^(.+?)\s+volume\s+(\d+(?:\.\d+)?)\b/i,         // "Title Volume 3"
-  /^(.+?)\s+vol\.?\s+(\d+(?:\.\d+)?)\b/i,         // "Title Vol 3"
-  /^(.+?)\s+v(\d+(?:\.\d+)?)\s*$/i,               // "Title v3"
-  /^(.+?)\s+#(\d+(?:\.\d+)?)\b/i,                 // "Title #3"
+  /^(.+?)\s*[-–]\s*volume\s+(\d+(?:\.\d+)?)/i, // "Title - Volume 03"
+  /^(.+?)\s*[-–]\s*vol\.?\s*(\d+(?:\.\d+)?)/i, // "Title - Vol. 3"
+  /^(.+?)\s+volume\s+(\d+(?:\.\d+)?)\b/i, // "Title Volume 3"
+  /^(.+?)\s+vol\.?\s+(\d+(?:\.\d+)?)\b/i, // "Title Vol 3"
+  /^(.+?)\s+v(\d+(?:\.\d+)?)\s*$/i, // "Title v3"
+  /^(.+?)\s+#(\d+(?:\.\d+)?)\b/i, // "Title #3"
 ];
 
 export type ParsedBook<T extends BookLike> = {
   book: T;
-  seriesKey: string | null;  // normalised series name, null = standalone
-  volume: number;            // 0 = unknown / standalone
+  seriesKey: string | null; // normalised series name, null = standalone
+  volume: number; // 0 = unknown / standalone
 };
 
 /**
@@ -43,7 +43,7 @@ export function parseSeriesInfo<T extends BookLike>(book: T): ParsedBook<T> {
   for (const pattern of VOLUME_PATTERNS) {
     const m = book.title.match(pattern);
     if (m) {
-      const seriesKey = m[1].trim().toLowerCase().replace(/\s+/g, ' ');
+      const seriesKey = m[1].trim().toLowerCase().replace(/\s+/g, " ");
       const volume = parseFloat(m[2]);
       return { book, seriesKey, volume: Number.isFinite(volume) ? volume : 0 };
     }
@@ -76,7 +76,9 @@ export function nextVolumeToMirror<T extends BookLike>(
  * @param books  - The pool of books to sort (all unmirrored candidates).
  * @returns      - Sorted copy of the array.
  */
-export function sortBooksBySeriesAndVolume<T extends BookLike>(books: T[]): T[] {
+export function sortBooksBySeriesAndVolume<T extends BookLike>(
+  books: T[],
+): T[] {
   if (books.length === 0) return [];
 
   const parsed = books.map(parseSeriesInfo);

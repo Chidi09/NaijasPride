@@ -1,20 +1,25 @@
 // apps/api/src/modules/anime/stealth-browser.ts
 // Stealth browser for bypassing bot detection on anime sites
 
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from "playwright";
 
 let browserInstance: Browser | null = null;
 let browserInitPromise: Promise<Browser> | null = null;
 
 // Stealth user agents - rotate to avoid fingerprinting
 const STEALTH_USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
 ];
 
-const getRandomUserAgent = () => 
+const getRandomUserAgent = () =>
   STEALTH_USER_AGENTS[Math.floor(Math.random() * STEALTH_USER_AGENTS.length)];
 
 async function getStealthBrowser(): Promise<Browser> {
@@ -24,15 +29,15 @@ async function getStealthBrowser(): Promise<Browser> {
   browserInitPromise = chromium.launch({
     headless: true,
     args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-blink-features=AutomationControlled',
-      '--window-size=1920,1080',
-      '--start-maximized',
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-web-security",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--disable-blink-features=AutomationControlled",
+      "--window-size=1920,1080",
+      "--start-maximized",
     ],
   });
 
@@ -45,35 +50,42 @@ async function getStealthBrowser(): Promise<Browser> {
 async function applyStealth(page: Page): Promise<void> {
   // Override navigator.webdriver
   await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', {
+    Object.defineProperty(navigator, "webdriver", {
       get: () => undefined,
     });
 
     // Override plugins
-    Object.defineProperty(navigator, 'plugins', {
+    Object.defineProperty(navigator, "plugins", {
       get: () => [
-        { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-        { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
-        { name: 'Native Client', filename: 'internal-nacl-plugin' },
+        { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
+        {
+          name: "Chrome PDF Viewer",
+          filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+        },
+        { name: "Native Client", filename: "internal-nacl-plugin" },
       ],
     });
 
     // Override languages
-    Object.defineProperty(navigator, 'languages', {
-      get: () => ['en-US', 'en'],
+    Object.defineProperty(navigator, "languages", {
+      get: () => ["en-US", "en"],
     });
 
     // Override permission
     const originalQuery = window.navigator.permissions?.query;
     if (originalQuery) {
-      window.navigator.permissions.query = (parameters: any) =>
-        parameters.name === 'notifications'
-          ? Promise.resolve({ state: Notification.permission } as any)
+      window.navigator.permissions.query = (
+        parameters: PermissionDescriptor,
+      ) =>
+        parameters.name === "notifications"
+          ? Promise.resolve({
+              state: Notification.permission,
+            } as unknown as PermissionStatus)
           : originalQuery(parameters);
     }
 
     // Override chrome
-    (window as any).chrome = {
+    (window as unknown as { chrome: unknown }).chrome = {
       runtime: {},
       loadTimes: () => ({}),
       csi: () => ({}),
@@ -82,16 +94,16 @@ async function applyStealth(page: Page): Promise<void> {
 
     // Override notification
     if (!window.Notification) {
-      (window as any).Notification = {
-        permission: 'default',
+      (window as unknown as { Notification: unknown }).Notification = {
+        permission: "default",
       };
     }
 
     // Add iframe contentWindow chrome
     const originalAttachShadow = Element.prototype.attachShadow;
-    Element.prototype.attachShadow = function(options: any) {
+    Element.prototype.attachShadow = function (options: ShadowRootInit) {
       const shadow = originalAttachShadow.call(this, options);
-      Object.defineProperty(shadow, 'chrome', {
+      Object.defineProperty(shadow, "chrome", {
         get: () => ({ runtime: {} }),
       });
       return shadow;
@@ -115,16 +127,16 @@ export async function scrapeWithStealth(
     waitForVideo?: boolean;
     timeout?: number;
     scrollPage?: boolean;
-  } = {}
+  } = {},
 ): Promise<{ sources: ScrapedSource[]; title?: string; episode?: number }> {
   const { waitForVideo = true, timeout = 60000, scrollPage = true } = options;
-  
+
   const browser = await getStealthBrowser();
   const context = await browser.newContext({
     userAgent: getRandomUserAgent(),
     viewport: { width: 1920, height: 1080 },
-    locale: 'en-US',
-    timezoneId: 'America/New_York',
+    locale: "en-US",
+    timezoneId: "America/New_York",
   });
 
   const page = await context.newPage();
@@ -133,22 +145,22 @@ export async function scrapeWithStealth(
 
   try {
     // Intercept network requests
-    await page.route('**/*', (route) => {
+    await page.route("**/*", (route) => {
       const url = route.request().url();
-      
+
       // Capture video URLs
       if (url.match(/\.(m3u8|mp4)(?:\?|$)/i) && !seenUrls.has(url)) {
         seenUrls.add(url);
-        
+
         const quality = extractQuality(url);
         sources.push({
           url,
           quality,
-          isM3U8: url.includes('.m3u8'),
+          isM3U8: url.includes(".m3u8"),
           referer: targetUrl,
         });
       }
-      
+
       route.continue();
     });
 
@@ -156,8 +168,8 @@ export async function scrapeWithStealth(
     await applyStealth(page);
 
     // Navigate with timeout
-    await page.goto(targetUrl, { 
-      waitUntil: 'domcontentloaded',
+    await page.goto(targetUrl, {
+      waitUntil: "domcontentloaded",
       timeout,
     });
 
@@ -166,12 +178,12 @@ export async function scrapeWithStealth(
 
     // Try to click play button if exists
     const playSelectors = [
-      '.play-button',
-      '[data-play]',
-      '.vjs-play-control',
-      '.plyr__control--overlaid',
+      ".play-button",
+      "[data-play]",
+      ".vjs-play-control",
+      ".plyr__control--overlaid",
       'button[aria-label*="play" i]',
-      '.jw-icon-playback',
+      ".jw-icon-playback",
     ];
 
     for (const selector of playSelectors) {
@@ -190,16 +202,16 @@ export async function scrapeWithStealth(
     // Wait for video if requested
     if (waitForVideo) {
       try {
-        await page.waitForSelector('video', { timeout: 10000 });
-        
+        await page.waitForSelector("video", { timeout: 10000 });
+
         // Try to play video
         await page.evaluate(() => {
-          const video = document.querySelector('video');
+          const video = document.querySelector("video");
           if (video && video.paused) {
             video.play().catch(() => {});
           }
         });
-        
+
         // Wait for network requests
         await page.waitForTimeout(5000);
       } catch {
@@ -217,13 +229,15 @@ export async function scrapeWithStealth(
 
     // Extract page info
     const pageInfo = await page.evaluate(() => {
-      const title = document.querySelector('h1')?.textContent?.trim() ||
-                   document.querySelector('.film-name')?.textContent?.trim() ||
-                   document.title;
-      
-      const epMatch = document.title.match(/Episode\s+(\d+)/i) ||
-                     document.body.textContent?.match(/Episode\s+(\d+)/i);
-      
+      const title =
+        document.querySelector("h1")?.textContent?.trim() ||
+        document.querySelector(".film-name")?.textContent?.trim() ||
+        document.title;
+
+      const epMatch =
+        document.title.match(/Episode\s+(\d+)/i) ||
+        document.body.textContent?.match(/Episode\s+(\d+)/i);
+
       return {
         title,
         episode: epMatch ? parseInt(epMatch[1], 10) : undefined,
@@ -235,9 +249,8 @@ export async function scrapeWithStealth(
       title: pageInfo.title,
       episode: pageInfo.episode,
     };
-
   } catch (error) {
-    console.error('[StealthBrowser] Scraping failed:', error);
+    console.error("[StealthBrowser] Scraping failed:", error);
     return { sources: [] };
   } finally {
     await context.close();
@@ -251,13 +264,13 @@ function extractQuality(url: string): string {
     /quality[=_-]([^&/]+)/i,
     /([\d]+)k/i,
   ];
-  
+
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match?.[1]) return match[1];
   }
-  
-  return 'auto';
+
+  return "auto";
 }
 
 export async function closeStealthBrowser(): Promise<void> {

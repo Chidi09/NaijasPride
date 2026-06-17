@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { google } from 'googleapis';
+import { PrismaClient } from "@prisma/client";
+import { google } from "googleapis";
 
 const BATCH_SIZE = 50; // YouTube Data API max IDs per request
 
@@ -10,7 +10,7 @@ interface Logger {
 
 export class YouTubeStatsSyncService {
   private youtube = google.youtube({
-    version: 'v3',
+    version: "v3",
     auth: process.env.YOUTUBE_API_KEY,
   });
 
@@ -21,14 +21,14 @@ export class YouTubeStatsSyncService {
 
   async syncAll(): Promise<void> {
     if (!process.env.YOUTUBE_API_KEY) {
-      this.log.info('[YTStatsSync] No YOUTUBE_API_KEY set — skipping sync');
+      this.log.info("[YTStatsSync] No YOUTUBE_API_KEY set — skipping sync");
       return;
     }
 
-    this.log.info('[YTStatsSync] Starting YouTube stats sync...');
+    this.log.info("[YTStatsSync] Starting YouTube stats sync...");
 
     const videos = await this.prisma.musicVideo.findMany({
-      where: { status: 'active' },
+      where: { status: "active" },
       select: { id: true, youtubeId: true },
     });
 
@@ -46,7 +46,7 @@ export class YouTubeStatsSyncService {
 
       try {
         const response = await this.youtube.videos.list({
-          part: ['statistics'],
+          part: ["statistics"],
           id: youtubeIds,
           maxResults: BATCH_SIZE,
         });
@@ -64,8 +64,8 @@ export class YouTubeStatsSyncService {
           await this.prisma.musicVideo.update({
             where: { id: dbRecord.id },
             data: {
-              ytViewCount: parseInt(stats.viewCount ?? '0', 10) || 0,
-              ytLikeCount: parseInt(stats.likeCount ?? '0', 10) || 0,
+              ytViewCount: parseInt(stats.viewCount ?? "0", 10) || 0,
+              ytLikeCount: parseInt(stats.likeCount ?? "0", 10) || 0,
               ytStatsUpdatedAt: new Date(),
             },
           });
@@ -74,7 +74,10 @@ export class YouTubeStatsSyncService {
         }
 
         this.log.info(
-          { batch: Math.floor(i / BATCH_SIZE) + 1, itemsReturned: items.length },
+          {
+            batch: Math.floor(i / BATCH_SIZE) + 1,
+            itemsReturned: items.length,
+          },
           `[YTStatsSync] Batch done`,
         );
       } catch (err) {
@@ -91,9 +94,6 @@ export class YouTubeStatsSyncService {
       }
     }
 
-    this.log.info(
-      { updated, failed },
-      '[YTStatsSync] Sync complete',
-    );
+    this.log.info({ updated, failed }, "[YTStatsSync] Sync complete");
   }
 }

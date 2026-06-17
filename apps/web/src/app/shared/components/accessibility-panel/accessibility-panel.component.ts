@@ -1,17 +1,29 @@
-import { Component, inject } from '@angular/core';
-import { UserPreferencesService } from '../../../core/services/user-preferences.service';
+import { Component, inject } from "@angular/core";
+import { UserPreferencesService } from "../../../core/services/user-preferences.service";
 
 @Component({
-  selector: 'app-accessibility-panel',
+  selector: "app-accessibility-panel",
   standalone: true,
   template: `
     @if (open()) {
-      <div class="fixed inset-0 z-[150] flex items-end sm:items-center justify-center">
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" (click)="open.set(false)"></div>
-        <div class="relative bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-6 space-y-5">
+      <div
+        class="fixed inset-0 z-[150] flex items-end sm:items-center justify-center"
+      >
+        <div
+          class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          (click)="open.set(false)"
+        ></div>
+        <div
+          class="relative bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-6 space-y-5"
+        >
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-bold text-white">Accessibility</h3>
-            <button (click)="open.set(false)" class="text-gray-500 hover:text-white text-xl">&times;</button>
+            <button
+              (click)="open.set(false)"
+              class="text-gray-500 hover:text-white text-xl"
+            >
+              &times;
+            </button>
           </div>
 
           <!-- High Contrast -->
@@ -54,7 +66,9 @@ import { UserPreferencesService } from '../../../core/services/user-preferences.
             </div>
           </div>
 
-          <p class="text-[11px] text-gray-600 text-center pt-2">Settings are saved automatically</p>
+          <p class="text-[11px] text-gray-600 text-center pt-2">
+            Settings are saved automatically
+          </p>
         </div>
       </div>
     }
@@ -65,13 +79,13 @@ export class AccessibilityPanelComponent {
   open = this.prefs.a11yPanelOpen;
 
   fontOptions = [
-    { label: 'S', value: 0.875 },
-    { label: 'M', value: 1 },
-    { label: 'L', value: 1.125 },
-    { label: 'XL', value: 1.25 },
+    { label: "S", value: 0.875 },
+    { label: "M", value: 1 },
+    { label: "L", value: 1.125 },
+    { label: "XL", value: 1.25 },
   ];
 
   toggle() {
-    this.open.update(v => !v);
+    this.open.update((v) => !v);
   }
 }

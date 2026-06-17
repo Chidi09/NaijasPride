@@ -1,4 +1,4 @@
-import { ContentStatus, MusicGenre, MusicRegion } from '../enums';
+import { ContentStatus, MusicGenre, MusicRegion } from "../enums";
 
 export interface MusicVideo {
   id: string;
@@ -87,9 +87,25 @@ export interface MusicPlaylistSummary {
 }
 
 export interface MusicFeaturedSections {
-  trending: MusicVideoSummary[];       // weeklyPlays desc, last 7 days
-  newReleases: MusicVideoSummary[];    // publishedAt desc, last 30 days
+  trending: MusicVideoSummary[]; // weeklyPlays desc, last 7 days
+  newReleases: MusicVideoSummary[]; // publishedAt desc, last 30 days
   artistSpotlight: MusicVideoSummary[]; // curated — hand-picked by admin
-  replayLoop: MusicVideoSummary[];     // highest replay rate (playCount/viewCount)
+  replayLoop: MusicVideoSummary[]; // highest replay rate (playCount/viewCount)
   genreTakeover: { genre: MusicGenre; videos: MusicVideoSummary[] } | null;
+}
+
+export interface MusicPlaylistItem {
+  id: string;
+  playlistId: string;
+  musicId: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  music?: MusicVideo;
+}
+
+export interface MusicPlaylist extends MusicPlaylistSummary {
+  createdAt: string;
+  updatedAt: string;
+  items: MusicPlaylistItem[];
 }

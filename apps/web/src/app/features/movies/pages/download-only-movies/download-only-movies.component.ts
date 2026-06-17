@@ -1,29 +1,47 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { MovieSummary } from '@naijaspride/types';
-import { MovieCardComponent } from '../../components/movie-card/movie-card.component';
-import { PaginatorComponent } from '../../../../shared/components/paginator/paginator.component';
-import { WatchApiService } from '../../../watch/services/watch-api.service';
+import { Component, OnInit, inject, signal } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { HttpClient } from "@angular/common/http";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { MovieSummary } from "@naijaspride/types";
+import { MovieCardComponent } from "../../components/movie-card/movie-card.component";
+import { PaginatorComponent } from "../../../../shared/components/paginator/paginator.component";
+import { WatchApiService } from "../../../watch/services/watch-api.service";
 
 @Component({
-  selector: 'app-download-only-movies',
+  selector: "app-download-only-movies",
   standalone: true,
   imports: [CommonModule, RouterLink, MovieCardComponent, PaginatorComponent],
   template: `
-    <div class="min-h-screen bg-[var(--bg-primary)] pb-24 text-[var(--text-primary)]">
-      <div class="bg-gradient-to-b from-[#f3e5dc] to-[#f8f0e9] px-6 py-12 dark:from-cinema-800 dark:to-cinema-900">
+    <div
+      class="min-h-screen bg-[var(--bg-primary)] pb-24 text-[var(--text-primary)]"
+    >
+      <div
+        class="bg-gradient-to-b from-[#f3e5dc] to-[#f8f0e9] px-6 py-12 dark:from-cinema-800 dark:to-cinema-900"
+      >
         <div class="mx-auto max-w-7xl">
           <a
             routerLink="/movies"
             class="inline-flex items-center gap-2 text-sm text-[#8a756e] transition-colors hover:text-[#24181b] dark:text-gray-400 dark:hover:text-white"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
             Back to Movies
           </a>
 
-          <h1 class="mt-4 text-3xl font-semibold md:text-4xl">Download Library</h1>
+          <h1 class="mt-4 text-3xl font-semibold md:text-4xl">
+            Download Library
+          </h1>
           <p class="mt-2 max-w-2xl text-sm text-[#6f5e57] dark:text-gray-400">
             Download-ready titles from the ingestion pipeline.
           </p>
@@ -33,15 +51,19 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
       <div class="mx-auto max-w-7xl px-6 py-8">
         @if (isLoading()) {
           <div class="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
-            @for (i of [1,2,3,4,5,6,7,8,9,10,11,12]; track i) {
-              <div class="aspect-[2/3] animate-pulse rounded-lg bg-[var(--bg-secondary)]"></div>
+            @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) {
+              <div
+                class="aspect-[2/3] animate-pulse rounded-lg bg-[var(--bg-secondary)]"
+              ></div>
             }
           </div>
         }
 
         @if (!isLoading() && movies().length > 0) {
           <div class="mb-6 flex items-center justify-between">
-            <p class="text-sm text-[var(--text-muted)]">{{ totalMovies() }} movies</p>
+            <p class="text-sm text-[var(--text-muted)]">
+              {{ totalMovies() }} movies
+            </p>
 
             <select
               (change)="changeSort($event)"
@@ -55,7 +77,10 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
 
           <div class="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
             @for (movie of movies(); track movie.id) {
-              <app-movie-card [movie]="movie" [progress]="watchProgressByMovieId()[movie.id] ?? null" />
+              <app-movie-card
+                [movie]="movie"
+                [progress]="watchProgressByMovieId()[movie.id] ?? null"
+              />
             }
           </div>
 
@@ -71,9 +96,13 @@ import { WatchApiService } from '../../../watch/services/watch-api.service';
         }
 
         @if (!isLoading() && movies().length === 0) {
-          <div class="rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-8 text-center">
+          <div
+            class="rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-8 text-center"
+          >
             <p class="text-lg font-medium">No download-ready titles found</p>
-            <p class="mt-2 text-sm text-[var(--text-muted)]">Please check back shortly.</p>
+            <p class="mt-2 text-sm text-[var(--text-muted)]">
+              Please check back shortly.
+            </p>
           </div>
         }
       </div>
@@ -88,7 +117,7 @@ export class DownloadOnlyMoviesComponent implements OnInit {
 
   movies = signal<MovieSummary[]>([]);
   isLoading = signal(true);
-  sortBy = signal<'newest' | 'popular' | 'trending'>('newest');
+  sortBy = signal<"newest" | "popular" | "trending">("newest");
   currentPage = signal(1);
   totalPages = signal(1);
   totalMovies = signal(0);
@@ -99,8 +128,11 @@ export class DownloadOnlyMoviesComponent implements OnInit {
     this.loadWatchProgress();
 
     this.route.queryParamMap.subscribe((params) => {
-      const page = Math.max(1, Number(params.get('page') || 1) || 1);
-      const sortBy = (params.get('sortBy') || 'newest') as 'newest' | 'popular' | 'trending';
+      const page = Math.max(1, Number(params.get("page") || 1) || 1);
+      const sortBy = (params.get("sortBy") || "newest") as
+        | "newest"
+        | "popular"
+        | "trending";
 
       this.currentPage.set(page);
       this.sortBy.set(sortBy);
@@ -116,9 +148,9 @@ export class DownloadOnlyMoviesComponent implements OnInit {
         success: boolean;
         data: MovieSummary[];
         meta?: { page: number; total: number; totalPages: number };
-      }>('/api/v1/movies', {
+      }>("/api/v1/movies", {
         params: {
-          isStreamOnly: 'false',
+          isStreamOnly: "false",
           sortBy: this.sortBy(),
           page: String(this.currentPage()),
           limit: String(this.pageSize),
@@ -127,7 +159,9 @@ export class DownloadOnlyMoviesComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.movies.set(response.data || []);
-          this.totalMovies.set(response.meta?.total || response.data?.length || 0);
+          this.totalMovies.set(
+            response.meta?.total || response.data?.length || 0,
+          );
           this.totalPages.set(response.meta?.totalPages || 1);
           this.isLoading.set(false);
         },
@@ -142,7 +176,9 @@ export class DownloadOnlyMoviesComponent implements OnInit {
 
   changeSort(event: Event): void {
     const select = event.target as HTMLSelectElement;
-    this.sortBy.set((select.value || 'newest') as 'newest' | 'popular' | 'trending');
+    this.sortBy.set(
+      (select.value || "newest") as "newest" | "popular" | "trending",
+    );
     this.currentPage.set(1);
     this.syncUrl();
     this.loadMovies();
@@ -152,7 +188,7 @@ export class DownloadOnlyMoviesComponent implements OnInit {
     this.currentPage.set(page);
     this.syncUrl();
     this.loadMovies();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   private syncUrl(): void {
@@ -174,7 +210,10 @@ export class DownloadOnlyMoviesComponent implements OnInit {
           if (!item.movie?.id || item.progressPercentage <= 0) {
             continue;
           }
-          progressMap[item.movie.id] = Math.max(0, Math.min(100, item.progressPercentage));
+          progressMap[item.movie.id] = Math.max(
+            0,
+            Math.min(100, item.progressPercentage),
+          );
         }
         this.watchProgressByMovieId.set(progressMap);
       },

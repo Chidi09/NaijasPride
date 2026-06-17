@@ -78,7 +78,10 @@ export class YoutubeScoutService {
   /**
    * Search for a specific movie title on YouTube
    */
-  async searchByTitle(title: string, suffix = "Full Movie"): Promise<YouTubeVideoResult[]> {
+  async searchByTitle(
+    title: string,
+    suffix = "Full Movie",
+  ): Promise<YouTubeVideoResult[]> {
     try {
       const yt = getYoutube();
       const res = await yt.search.list({
@@ -135,7 +138,8 @@ export class YoutubeScoutService {
 
         const bestChannel = channelRes.data.items?.[0];
         const channelId = bestChannel?.id?.channelId || null;
-        const channelTitle = bestChannel?.snippet?.channelTitle || requestedName;
+        const channelTitle =
+          bestChannel?.snippet?.channelTitle || requestedName;
 
         if (!channelId) {
           output.push({
@@ -164,7 +168,10 @@ export class YoutubeScoutService {
           videos: this.mapResults(videosRes.data.items),
         });
       } catch (error) {
-        console.error(`[YouTube Scout] Error searching channel "${requestedName}":`, error);
+        console.error(
+          `[YouTube Scout] Error searching channel "${requestedName}":`,
+          error,
+        );
         output.push({
           requestedName,
           channelId: null,
@@ -199,9 +206,12 @@ export class YoutubeScoutService {
         channel: item.snippet?.channelTitle || "",
         publishedAt: item.snippet?.publishedAt || "",
         channelId: item.snippet?.channelId || "",
-      })) as any;
+      })) as YouTubeVideoResult[];
     } catch (error) {
-      console.error("[YouTube Scout] Error discovering trending videos:", error);
+      console.error(
+        "[YouTube Scout] Error discovering trending videos:",
+        error,
+      );
       return [];
     }
   }
@@ -209,7 +219,10 @@ export class YoutubeScoutService {
   /**
    * Search for niche Nollywood content using varied keywords
    */
-  async discoverByKeywords(keywords: string[], maxResults = 5): Promise<YouTubeVideoResult[]> {
+  async discoverByKeywords(
+    keywords: string[],
+    maxResults = 5,
+  ): Promise<YouTubeVideoResult[]> {
     const allResults: YouTubeVideoResult[] = [];
     const yt = getYoutube();
 
@@ -228,7 +241,10 @@ export class YoutubeScoutService {
 
         allResults.push(...this.mapResults(res.data.items));
       } catch (error) {
-        console.error(`[YouTube Scout] Error searching keywords "${q}":`, error);
+        console.error(
+          `[YouTube Scout] Error searching keywords "${q}":`,
+          error,
+        );
       }
     }
 
@@ -241,17 +257,17 @@ export class YoutubeScoutService {
     });
   }
 
-  private mapResults(items: youtube_v3.Schema$SearchResult[] | undefined): YouTubeVideoResult[] {
-    return (
-      items?.map((item) => ({
-        youtubeId: item.id?.videoId || "",
-        title: item.snippet?.title || "",
-        description: item.snippet?.description || "",
-        thumbnail: item.snippet?.thumbnails?.high?.url || "",
-        channel: item.snippet?.channelTitle || "",
-        publishedAt: item.snippet?.publishedAt || "",
-        channelId: item.snippet?.channelId || "",
-      })) || []
-    ) as any;
+  private mapResults(
+    items: youtube_v3.Schema$SearchResult[] | undefined,
+  ): YouTubeVideoResult[] {
+    return (items?.map((item) => ({
+      youtubeId: item.id?.videoId || "",
+      title: item.snippet?.title || "",
+      description: item.snippet?.description || "",
+      thumbnail: item.snippet?.thumbnails?.high?.url || "",
+      channel: item.snippet?.channelTitle || "",
+      publishedAt: item.snippet?.publishedAt || "",
+      channelId: item.snippet?.channelId || "",
+    })) || []) as YouTubeVideoResult[];
   }
 }

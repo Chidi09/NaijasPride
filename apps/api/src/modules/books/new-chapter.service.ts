@@ -20,17 +20,17 @@
  *  - The service is a no-op if no users have chapter watches registered.
  */
 
-import { PrismaClient } from '@prisma/client';
-import { getPushService } from '../../shared/services/push-notification.service';
-import { MangaSourceManager } from './sources/source-manager';
-import type { MangaChapter } from './sources/types';
+import { PrismaClient } from "@prisma/client";
+import { getPushService } from "../../shared/services/push-notification.service";
+import { MangaSourceManager } from "./sources/source-manager";
+import type { MangaChapter } from "./sources/types";
 
 const INTER_FETCH_DELAY_MS = 1_500; // delay between each manga source fetch to be polite
-const MAX_CHAPTERS_FETCHED = 10;    // we only need the most recent chapters
+const MAX_CHAPTERS_FETCHED = 10; // we only need the most recent chapters
 const PG_ADVISORY_LOCK_KEY = 8_106_242; // shared lock key across API instances
 
 const sourceIdFromEntityId = (entityId: string): string | null => {
-  const separator = entityId.indexOf(':');
+  const separator = entityId.indexOf(":");
   if (separator <= 0) return null;
   return entityId.slice(0, separator);
 };
@@ -71,112 +71,123 @@ export class NewChapterService {
     const startedAt = Date.now();
     const lockAcquired = await this.acquireDistributedLock();
     if (!lockAcquired) {
-      console.log('[NewChapterService] Skipping run — another instance holds lock');
+      console.log(
+        "[NewChapterService] Skipping run — another instance holds lock",
+      );
       return;
     }
 
     try {
-    const watches = await this.prisma.mangaNewChapterCheck.findMany({
-      select: {
-        id: true,
-        userId: true,
-        mangaId: true,
-        mangaTitle: true,
-        mangaCoverUrl: true,
-        lastSeenChapterId: true,
-        lastSeenAt: true,
-      },
-    });
+      const watches = await this.prisma.mangaNewChapterCheck.findMany({
+        select: {
+          id: true,
+          userId: true,
+          mangaId: true,
+          mangaTitle: true,
+          mangaCoverUrl: true,
+          lastSeenChapterId: true,
+          lastSeenAt: true,
+        },
+      });
 
-    if (watches.length === 0) return;
+      if (watches.length === 0) return;
 
-    // De-duplicate: only fetch each unique mangaId once
-    const uniqueMangaIds = [...new Set(watches.map(w => w.mangaId))];
-    console.log(`[NewChapterService] Checking ${uniqueMangaIds.length} manga for ${watches.length} subscriptions`);
+      // De-duplicate: only fetch each unique mangaId once
+      const uniqueMangaIds = [...new Set(watches.map((w) => w.mangaId))];
+      console.log(
+        `[NewChapterService] Checking ${uniqueMangaIds.length} manga for ${watches.length} subscriptions`,
+      );
 
-    // Map mangaId → latest chapters array (fetched once, reused for all users)
-    const latestChaptersMap = new Map<string, MangaChapter[]>();
-    let fetchFailures = 0;
+      // Map mangaId → latest chapters array (fetched once, reused for all users)
+      const latestChaptersMap = new Map<string, MangaChapter[]>();
+      let fetchFailures = 0;
 
-    for (const mangaId of uniqueMangaIds) {
-      try {
-        const sourceId = sourceIdFromEntityId(mangaId);
-        if (!sourceId) {
+      for (const mangaId of uniqueMangaIds) {
+        try {
+          const sourceId = sourceIdFromEntityId(mangaId);
+          if (!sourceId) {
+            fetchFailures += 1;
+            continue;
+          }
+
+          const chapters = await this.sourceManager.getChaptersBySource(
+            sourceId,
+            mangaId,
+            undefined,
+            MAX_CHAPTERS_FETCHED,
+          );
+          latestChaptersMap.set(mangaId, chapters);
+        } catch (err) {
           fetchFailures += 1;
+          console.warn(
+            `[NewChapterService] Failed to fetch chapters for ${mangaId}:`,
+            err,
+          );
+        }
+        // Polite delay between source fetches
+        await new Promise((r) => setTimeout(r, INTER_FETCH_DELAY_MS));
+      }
+
+      // Now process per-user subscriptions
+      const push = getPushService(this.prisma);
+      const now = new Date();
+      let notificationsSent = 0;
+      let recordsUpdated = 0;
+
+      for (const watch of watches) {
+        const chapters = latestChaptersMap.get(watch.mangaId);
+        if (!chapters || chapters.length === 0) continue;
+
+        // Chapters are returned newest-first
+        const latestChapter = chapters[0];
+        if (!latestChapter) continue;
+
+        // Skip if user has already seen this chapter
+        if (watch.lastSeenChapterId === latestChapter.id) continue;
+
+        // If user has no lastSeenChapterId (new subscription), just record the current latest
+        // without spamming them with a notification for the very first check
+        if (!watch.lastSeenChapterId) {
+          await this.prisma.mangaNewChapterCheck.update({
+            where: { id: watch.id },
+            data: { lastSeenChapterId: latestChapter.id, lastSeenAt: now },
+          });
+          recordsUpdated += 1;
           continue;
         }
 
-        const chapters = await this.sourceManager.getChaptersBySource(
-          sourceId,
-          mangaId,
-          undefined,
-          MAX_CHAPTERS_FETCHED,
-        );
-        latestChaptersMap.set(mangaId, chapters);
-      } catch (err) {
-        fetchFailures += 1;
-        console.warn(`[NewChapterService] Failed to fetch chapters for ${mangaId}:`, err);
-      }
-      // Polite delay between source fetches
-      await new Promise(r => setTimeout(r, INTER_FETCH_DELAY_MS));
-    }
+        // New chapter found — send push notification
+        const chapterLabel = latestChapter.title
+          ? `Chapter ${latestChapter.chapter}: ${latestChapter.title}`
+          : `Chapter ${latestChapter.chapter}`;
 
-    // Now process per-user subscriptions
-    const push = getPushService(this.prisma);
-    const now = new Date();
-    let notificationsSent = 0;
-    let recordsUpdated = 0;
+        push
+          .sendNewMangaChapter(
+            watch.userId,
+            watch.mangaTitle,
+            watch.mangaId,
+            chapterLabel,
+            watch.mangaCoverUrl ?? undefined,
+          )
+          .catch(console.error);
+        notificationsSent += 1;
 
-    for (const watch of watches) {
-      const chapters = latestChaptersMap.get(watch.mangaId);
-      if (!chapters || chapters.length === 0) continue;
-
-      // Chapters are returned newest-first
-      const latestChapter = chapters[0];
-      if (!latestChapter) continue;
-
-      // Skip if user has already seen this chapter
-      if (watch.lastSeenChapterId === latestChapter.id) continue;
-
-      // If user has no lastSeenChapterId (new subscription), just record the current latest
-      // without spamming them with a notification for the very first check
-      if (!watch.lastSeenChapterId) {
+        // Update the record
         await this.prisma.mangaNewChapterCheck.update({
           where: { id: watch.id },
-          data: { lastSeenChapterId: latestChapter.id, lastSeenAt: now },
+          data: {
+            lastSeenChapterId: latestChapter.id,
+            lastSeenAt: latestChapter.publishedAt
+              ? new Date(latestChapter.publishedAt)
+              : now,
+          },
         });
         recordsUpdated += 1;
-        continue;
       }
 
-      // New chapter found — send push notification
-      const chapterLabel = latestChapter.title
-        ? `Chapter ${latestChapter.chapter}: ${latestChapter.title}`
-        : `Chapter ${latestChapter.chapter}`;
-
-      push.sendNewMangaChapter(
-        watch.userId,
-        watch.mangaTitle,
-        watch.mangaId,
-        chapterLabel,
-        watch.mangaCoverUrl ?? undefined,
-      ).catch(console.error);
-      notificationsSent += 1;
-
-      // Update the record
-      await this.prisma.mangaNewChapterCheck.update({
-        where: { id: watch.id },
-        data: {
-          lastSeenChapterId: latestChapter.id,
-          lastSeenAt: latestChapter.publishedAt ? new Date(latestChapter.publishedAt) : now,
-        },
-      });
-      recordsUpdated += 1;
-    }
-
-    console.log(
-      `[NewChapterService] Check complete: subscriptions=${watches.length}, uniqueManga=${uniqueMangaIds.length}, fetchFailures=${fetchFailures}, notifications=${notificationsSent}, updates=${recordsUpdated}, durationMs=${Date.now() - startedAt}`,
-    );
+      console.log(
+        `[NewChapterService] Check complete: subscriptions=${watches.length}, uniqueManga=${uniqueMangaIds.length}, fetchFailures=${fetchFailures}, notifications=${notificationsSent}, updates=${recordsUpdated}, durationMs=${Date.now() - startedAt}`,
+      );
     } finally {
       await this.releaseDistributedLock();
     }

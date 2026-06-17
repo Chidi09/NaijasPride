@@ -1,6 +1,6 @@
-import { getRedis } from '../../../../shared/services/redis.service';
-import { FetchGateway } from '../fetch/fetch-gateway';
-import { extractChapterImageUrls } from '../parsers/html-parsers';
+import { getRedis } from "../../../../shared/services/redis.service";
+import { FetchGateway } from "../fetch/fetch-gateway";
+import { extractChapterImageUrls } from "../parsers/html-parsers";
 import {
   MangaChapter,
   MangaDetail,
@@ -10,21 +10,36 @@ import {
   MangaSource,
   MangaSummary,
   MangaTag,
-} from '../types';
+} from "../types";
 
 export abstract class BaseHtmlSource implements MangaSource {
   abstract readonly id: string;
   abstract readonly displayName: string;
-  abstract readonly capabilities: MangaSource['capabilities'];
+  abstract readonly capabilities: MangaSource["capabilities"];
 
-  abstract searchManga(query?: string, limit?: number, filters?: MangaSearchFilters): Promise<MangaSummary[]>;
+  abstract searchManga(
+    query?: string,
+    limit?: number,
+    filters?: MangaSearchFilters,
+  ): Promise<MangaSummary[]>;
   abstract getDiscoverManga(limit?: number): Promise<MangaDiscoverResult>;
   abstract getMangaTags(): Promise<MangaTag[]>;
   abstract getMangaDetail(mangaId: string): Promise<MangaDetail | null>;
-  abstract getSimilarManga(mangaId: string, limit?: number): Promise<MangaSummary[]>;
-  abstract getChapters(mangaId: string, translatedLanguage?: string, limit?: number): Promise<MangaChapter[]>;
+  abstract getSimilarManga(
+    mangaId: string,
+    limit?: number,
+  ): Promise<MangaSummary[]>;
+  abstract getChapters(
+    mangaId: string,
+    translatedLanguage?: string,
+    limit?: number,
+  ): Promise<MangaChapter[]>;
   abstract getChapterPages(chapterId: string): Promise<MangaPagesResult>;
-  abstract healthCheck(): Promise<{ ok: boolean; latencyMs: number; message?: string }>;
+  abstract healthCheck(): Promise<{
+    ok: boolean;
+    latencyMs: number;
+    message?: string;
+  }>;
 
   protected readonly baseUrl: string;
   protected readonly cachePrefix: string;
@@ -44,28 +59,28 @@ export abstract class BaseHtmlSource implements MangaSource {
   }
 
   protected strip(value?: string | null): string {
-    return (value || '').replace(/\s+/g, ' ').trim();
+    return (value || "").replace(/\s+/g, " ").trim();
   }
 
   protected toAbsoluteUrl(url?: string | null): string | null {
     if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('//')) return `https:${url}`;
-    return `${this.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    if (url.startsWith("//")) return `https:${url}`;
+    return `${this.baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
   }
 
   protected normalizePath(pathOrUrl: string, fallbackPrefix: string): string {
     const trimmed = pathOrUrl.trim();
-    if (!trimmed) return '/';
+    if (!trimmed) return "/";
 
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
       const url = new URL(trimmed);
       return url.pathname;
     }
 
-    if (trimmed.startsWith('/')) return trimmed;
+    if (trimmed.startsWith("/")) return trimmed;
 
-    const prefix = fallbackPrefix.replace(/^\/+|\/+$/g, '');
+    const prefix = fallbackPrefix.replace(/^\/+|\/+$/g, "");
     if (!prefix) {
       return `/${trimmed}`;
     }
@@ -77,12 +92,19 @@ export abstract class BaseHtmlSource implements MangaSource {
     return `/${prefix}/${trimmed}`;
   }
 
-  protected buildCacheKey(operation: string, ...parts: Array<string | number | null | undefined>): string {
+  protected buildCacheKey(
+    operation: string,
+    ...parts: Array<string | number | null | undefined>
+  ): string {
     const suffix = parts
-      .filter((part): part is string | number => part !== undefined && part !== null)
+      .filter(
+        (part): part is string | number => part !== undefined && part !== null,
+      )
       .map((part) => String(part))
-      .join(':');
-    return suffix ? `manga:${this.cachePrefix}:${operation}:${suffix}` : `manga:${this.cachePrefix}:${operation}`;
+      .join(":");
+    return suffix
+      ? `manga:${this.cachePrefix}:${operation}:${suffix}`
+      : `manga:${this.cachePrefix}:${operation}`;
   }
 
   protected async getFromCache<T>(key: string): Promise<T | null> {
@@ -97,7 +119,11 @@ export abstract class BaseHtmlSource implements MangaSource {
     }
   }
 
-  protected async setCache(key: string, value: unknown, ttlSeconds = this.defaultCacheTtlSeconds): Promise<void> {
+  protected async setCache(
+    key: string,
+    value: unknown,
+    ttlSeconds = this.defaultCacheTtlSeconds,
+  ): Promise<void> {
     const redis = getRedis();
     if (!redis) return;
 
@@ -108,7 +134,11 @@ export abstract class BaseHtmlSource implements MangaSource {
     }
   }
 
-  protected async fetchHtml(path: string, params?: Record<string, string | number | undefined>, timeoutMs = 20_000) {
+  protected async fetchHtml(
+    path: string,
+    params?: Record<string, string | number | undefined>,
+    timeoutMs = 20_000,
+  ) {
     const url = new URL(path, this.baseUrl);
     if (params) {
       for (const [key, value] of Object.entries(params)) {
@@ -123,12 +153,17 @@ export abstract class BaseHtmlSource implements MangaSource {
     });
 
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`${this.displayName} upstream status ${response.status} at ${url.pathname}`);
+      throw new Error(
+        `${this.displayName} upstream status ${response.status} at ${url.pathname}`,
+      );
     }
 
-    const body = response.body || '';
+    const body = response.body || "";
     const normalizedBody = body.toLowerCase();
-    if (normalizedBody.includes('sorry, you have been blocked') || normalizedBody.includes('attention required')) {
+    if (
+      normalizedBody.includes("sorry, you have been blocked") ||
+      normalizedBody.includes("attention required")
+    ) {
       throw new Error(`${this.displayName} blocked this request (Cloudflare)`);
     }
 

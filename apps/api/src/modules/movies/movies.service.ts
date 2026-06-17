@@ -1,18 +1,23 @@
-import { Prisma, PrismaClient, Genre as PrismaGenre, Quality as PrismaQuality } from '@prisma/client';
-import { 
+import {
+  Prisma,
+  PrismaClient,
+  Genre as PrismaGenre,
+  Quality as PrismaQuality,
+} from "@prisma/client";
+import {
   ContentStatus,
   Genre,
   Quality,
-  MovieSearchParams, 
-  CreateMovieRequest, 
-  Movie, 
-  MovieSummary, 
+  MovieSearchParams,
+  CreateMovieRequest,
+  Movie,
+  MovieSummary,
   PaginationMeta,
-} from '@naijaspride/types';
-import { emailService } from '../../shared/services/email.service';
-import { getPushService } from '../../shared/services/push-notification.service';
-import { MetadataService } from './metadata.service';
-import { getRedis } from '../../shared/services/redis.service';
+} from "@naijaspride/types";
+import { emailService } from "../../shared/services/email.service";
+import { getPushService } from "../../shared/services/push-notification.service";
+import { MetadataService } from "./metadata.service";
+import { getRedis } from "../../shared/services/redis.service";
 
 export class MoviesService {
   private readonly metadataService: MetadataService;
@@ -23,7 +28,7 @@ export class MoviesService {
 
   async create(
     data: CreateMovieRequest & {
-      status?: ContentStatus | 'pending' | 'active' | 'processing' | 'deleted';
+      status?: ContentStatus | "pending" | "active" | "processing" | "deleted";
     },
   ): Promise<Movie> {
     const movie = await this.prisma.movie.create({
@@ -42,7 +47,7 @@ export class MoviesService {
     await this.invalidateSearchCache();
 
     // If newly created movie is immediately active, send new-content push to genre fans
-    if (!data.status || data.status === 'active') {
+    if (!data.status || data.status === "active") {
       this.sendNewContentNotifications(
         movie.id,
         movie.title,
@@ -51,7 +56,7 @@ export class MoviesService {
         movie.thumbnailUrl ?? undefined,
       ).catch(console.error);
     }
-    
+
     return this.mapToMovie(movie);
   }
 
@@ -74,7 +79,10 @@ export class MoviesService {
           }
         }
       } catch (error) {
-        console.warn(`[Cache READ ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
+        console.warn(
+          `[Cache READ ERROR] ${cacheKey}:`,
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
 
@@ -83,19 +91,24 @@ export class MoviesService {
       where: { slug },
       include: {
         cast: {
-          orderBy: { name: 'asc' },
+          orderBy: { name: "asc" },
           take: 12,
         },
       },
     });
 
     // 3. Fallback: if slug looks like a UUID, try ID lookup (handles legacy movies)
-    if (!movie && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
+    if (
+      !movie &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        slug,
+      )
+    ) {
       movie = await this.prisma.movie.findUnique({
         where: { id: slug },
         include: {
           cast: {
-            orderBy: { name: 'asc' },
+            orderBy: { name: "asc" },
             take: 12,
           },
         },
@@ -111,14 +124,14 @@ export class MoviesService {
           where: { slug: normalizedSlug },
           include: {
             cast: {
-              orderBy: { name: 'asc' },
+              orderBy: { name: "asc" },
               take: 12,
             },
           },
         });
       }
     }
-    
+
     if (movie) {
       const mapped = this.mapToMovie(movie);
       // 5. Save to Redis (Infinite TTL, until we manually invalidate)
@@ -127,12 +140,15 @@ export class MoviesService {
           await redis.set(cacheKey, JSON.stringify(mapped));
           console.log(`[Cache SET] ${cacheKey}`);
         } catch (error) {
-          console.warn(`[Cache WRITE ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
+          console.warn(
+            `[Cache WRITE ERROR] ${cacheKey}:`,
+            error instanceof Error ? error.message : String(error),
+          );
         }
       }
       return mapped;
     }
-    
+
     return null;
   }
 
@@ -143,7 +159,7 @@ export class MoviesService {
   async backfillSlugs(): Promise<{ updated: number; total: number }> {
     const movies = await this.prisma.movie.findMany({
       where: {
-        slug: '',
+        slug: "",
       },
       select: { id: true, title: true, year: true },
     });
@@ -165,14 +181,38 @@ export class MoviesService {
     return { updated, total: movies.length };
   }
 
-  async search(params: MovieSearchParams): Promise<{ data: MovieSummary[]; meta: PaginationMeta }> {
-    const { page = 1, limit = 20, q, genre, year, quality, sortBy, isStreamOnly, youtubeOnly } =
-      params as MovieSearchParams & { isStreamOnly?: boolean; youtubeOnly?: boolean };
+  async search(
+    params: MovieSearchParams,
+  ): Promise<{ data: MovieSummary[]; meta: PaginationMeta }> {
+    const {
+      page = 1,
+      limit = 20,
+      q,
+      genre,
+      year,
+      quality,
+      sortBy,
+      isStreamOnly,
+      youtubeOnly,
+    } = params as MovieSearchParams & {
+      isStreamOnly?: boolean;
+      youtubeOnly?: boolean;
+    };
     const skip = (page - 1) * limit;
 
     // Create cache key from params
-    const paramKey = JSON.stringify({ q, genre, year, quality, sortBy, isStreamOnly, youtubeOnly, page, limit });
-    const cacheKey = `search:${Buffer.from(paramKey).toString('base64')}`;
+    const paramKey = JSON.stringify({
+      q,
+      genre,
+      year,
+      quality,
+      sortBy,
+      isStreamOnly,
+      youtubeOnly,
+      page,
+      limit,
+    });
+    const cacheKey = `search:${Buffer.from(paramKey).toString("base64")}`;
     const redis = getRedis();
 
     // Check cache first
@@ -181,7 +221,10 @@ export class MoviesService {
         const cached = await redis.get(cacheKey);
         if (cached) {
           try {
-            const parsed = JSON.parse(cached) as { data: MovieSummary[]; meta: PaginationMeta };
+            const parsed = JSON.parse(cached) as {
+              data: MovieSummary[];
+              meta: PaginationMeta;
+            };
             console.log(`[Cache HIT] ${cacheKey}`);
             return parsed;
           } catch {
@@ -190,7 +233,10 @@ export class MoviesService {
           }
         }
       } catch (error) {
-        console.warn(`[Cache READ ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
+        console.warn(
+          `[Cache READ ERROR] ${cacheKey}:`,
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
 
@@ -217,13 +263,15 @@ export class MoviesService {
     }
 
     const where: Prisma.MovieWhereInput = {
-      status: 'active',
+      status: "active",
       AND: andConditions,
       ...(year && { year }),
       ...(genre && { genre: { hasSome: genre as unknown as PrismaGenre[] } }),
-      ...(quality && { quality: { has: this.toPrismaQuality(quality as unknown as string) } }),
-      ...(typeof isStreamOnly === 'boolean' && { isStreamOnly }),
-      ...(typeof youtubeOnly === 'boolean' && {
+      ...(quality && {
+        quality: { has: this.toPrismaQuality(quality as unknown as string) },
+      }),
+      ...(typeof isStreamOnly === "boolean" && { isStreamOnly }),
+      ...(typeof youtubeOnly === "boolean" && {
         youtubeId: youtubeOnly ? { not: null } : null,
       }),
     };
@@ -234,7 +282,9 @@ export class MoviesService {
         where,
         skip,
         take: limit,
-        orderBy: this.getOrderBy(sortBy) as Prisma.MovieOrderByWithRelationInput | Prisma.MovieOrderByWithRelationInput[],
+        orderBy: this.getOrderBy(sortBy) as
+          | Prisma.MovieOrderByWithRelationInput
+          | Prisma.MovieOrderByWithRelationInput[],
       }),
     ]);
 
@@ -256,10 +306,13 @@ export class MoviesService {
         await redis.setex(cacheKey, 3600, JSON.stringify(result));
         console.log(`[Cache SET] ${cacheKey} (TTL: 1h)`);
       } catch (error) {
-        console.warn(`[Cache WRITE ERROR] ${cacheKey}:`, error instanceof Error ? error.message : String(error));
+        console.warn(
+          `[Cache WRITE ERROR] ${cacheKey}:`,
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
-    
+
     return result;
   }
 
@@ -268,20 +321,20 @@ export class MoviesService {
    */
   async updateStatus(
     movieId: string,
-    newStatus: 'active' | 'pending' | 'processing' | 'deleted',
+    newStatus: "active" | "pending" | "processing" | "deleted",
     quality: PrismaQuality,
   ): Promise<Movie> {
     // 1. Update the movie
     const movie = await this.prisma.movie.update({
       where: { id: movieId },
-      data: { 
+      data: {
         status: newStatus,
-        quality: [quality]
-      }
+        quality: [quality],
+      },
     });
 
     // 2. Notify subscribers when movie goes active (any quality)
-    if (newStatus === 'active') {
+    if (newStatus === "active") {
       await this.sendAvailableNotifications(
         movieId,
         movie.title,
@@ -307,17 +360,23 @@ export class MoviesService {
     return this.mapToMovie(movie);
   }
 
-  async syncMetadata(movieId: string): Promise<{ success: boolean; title?: string; message?: string }> {
+  async syncMetadata(
+    movieId: string,
+  ): Promise<{ success: boolean; title?: string; message?: string }> {
     const movie = await this.prisma.movie.findUnique({
       where: { id: movieId },
       select: { id: true, title: true, year: true, slug: true },
     });
 
     if (!movie) {
-      return { success: false, message: 'Movie not found' };
+      return { success: false, message: "Movie not found" };
     }
 
-    const result = await this.metadataService.fetchAndSaveMetadata(movie.id, movie.title, movie.year);
+    const result = await this.metadataService.fetchAndSaveMetadata(
+      movie.id,
+      movie.title,
+      movie.year,
+    );
 
     if (!result.success) {
       return result;
@@ -355,27 +414,42 @@ export class MoviesService {
         data: { sent: true },
       });
 
-      console.log(`[Notifications] Sending movie-available notifications for "${movieTitle}" to ${waiters.length} subscriber(s)`);
+      console.log(
+        `[Notifications] Sending movie-available notifications for "${movieTitle}" to ${waiters.length} subscriber(s)`,
+      );
 
       // Fire individual branded emails (fire-and-forget per subscriber)
       for (const waiter of waiters) {
-        emailService.sendMovieAvailableEmail(
-          waiter.user.email,
-          waiter.user.name ?? undefined,
+        emailService
+          .sendMovieAvailableEmail(
+            waiter.user.email,
+            waiter.user.name ?? undefined,
+            movieTitle,
+            movieSlug,
+            quality,
+            thumbnailUrl,
+          )
+          .catch(console.error);
+      }
+
+      // Send push notifications to all waiters at once
+      const waiterUserIds = waiters.map(
+        (w: { user: { id: string } }) => w.user.id,
+      );
+      getPushService(this.prisma)
+        .sendMovieAvailable(
+          waiterUserIds,
           movieTitle,
           movieSlug,
           quality,
           thumbnailUrl,
-        ).catch(console.error);
-      }
-
-      // Send push notifications to all waiters at once
-      const waiterUserIds = waiters.map((w: { user: { id: string } }) => w.user.id);
-      getPushService(this.prisma)
-        .sendMovieAvailable(waiterUserIds, movieTitle, movieSlug, quality, thumbnailUrl)
+        )
         .catch(console.error);
     } catch (error) {
-      console.error('[Notifications] Failed to send movie-available notifications:', error);
+      console.error(
+        "[Notifications] Failed to send movie-available notifications:",
+        error,
+      );
     }
   }
 
@@ -400,14 +474,14 @@ export class MoviesService {
           movie: { genre: { hasSome: genres as PrismaGenre[] } },
         },
         select: { userId: true },
-        distinct: ['userId'],
+        distinct: ["userId"],
         take: 500,
       });
 
       if (watchHistoryRows.length === 0) return;
 
       const userIds = watchHistoryRows.map((r: { userId: string }) => r.userId);
-      const primaryGenre = genres[0] ?? 'Nigerian Cinema';
+      const primaryGenre = genres[0] ?? "Nigerian Cinema";
 
       await getPushService(this.prisma).sendNewContentAlert(
         userIds,
@@ -417,7 +491,10 @@ export class MoviesService {
         thumbnailUrl,
       );
     } catch (error) {
-      console.error('[Notifications] Failed to send new-content push notifications:', error);
+      console.error(
+        "[Notifications] Failed to send new-content push notifications:",
+        error,
+      );
     }
   }
 
@@ -426,40 +503,52 @@ export class MoviesService {
     const redis = getRedis();
     if (!redis) return;
     try {
-      const searchKeys = await redis.keys('search:*');
+      const searchKeys = await redis.keys("search:*");
       if (searchKeys.length > 0) {
         await redis.del(...searchKeys);
-        console.log(`[Cache INVALIDATED] ${searchKeys.length} search keys cleared`);
+        console.log(
+          `[Cache INVALIDATED] ${searchKeys.length} search keys cleared`,
+        );
       }
     } catch (error) {
       console.warn(
-        '[Cache INVALIDATE ERROR] Failed to clear movie search cache:',
+        "[Cache INVALIDATE ERROR] Failed to clear movie search cache:",
         error instanceof Error ? error.message : String(error),
       );
     }
   }
 
   private generateSlug(title: string, year: number): string {
-    return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}`;
+    return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
   }
 
   private normalizeLegacySlug(slug: string): string {
     return slug
       .toLowerCase()
-      .replace(/-(amp|quot|apos|nbsp)-/g, '-')
-      .replace(/-(\d{2,4})-/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/-(amp|quot|apos|nbsp)-/g, "-")
+      .replace(/-(\d{2,4})-/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
   }
 
-  private getOrderBy(sort?: string): Prisma.MovieOrderByWithRelationInput | Prisma.MovieOrderByWithRelationInput[] {
+  private getOrderBy(
+    sort?: string,
+  ):
+    | Prisma.MovieOrderByWithRelationInput
+    | Prisma.MovieOrderByWithRelationInput[] {
     switch (sort) {
-      case 'popular': return { downloadCount: 'desc' };
-      case 'trending': return { viewCount: 'desc' };
-      case 'rating': return { rating: 'desc' };
-      case 'title': return { title: 'asc' };
-      case 'newest': return [{ year: 'desc' }, { createdAt: 'desc' }];
-      default: return { createdAt: 'desc' };
+      case "popular":
+        return { downloadCount: "desc" };
+      case "trending":
+        return { viewCount: "desc" };
+      case "rating":
+        return { rating: "desc" };
+      case "title":
+        return { title: "asc" };
+      case "newest":
+        return [{ year: "desc" }, { createdAt: "desc" }];
+      default:
+        return { createdAt: "desc" };
     }
   }
 
@@ -470,16 +559,16 @@ export class MoviesService {
   private toPrismaQuality(value: string): PrismaQuality {
     const normalized = value.trim();
     switch (normalized) {
-      case '480p':
+      case "480p":
       case PrismaQuality.Q480p:
         return PrismaQuality.Q480p;
-      case '720p':
+      case "720p":
       case PrismaQuality.Q720p:
         return PrismaQuality.Q720p;
-      case '1080p':
+      case "1080p":
       case PrismaQuality.Q1080p:
         return PrismaQuality.Q1080p;
-      case '4K':
+      case "4K":
       case PrismaQuality.Q4K:
         return PrismaQuality.Q4K;
       default:
@@ -547,14 +636,16 @@ export class MoviesService {
     const mapped = {
       ...raw,
       genre: raw.genre as unknown as Genre[],
-      quality: raw.quality.map((value) => this.fromPrismaQuality(value)) as Movie['quality'],
+      quality: raw.quality.map((value) =>
+        this.fromPrismaQuality(value),
+      ) as Movie["quality"],
       fileUrls: raw.fileUrls as Record<string, string>,
       fileSizes: raw.fileSizes as Record<string, number>,
       status: raw.status as ContentStatus,
       createdAt: raw.createdAt.toISOString(),
       updatedAt: raw.updatedAt.toISOString(),
       publishedAt: raw.publishedAt ? raw.publishedAt.toISOString() : null,
-      metadata: (raw.metadata ?? {}) as Movie['metadata'],
+      metadata: (raw.metadata ?? {}) as Movie["metadata"],
       cast: raw.cast ?? [],
     };
 
@@ -591,12 +682,22 @@ export class MoviesService {
     // Compute canStream: true if there's a youtubeId, any .mp4/.m3u8 URL in fileUrls,
     // or an imdbId/tmdbId (which the multi-provider embed player can resolve)
     let canStream = !!raw.youtubeId || !!raw.imdbId || !!raw.tmdbId;
-    if (!canStream && raw.fileUrls && typeof raw.fileUrls === 'object' && !Array.isArray(raw.fileUrls)) {
+    if (
+      !canStream &&
+      raw.fileUrls &&
+      typeof raw.fileUrls === "object" &&
+      !Array.isArray(raw.fileUrls)
+    ) {
       const urls = raw.fileUrls as Record<string, unknown>;
       canStream = Object.values(urls).some((v) => {
-        if (typeof v !== 'string' || !v.trim()) return false;
+        if (typeof v !== "string" || !v.trim()) return false;
         const lower = v.toLowerCase();
-        return lower.endsWith('.mp4') || lower.endsWith('.m3u8') || lower.includes('.mp4?') || lower.includes('.m3u8?');
+        return (
+          lower.endsWith(".mp4") ||
+          lower.endsWith(".m3u8") ||
+          lower.includes(".mp4?") ||
+          lower.includes(".m3u8?")
+        );
       });
     }
 
@@ -606,12 +707,14 @@ export class MoviesService {
       slug: raw.slug,
       year: raw.year,
       genre: raw.genre as unknown as Genre[],
-      quality: raw.quality.map((value) => this.fromPrismaQuality(value)) as MovieSummary['quality'],
+      quality: raw.quality.map((value) =>
+        this.fromPrismaQuality(value),
+      ) as MovieSummary["quality"],
       rating: raw.rating,
       thumbnailUrl: bestThumb,
       downloadCount: raw.downloadCount,
       viewCount: raw.viewCount,
-      nollywood: raw.genre.includes('Nollywood' as PrismaGenre),
+      nollywood: raw.genre.includes("Nollywood" as PrismaGenre),
       isStreamOnly: raw.isStreamOnly,
       youtubeId: raw.youtubeId,
       canStream,

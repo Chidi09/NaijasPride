@@ -1,31 +1,57 @@
-import type { PrismaClient } from '@prisma/client';
-import { NotificationType } from '@prisma/client';
-import { torrentQueue } from '../../shared/services/queue.service.js';
+import type { PrismaClient } from "@prisma/client";
+import { NotificationType } from "@prisma/client";
+import { torrentQueue } from "../../shared/services/queue.service.js";
 
-interface YtsTorrent { hash: string; quality: string; seeds: number; }
-interface YtsMovie { title: string; torrents: YtsTorrent[]; }
-interface YtsResponse { data?: { movies?: YtsMovie[] }; }
+interface YtsTorrent {
+  hash: string;
+  quality: string;
+  seeds: number;
+}
+interface YtsMovie {
+  title: string;
+  torrents: YtsTorrent[];
+}
+interface YtsResponse {
+  data?: { movies?: YtsMovie[] };
+}
 
-interface EztvTorrent { filename: string; magnet_url: string; seeds: number; size_bytes: string; }
-interface EztvResponse { torrents?: EztvTorrent[]; }
+interface EztvTorrent {
+  filename: string;
+  magnet_url: string;
+  seeds: number;
+  size_bytes: string;
+}
+interface EztvResponse {
+  torrents?: EztvTorrent[];
+}
 
-const QUALITY_RANK: Record<string, number> = { '2160p': 4, '1080p': 3, '720p': 2, '480p': 1 };
+const QUALITY_RANK: Record<string, number> = {
+  "2160p": 4,
+  "1080p": 3,
+  "720p": 2,
+  "480p": 1,
+};
 
 function buildMagnet(hash: string, title: string): string {
   const trackers = [
-    'udp://open.demonii.com:1337/announce',
-    'udp://tracker.openbittorrent.com:80',
-    'udp://tracker.coppersurfer.tk:6969',
-    'udp://glotorrents.pw:6969/announce',
-    'udp://tracker.opentrackr.org:1337/announce',
-    'udp://torrent.gresille.org:80/announce',
-    'udp://p4p.arenabg.com:1337',
-    'udp://tracker.leechers-paradise.org:6969',
-  ].map(t => `&tr=${encodeURIComponent(t)}`).join('');
+    "udp://open.demonii.com:1337/announce",
+    "udp://tracker.openbittorrent.com:80",
+    "udp://tracker.coppersurfer.tk:6969",
+    "udp://glotorrents.pw:6969/announce",
+    "udp://tracker.opentrackr.org:1337/announce",
+    "udp://torrent.gresille.org:80/announce",
+    "udp://p4p.arenabg.com:1337",
+    "udp://tracker.leechers-paradise.org:6969",
+  ]
+    .map((t) => `&tr=${encodeURIComponent(t)}`)
+    .join("");
   return `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(title)}${trackers}`;
 }
 
-export async function findMovieMagnet(imdbId: string, title: string): Promise<string | null> {
+export async function findMovieMagnet(
+  imdbId: string,
+  title: string,
+): Promise<string | null> {
   try {
     const url = `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(imdbId)}&limit=5`;
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
@@ -35,9 +61,10 @@ export async function findMovieMagnet(imdbId: string, title: string): Promise<st
     if (!movies?.length) return null;
 
     // Pick best quality torrent by rank then seeds
-    const torrents: Array<{ hash: string; quality: string; seeds: number }> = [];
+    const torrents: Array<{ hash: string; quality: string; seeds: number }> =
+      [];
     for (const m of movies) {
-      for (const t of (m.torrents || [])) {
+      for (const t of m.torrents || []) {
         torrents.push({ hash: t.hash, quality: t.quality, seeds: t.seeds });
       }
     }
@@ -59,7 +86,7 @@ export async function findMovieMagnet(imdbId: string, title: string): Promise<st
 export async function findShowMagnet(imdbId: string): Promise<string | null> {
   try {
     // EZTV expects numeric imdb id (strip "tt" prefix)
-    const numericId = imdbId.replace(/^tt/i, '');
+    const numericId = imdbId.replace(/^tt/i, "");
     const url = `https://eztv.re/api/get-torrents?imdb_id=${numericId}&limit=10`;
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return null;
@@ -68,7 +95,9 @@ export async function findShowMagnet(imdbId: string): Promise<string | null> {
     if (!torrents?.length) return null;
 
     // Sort by seeds desc, prefer season packs or latest episode
-    const sorted = [...torrents].sort((a, b) => (b.seeds || 0) - (a.seeds || 0));
+    const sorted = [...torrents].sort(
+      (a, b) => (b.seeds || 0) - (a.seeds || 0),
+    );
     return sorted[0].magnet_url || null;
   } catch {
     return null;
@@ -82,24 +111,38 @@ export async function processDownloadRequest(
   const req = await prisma.downloadRequest.findUnique({
     where: { id: requestId },
     include: {
-      movie: { select: { id: true, title: true, imdbId: true, genre: true, year: true } },
+      movie: {
+        select: {
+          id: true,
+          title: true,
+          imdbId: true,
+          genre: true,
+          year: true,
+        },
+      },
       show: { select: { id: true, title: true, imdbId: true } },
     },
   });
   if (!req) return;
 
-  await prisma.downloadRequest.update({ where: { id: requestId }, data: { status: 'SEARCHING' } });
+  await prisma.downloadRequest.update({
+    where: { id: requestId },
+    data: { status: "SEARCHING" },
+  });
 
   try {
     let magnetLink: string | null = null;
-    let contentTitle = '';
+    let contentTitle = "";
 
     if (req.movie) {
       contentTitle = req.movie.title;
       if (!req.movie.imdbId) {
         await prisma.downloadRequest.update({
           where: { id: requestId },
-          data: { status: 'FAILED', errorMsg: 'Movie has no IMDb ID — cannot auto-search' },
+          data: {
+            status: "FAILED",
+            errorMsg: "Movie has no IMDb ID — cannot auto-search",
+          },
         });
         return;
       }
@@ -109,7 +152,10 @@ export async function processDownloadRequest(
       if (!req.show.imdbId) {
         await prisma.downloadRequest.update({
           where: { id: requestId },
-          data: { status: 'FAILED', errorMsg: 'Show has no IMDb ID — cannot auto-search' },
+          data: {
+            status: "FAILED",
+            errorMsg: "Show has no IMDb ID — cannot auto-search",
+          },
         });
         return;
       }
@@ -123,13 +169,16 @@ export async function processDownloadRequest(
       await prisma.$transaction([
         prisma.downloadRequest.update({
           where: { id: requestId },
-          data: { status: 'FAILED', errorMsg: `No torrent found for "${contentTitle}" — it may not be available yet` },
+          data: {
+            status: "FAILED",
+            errorMsg: `No torrent found for "${contentTitle}" — it may not be available yet`,
+          },
         }),
         prisma.notification.create({
           data: {
             userId: req.userId,
             type: NotificationType.DOWNLOAD_READY,
-            title: 'Download request unavailable',
+            title: "Download request unavailable",
             body: `We couldn't find a download for "${contentTitle}". We'll keep checking.`,
             data: { movieId: req.movieId, showId: req.showId },
           },
@@ -141,7 +190,7 @@ export async function processDownloadRequest(
     const queue = torrentQueue.get();
     if (queue && req.movieId) {
       // Movie: hand off to the torrent queue, then mark as queued.
-      await queue.add('torrent-job', {
+      await queue.add("torrent-job", {
         movieId: req.movieId,
         magnetLink,
         requestedByUserId: req.userId,
@@ -149,20 +198,20 @@ export async function processDownloadRequest(
       });
       await prisma.downloadRequest.update({
         where: { id: requestId },
-        data: { status: 'QUEUED', magnetLink },
+        data: { status: "QUEUED", magnetLink },
       });
     } else {
       // TV show (or no queue): save the magnet and notify the user atomically.
       await prisma.$transaction([
         prisma.downloadRequest.update({
           where: { id: requestId },
-          data: { status: 'QUEUED', magnetLink },
+          data: { status: "QUEUED", magnetLink },
         }),
         prisma.notification.create({
           data: {
             userId: req.userId,
             type: NotificationType.DOWNLOAD_READY,
-            title: 'Download located!',
+            title: "Download located!",
             body: `We found "${contentTitle}" and it's in the queue. You'll be notified when it's ready.`,
             data: { movieId: req.movieId, showId: req.showId },
           },
@@ -170,9 +219,11 @@ export async function processDownloadRequest(
       ]);
     }
   } catch (err) {
-    await prisma.downloadRequest.update({
-      where: { id: requestId },
-      data: { status: 'FAILED', errorMsg: 'Internal error while searching' },
-    }).catch(() => {});
+    await prisma.downloadRequest
+      .update({
+        where: { id: requestId },
+        data: { status: "FAILED", errorMsg: "Internal error while searching" },
+      })
+      .catch(() => {});
   }
 }

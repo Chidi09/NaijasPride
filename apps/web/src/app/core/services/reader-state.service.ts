@@ -1,17 +1,17 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal } from "@angular/core";
 
 /**
  * Service to manage reader visibility state across the application.
  * When a manga or book is being read, the main navbar should be hidden
  * to provide an immersive reading experience.
- * 
+ *
  * Kotatsu behavior:
  * - Navbar is hidden when entering reader
  * - Tap center of screen toggles navbar visibility
  * - Auto-hide after inactivity (optional)
  */
 @Injectable({
-  providedIn: 'root'
+  providedIn: "root",
 })
 export class ReaderStateService {
   /**
@@ -45,7 +45,7 @@ export class ReaderStateService {
    * Toggle navbar visibility while in reader
    */
   toggleNavbar(): void {
-    this.navbarHidden.update(current => !current);
+    this.navbarHidden.update((current) => !current);
   }
 
   /** Called by HomeComponent on init — hides shell nav so home renders its own sidebar */

@@ -1,4 +1,4 @@
-import { MangaSource } from './types';
+import { MangaSource } from "./types";
 
 export class MangaSourceRegistry {
   private readonly sources = new Map<string, MangaSource>();

@@ -1,11 +1,11 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import test from "node:test";
+import assert from "node:assert/strict";
 import {
   parse1337xBookDetailHtml,
   parse1337xBookListingHtml,
-} from './auto-library-discovery.service';
+} from "./auto-library-discovery.service";
 
-test('parse1337xBookListingHtml extracts rows and audiobook/format hints', () => {
+test("parse1337xBookListingHtml extracts rows and audiobook/format hints", () => {
   const html = `
     <table class="table-list">
       <tbody>
@@ -29,19 +29,22 @@ test('parse1337xBookListingHtml extracts rows and audiobook/format hints', () =>
     </table>
   `;
 
-  const parsed = parse1337xBookListingHtml(html, 'https://www.1377x.to');
+  const parsed = parse1337xBookListingHtml(html, "https://www.1377x.to");
   assert.equal(parsed.length, 2);
-  assert.equal(parsed[0].format, 'EPUB');
+  assert.equal(parsed[0].format, "EPUB");
   assert.equal(parsed[0].isAudiobook, false);
   assert.equal(parsed[0].seeds, 420);
   assert.equal(parsed[1].isAudiobook, true);
 });
 
-test('parse1337xBookDetailHtml extracts magnet link', () => {
+test("parse1337xBookDetailHtml extracts magnet link", () => {
   const html = `
     <a href="magnet:?xt=urn:btih:ABCDEF1234567890&dn=Fourth+Wing">Magnet Download</a>
   `;
 
   const parsed = parse1337xBookDetailHtml(html);
-  assert.equal(parsed.magnetLink, 'magnet:?xt=urn:btih:ABCDEF1234567890&dn=Fourth+Wing');
+  assert.equal(
+    parsed.magnetLink,
+    "magnet:?xt=urn:btih:ABCDEF1234567890&dn=Fourth+Wing",
+  );
 });

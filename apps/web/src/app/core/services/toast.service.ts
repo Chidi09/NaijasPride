@@ -1,6 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal } from "@angular/core";
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = "success" | "error" | "info";
 
 export interface ToastMessage {
   id: number;
@@ -9,7 +9,7 @@ export interface ToastMessage {
   durationMs: number;
 }
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class ToastService {
   private nextId = 1;
   private readonly dedupeWindowMs = 1500;
@@ -18,15 +18,15 @@ export class ToastService {
   readonly toasts = signal<ToastMessage[]>([]);
 
   success(text: string, durationMs = 3500) {
-    this.show('success', text, durationMs);
+    this.show("success", text, durationMs);
   }
 
   error(text: string, durationMs = 4500) {
-    this.show('error', text, durationMs);
+    this.show("error", text, durationMs);
   }
 
   info(text: string, durationMs = 3000) {
-    this.show('info', text, durationMs);
+    this.show("info", text, durationMs);
   }
 
   dismiss(id: number) {

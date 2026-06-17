@@ -7,7 +7,12 @@ const TEMPLATES_DIR = join(__dirname, "..", "email-templates");
 
 interface MJMLResult {
   html: string;
-  errors: any[];
+  errors: Array<{
+    message: string;
+    line?: number;
+    tagName?: string;
+    formattedMessage?: string;
+  }>;
 }
 
 /**
@@ -15,7 +20,7 @@ interface MJMLResult {
  */
 export function compileTemplate(
   templateName: string,
-  variables: Record<string, any>
+  variables: Record<string, unknown>,
 ): { html: string; text: string } {
   try {
     // Read MJML template

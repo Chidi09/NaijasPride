@@ -1,10 +1,16 @@
-import axios from 'axios';
-import { retryWithBackoff, RetryableError } from '../../../../shared/utils/retry';
+import axios from "axios";
+import {
+  retryWithBackoff,
+  RetryableError,
+} from "../../../../shared/utils/retry";
 
-export type ElsciRequestedFormat = 'epub' | 'pdf' | 'any';
+export type ElsciRequestedFormat = "epub" | "pdf" | "any";
 
 // Cache for catalog data
-const catalogCache = new Map<string, { items: ElsciCatalogItem[]; timestamp: number }>();
+const catalogCache = new Map<
+  string,
+  { items: ElsciCatalogItem[]; timestamp: number }
+>();
 const CACHE_TTL_MS = 300000; // 5 minutes
 
 export type ElsciCatalogItem = {
@@ -19,7 +25,7 @@ export type ElsciLightNovelFile = {
   title: string;
   series: string;
   fileName: string;
-  format: 'EPUB' | 'PDF';
+  format: "EPUB" | "PDF";
   sizeBytes: number | null;
   modifiedAtMs: number | null;
 };
@@ -51,24 +57,24 @@ type FlareSolverrHttpResponse = {
   };
 };
 
-const DEFAULT_ELSCI_BASE_URL = 'https://server.elsci.one';
-const DEFAULT_ELSCI_ROOT_PATH = '/Officially%20Translated%20Light%20Novels/';
-const DEFAULT_FLARESOLVERR_URL = 'http://flaresolverr:8191';
+const DEFAULT_ELSCI_BASE_URL = "https://server.elsci.one";
+const DEFAULT_ELSCI_ROOT_PATH = "/Officially%20Translated%20Light%20Novels/";
+const DEFAULT_FLARESOLVERR_URL = "http://flaresolverr:8191";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const H5AI_CATALOG_WHAT = 2;
-const ELSCI_FLARESOLVERR_SESSION = 'np-elsci-light-novels';
+const ELSCI_FLARESOLVERR_SESSION = "np-elsci-light-novels";
 const CHALLENGE_STATUS_CODES = new Set([403, 429, 503, 520, 521, 522, 523]);
 
 const DEFAULT_HEADERS = {
-  'user-agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  accept: 'application/json,text/plain,*/*',
-  'accept-language': 'en-US,en;q=0.9',
-  'content-type': 'application/json;charset=utf-8',
+  "user-agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  accept: "application/json,text/plain,*/*",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json;charset=utf-8",
 } as const;
 
 const buildElsciCatalogRequestBody = (rootPath: string) => ({
-  action: 'get',
+  action: "get",
   items: {
     href: rootPath,
     what: H5AI_CATALOG_WHAT,
@@ -77,18 +83,21 @@ const buildElsciCatalogRequestBody = (rootPath: string) => ({
 
 const buildElsciCatalogFormBody = (rootPath: string): string => {
   const params = new URLSearchParams();
-  params.set('action', 'get');
-  params.set('items[href]', rootPath);
-  params.set('items[what]', String(H5AI_CATALOG_WHAT));
+  params.set("action", "get");
+  params.set("items[href]", rootPath);
+  params.set("items[what]", String(H5AI_CATALOG_WHAT));
   return params.toString();
 };
 
-const buildElsciRequestHeaders = (baseUrl: string, cookieHeader?: string): Record<string, string> => {
+const buildElsciRequestHeaders = (
+  baseUrl: string,
+  cookieHeader?: string,
+): Record<string, string> => {
   const headers: Record<string, string> = {
     ...DEFAULT_HEADERS,
     origin: baseUrl,
     referer: `${baseUrl}/`,
-    'x-requested-with': 'XMLHttpRequest',
+    "x-requested-with": "XMLHttpRequest",
   };
 
   if (cookieHeader) {
@@ -98,20 +107,26 @@ const buildElsciRequestHeaders = (baseUrl: string, cookieHeader?: string): Recor
   return headers;
 };
 
-const extractCookieHeader = (setCookieHeader: string | string[] | undefined): string | null => {
+const extractCookieHeader = (
+  setCookieHeader: string | string[] | undefined,
+): string | null => {
   if (!setCookieHeader) return null;
 
-  const values = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  const values = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : [setCookieHeader];
   const cookieParts = values
-    .map((entry) => entry.split(';')[0]?.trim())
+    .map((entry) => entry.split(";")[0]?.trim())
     .filter((entry): entry is string => !!entry);
 
-  return cookieParts.length > 0 ? cookieParts.join('; ') : null;
+  return cookieParts.length > 0 ? cookieParts.join("; ") : null;
 };
 
 const getFlareSolverrUrl = (): string => {
-  const configured = (process.env.FLARESOLVERR_URL || DEFAULT_FLARESOLVERR_URL).trim();
-  return configured.replace(/\/+$/, '') || DEFAULT_FLARESOLVERR_URL;
+  const configured = (
+    process.env.FLARESOLVERR_URL || DEFAULT_FLARESOLVERR_URL
+  ).trim();
+  return configured.replace(/\/+$/, "") || DEFAULT_FLARESOLVERR_URL;
 };
 
 const buildElsciFileRequestHeaders = (
@@ -119,9 +134,9 @@ const buildElsciFileRequestHeaders = (
   options: { cookieHeader?: string | null; userAgent?: string | null } = {},
 ): Record<string, string> => {
   const headers: Record<string, string> = {
-    'user-agent': options.userAgent || DEFAULT_HEADERS['user-agent'],
-    accept: '*/*',
-    'accept-language': DEFAULT_HEADERS['accept-language'],
+    "user-agent": options.userAgent || DEFAULT_HEADERS["user-agent"],
+    accept: "*/*",
+    "accept-language": DEFAULT_HEADERS["accept-language"],
     referer: `${baseUrl}/`,
     origin: baseUrl,
   };
@@ -140,14 +155,14 @@ const toCookieHeaderFromFlareSolverrCookies = (
 
   const cookieParts = cookies
     .map((entry) => {
-      const name = typeof entry.name === 'string' ? entry.name.trim() : '';
-      const value = typeof entry.value === 'string' ? entry.value : '';
+      const name = typeof entry.name === "string" ? entry.name.trim() : "";
+      const value = typeof entry.value === "string" ? entry.value : "";
       if (!name) return null;
       return `${name}=${value}`;
     })
     .filter((entry): entry is string => !!entry);
 
-  return cookieParts.length > 0 ? cookieParts.join('; ') : null;
+  return cookieParts.length > 0 ? cookieParts.join("; ") : null;
 };
 
 const resolveElsciAccessViaFlareSolverr = async (options: {
@@ -160,7 +175,7 @@ const resolveElsciAccessViaFlareSolverr = async (options: {
   const response = await axios.post<FlareSolverrHttpResponse>(
     `${flaresolverrUrl}/v1`,
     {
-      cmd: 'request.get',
+      cmd: "request.get",
       session: ELSCI_FLARESOLVERR_SESSION,
       maxTimeout: options.timeoutMs,
       url: options.accessUrl || `${options.baseUrl}/`,
@@ -172,29 +187,36 @@ const resolveElsciAccessViaFlareSolverr = async (options: {
   );
 
   const data = response.data;
-  if (!data || data.status !== 'ok' || !data.solution) {
-    throw new Error(data?.message || 'FlareSolverr request failed');
+  if (!data || data.status !== "ok" || !data.solution) {
+    throw new Error(data?.message || "FlareSolverr request failed");
   }
 
   const status = data.solution.status;
-  if (typeof status !== 'number' || status < 200 || status >= 400) {
-    throw new Error(`FlareSolverr returned non-success HTTP status ${status ?? 'unknown'}`);
+  if (typeof status !== "number" || status < 200 || status >= 400) {
+    throw new Error(
+      `FlareSolverr returned non-success HTTP status ${status ?? "unknown"}`,
+    );
   }
 
   return {
-    cookieHeader: toCookieHeaderFromFlareSolverrCookies(data.solution.cookies as Array<Record<string, unknown>> | undefined),
-    userAgent: typeof data.solution.userAgent === 'string' ? data.solution.userAgent : null,
+    cookieHeader: toCookieHeaderFromFlareSolverrCookies(
+      data.solution.cookies as Array<Record<string, unknown>> | undefined,
+    ),
+    userAgent:
+      typeof data.solution.userAgent === "string"
+        ? data.solution.userAgent
+        : null,
   };
 };
 
 const getAxiosStatusCode = (error: unknown): number | null => {
   if (!axios.isAxiosError(error)) return null;
   const status = error.response?.status;
-  return typeof status === 'number' ? status : null;
+  return typeof status === "number" ? status : null;
 };
 
 const isAccessChallengeStatus = (status: number | null): boolean => {
-  if (typeof status !== 'number') return false;
+  if (typeof status !== "number") return false;
   return CHALLENGE_STATUS_CODES.has(status);
 };
 
@@ -212,21 +234,21 @@ export type ElsciHealthStatus = {
 
 export async function checkElsciHealth(
   baseUrl?: string,
-  timeoutMs: number = 10000
+  timeoutMs: number = 10000,
 ): Promise<ElsciHealthStatus> {
   const url = normalizeBaseUrl(baseUrl);
   const startTime = Date.now();
-  
+
   try {
     await axios.get(`${url}/`, {
       timeout: timeoutMs,
       headers: DEFAULT_HEADERS,
       validateStatus: (status) => status >= 200 && status < 500,
     });
-    
+
     return {
       healthy: true,
-      message: 'Elsci server is accessible',
+      message: "Elsci server is accessible",
       lastChecked: new Date(),
       responseTimeMs: Date.now() - startTime,
     };
@@ -243,14 +265,14 @@ export async function checkElsciHealth(
 const parseElsciResponseBody = (rawBody: string): { items?: unknown } => {
   const trimmed = rawBody.trim();
   if (!trimmed) {
-    throw new Error('Elsci response body was empty');
+    throw new Error("Elsci response body was empty");
   }
 
   try {
     return JSON.parse(trimmed) as { items?: unknown };
   } catch {
-    const firstBraceIndex = trimmed.indexOf('{');
-    const lastBraceIndex = trimmed.lastIndexOf('}');
+    const firstBraceIndex = trimmed.indexOf("{");
+    const lastBraceIndex = trimmed.lastIndexOf("}");
     if (firstBraceIndex >= 0 && lastBraceIndex > firstBraceIndex) {
       const candidate = trimmed.slice(firstBraceIndex, lastBraceIndex + 1);
       try {
@@ -260,12 +282,13 @@ const parseElsciResponseBody = (rawBody: string): { items?: unknown } => {
       }
     }
 
-    const preview = trimmed.slice(0, 160).replace(/\s+/g, ' ');
+    const preview = trimmed.slice(0, 160).replace(/\s+/g, " ");
     throw new Error(`Elsci response was not valid JSON (preview: ${preview})`);
   }
 };
 
-const cleanWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+const cleanWhitespace = (value: string): string =>
+  value.replace(/\s+/g, " ").trim();
 
 const safeDecode = (value: string): string => {
   try {
@@ -276,54 +299,63 @@ const safeDecode = (value: string): string => {
 };
 
 const normalizeBaseUrl = (value?: string): string => {
-  const base = (value || process.env.ELSCI_LIGHT_NOVELS_BASE_URL || DEFAULT_ELSCI_BASE_URL).trim();
-  return base.replace(/\/+$/, '') || DEFAULT_ELSCI_BASE_URL;
+  const base = (
+    value ||
+    process.env.ELSCI_LIGHT_NOVELS_BASE_URL ||
+    DEFAULT_ELSCI_BASE_URL
+  ).trim();
+  return base.replace(/\/+$/, "") || DEFAULT_ELSCI_BASE_URL;
 };
 
 const normalizePath = (value: string, ensureTrailingSlash: boolean): string => {
-  const raw = cleanWhitespace(value || '/').replace(/\\/g, '/');
-  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const raw = cleanWhitespace(value || "/").replace(/\\/g, "/");
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
   const withSlash = ensureTrailingSlash
-    ? withLeadingSlash.endsWith('/')
+    ? withLeadingSlash.endsWith("/")
       ? withLeadingSlash
       : `${withLeadingSlash}/`
-    : withLeadingSlash.endsWith('/')
+    : withLeadingSlash.endsWith("/")
       ? withLeadingSlash.slice(0, -1)
       : withLeadingSlash;
 
-  const segments = withSlash
-    .split('/')
-    .map((segment) => {
-      if (!segment) return '';
-      const decoded = safeDecode(segment);
-      return encodeURIComponent(decoded);
-    });
-  return segments.join('/') || '/';
+  const segments = withSlash.split("/").map((segment) => {
+    if (!segment) return "";
+    const decoded = safeDecode(segment);
+    return encodeURIComponent(decoded);
+  });
+  return segments.join("/") || "/";
 };
 
 const normalizeRootPath = (value?: string): string =>
-  normalizePath(value || process.env.ELSCI_LIGHT_NOVELS_ROOT_PATH || DEFAULT_ELSCI_ROOT_PATH, true);
+  normalizePath(
+    value ||
+      process.env.ELSCI_LIGHT_NOVELS_ROOT_PATH ||
+      DEFAULT_ELSCI_ROOT_PATH,
+    true,
+  );
 
-const normalizeFileHref = (value: string): string => normalizePath(value, false);
+const normalizeFileHref = (value: string): string =>
+  normalizePath(value, false);
 
-const toAbsoluteUrl = (href: string, baseUrl: string): string => new URL(href, `${baseUrl}/`).toString();
+const toAbsoluteUrl = (href: string, baseUrl: string): string =>
+  new URL(href, `${baseUrl}/`).toString();
 
 const isBookFileHref = (decodedHref: string): boolean => {
   const lower = decodedHref.toLowerCase();
-  return lower.endsWith('.epub') || lower.endsWith('.pdf');
+  return lower.endsWith(".epub") || lower.endsWith(".pdf");
 };
 
-const inferFormatFromHref = (decodedHref: string): 'EPUB' | 'PDF' | null => {
+const inferFormatFromHref = (decodedHref: string): "EPUB" | "PDF" | null => {
   const lower = decodedHref.toLowerCase();
-  if (lower.endsWith('.epub')) return 'EPUB';
-  if (lower.endsWith('.pdf')) return 'PDF';
+  if (lower.endsWith(".epub")) return "EPUB";
+  if (lower.endsWith(".pdf")) return "PDF";
   return null;
 };
 
 const buildRegex = (pattern?: string): RegExp | null => {
   if (!pattern || !pattern.trim()) return null;
   try {
-    return new RegExp(pattern.trim(), 'i');
+    return new RegExp(pattern.trim(), "i");
   } catch {
     return null;
   }
@@ -332,18 +364,18 @@ const buildRegex = (pattern?: string): RegExp | null => {
 const normalizeKey = (value: string): string =>
   cleanWhitespace(value)
     .toLowerCase()
-    .replace(/[._]/g, ' ')
-    .replace(/\[[^\]]+\]/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[._]/g, " ")
+    .replace(/\[[^\]]+\]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
 const cleanTitle = (fileName: string, fallbackSeries: string): string => {
-  const withoutExtension = fileName.replace(/\.(epub|pdf)$/i, '');
+  const withoutExtension = fileName.replace(/\.(epub|pdf)$/i, "");
   const clean = cleanWhitespace(
     withoutExtension
-      .replace(/[._]/g, ' ')
-      .replace(/\[[^\]]+\]/g, ' ')
-      .replace(/\b(epub|pdf)\b/gi, ' '),
+      .replace(/[._]/g, " ")
+      .replace(/\[[^\]]+\]/g, " ")
+      .replace(/\b(epub|pdf)\b/gi, " "),
   );
   return clean || fallbackSeries;
 };
@@ -352,10 +384,16 @@ const parseCatalogItems = (items: unknown): ElsciCatalogItem[] => {
   if (!Array.isArray(items)) return [];
   const parsed: ElsciCatalogItem[] = [];
   for (const raw of items as H5aiItemResponse[]) {
-    const href = typeof raw.href === 'string' ? raw.href : '';
+    const href = typeof raw.href === "string" ? raw.href : "";
     if (!href) continue;
-    const timeValue = typeof raw.time === 'number' && Number.isFinite(raw.time) ? raw.time : null;
-    const sizeValue = typeof raw.size === 'number' && Number.isFinite(raw.size) ? raw.size : null;
+    const timeValue =
+      typeof raw.time === "number" && Number.isFinite(raw.time)
+        ? raw.time
+        : null;
+    const sizeValue =
+      typeof raw.size === "number" && Number.isFinite(raw.size)
+        ? raw.size
+        : null;
     parsed.push({ href, time: timeValue, size: sizeValue });
   }
   return parsed;
@@ -373,7 +411,7 @@ const requestElsciCatalogViaDirectPost = async (options: {
     {
       timeout: options.timeoutMs,
       headers: buildElsciRequestHeaders(options.baseUrl, options.cookieHeader),
-      responseType: 'json',
+      responseType: "json",
       validateStatus: (status) => status >= 200 && status < 400,
     },
   );
@@ -394,9 +432,9 @@ const requestElsciCatalogViaDirectFormPost = async (options: {
       timeout: options.timeoutMs,
       headers: {
         ...buildElsciRequestHeaders(options.baseUrl, options.cookieHeader),
-        'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
       },
-      responseType: 'json',
+      responseType: "json",
       validateStatus: (status) => status >= 200 && status < 400,
     },
   );
@@ -412,18 +450,18 @@ const requestElsciCatalogViaCookieRetry = async (options: {
   const preflight = await axios.get(`${options.baseUrl}/`, {
     timeout: options.timeoutMs,
     headers: {
-      'user-agent': DEFAULT_HEADERS['user-agent'],
-      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'accept-language': DEFAULT_HEADERS['accept-language'],
+      "user-agent": DEFAULT_HEADERS["user-agent"],
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "accept-language": DEFAULT_HEADERS["accept-language"],
       referer: `${options.baseUrl}/`,
       origin: options.baseUrl,
     },
     validateStatus: (status) => status >= 200 && status < 500,
   });
 
-  const cookieHeader = extractCookieHeader(preflight.headers['set-cookie']);
+  const cookieHeader = extractCookieHeader(preflight.headers["set-cookie"]);
   if (!cookieHeader) {
-    throw new Error('Elsci preflight did not provide a session cookie');
+    throw new Error("Elsci preflight did not provide a session cookie");
   }
 
   try {
@@ -453,7 +491,7 @@ const requestElsciCatalogViaFlareSolverr = async (options: {
   const response = await axios.post<FlareSolverrHttpResponse>(
     `${flaresolverrUrl}/v1`,
     {
-      cmd: 'request.post',
+      cmd: "request.post",
       session: ELSCI_FLARESOLVERR_SESSION,
       maxTimeout: options.timeoutMs,
       url: `${options.baseUrl}/?`,
@@ -466,16 +504,18 @@ const requestElsciCatalogViaFlareSolverr = async (options: {
   );
 
   const data = response.data;
-  if (!data || data.status !== 'ok' || !data.solution) {
-    throw new Error(data?.message || 'FlareSolverr request failed');
+  if (!data || data.status !== "ok" || !data.solution) {
+    throw new Error(data?.message || "FlareSolverr request failed");
   }
 
   const status = data.solution.status;
-  if (typeof status !== 'number' || status < 200 || status >= 400) {
-    throw new Error(`FlareSolverr returned non-success HTTP status ${status ?? 'unknown'}`);
+  if (typeof status !== "number" || status < 200 || status >= 400) {
+    throw new Error(
+      `FlareSolverr returned non-success HTTP status ${status ?? "unknown"}`,
+    );
   }
 
-  const parsedBody = parseElsciResponseBody(data.solution.response || '');
+  const parsedBody = parseElsciResponseBody(data.solution.response || "");
 
   return parseCatalogItems(parsedBody.items);
 };
@@ -487,15 +527,15 @@ export const pickPreferredElsciFile = (
 ): ElsciLightNovelFile => {
   const rank = (entry: ElsciLightNovelFile): number => {
     const formatBonus =
-      preference === 'any'
-        ? entry.format === 'EPUB'
+      preference === "any"
+        ? entry.format === "EPUB"
           ? 2
           : 1
-        : preference === 'epub'
-          ? entry.format === 'EPUB'
+        : preference === "epub"
+          ? entry.format === "EPUB"
             ? 4
             : 1
-          : entry.format === 'PDF'
+          : entry.format === "PDF"
             ? 4
             : 1;
     const modified = entry.modifiedAtMs || 0;
@@ -530,21 +570,30 @@ export const selectElsciLightNovelFiles = (
     const format = inferFormatFromHref(decodedHref);
     if (!format) continue;
 
-    const relative = decodedHref.slice(rootDecoded.length).replace(/^\/+/, '');
+    const relative = decodedHref.slice(rootDecoded.length).replace(/^\/+/, "");
     if (!relative) continue;
 
-    const parts = relative.split('/').filter(Boolean);
+    const parts = relative.split("/").filter(Boolean);
     if (parts.length === 0) continue;
 
-    const fileName = parts[parts.length - 1] || '';
+    const fileName = parts[parts.length - 1] || "";
     if (!fileName) continue;
 
-    const series = cleanWhitespace(parts[0] || 'Unknown Series');
+    const series = cleanWhitespace(parts[0] || "Unknown Series");
     const title = cleanTitle(fileName, series);
     const searchable = `${series} ${title}`;
     const rawSearchable = `${series} ${fileName} ${relative}`;
-    if (includeRegex && !includeRegex.test(searchable) && !includeRegex.test(rawSearchable)) continue;
-    if (excludeRegex && (excludeRegex.test(searchable) || excludeRegex.test(rawSearchable))) continue;
+    if (
+      includeRegex &&
+      !includeRegex.test(searchable) &&
+      !includeRegex.test(rawSearchable)
+    )
+      continue;
+    if (
+      excludeRegex &&
+      (excludeRegex.test(searchable) || excludeRegex.test(rawSearchable))
+    )
+      continue;
 
     const entry: ElsciLightNovelFile = {
       href: normalizedHref,
@@ -563,7 +612,10 @@ export const selectElsciLightNovelFiles = (
       selectedByKey.set(key, entry);
       continue;
     }
-    selectedByKey.set(key, pickPreferredElsciFile(existing, entry, options.formatPreference));
+    selectedByKey.set(
+      key,
+      pickPreferredElsciFile(existing, entry, options.formatPreference),
+    );
   }
 
   return Array.from(selectedByKey.values())
@@ -578,21 +630,29 @@ export const selectElsciLightNovelFiles = (
     .slice(0, options.maxFiles);
 };
 
-export const fetchElsciCatalogItems = async (options: {
-  baseUrl?: string;
-  rootPath?: string;
-  timeoutMs?: number;
-  skipCache?: boolean;
-} = {}): Promise<{ baseUrl: string; rootPath: string; items: ElsciCatalogItem[] }> => {
+export const fetchElsciCatalogItems = async (
+  options: {
+    baseUrl?: string;
+    rootPath?: string;
+    timeoutMs?: number;
+    skipCache?: boolean;
+  } = {},
+): Promise<{
+  baseUrl: string;
+  rootPath: string;
+  items: ElsciCatalogItem[];
+}> => {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const rootPath = normalizeRootPath(options.rootPath);
   const cacheKey = `${baseUrl}::${rootPath}`;
-  
+
   // Check cache first
   if (!options.skipCache) {
     const cached = catalogCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-      console.log(`[Elsci] Using cached catalog (${cached.items.length} items)`);
+      console.log(
+        `[Elsci] Using cached catalog (${cached.items.length} items)`,
+      );
       return { baseUrl, rootPath, items: cached.items };
     }
   }
@@ -600,66 +660,79 @@ export const fetchElsciCatalogItems = async (options: {
   const timeoutMs =
     Number.isFinite(options.timeoutMs) && (options.timeoutMs as number) > 0
       ? Math.min(options.timeoutMs as number, 120_000)
-      : Number.parseInt(process.env.ELSCI_LIGHT_NOVELS_REQUEST_TIMEOUT_MS || `${DEFAULT_TIMEOUT_MS}`, 10) ||
-        DEFAULT_TIMEOUT_MS;
+      : Number.parseInt(
+          process.env.ELSCI_LIGHT_NOVELS_REQUEST_TIMEOUT_MS ||
+            `${DEFAULT_TIMEOUT_MS}`,
+          10,
+        ) || DEFAULT_TIMEOUT_MS;
 
-  const result = await retryWithBackoff(async () => {
-    try {
-      const items = await requestElsciCatalogViaDirectPost({
-        baseUrl,
-        rootPath,
-        timeoutMs,
-      });
-
-      return { baseUrl, rootPath, items };
-    } catch (error) {
-      const statusCode = getAxiosStatusCode(error);
-
-      if (!isAccessChallengeStatus(statusCode)) {
-        throw error;
-      }
-
-      const fallbackErrors: string[] = [];
-
+  const result = await retryWithBackoff(
+    async () => {
       try {
-        const items = await requestElsciCatalogViaCookieRetry({
+        const items = await requestElsciCatalogViaDirectPost({
           baseUrl,
           rootPath,
           timeoutMs,
         });
 
         return { baseUrl, rootPath, items };
-      } catch (cookieRetryError) {
-        fallbackErrors.push(`cookie-retry: ${toErrorMessage(cookieRetryError)}`);
+      } catch (error) {
+        const statusCode = getAxiosStatusCode(error);
+
+        if (!isAccessChallengeStatus(statusCode)) {
+          throw error;
+        }
+
+        const fallbackErrors: string[] = [];
+
+        try {
+          const items = await requestElsciCatalogViaCookieRetry({
+            baseUrl,
+            rootPath,
+            timeoutMs,
+          });
+
+          return { baseUrl, rootPath, items };
+        } catch (cookieRetryError) {
+          fallbackErrors.push(
+            `cookie-retry: ${toErrorMessage(cookieRetryError)}`,
+          );
+        }
+
+        try {
+          const items = await requestElsciCatalogViaFlareSolverr({
+            baseUrl,
+            rootPath,
+            timeoutMs,
+          });
+
+          return { baseUrl, rootPath, items };
+        } catch (solverError) {
+          fallbackErrors.push(`flaresolverr: ${toErrorMessage(solverError)}`);
+        }
+
+        const detail =
+          fallbackErrors.length > 0 ? ` ${fallbackErrors.join(" | ")}` : "";
+        throw new RetryableError(
+          `Elsci catalog request blocked with status ${statusCode}.${detail}`,
+        );
       }
-
-      try {
-        const items = await requestElsciCatalogViaFlareSolverr({
-          baseUrl,
-          rootPath,
-          timeoutMs,
-        });
-
-        return { baseUrl, rootPath, items };
-      } catch (solverError) {
-        fallbackErrors.push(`flaresolverr: ${toErrorMessage(solverError)}`);
-      }
-
-      const detail = fallbackErrors.length > 0 ? ` ${fallbackErrors.join(' | ')}` : '';
-      throw new RetryableError(`Elsci catalog request blocked with status ${statusCode}.${detail}`);
-    }
-  }, {
-    maxAttempts: 3,
-    baseDelayMs: 2000,
-    maxDelayMs: 15000,
-    onRetry: (attempt, error) => {
-      console.warn(`[Elsci] Catalog fetch retry ${attempt}: ${error.message}`);
     },
-  });
+    {
+      maxAttempts: 3,
+      baseDelayMs: 2000,
+      maxDelayMs: 15000,
+      onRetry: (attempt, error) => {
+        console.warn(
+          `[Elsci] Catalog fetch retry ${attempt}: ${error.message}`,
+        );
+      },
+    },
+  );
 
   // Cache the result
   catalogCache.set(cacheKey, { items: result.items, timestamp: Date.now() });
-  
+
   return result;
 };
 
@@ -670,7 +743,7 @@ export const discoverElsciLightNovelFiles = async (
     Number.isFinite(options.maxFiles) && (options.maxFiles as number) > 0
       ? Math.min(options.maxFiles as number, 2_000)
       : 200;
-  const formatPreference = options.formatPreference || 'epub';
+  const formatPreference = options.formatPreference || "epub";
 
   const catalog = await fetchElsciCatalogItems({
     baseUrl: options.baseUrl,
@@ -690,97 +763,122 @@ export const discoverElsciLightNovelFiles = async (
 
 export const fetchElsciLightNovelFileStream = async (
   href: string,
-  options: { baseUrl?: string; timeoutMs?: number; onProgress?: (downloaded: number, total?: number) => void } = {},
+  options: {
+    baseUrl?: string;
+    timeoutMs?: number;
+    onProgress?: (downloaded: number, total?: number) => void;
+  } = {},
 ) => {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const normalizedHref = normalizeFileHref(href);
   const timeoutMs =
     Number.isFinite(options.timeoutMs) && (options.timeoutMs as number) > 0
       ? Math.min(options.timeoutMs as number, 120_000)
-      : Number.parseInt(process.env.ELSCI_LIGHT_NOVELS_REQUEST_TIMEOUT_MS || `${DEFAULT_TIMEOUT_MS}`, 10) ||
-        DEFAULT_TIMEOUT_MS;
+      : Number.parseInt(
+          process.env.ELSCI_LIGHT_NOVELS_REQUEST_TIMEOUT_MS ||
+            `${DEFAULT_TIMEOUT_MS}`,
+          10,
+        ) || DEFAULT_TIMEOUT_MS;
 
   const url = toAbsoluteUrl(normalizedHref, baseUrl);
-  
-  return retryWithBackoff(async () => {
-    const downloadWithHeaders = async (headers: Record<string, string>) => {
-      const response = await axios.get(url, {
-        timeout: timeoutMs,
-        responseType: 'stream',
-        headers,
-        validateStatus: (status) => status >= 200 && status < 400,
-        onDownloadProgress: (progressEvent) => {
-          options.onProgress?.(progressEvent.loaded, progressEvent.total);
-        },
-      });
 
-      return {
-        stream: response.data as NodeJS.ReadableStream,
-        headers: response.headers as Record<string, string | string[] | undefined>,
-        url,
-        size: response.headers['content-length'] ? parseInt(response.headers['content-length'], 10) : undefined,
-      };
-    };
-
-    try {
-      return await downloadWithHeaders(buildElsciFileRequestHeaders(baseUrl));
-    } catch (error) {
-      const statusCode = getAxiosStatusCode(error);
-      if (!isAccessChallengeStatus(statusCode)) {
-        throw error;
-      }
-
-      const fallbackErrors: string[] = [];
-
-      // Fallback 1: browser-style preflight cookie retry
-      try {
-        const preflight = await axios.get(`${baseUrl}/`, {
+  return retryWithBackoff(
+    async () => {
+      const downloadWithHeaders = async (headers: Record<string, string>) => {
+        const response = await axios.get(url, {
           timeout: timeoutMs,
-          headers: {
-            'user-agent': DEFAULT_HEADERS['user-agent'],
-            accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'accept-language': DEFAULT_HEADERS['accept-language'],
-            referer: `${baseUrl}/`,
-            origin: baseUrl,
+          responseType: "stream",
+          headers,
+          validateStatus: (status) => status >= 200 && status < 400,
+          onDownloadProgress: (progressEvent) => {
+            options.onProgress?.(progressEvent.loaded, progressEvent.total);
           },
-          validateStatus: (status) => status >= 200 && status < 500,
         });
 
-        const cookieHeader = extractCookieHeader(preflight.headers['set-cookie']);
-        if (!cookieHeader) {
-          throw new Error('No session cookie from Elsci preflight');
+        return {
+          stream: response.data as NodeJS.ReadableStream,
+          headers: response.headers as Record<
+            string,
+            string | string[] | undefined
+          >,
+          url,
+          size: response.headers["content-length"]
+            ? parseInt(response.headers["content-length"], 10)
+            : undefined,
+        };
+      };
+
+      try {
+        return await downloadWithHeaders(buildElsciFileRequestHeaders(baseUrl));
+      } catch (error) {
+        const statusCode = getAxiosStatusCode(error);
+        if (!isAccessChallengeStatus(statusCode)) {
+          throw error;
         }
 
-        return await downloadWithHeaders(
-          buildElsciFileRequestHeaders(baseUrl, { cookieHeader }),
-        );
-      } catch (cookieRetryError) {
-        fallbackErrors.push(`cookie-retry: ${toErrorMessage(cookieRetryError)}`);
-      }
+        const fallbackErrors: string[] = [];
 
-      // Fallback 2: solve challenge via FlareSolverr and reuse cookies/user-agent
-      try {
-        const solvedAccess = await resolveElsciAccessViaFlareSolverr({
-          baseUrl,
-          timeoutMs,
-          accessUrl: url,
-        });
-        return await downloadWithHeaders(
-          buildElsciFileRequestHeaders(baseUrl, solvedAccess),
-        );
-      } catch (solverError) {
-        fallbackErrors.push(`flaresolverr: ${toErrorMessage(solverError)}`);
-      }
+        // Fallback 1: browser-style preflight cookie retry
+        try {
+          const preflight = await axios.get(`${baseUrl}/`, {
+            timeout: timeoutMs,
+            headers: {
+              "user-agent": DEFAULT_HEADERS["user-agent"],
+              accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "accept-language": DEFAULT_HEADERS["accept-language"],
+              referer: `${baseUrl}/`,
+              origin: baseUrl,
+            },
+            validateStatus: (status) => status >= 200 && status < 500,
+          });
 
-      const detail = fallbackErrors.length > 0 ? ` ${fallbackErrors.join(' | ')}` : '';
-      throw new RetryableError(`Elsci file request blocked with status ${statusCode}.${detail}`);
-    }
-  }, {
-    maxAttempts: 3,
-    baseDelayMs: 1000,
-    maxDelayMs: 10000,
-    onRetry: (attempt, error) => {
-      console.warn(`[Elsci] File download retry ${attempt} for ${href}: ${error.message}`);
+          const cookieHeader = extractCookieHeader(
+            preflight.headers["set-cookie"],
+          );
+          if (!cookieHeader) {
+            throw new Error("No session cookie from Elsci preflight");
+          }
+
+          return await downloadWithHeaders(
+            buildElsciFileRequestHeaders(baseUrl, { cookieHeader }),
+          );
+        } catch (cookieRetryError) {
+          fallbackErrors.push(
+            `cookie-retry: ${toErrorMessage(cookieRetryError)}`,
+          );
+        }
+
+        // Fallback 2: solve challenge via FlareSolverr and reuse cookies/user-agent
+        try {
+          const solvedAccess = await resolveElsciAccessViaFlareSolverr({
+            baseUrl,
+            timeoutMs,
+            accessUrl: url,
+          });
+          return await downloadWithHeaders(
+            buildElsciFileRequestHeaders(baseUrl, solvedAccess),
+          );
+        } catch (solverError) {
+          fallbackErrors.push(`flaresolverr: ${toErrorMessage(solverError)}`);
+        }
+
+        const detail =
+          fallbackErrors.length > 0 ? ` ${fallbackErrors.join(" | ")}` : "";
+        throw new RetryableError(
+          `Elsci file request blocked with status ${statusCode}.${detail}`,
+        );
+      }
     },
-  });
+    {
+      maxAttempts: 3,
+      baseDelayMs: 1000,
+      maxDelayMs: 10000,
+      onRetry: (attempt, error) => {
+        console.warn(
+          `[Elsci] File download retry ${attempt} for ${href}: ${error.message}`,
+        );
+      },
+    },
+  );
 };

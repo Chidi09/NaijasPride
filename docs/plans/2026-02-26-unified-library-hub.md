@@ -4,7 +4,8 @@
 
 **Goal:** Create a unified library hub at `/library` that aggregates stats and provides quick links to content-specific libraries, and rename the existing profile dashboard route to `/profile`.
 
-**Architecture:** 
+**Architecture:**
+
 1. Create a new standalone Angular component `UnifiedLibraryComponent` for the hub.
 2. Route `/library` to this new component.
 3. Update existing `/library` references in the app header and sidebar to point correctly.
@@ -17,6 +18,7 @@
 ### Task 1: Create the Unified Library Component
 
 **Files:**
+
 - Create: `apps/web/src/app/features/library/pages/unified-library/unified-library.component.ts`
 - Create directory: `apps/web/src/app/features/library/pages/unified-library/`
 
@@ -29,6 +31,7 @@ Build a dashboard with "Summary Cards" showing counts for: Movie Watchlist, Book
 ### Task 2: Update App Routes
 
 **Files:**
+
 - Modify: `apps/web/src/app/app.routes.ts`
 
 **Step 1: Remap `/library` and add `/profile`**
@@ -38,6 +41,7 @@ Add a new `/profile` route that loads the `ProfileDashboardComponent`.
 ### Task 3: Update Navigation Links
 
 **Files:**
+
 - Modify: `apps/web/src/app/core/components/side-panel/side-panel.component.ts`
 - Modify: `apps/web/src/app/features/profile/pages/profile-dashboard/profile-dashboard.component.ts`
 - Modify: `apps/web/src/app/core/components/app-header/app-header.component.ts`
@@ -54,8 +58,8 @@ Ensure the mobile side panel has distinct links for Profile and Library.
 ### Task 4: Verify and Build
 
 **Files:**
+
 - None
 
 **Step 1: Build the web workspace**
 Run `npm run build -w web` to ensure all imports and routes are correct.
-

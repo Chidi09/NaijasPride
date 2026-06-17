@@ -1,14 +1,21 @@
-import { Prisma, PrismaClient, Genre as PrismaGenre } from '@prisma/client';
-import { ContentStatus, Genre, PaginationMeta, TvShow, TvShowSearchParams, TvShowSummary } from '@naijaspride/types';
-import { withCache } from '../../shared/services/redis.service';
+import { Prisma, PrismaClient, Genre as PrismaGenre } from "@prisma/client";
+import {
+  ContentStatus,
+  Genre,
+  PaginationMeta,
+  TvShow,
+  TvShowSearchParams,
+  TvShowSummary,
+} from "@naijaspride/types";
+import { withCache } from "../../shared/services/redis.service";
 
 type TvShowWithNested = Prisma.TvShowGetPayload<{
   include: {
     seasons: {
-      orderBy: { seasonNumber: 'asc' };
+      orderBy: { seasonNumber: "asc" };
       include: {
         episodes: {
-          orderBy: { episodeNumber: 'asc' };
+          orderBy: { episodeNumber: "asc" };
         };
       };
     };
@@ -18,18 +25,20 @@ type TvShowWithNested = Prisma.TvShowGetPayload<{
 export class TvShowsService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async search(params: TvShowSearchParams): Promise<{ data: TvShowSummary[]; meta: PaginationMeta }> {
+  async search(
+    params: TvShowSearchParams,
+  ): Promise<{ data: TvShowSummary[]; meta: PaginationMeta }> {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(50, Math.max(1, params.limit || 20));
     const skip = (page - 1) * limit;
 
     const where: Prisma.TvShowWhereInput = {
-      status: 'active',
+      status: "active",
       ...(params.q
         ? {
             OR: [
-              { title: { contains: params.q, mode: 'insensitive' } },
-              { overview: { contains: params.q, mode: 'insensitive' } },
+              { title: { contains: params.q, mode: "insensitive" } },
+              { overview: { contains: params.q, mode: "insensitive" } },
             ],
           }
         : {}),
@@ -37,17 +46,19 @@ export class TvShowsService {
         ? { genre: { hasSome: params.genre as unknown as PrismaGenre[] } }
         : {}),
       ...(params.year ? { year: params.year } : {}),
-      ...(params.language ? { language: { contains: params.language, mode: 'insensitive' } } : {}),
+      ...(params.language
+        ? { language: { contains: params.language, mode: "insensitive" } }
+        : {}),
     };
 
     const orderBy =
-      params.sortBy === 'popular'
-        ? { viewCount: 'desc' as const }
-        : params.sortBy === 'title'
-          ? { title: 'asc' as const }
-          : params.sortBy === 'trending'
-            ? { createdAt: 'desc' as const }
-            : { createdAt: 'desc' as const };
+      params.sortBy === "popular"
+        ? { viewCount: "desc" as const }
+        : params.sortBy === "title"
+          ? { title: "asc" as const }
+          : params.sortBy === "trending"
+            ? { createdAt: "desc" as const }
+            : { createdAt: "desc" as const };
 
     const cacheKey = `tv-shows:search:${JSON.stringify({ ...params, page, limit })}`;
 
@@ -92,10 +103,10 @@ export class TvShowsService {
         where: { slug },
         include: {
           seasons: {
-            orderBy: { seasonNumber: 'asc' },
+            orderBy: { seasonNumber: "asc" },
             include: {
               episodes: {
-                orderBy: { episodeNumber: 'asc' },
+                orderBy: { episodeNumber: "asc" },
               },
             },
           },
@@ -107,7 +118,11 @@ export class TvShowsService {
     });
   }
 
-  async resolveEpisode(slug: string, seasonNumber: number, episodeNumber: number) {
+  async resolveEpisode(
+    slug: string,
+    seasonNumber: number,
+    episodeNumber: number,
+  ) {
     const show = await this.prisma.tvShow.findUnique({
       where: { slug },
       select: {
@@ -188,7 +203,7 @@ export class TvShowsService {
   async getHistory(userId: string, limit = 10) {
     const rows = await this.prisma.tvWatchHistory.findMany({
       where: { userId },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: "desc" },
       take: limit,
       include: {
         show: {
@@ -221,7 +236,8 @@ export class TvShowsService {
 
     return rows.map((row) => {
       const ep = episodeMap.get(row.episodeId);
-      const progressPct = row.duration > 0 ? Math.round((row.progress / row.duration) * 100) : 0;
+      const progressPct =
+        row.duration > 0 ? Math.round((row.progress / row.duration) * 100) : 0;
 
       return {
         showId: row.showId,
@@ -253,7 +269,10 @@ export class TvShowsService {
     }>,
   ): TvShowSummary {
     const seasonCount = row.seasons.length;
-    const episodeCount = row.seasons.reduce((sum, season) => sum + season._count.episodes, 0);
+    const episodeCount = row.seasons.reduce(
+      (sum, season) => sum + season._count.episodes,
+      0,
+    );
 
     return {
       id: row.id,

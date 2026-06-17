@@ -73,9 +73,11 @@ Extend embed resolver to support a second mode:
 - **TV mode** (new): uses imdb/tmdb TV templates requiring `season` + `episode`
 
 Example TV template format:
+
 - `https://vidsrc.me/embed/tv?imdb={imdbId}&season={season}&episode={episode}`
 
 API endpoint:
+
 - `GET /api/v1/tv-shows/:slug/embeds?season=1&episode=1`
 
 ### 4) API Surface
@@ -105,6 +107,7 @@ Add dedicated TV navigation and pages:
   - embeds selected episode using shared `EmbedPlayerComponent`
 
 `EmbedPlayerComponent` gets optional inputs for:
+
 - `contentType: 'movie' | 'tv'`
 - `seasonNumber`
 - `episodeNumber`

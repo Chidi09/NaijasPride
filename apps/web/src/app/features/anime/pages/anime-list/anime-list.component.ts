@@ -1,36 +1,54 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { AnimeApiService, AnimeRailConfig, AnimeRailKey } from '../../services/anime-api.service';
+import { Component, computed, inject, signal } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { RouterLink } from "@angular/router";
+import {
+  AnimeApiService,
+  AnimeRailKey,
+  AnilistMedia,
+} from "../../services/anime-api.service";
 
 type RailState = {
   title: string;
   params: Record<string, unknown>;
-  items: any[];
+  items: AnilistMedia[];
   loading: boolean;
   error: boolean;
 };
 
 @Component({
-  selector: 'app-anime-list',
+  selector: "app-anime-list",
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <section class="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
       <div class="pointer-events-none fixed inset-0 z-0">
-        <div class="absolute inset-0 bg-gradient-to-br from-[#800020]/5 via-transparent to-[#1a0a0a]/50"></div>
-        <div class="absolute -left-1/4 -top-1/4 h-[560px] w-[560px] rounded-full bg-[#800020]/10 blur-[120px]"></div>
-        <div class="absolute -bottom-1/4 -right-1/4 h-[680px] w-[680px] rounded-full bg-[#4a0015]/20 blur-[150px]"></div>
+        <div
+          class="absolute inset-0 bg-gradient-to-br from-[#800020]/5 via-transparent to-[#1a0a0a]/50"
+        ></div>
+        <div
+          class="absolute -left-1/4 -top-1/4 h-[560px] w-[560px] rounded-full bg-[#800020]/10 blur-[120px]"
+        ></div>
+        <div
+          class="absolute -bottom-1/4 -right-1/4 h-[680px] w-[680px] rounded-full bg-[#4a0015]/20 blur-[150px]"
+        ></div>
       </div>
 
       <div class="relative z-10 mx-auto max-w-7xl px-4 py-10 md:px-6">
-        <div class="mb-8 rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-sm">
-          <div class="mb-3 inline-flex items-center gap-2 rounded-full border border-[#800020]/30 bg-[#800020]/10 px-3 py-1 text-xs text-[#d46]">
+        <div
+          class="mb-8 rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-sm"
+        >
+          <div
+            class="mb-3 inline-flex items-center gap-2 rounded-full border border-[#800020]/30 bg-[#800020]/10 px-3 py-1 text-xs text-[#d46]"
+          >
             Anime Discovery
           </div>
-          <h1 class="text-3xl font-bold text-white md:text-5xl">Anime Library</h1>
-          <p class="mt-2 text-white/50">Browse trending anime with an episode-first watch flow.</p>
+          <h1 class="text-3xl font-bold text-white md:text-5xl">
+            Anime Library
+          </h1>
+          <p class="mt-2 text-white/50">
+            Browse trending anime with an episode-first watch flow.
+          </p>
 
           <div class="mt-5 flex flex-col gap-3 sm:flex-row">
             <input
@@ -47,7 +65,7 @@ type RailState = {
             >
               Search
             </button>
-            @if (mode() === 'search') {
+            @if (mode() === "search") {
               <button
                 type="button"
                 (click)="resetDiscovery()"
@@ -59,23 +77,50 @@ type RailState = {
           </div>
         </div>
 
-        @if (mode() === 'search') {
+        @if (mode() === "search") {
           @if (searchLoading()) {
-            <div class="py-12 text-center text-white/60">Searching anime...</div>
+            <div class="py-12 text-center text-white/60">
+              Searching anime...
+            </div>
           } @else {
-            <div class="mb-3 text-sm text-white/50">Search results: {{ total() }}</div>
+            <div class="mb-3 text-sm text-white/50">
+              Search results: {{ total() }}
+            </div>
             @if (searchError()) {
-              <div class="mb-6 rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
+              <div
+                class="mb-6 rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200"
+              >
                 Search failed. Try again.
               </div>
             }
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
               @for (item of anime(); track item.id) {
-                <a [routerLink]="['/anime', item.id]" class="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] transition hover:border-[#800020]/50 hover:bg-white/[0.05]">
-                  <img [src]="item.coverImage?.large || item.coverImage?.medium || '/assets/images/poster-placeholder.svg'" [alt]="item.title?.romaji" class="aspect-[2/3] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+                <a
+                  [routerLink]="['/anime', item.id]"
+                  class="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] transition hover:border-[#800020]/50 hover:bg-white/[0.05]"
+                >
+                  <img
+                    [src]="
+                      item.coverImage?.large ||
+                      item.coverImage?.medium ||
+                      '/assets/images/poster-placeholder.svg'
+                    "
+                    [alt]="item.title?.romaji"
+                    class="aspect-[2/3] w-full object-cover transition duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
                   <div class="p-3">
-                    <h3 class="line-clamp-2 text-sm font-semibold text-white">{{ item.title?.english || item.title?.romaji || item.title?.native }}</h3>
-                    <p class="mt-1 text-xs text-white/50">{{ item.seasonYear || '-' }} • {{ item.episodes || '?' }} eps</p>
+                    <h3 class="line-clamp-2 text-sm font-semibold text-white">
+                      {{
+                        item.title?.english ||
+                          item.title?.romaji ||
+                          item.title?.native
+                      }}
+                    </h3>
+                    <p class="mt-1 text-xs text-white/50">
+                      {{ item.seasonYear || "-" }} •
+                      {{ item.episodes || "?" }} eps
+                    </p>
                   </div>
                 </a>
               }
@@ -86,7 +131,9 @@ type RailState = {
             @for (rail of railConfigs; track rail.key) {
               <section>
                 <div class="mb-3 flex items-center justify-between">
-                  <h2 class="text-lg font-semibold text-white">{{ rail.title }}</h2>
+                  <h2 class="text-lg font-semibold text-white">
+                    {{ rail.title }}
+                  </h2>
                   <button
                     type="button"
                     (click)="viewAll(rail.key)"
@@ -97,19 +144,31 @@ type RailState = {
                 </div>
 
                 @if (dedupedRails()[rail.key].loading) {
-                  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <div
+                    class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
+                  >
                     @for (_ of skeletonItems; track $index) {
-                      <div class="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
-                        <div class="aspect-[2/3] animate-pulse bg-white/10"></div>
+                      <div
+                        class="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
+                      >
+                        <div
+                          class="aspect-[2/3] animate-pulse bg-white/10"
+                        ></div>
                         <div class="space-y-2 p-3">
-                          <div class="h-3 w-5/6 animate-pulse rounded bg-white/10"></div>
-                          <div class="h-3 w-2/5 animate-pulse rounded bg-white/10"></div>
+                          <div
+                            class="h-3 w-5/6 animate-pulse rounded bg-white/10"
+                          ></div>
+                          <div
+                            class="h-3 w-2/5 animate-pulse rounded bg-white/10"
+                          ></div>
                         </div>
                       </div>
                     }
                   </div>
                 } @else if (dedupedRails()[rail.key].error) {
-                  <div class="flex items-center justify-between rounded-xl border border-red-500/25 bg-red-950/20 p-4 text-sm text-red-200">
+                  <div
+                    class="flex items-center justify-between rounded-xl border border-red-500/25 bg-red-950/20 p-4 text-sm text-red-200"
+                  >
                     <span>Could not load this section.</span>
                     <button
                       type="button"
@@ -128,8 +187,18 @@ type RailState = {
                       class="absolute -left-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white opacity-0 shadow-lg backdrop-blur-sm transition-all duration-200 hover:bg-[#800020] group-hover/rail:opacity-100 active:scale-95"
                       aria-label="Scroll left"
                     >
-                      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M15 19l-7-7 7-7"
+                        />
                       </svg>
                     </button>
 
@@ -139,20 +208,38 @@ type RailState = {
                       class="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                       (mousedown)="startDrag($event, scrollEl)"
                     >
-                      @for (item of dedupedRails()[rail.key].items; track item.id) {
+                      @for (
+                        item of dedupedRails()[rail.key].items;
+                        track item.id
+                      ) {
                         <a
                           [routerLink]="['/anime', item.id]"
                           class="group w-[150px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] transition hover:border-[#800020]/50 hover:bg-white/[0.05] sm:w-[180px]"
                         >
                           <img
-                            [src]="item.coverImage?.large || item.coverImage?.medium || '/assets/images/poster-placeholder.svg'"
+                            [src]="
+                              item.coverImage?.large ||
+                              item.coverImage?.medium ||
+                              '/assets/images/poster-placeholder.svg'
+                            "
                             [alt]="item.title?.romaji"
                             class="aspect-[2/3] w-full object-cover transition duration-500 group-hover:scale-105"
                             loading="lazy"
                           />
                           <div class="p-3">
-                            <h3 class="line-clamp-2 text-sm font-semibold text-white">{{ item.title?.english || item.title?.romaji || item.title?.native }}</h3>
-                            <p class="mt-1 text-xs text-white/50">{{ item.seasonYear || '-' }} • {{ item.episodes || '?' }} eps</p>
+                            <h3
+                              class="line-clamp-2 text-sm font-semibold text-white"
+                            >
+                              {{
+                                item.title?.english ||
+                                  item.title?.romaji ||
+                                  item.title?.native
+                              }}
+                            </h3>
+                            <p class="mt-1 text-xs text-white/50">
+                              {{ item.seasonYear || "-" }} •
+                              {{ item.episodes || "?" }} eps
+                            </p>
                           </div>
                         </a>
                       }
@@ -165,14 +252,28 @@ type RailState = {
                       class="absolute -right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white opacity-0 shadow-lg backdrop-blur-sm transition-all duration-200 hover:bg-[#800020] group-hover/rail:opacity-100 active:scale-95"
                       aria-label="Scroll right"
                     >
-                      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                      <svg
+                        class="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M9 5l7 7-7 7"
+                        />
                       </svg>
                     </button>
 
                     <!-- Edge fade gradients -->
-                    <div class="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent opacity-0 transition-opacity group-hover/rail:opacity-100"></div>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent opacity-0 transition-opacity group-hover/rail:opacity-100"></div>
+                    <div
+                      class="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent opacity-0 transition-opacity group-hover/rail:opacity-100"
+                    ></div>
+                    <div
+                      class="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent opacity-0 transition-opacity group-hover/rail:opacity-100"
+                    ></div>
                   </div>
                 }
               </section>
@@ -189,18 +290,24 @@ export class AnimeListComponent {
   railConfigs = this.api.getDiscoveryRailConfigs(16);
   skeletonItems = Array.from({ length: 6 });
 
-  q = '';
-  mode = signal<'rails' | 'search'>('rails');
+  q = "";
+  mode = signal<"rails" | "search">("rails");
   searchLoading = signal(false);
   searchError = signal(false);
-  anime = signal<any[]>([]);
+  anime = signal<AnilistMedia[]>([]);
   total = signal(0);
   rails = signal<Record<AnimeRailKey, RailState>>(this.initRails());
 
   dedupedRails = computed(() => {
     const source = this.rails();
     const seen = new Set<number>();
-    const order: AnimeRailKey[] = ['trending', 'newSeason', 'popular', 'topRated', 'classics'];
+    const order: AnimeRailKey[] = [
+      "trending",
+      "newSeason",
+      "popular",
+      "topRated",
+      "classics",
+    ];
     const next: Record<AnimeRailKey, RailState> = { ...source };
 
     for (const key of order) {
@@ -274,60 +381,80 @@ export class AnimeListComponent {
   }
 
   runSearch(): void {
-    this.mode.set('search');
+    this.mode.set("search");
     this.searchLoading.set(true);
     this.searchError.set(false);
-    this.api.search({ q: this.q?.trim() || undefined, perPage: 30, sort: 'TRENDING_DESC' }).subscribe({
-      next: (res) => {
-        this.anime.set(res?.data?.media || []);
-        this.total.set(res?.data?.pageInfo?.total || (res?.data?.media || []).length);
-        this.searchLoading.set(false);
-      },
-      error: () => {
-        this.anime.set([]);
-        this.total.set(0);
-        this.searchLoading.set(false);
-        this.searchError.set(true);
-      },
-    });
+    this.api
+      .search({
+        q: this.q?.trim() || undefined,
+        perPage: 30,
+        sort: "TRENDING_DESC",
+      })
+      .subscribe({
+        next: (res) => {
+          this.anime.set(res?.data?.media || []);
+          this.total.set(
+            res?.data?.pageInfo?.total || (res?.data?.media || []).length,
+          );
+          this.searchLoading.set(false);
+        },
+        error: () => {
+          this.anime.set([]);
+          this.total.set(0);
+          this.searchLoading.set(false);
+          this.searchError.set(true);
+        },
+      });
   }
 
   viewAll(key: AnimeRailKey): void {
     const rail = this.rails()[key];
-    this.mode.set('search');
+    this.mode.set("search");
     this.searchLoading.set(true);
     this.searchError.set(false);
-    this.api.search({ ...(rail.params as any), perPage: 30 }).subscribe({
-      next: (res) => {
-        this.anime.set(res?.data?.media || []);
-        this.total.set(res?.data?.pageInfo?.total || (res?.data?.media || []).length);
-        this.searchLoading.set(false);
-      },
-      error: () => {
-        this.anime.set([]);
-        this.total.set(0);
-        this.searchLoading.set(false);
-        this.searchError.set(true);
-      },
-    });
+    this.api
+      .search({ ...(rail.params as AnimeSearchParams), perPage: 30 })
+      .subscribe({
+        next: (res) => {
+          this.anime.set(res?.data?.media || []);
+          this.total.set(
+            res?.data?.pageInfo?.total || (res?.data?.media || []).length,
+          );
+          this.searchLoading.set(false);
+        },
+        error: () => {
+          this.anime.set([]);
+          this.total.set(0);
+          this.searchLoading.set(false);
+          this.searchError.set(true);
+        },
+      });
   }
 
   resetDiscovery(): void {
-    this.mode.set('rails');
+    this.mode.set("rails");
     this.searchError.set(false);
     this.searchLoading.set(false);
   }
 
   scrollRail(el: HTMLElement, dir: 1 | -1): void {
-    el.scrollBy({ left: dir * 600, behavior: 'smooth' });
+    el.scrollBy({ left: dir * 600, behavior: "smooth" });
   }
 
-  private dragState: { startX: number; scrollLeft: number; el: HTMLElement } | null = null;
+  private dragState: {
+    startX: number;
+    scrollLeft: number;
+    el: HTMLElement;
+  } | null = null;
 
   startDrag(e: MouseEvent, el: HTMLElement): void {
-    this.dragState = { startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft, el };
-    el.style.cursor = 'grabbing';
-    el.style.userSelect = 'none';
+    this.dragState = {
+      startX: e.pageX - el.offsetLeft,
+      scrollLeft: el.scrollLeft,
+      el,
+    };
+    el.style.cursor = "grabbing";
+    el.style.userSelect = "none";
 
     const onMove = (ev: MouseEvent) => {
       if (!this.dragState) return;
@@ -336,14 +463,14 @@ export class AnimeListComponent {
     };
     const onUp = () => {
       if (!this.dragState) return;
-      this.dragState.el.style.cursor = '';
-      this.dragState.el.style.userSelect = '';
+      this.dragState.el.style.cursor = "";
+      this.dragState.el.style.userSelect = "";
       this.dragState = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   }
 }

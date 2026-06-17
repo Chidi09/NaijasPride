@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { CommonModule } from "@angular/common";
+import { HttpClient } from "@angular/common/http";
 import {
   AfterViewInit,
   Component,
@@ -11,25 +11,25 @@ import {
   computed,
   inject,
   signal,
-} from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { Book } from '@naijaspride/types';
-import screenfull from 'screenfull';
-import { Subscription } from 'rxjs';
+} from "@angular/core";
+import { ActivatedRoute } from "@angular/router";
+import { Book } from "@naijaspride/types";
+import screenfull from "screenfull";
+import { Subscription } from "rxjs";
 
-import { MatButtonModule } from '@angular/material/button';
-import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatButtonModule } from "@angular/material/button";
+import { MatSidenavModule } from "@angular/material/sidenav";
 
-import { ReaderStateService } from '../../../../core/services/reader-state.service';
-import { BookOfflineService } from '../../../../core/services/book-offline.service';
-import { ReaderGesturesService } from '../../reader/services/reader-gestures.service';
-import { ReaderService } from '../../reader/services/reader.service';
-import { ReaderTtsService } from '../../reader/services/reader-tts.service';
+import { ReaderStateService } from "../../../../core/services/reader-state.service";
+import { BookOfflineService } from "../../../../core/services/book-offline.service";
+import { ReaderGesturesService } from "../../reader/services/reader-gestures.service";
+import { ReaderService } from "../../reader/services/reader.service";
+import { ReaderTtsService } from "../../reader/services/reader-tts.service";
 
-import { ReaderToolbarComponent } from '../../reader/components/reader-toolbar.component';
-import { ReaderSidebarComponent } from '../../reader/components/reader-sidebar.component';
-import { EpubViewerComponent } from '../../reader/components/epub-viewer.component';
-import { PdfViewerComponent } from '../../reader/components/pdf-viewer.component';
+import { ReaderToolbarComponent } from "../../reader/components/reader-toolbar.component";
+import { ReaderSidebarComponent } from "../../reader/components/reader-sidebar.component";
+import { EpubViewerComponent } from "../../reader/components/epub-viewer.component";
+import { PdfViewerComponent } from "../../reader/components/pdf-viewer.component";
 
 import type {
   HighlightColor,
@@ -38,10 +38,10 @@ import type {
   ReaderTheme,
   SearchResultEntry,
   TocEntry,
-} from '../../reader/models/reader.models';
+} from "../../reader/models/reader.models";
 
 @Component({
-  selector: 'app-book-reader',
+  selector: "app-book-reader",
   standalone: true,
   imports: [
     CommonModule,
@@ -64,11 +64,14 @@ import type {
         --np-reader-accent: #800020;
         --np-reader-paper-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
         --np-reader-overlay: inset 0 0 120px rgba(0, 0, 0, 0.08);
-        --np-reader-serif: 'Newsreader', 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
-        --np-reader-ui: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        --np-reader-serif:
+          "Newsreader", "Iowan Old Style", "Palatino Linotype", "Book Antiqua",
+          serif;
+        --np-reader-ui:
+          "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       }
 
-      .np-book-reader-shell[data-theme='paper'] {
+      .np-book-reader-shell[data-theme="paper"] {
         --np-reader-bg: #fbf9f5;
         --np-reader-fg: #1b1c1a;
         --np-reader-muted: rgba(74, 63, 63, 0.74);
@@ -78,7 +81,7 @@ import type {
         --np-reader-overlay: inset 0 0 180px rgba(0, 0, 0, 0.03);
       }
 
-      .np-book-reader-shell[data-theme='sepia'] {
+      .np-book-reader-shell[data-theme="sepia"] {
         --np-reader-bg: #f4eadb;
         --np-reader-fg: #2b201b;
         --np-reader-muted: rgba(67, 51, 43, 0.72);
@@ -88,7 +91,7 @@ import type {
         --np-reader-overlay: inset 0 0 170px rgba(77, 45, 30, 0.06);
       }
 
-      .np-book-reader-shell[data-theme='night'] {
+      .np-book-reader-shell[data-theme="night"] {
         --np-reader-bg: #070708;
         --np-reader-fg: #f2efe9;
         --np-reader-muted: rgba(212, 199, 199, 0.74);
@@ -102,12 +105,18 @@ import type {
         background: var(--np-reader-bg);
         color: var(--np-reader-fg);
         font-family: var(--np-reader-serif);
-        background-image: radial-gradient(rgba(79, 16, 17, 0.05) 0.8px, transparent 0.8px);
+        background-image: radial-gradient(
+          rgba(79, 16, 17, 0.05) 0.8px,
+          transparent 0.8px
+        );
         background-size: 40px 40px;
       }
 
-      .np-book-reader-shell[data-theme='night'] {
-        background-image: radial-gradient(rgba(255, 255, 255, 0.045) 0.8px, transparent 0.8px);
+      .np-book-reader-shell[data-theme="night"] {
+        background-image: radial-gradient(
+          rgba(255, 255, 255, 0.045) 0.8px,
+          transparent 0.8px
+        );
       }
 
       .np-reader-viewer {
@@ -129,19 +138,26 @@ import type {
         position: relative;
         height: 100%;
         width: 100%;
-        padding: clamp(64px, 8vh, 96px) clamp(10px, 2.4vw, 30px) clamp(96px, 12vh, 130px);
+        padding: clamp(64px, 8vh, 96px) clamp(10px, 2.4vw, 30px)
+          clamp(96px, 12vh, 130px);
         z-index: 6;
       }
 
       .np-reader-frame::before {
-        content: '';
+        content: "";
         position: absolute;
-        inset: clamp(54px, 6.6vh, 84px) clamp(8px, 2vw, 24px) clamp(90px, 10vh, 118px);
+        inset: clamp(54px, 6.6vh, 84px) clamp(8px, 2vw, 24px)
+          clamp(90px, 10vh, 118px);
         border-radius: clamp(10px, 1.2vw, 18px);
-        border: 1px solid color-mix(in srgb, var(--np-reader-border) 86%, transparent);
+        border: 1px solid
+          color-mix(in srgb, var(--np-reader-border) 86%, transparent);
         background: linear-gradient(
           170deg,
-          color-mix(in srgb, var(--np-reader-surface) 92%, var(--np-reader-bg) 8%),
+          color-mix(
+            in srgb,
+            var(--np-reader-surface) 92%,
+            var(--np-reader-bg) 8%
+          ),
           color-mix(in srgb, var(--np-reader-bg) 90%, transparent)
         );
         box-shadow: var(--np-reader-paper-shadow);
@@ -209,19 +225,28 @@ import type {
         transition: opacity 300ms ease;
         pointer-events: auto;
       }
-      .np-side-nav:hover, .np-side-nav:focus-visible {
+      .np-side-nav:hover,
+      .np-side-nav:focus-visible {
         opacity: 0.85;
       }
       .np-side-nav.controls-visible {
         opacity: 0.75;
       }
-      .np-side-nav-left { left: 0; }
-      .np-side-nav-right { right: 0; }
+      .np-side-nav-left {
+        left: 0;
+      }
+      .np-side-nav-right {
+        right: 0;
+      }
       .np-side-nav-btn {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: color-mix(in srgb, var(--np-reader-surface) 96%, transparent);
+        background: color-mix(
+          in srgb,
+          var(--np-reader-surface) 96%,
+          transparent
+        );
         border: 1px solid var(--np-reader-border);
         color: var(--np-reader-fg);
         cursor: pointer;
@@ -237,7 +262,11 @@ import type {
 
       /* Bottom bar: always visible, opacity-based fade — fixed dark chrome */
       .np-bottom-bar {
-        background: color-mix(in srgb, var(--np-reader-surface) 95%, transparent) !important;
+        background: color-mix(
+          in srgb,
+          var(--np-reader-surface) 95%,
+          transparent
+        ) !important;
         border-top: 1px solid var(--np-reader-border) !important;
         color: var(--np-reader-fg);
         backdrop-filter: blur(14px);
@@ -273,7 +302,11 @@ import type {
         height: 2px;
         width: 100%;
         overflow: hidden;
-        background: color-mix(in srgb, var(--np-reader-border) 65%, transparent);
+        background: color-mix(
+          in srgb,
+          var(--np-reader-border) 65%,
+          transparent
+        );
       }
 
       .np-progress-fill {
@@ -323,7 +356,12 @@ import type {
       (touchstart)="bumpControls()"
     >
       <mat-drawer-container class="h-full w-full" autosize>
-        <mat-drawer position="end" mode="over" [opened]="drawerOpen()" (closedStart)="drawerOpen.set(false)">
+        <mat-drawer
+          position="end"
+          mode="over"
+          [opened]="drawerOpen()"
+          (closedStart)="drawerOpen.set(false)"
+        >
           <app-reader-sidebar
             [bookTitle]="book()?.title || ''"
             [readerType]="readerType()"
@@ -350,7 +388,6 @@ import type {
             [searchStatus]="searchStatus()"
             [searchError]="searchError()"
             [searchResults]="searchResults()"
-
             [ttsAvailable]="tts.available()"
             [ttsSpeaking]="tts.state().speaking"
             [ttsPaused]="tts.state().paused"
@@ -378,7 +415,6 @@ import type {
             (goToHighlight)="goToHighlight($event)"
             (deleteHighlight)="deleteHighlight($event)"
             (clearHighlights)="clearHighlights()"
-
             (ttsStart)="startTts()"
             (ttsTogglePause)="tts.togglePause()"
             (ttsStop)="tts.stop()"
@@ -397,12 +433,16 @@ import type {
           />
 
           @if (metaLoading()) {
-            <div class="flex h-full items-center justify-center text-sm text-[var(--np-reader-muted)]">
+            <div
+              class="flex h-full items-center justify-center text-sm text-[var(--np-reader-muted)]"
+            >
               Loading book...
             </div>
           } @else if (error()) {
             <div class="flex h-full items-center justify-center px-6">
-              <div class="max-w-xl rounded border border-[var(--np-reader-border)] bg-[var(--np-reader-surface)] p-5 text-center text-sm">
+              <div
+                class="max-w-xl rounded border border-[var(--np-reader-border)] bg-[var(--np-reader-surface)] p-5 text-center text-sm"
+              >
                 <p class="font-semibold">Reader error</p>
                 <p class="mt-2 text-[var(--np-reader-muted)]">{{ error() }}</p>
                 @if (book()?.downloadUrl) {
@@ -420,13 +460,21 @@ import type {
           } @else {
             <div class="np-reader-viewer" (click)="toggleControls()">
               @if (viewerLoading()) {
-                <div class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center text-sm text-[var(--np-reader-muted)]">
+                <div
+                  class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center text-sm text-[var(--np-reader-muted)]"
+                >
                   Loading book...
                 </div>
               }
 
-              <div #viewerWrap class="np-reader-frame" [class.np-pdf-frame]="readerType() === 'pdf'" [class.np-turn-next]="turnAnim() === 'next'" [class.np-turn-prev]="turnAnim() === 'prev'">
-                @if (readerType() === 'epub') {
+              <div
+                #viewerWrap
+                class="np-reader-frame"
+                [class.np-pdf-frame]="readerType() === 'pdf'"
+                [class.np-turn-next]="turnAnim() === 'next'"
+                [class.np-turn-prev]="turnAnim() === 'prev'"
+              >
+                @if (readerType() === "epub") {
                   <div class="np-viewport-fill">
                     <app-epub-viewer
                       [slug]="slug()"
@@ -518,7 +566,16 @@ import type {
                       [disabled]="!canPrev()"
                       aria-label="Previous page"
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
                         <polyline points="15 18 9 12 15 6"></polyline>
                       </svg>
                     </button>
@@ -534,7 +591,16 @@ import type {
                       [disabled]="!canNext()"
                       aria-label="Next page"
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
                         <polyline points="9 18 15 12 9 6"></polyline>
                       </svg>
                     </button>
@@ -553,22 +619,57 @@ import type {
             <div class="mx-auto w-full max-w-5xl px-3 py-3 md:px-4">
               <div class="mb-2 flex items-center justify-between">
                 <span class="np-bottom-meta">Reading Progress</span>
-                @if (readerType() === 'pdf') {
-                  <span class="np-bottom-meta">Page {{ pdfPage() }} / {{ pdfPageCount() || '?' }}</span>
+                @if (readerType() === "pdf") {
+                  <span class="np-bottom-meta"
+                    >Page {{ pdfPage() }} / {{ pdfPageCount() || "?" }}</span
+                  >
                 } @else {
-                  <span class="np-bottom-meta">{{ (progress() * 100) | number:'1.0-0' }}%</span>
+                  <span class="np-bottom-meta"
+                    >{{ progress() * 100 | number: "1.0-0" }}%</span
+                  >
                 }
               </div>
 
               <div class="np-progress-track">
-                <div class="np-progress-fill" [style.width.%]="(progress() * 100)"></div>
+                <div
+                  class="np-progress-fill"
+                  [style.width.%]="progress() * 100"
+                ></div>
               </div>
 
               <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <button mat-stroked-button type="button" (click)="prev()" [disabled]="!canPrev()">Previous</button>
-                <button mat-flat-button color="primary" type="button" (click)="next()" [disabled]="!canNext()">Next</button>
-                <button mat-stroked-button type="button" (click)="addBookmark()" [disabled]="readerType() === 'epub' && !currentCfi()">Bookmark</button>
-                <button mat-stroked-button type="button" (click)="drawerOpen.set(true)">Menu</button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="prev()"
+                  [disabled]="!canPrev()"
+                >
+                  Previous
+                </button>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  (click)="next()"
+                  [disabled]="!canNext()"
+                >
+                  Next
+                </button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="addBookmark()"
+                  [disabled]="readerType() === 'epub' && !currentCfi()"
+                >
+                  Bookmark
+                </button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="drawerOpen.set(true)"
+                >
+                  Menu
+                </button>
               </div>
             </div>
           </div>
@@ -587,19 +688,19 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly reader = inject(ReaderService);
 
-  @ViewChild('viewerWrap') viewerWrap?: ElementRef<HTMLElement>;
+  @ViewChild("viewerWrap") viewerWrap?: ElementRef<HTMLElement>;
   @ViewChild(EpubViewerComponent) epubViewer?: EpubViewerComponent;
   @ViewChild(PdfViewerComponent) pdfViewer?: PdfViewerComponent;
   @ViewChild(ReaderSidebarComponent) sidebar?: ReaderSidebarComponent;
 
   drawerOpen = signal(false);
   showControls = signal(true);
-  turnAnim = signal<'next' | 'prev' | null>(null);
+  turnAnim = signal<"next" | "prev" | null>(null);
 
   book = signal<Book | null>(null);
   slug = signal<string | null>(null);
   fileUrl = signal<string | null>(null);
-  readerType = signal<'epub' | 'pdf'>('epub');
+  readerType = signal<"epub" | "pdf">("epub");
 
   toc = signal<TocEntry[]>([]);
   currentCfi = signal<string | null>(null);
@@ -614,7 +715,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   error = signal<string | null>(null);
   epubReady = signal(false);
 
-  searchText = '';
+  searchText = "";
   isSearching = signal(false);
   searchStatus = signal<string | null>(null);
   searchError = signal<string | null>(null);
@@ -622,7 +723,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   highlightMode = signal(false);
   highlightColor = computed<HighlightColor>(
-    () => (this.reader.settings().highlightColor as HighlightColor) || 'yellow'
+    () => (this.reader.settings().highlightColor as HighlightColor) || "yellow",
   );
 
   private controlsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -643,13 +744,13 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   canPrev = computed(() => {
     if (this.isLoading() || !!this.error()) return false;
-    if (this.readerType() === 'pdf') return this.pdfPage() > 1;
+    if (this.readerType() === "pdf") return this.pdfPage() > 1;
     return this.epubReady();
   });
 
   canNext = computed(() => {
     if (this.isLoading() || !!this.error()) return false;
-    if (this.readerType() === 'pdf') {
+    if (this.readerType() === "pdf") {
       return this.pdfPageCount() > 0 && this.pdfPage() < this.pdfPageCount();
     }
     return this.epubReady();
@@ -659,7 +760,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.readerState.enterReader();
 
     this.routeSub = this.route.paramMap.subscribe((params) => {
-      const slug = params.get('slug');
+      const slug = params.get("slug");
       if (!slug) return;
       this.slug.set(slug);
       this.fileUrl.set(this.bookFileUrl(slug));
@@ -714,34 +815,35 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.tts.stop();
   }
 
-  @HostListener('window:keyup', ['$event'])
+  @HostListener("window:keyup", ["$event"])
   onKey(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
-    const tag = (target?.tagName || '').toLowerCase();
-    const isTypingTarget = tag === 'input' || tag === 'textarea' || !!target?.isContentEditable;
+    const tag = (target?.tagName || "").toLowerCase();
+    const isTypingTarget =
+      tag === "input" || tag === "textarea" || !!target?.isContentEditable;
 
     const isMeta = event.metaKey || event.ctrlKey;
 
-    if (isMeta && event.key.toLowerCase() === 'f') {
+    if (isMeta && event.key.toLowerCase() === "f") {
       event.preventDefault();
       this.drawerOpen.set(true);
       setTimeout(() => this.sidebar?.focusSearch(), 0);
       return;
     }
 
-    if (isMeta && event.key.toLowerCase() === 'b') {
+    if (isMeta && event.key.toLowerCase() === "b") {
       event.preventDefault();
       this.addBookmark();
       return;
     }
 
-    if (isMeta && event.key.toLowerCase() === 'h') {
+    if (isMeta && event.key.toLowerCase() === "h") {
       event.preventDefault();
       this.toggleHighlightMode();
       return;
     }
 
-    if (!isTypingTarget && event.key === ' ') {
+    if (!isTypingTarget && event.key === " ") {
       if (this.tts.available() && this.tts.state().speaking) {
         event.preventDefault();
         this.tts.togglePause();
@@ -749,10 +851,11 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
 
-    if (event.key === 'ArrowRight') this.next();
-    if (event.key === 'ArrowLeft') this.prev();
-    if (!isTypingTarget && event.key.toLowerCase() === 'f') this.toggleFullscreen();
-    if (event.key === 'Escape' && this.drawerOpen()) this.drawerOpen.set(false);
+    if (event.key === "ArrowRight") this.next();
+    if (event.key === "ArrowLeft") this.prev();
+    if (!isTypingTarget && event.key.toLowerCase() === "f")
+      this.toggleFullscreen();
+    if (event.key === "Escape" && this.drawerOpen()) this.drawerOpen.set(false);
   }
 
   toggleFullscreen(): void {
@@ -777,35 +880,44 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.metaLoading.set(true);
     this.book.set(null);
 
-    this.http.get<{ status: string; data: Book }>(`/api/v1/books/${encodeURIComponent(slug)}`).subscribe({
-      next: (response) => {
-        const data = response.data;
-        this.book.set(data);
+    this.http
+      .get<{
+        status: string;
+        data: Book;
+      }>(`/api/v1/books/${encodeURIComponent(slug)}`)
+      .subscribe({
+        next: (response) => {
+          const data = response.data;
+          this.book.set(data);
 
-        const format = (data?.format || '').trim().toLowerCase();
-        this.readerType.set(format === 'pdf' ? 'pdf' : 'epub');
+          const format = (data?.format || "").trim().toLowerCase();
+          this.readerType.set(format === "pdf" ? "pdf" : "epub");
 
-        const normalizedDownloadUrl = (data?.downloadUrl || '').trim();
-        const hasLocalDownloadKey = normalizedDownloadUrl.startsWith('/api/v1/books/download?key=');
+          const normalizedDownloadUrl = (data?.downloadUrl || "").trim();
+          const hasLocalDownloadKey = normalizedDownloadUrl.startsWith(
+            "/api/v1/books/download?key=",
+          );
 
-        // Use offline cached file when available (Kotatsu-style offline reading)
-        if (data?.id && this.bookOffline.isAvailable(data.id)) {
-          this.fileUrl.set(this.bookOffline.getOfflineFileUrl(data.id));
-        } else if (hasLocalDownloadKey) {
-          const delimiter = normalizedDownloadUrl.includes('?') ? '&' : '?';
-          this.fileUrl.set(`${normalizedDownloadUrl}${delimiter}disposition=inline&t=${Date.now()}`);
-        } else {
-          this.fileUrl.set(this.bookFileUrl(slug));
-        }
+          // Use offline cached file when available (Kotatsu-style offline reading)
+          if (data?.id && this.bookOffline.isAvailable(data.id)) {
+            this.fileUrl.set(this.bookOffline.getOfflineFileUrl(data.id));
+          } else if (hasLocalDownloadKey) {
+            const delimiter = normalizedDownloadUrl.includes("?") ? "&" : "?";
+            this.fileUrl.set(
+              `${normalizedDownloadUrl}${delimiter}disposition=inline&t=${Date.now()}`,
+            );
+          } else {
+            this.fileUrl.set(this.bookFileUrl(slug));
+          }
 
-        this.metaLoading.set(false);
-      },
-      error: (err) => {
-        const message = err?.error?.message || 'Failed to load book metadata';
-        this.error.set(message);
-        this.metaLoading.set(false);
-      },
-    });
+          this.metaLoading.set(false);
+        },
+        error: (err) => {
+          const message = err?.error?.message || "Failed to load book metadata";
+          this.error.set(message);
+          this.metaLoading.set(false);
+        },
+      });
   }
 
   private bookFileUrl(slug: string): string {
@@ -824,14 +936,15 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   next(): void {
-    const shouldAnim = this.readerType() === 'pdf' || this.flow() === 'paginated';
+    const shouldAnim =
+      this.readerType() === "pdf" || this.flow() === "paginated";
     if (shouldAnim) {
-      this.turnAnim.set('next');
+      this.turnAnim.set("next");
       setTimeout(() => this.turnAnim.set(null), 260);
     }
     this.bumpControls();
 
-    if (this.readerType() === 'pdf') {
+    if (this.readerType() === "pdf") {
       this.pdfViewer?.next();
       return;
     }
@@ -839,14 +952,15 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   prev(): void {
-    const shouldAnim = this.readerType() === 'pdf' || this.flow() === 'paginated';
+    const shouldAnim =
+      this.readerType() === "pdf" || this.flow() === "paginated";
     if (shouldAnim) {
-      this.turnAnim.set('prev');
+      this.turnAnim.set("prev");
       setTimeout(() => this.turnAnim.set(null), 260);
     }
     this.bumpControls();
 
-    if (this.readerType() === 'pdf') {
+    if (this.readerType() === "pdf") {
       this.pdfViewer?.prev();
       return;
     }
@@ -862,10 +976,10 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   goToCfi(cfi: string): void {
     this.drawerOpen.set(false);
 
-    if (this.readerType() === 'pdf') {
+    if (this.readerType() === "pdf") {
       const match = cfi.match(/pdf-page:(\d+)/i);
       if (!match) return;
-      const page = Number.parseInt(match[1] || '', 10);
+      const page = Number.parseInt(match[1] || "", 10);
       if (!Number.isFinite(page)) return;
       this.pdfViewer?.goToPage(page);
       this.bumpControls();
@@ -880,7 +994,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     const query = this.searchText.trim();
     if (!query) return;
 
-    if (this.readerType() === 'pdf') {
+    if (this.readerType() === "pdf") {
       await this.pdfViewer?.search(query);
       return;
     }
@@ -892,14 +1006,14 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.tts.setRate(this.ttsRate());
     this.tts.setVoiceUri(this.ttsVoiceUri());
 
-    if (this.readerType() === 'pdf') {
+    if (this.readerType() === "pdf") {
       const text = await this.pdfViewer?.getReadableText(5000);
-      this.tts.speak(text || '');
+      this.tts.speak(text || "");
       return;
     }
 
-    const selected = this.epubViewer?.getSelectedText(3500) || '';
-    const text = selected || this.epubViewer?.getReadableText(7000) || '';
+    const selected = this.epubViewer?.getSelectedText(3500) || "";
+    const text = selected || this.epubViewer?.getReadableText(7000) || "";
     this.tts.speak(text);
   }
 
@@ -911,7 +1025,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   setTtsVoiceUri(value: string | null): void {
-    const uri = typeof value === 'string' ? value : null;
+    const uri = typeof value === "string" ? value : null;
     this.reader.patchSettings({ ttsVoiceUri: uri });
     this.tts.setVoiceUri(uri);
   }
@@ -919,7 +1033,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   addBookmark(): void {
     const slug = this.slug();
     const cfi = this.currentCfi();
-    const title = this.book()?.title || 'Bookmark';
+    const title = this.book()?.title || "Bookmark";
     if (!slug || !cfi) return;
 
     this.reader.addBookmark(cfi, `${title} • ${new Date().toLocaleString()}`);
@@ -937,31 +1051,39 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.reader.patchSettings({ highlightColor: color });
   }
 
-  onCreateEpubHighlight(payload: { cfiRange: string; excerpt: string; color: HighlightColor }): void {
+  onCreateEpubHighlight(payload: {
+    cfiRange: string;
+    excerpt: string;
+    color: HighlightColor;
+  }): void {
     const slug = this.slug();
     if (!slug) return;
-    const cfiRange = (payload.cfiRange || '').trim();
+    const cfiRange = (payload.cfiRange || "").trim();
     if (!cfiRange) return;
 
     const entry: HighlightEntry = {
       id: this.newId(),
-      kind: 'epub',
+      kind: "epub",
       cfiRange,
-      excerpt: payload.excerpt || 'Highlight',
+      excerpt: payload.excerpt || "Highlight",
       color: payload.color,
       createdAt: Date.now(),
     };
     this.reader.addHighlight(entry);
   }
 
-  onCreatePdfHighlight(payload: { page: number; rect: { x: number; y: number; w: number; h: number }; color: HighlightColor }): void {
+  onCreatePdfHighlight(payload: {
+    page: number;
+    rect: { x: number; y: number; w: number; h: number };
+    color: HighlightColor;
+  }): void {
     const slug = this.slug();
     if (!slug) return;
     const page = Math.max(1, Math.floor(Number(payload.page) || 1));
 
     const entry: HighlightEntry = {
       id: this.newId(),
-      kind: 'pdf',
+      kind: "pdf",
       page,
       rect: payload.rect,
       color: payload.color,
@@ -984,7 +1106,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   goToHighlight(hl: HighlightEntry): void {
     this.drawerOpen.set(false);
-    if (hl.kind === 'pdf') {
+    if (hl.kind === "pdf") {
       this.pdfViewer?.goToPage(hl.page);
     } else {
       this.epubViewer?.goToCfi(hl.cfiRange);
@@ -1004,16 +1126,16 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     if (flow === this.flow()) return;
     this.reader.patchSettings({
       flow,
-      autoScrollEnabled: flow === 'scrolled' ? this.autoScrollEnabled() : false,
+      autoScrollEnabled: flow === "scrolled" ? this.autoScrollEnabled() : false,
     });
   }
 
-  setSpread(mode: 'auto' | 'single' | 'double'): void {
+  setSpread(mode: "auto" | "single" | "double"): void {
     if (mode === this.spread()) return;
     this.reader.patchSettings({ spread: mode });
   }
 
-  setFontFamily(mode: 'serif' | 'sans' | 'mono'): void {
+  setFontFamily(mode: "serif" | "sans" | "mono"): void {
     if (mode === this.fontFamily()) return;
     this.reader.patchSettings({ fontFamily: mode });
   }
@@ -1036,7 +1158,7 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleAutoScroll(): void {
-    if (this.flow() !== 'scrolled') return;
+    if (this.flow() !== "scrolled") return;
     this.reader.patchSettings({ autoScrollEnabled: !this.autoScrollEnabled() });
   }
 

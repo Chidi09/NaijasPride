@@ -1,8 +1,8 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal } from "@angular/core";
 
-const STORAGE_KEY = 'np:tv-show-favorites';
+const STORAGE_KEY = "np:tv-show-favorites";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class TvShowFavoritesService {
   private favorites = signal<Set<string>>(this.load());
 
@@ -23,20 +23,20 @@ export class TvShowFavoritesService {
   }
 
   private load(): Set<string> {
-    if (typeof window === 'undefined') return new Set<string>();
+    if (typeof window === "undefined") return new Set<string>();
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return new Set<string>();
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return new Set<string>();
-      return new Set(parsed.filter((entry) => typeof entry === 'string'));
+      return new Set(parsed.filter((entry) => typeof entry === "string"));
     } catch {
       return new Set<string>();
     }
   }
 
   private persist(values: Set<string>): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(values)));
     } catch {

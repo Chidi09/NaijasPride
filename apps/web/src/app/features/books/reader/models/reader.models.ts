@@ -1,7 +1,7 @@
-export type ReaderFlow = 'paginated' | 'scrolled';
-export type ReaderTheme = 'paper' | 'sepia' | 'night';
-export type ReaderSpread = 'auto' | 'single' | 'double';
-export type ReaderFontFamily = 'serif' | 'sans' | 'mono';
+export type ReaderFlow = "paginated" | "scrolled";
+export type ReaderTheme = "paper" | "sepia" | "night";
+export type ReaderSpread = "auto" | "single" | "double";
+export type ReaderFontFamily = "serif" | "sans" | "mono";
 
 export interface ReaderSettings {
   flow: ReaderFlow;
@@ -47,12 +47,12 @@ export interface SearchResultEntry {
   href: string;
 }
 
-export type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink';
+export type HighlightColor = "yellow" | "green" | "blue" | "pink";
 
 export type HighlightEntry =
   | {
       id: string;
-      kind: 'epub';
+      kind: "epub";
       cfiRange: string;
       excerpt: string;
       color: HighlightColor;
@@ -60,7 +60,7 @@ export type HighlightEntry =
     }
   | {
       id: string;
-      kind: 'pdf';
+      kind: "pdf";
       page: number;
       rect: { x: number; y: number; w: number; h: number }; // normalized (0..1) on rendered page
       color: HighlightColor;

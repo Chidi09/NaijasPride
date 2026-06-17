@@ -1,5 +1,5 @@
-import * as cheerio from 'cheerio';
-import { sourceMetrics } from '../observability/source-metrics';
+import * as cheerio from "cheerio";
+import { sourceMetrics } from "../observability/source-metrics";
 import {
   MangaChapter,
   MangaDetail,
@@ -8,8 +8,8 @@ import {
   MangaSearchFilters,
   MangaSummary,
   MangaTag,
-} from '../types';
-import { BaseHtmlSource } from './base-html.source';
+} from "../types";
+import { BaseHtmlSource } from "./base-html.source";
 
 export abstract class WpComicsBaseSource extends BaseHtmlSource {
   readonly capabilities = {
@@ -31,19 +31,30 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
     defaultCacheTtlSeconds?: number;
   }) {
     super(options);
-    this.listPath = options.listPath || '/tim-truyen';
+    this.listPath = options.listPath || "/tim-truyen";
   }
 
-  async searchManga(query?: string, limit = 20, _filters: MangaSearchFilters = {}): Promise<MangaSummary[]> {
+  async searchManga(
+    query?: string,
+    limit = 20,
+    _filters: MangaSearchFilters = {},
+  ): Promise<MangaSummary[]> {
     const normalized = this.strip(query);
     if (!normalized) return [];
 
-    const cacheKey = this.buildCacheKey('search', normalized.toLowerCase(), limit);
+    const cacheKey = this.buildCacheKey(
+      "search",
+      normalized.toLowerCase(),
+      limit,
+    );
     const cached = await this.getFromCache<MangaSummary[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const html = await this.fetchHtml(this.listPath, { keyword: normalized, page: 1 });
+      const html = await this.fetchHtml(this.listPath, {
+        keyword: normalized,
+        page: 1,
+      });
       const $ = cheerio.load(html);
       const results = this.extractMangaCards($, limit);
       await this.setCache(cacheKey, results);
@@ -55,7 +66,7 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
 
   async getDiscoverManga(limit = 12): Promise<MangaDiscoverResult> {
     const safeLimit = Math.min(24, Math.max(1, limit));
-    const cacheKey = this.buildCacheKey('discover', safeLimit);
+    const cacheKey = this.buildCacheKey("discover", safeLimit);
     const cached = await this.getFromCache<MangaDiscoverResult>(cacheKey);
     if (cached) return cached;
 
@@ -76,7 +87,7 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
   }
 
   async getMangaTags(): Promise<MangaTag[]> {
-    const cacheKey = this.buildCacheKey('tags');
+    const cacheKey = this.buildCacheKey("tags");
     const cached = await this.getFromCache<MangaTag[]>(cacheKey);
     if (cached) return cached;
 
@@ -86,13 +97,13 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
       const tags: MangaTag[] = [];
       const seen = new Set<string>();
 
-      $('div.dropdown-genres select option').each((_idx, el) => {
-        const raw = this.strip($(el).attr('value'));
-        const id = raw.substring(raw.lastIndexOf('/') + 1);
+      $("div.dropdown-genres select option").each((_idx, el) => {
+        const raw = this.strip($(el).attr("value"));
+        const id = raw.substring(raw.lastIndexOf("/") + 1);
         const name = this.strip($(el).text());
         if (!id || !name || seen.has(id)) return;
         seen.add(id);
-        tags.push({ id, name, group: 'genre' });
+        tags.push({ id, name, group: "genre" });
       });
 
       await this.setCache(cacheKey, tags, this.defaultCacheTtlSeconds * 8);
@@ -103,8 +114,8 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
   }
 
   async getMangaDetail(mangaId: string): Promise<MangaDetail | null> {
-    const seriesPath = this.normalizePath(mangaId, '/');
-    const cacheKey = this.buildCacheKey('detail', seriesPath);
+    const seriesPath = this.normalizePath(mangaId, "/");
+    const cacheKey = this.buildCacheKey("detail", seriesPath);
     const cached = await this.getFromCache<MangaDetail>(cacheKey);
     if (cached) return cached;
 
@@ -113,35 +124,52 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
       const $ = cheerio.load(html);
 
       const statusText = this.strip(
-        $('div.col-info li.status p:not(.name), li.status p.col-xs-8').first().text() ||
+        $("div.col-info li.status p:not(.name), li.status p.col-xs-8")
+          .first()
+          .text() ||
           $('*:contains("Tình trạng")').first().text() ||
-          $('*:contains("Status")').first().text()
+          $('*:contains("Status")').first().text(),
       );
       const status = this.parseStatusText(statusText);
 
       const detail: MangaDetail = {
         id: seriesPath,
         title:
-          this.strip($('h1.title-detail, h1').first().text()) ||
-          this.strip($('meta[property="og:title"]').attr('content')) ||
-          'Unknown Title',
+          this.strip($("h1.title-detail, h1").first().text()) ||
+          this.strip($('meta[property="og:title"]').attr("content")) ||
+          "Unknown Title",
         description:
-          this.strip($('meta[property="og:description"]').attr('content')) ||
-          this.strip($('div.detail-content p, .detail-content, .summary').first().text()),
+          this.strip($('meta[property="og:description"]').attr("content")) ||
+          this.strip(
+            $("div.detail-content p, .detail-content, .summary").first().text(),
+          ),
         coverUrl:
-          this.toAbsoluteUrl($('meta[property="og:image"]').attr('content')) ||
-          this.toAbsoluteUrl($('div.col-image img, .detail-info img, img').first().attr('data-original')) ||
-          this.toAbsoluteUrl($('div.col-image img, .detail-info img, img').first().attr('src')),
+          this.toAbsoluteUrl($('meta[property="og:image"]').attr("content")) ||
+          this.toAbsoluteUrl(
+            $("div.col-image img, .detail-info img, img")
+              .first()
+              .attr("data-original"),
+          ) ||
+          this.toAbsoluteUrl(
+            $("div.col-image img, .detail-info img, img").first().attr("src"),
+          ),
         status,
         year: null,
         originalLanguage: null,
-        tags: $('div.col-info li.kind a, li.kind p.col-xs-8 a, a[href*="the-loai"], a[href*="genre"]')
+        tags: $(
+          'div.col-info li.kind a, li.kind p.col-xs-8 a, a[href*="the-loai"], a[href*="genre"]',
+        )
           .map((_idx, el) => this.strip($(el).text()))
           .get()
           .filter(Boolean),
-        latestChapter: this.strip($('div.list-chapter li.row a').first().text()) || null,
+        latestChapter:
+          this.strip($("div.list-chapter li.row a").first().text()) || null,
         author:
-          this.strip($('div.col-info li.author p:not(.name), li.author p.col-xs-8').first().text()) || null,
+          this.strip(
+            $("div.col-info li.author p:not(.name), li.author p.col-xs-8")
+              .first()
+              .text(),
+          ) || null,
         artist: null,
         contentRating: null,
         publicationDemographic: null,
@@ -159,10 +187,19 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
     return [];
   }
 
-  async getChapters(mangaId: string, translatedLanguage?: string, limit = 100): Promise<MangaChapter[]> {
-    const seriesPath = this.normalizePath(mangaId, '/');
-    const languageKey = translatedLanguage?.trim()?.toLowerCase() || 'all';
-    const cacheKey = this.buildCacheKey('chapters', seriesPath, languageKey, limit);
+  async getChapters(
+    mangaId: string,
+    translatedLanguage?: string,
+    limit = 100,
+  ): Promise<MangaChapter[]> {
+    const seriesPath = this.normalizePath(mangaId, "/");
+    const languageKey = translatedLanguage?.trim()?.toLowerCase() || "all";
+    const cacheKey = this.buildCacheKey(
+      "chapters",
+      seriesPath,
+      languageKey,
+      limit,
+    );
     const cached = await this.getFromCache<MangaChapter[]>(cacheKey);
     if (cached) return cached;
 
@@ -172,20 +209,28 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
       const chapters: MangaChapter[] = [];
       const seen = new Set<string>();
 
-      $('div.list-chapter li.row:not(.heading) a, #nt_listchapter nav ul li:not(.heading) a').each((index, el) => {
+      $(
+        "div.list-chapter li.row:not(.heading) a, #nt_listchapter nav ul li:not(.heading) a",
+      ).each((index, el) => {
         if (chapters.length >= limit) return;
 
-        const href = $(el).attr('href');
-        const chapterPath = href ? this.normalizePath(href, '/') : null;
+        const href = $(el).attr("href");
+        const chapterPath = href ? this.normalizePath(href, "/") : null;
         if (!chapterPath || seen.has(chapterPath)) return;
         seen.add(chapterPath);
 
         const text = this.strip($(el).text());
         const chapterMatch = text.match(/chapter\s*[:\-]?\s*([\d.]+)/i);
-        const langMatch = text.match(/\b(EN|JP|KR|CN|ES|PT|FR|DE|ID|TH|VI|TR|RU|AR)\b/i);
+        const langMatch = text.match(
+          /\b(EN|JP|KR|CN|ES|PT|FR|DE|ID|TH|VI|TR|RU|AR)\b/i,
+        );
         const chapterLanguage = langMatch?.[1]?.toLowerCase() || null;
 
-        if (translatedLanguage && chapterLanguage && chapterLanguage !== translatedLanguage.toLowerCase()) {
+        if (
+          translatedLanguage &&
+          chapterLanguage &&
+          chapterLanguage !== translatedLanguage.toLowerCase()
+        ) {
           return;
         }
 
@@ -213,10 +258,11 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
   }
 
   async getChapterPages(chapterId: string): Promise<MangaPagesResult> {
-    const chapterPath = this.normalizePath(chapterId, '/');
-    const cacheKey = this.buildCacheKey('pages', chapterPath);
+    const chapterPath = this.normalizePath(chapterId, "/");
+    const cacheKey = this.buildCacheKey("pages", chapterPath);
     const cached = await this.getFromCache<MangaPagesResult>(cacheKey);
-    if (cached && (cached.pages.length > 0 || cached.externalUrl)) return cached;
+    if (cached && (cached.pages.length > 0 || cached.externalUrl))
+      return cached;
 
     try {
       const html = await this.fetchHtml(chapterPath);
@@ -225,18 +271,22 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
         sourceMetrics.incrementParseEmptyPages(this.id);
         const externalResult: MangaPagesResult = {
           chapterId: chapterPath,
-          readerMode: 'reversed',
+          readerMode: "reversed",
           pages: [],
           externalUrl: `${this.baseUrl}${chapterPath}`,
           isExternal: true,
         };
-        await this.setCache(cacheKey, externalResult, this.defaultCacheTtlSeconds * 2);
+        await this.setCache(
+          cacheKey,
+          externalResult,
+          this.defaultCacheTtlSeconds * 2,
+        );
         return externalResult;
       }
 
       const result: MangaPagesResult = {
         chapterId: chapterPath,
-        readerMode: 'reversed',
+        readerMode: "reversed",
         pages,
         externalUrl: null,
         isExternal: false,
@@ -247,7 +297,7 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
     } catch {
       return {
         chapterId: chapterPath,
-        readerMode: 'reversed',
+        readerMode: "reversed",
         pages: [],
         externalUrl: `${this.baseUrl}${chapterPath}`,
         isExternal: true,
@@ -255,7 +305,11 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
     }
   }
 
-  async healthCheck(): Promise<{ ok: boolean; latencyMs: number; message?: string }> {
+  async healthCheck(): Promise<{
+    ok: boolean;
+    latencyMs: number;
+    message?: string;
+  }> {
     const startedAt = Date.now();
     try {
       const response = await this.fetchGateway.get(this.baseUrl, {
@@ -267,49 +321,63 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
       return {
         ok,
         latencyMs: Date.now() - startedAt,
-        message: ok ? undefined : `${this.displayName} status ${response.status}`,
+        message: ok
+          ? undefined
+          : `${this.displayName} status ${response.status}`,
       };
     } catch (error) {
       return {
         ok: false,
         latencyMs: Date.now() - startedAt,
-        message: error instanceof Error ? error.message : `${this.displayName} health check failed`,
+        message:
+          error instanceof Error
+            ? error.message
+            : `${this.displayName} health check failed`,
       };
     }
   }
 
-  protected extractMangaCards($: cheerio.CheerioAPI, limit: number): MangaSummary[] {
+  protected extractMangaCards(
+    $: cheerio.CheerioAPI,
+    limit: number,
+  ): MangaSummary[] {
     const cards: MangaSummary[] = [];
     const seen = new Set<string>();
 
-    $('div.items div.item, div.items article.item, li.row, .item').each((_idx, el) => {
-      if (cards.length >= limit) return;
+    $("div.items div.item, div.items article.item, li.row, .item").each(
+      (_idx, el) => {
+        if (cards.length >= limit) return;
 
-      const link = $(el).find('a[href]').first();
-      const href = link.attr('href');
-      const id = href ? this.normalizePath(href, '/') : null;
-      if (!id || seen.has(id)) return;
-      seen.add(id);
+        const link = $(el).find("a[href]").first();
+        const href = link.attr("href");
+        const id = href ? this.normalizePath(href, "/") : null;
+        if (!id || seen.has(id)) return;
+        seen.add(id);
 
-      cards.push({
-        id,
-        title:
-          this.strip($(el).find('h3 a, .title').first().text()) ||
-          this.strip(link.attr('title')) ||
-          this.strip(link.text()) ||
-          'Unknown Title',
-        description: this.strip($(el).find('.box_text, .summary, .description').first().text()),
-        coverUrl:
-          this.toAbsoluteUrl($(el).find('img').first().attr('data-original')) ||
-          this.toAbsoluteUrl($(el).find('img').first().attr('data-src')) ||
-          this.toAbsoluteUrl($(el).find('img').first().attr('src')),
-        status: null,
-        year: null,
-        originalLanguage: null,
-        tags: [],
-        latestChapter: null,
-      });
-    });
+        cards.push({
+          id,
+          title:
+            this.strip($(el).find("h3 a, .title").first().text()) ||
+            this.strip(link.attr("title")) ||
+            this.strip(link.text()) ||
+            "Unknown Title",
+          description: this.strip(
+            $(el).find(".box_text, .summary, .description").first().text(),
+          ),
+          coverUrl:
+            this.toAbsoluteUrl(
+              $(el).find("img").first().attr("data-original"),
+            ) ||
+            this.toAbsoluteUrl($(el).find("img").first().attr("data-src")) ||
+            this.toAbsoluteUrl($(el).find("img").first().attr("src")),
+          status: null,
+          year: null,
+          originalLanguage: null,
+          tags: [],
+          latestChapter: null,
+        });
+      },
+    );
 
     return cards;
   }
@@ -318,15 +386,20 @@ export abstract class WpComicsBaseSource extends BaseHtmlSource {
     const lowered = value.toLowerCase();
     if (!lowered) return null;
     if (
-      lowered.includes('ongoing') ||
-      lowered.includes('updating') ||
-      lowered.includes('đang') ||
-      lowered.includes('連載')
+      lowered.includes("ongoing") ||
+      lowered.includes("updating") ||
+      lowered.includes("đang") ||
+      lowered.includes("連載")
     ) {
-      return 'ongoing';
+      return "ongoing";
     }
-    if (lowered.includes('completed') || lowered.includes('complete') || lowered.includes('hoàn thành') || lowered.includes('完結')) {
-      return 'completed';
+    if (
+      lowered.includes("completed") ||
+      lowered.includes("complete") ||
+      lowered.includes("hoàn thành") ||
+      lowered.includes("完結")
+    ) {
+      return "completed";
     }
     return this.strip(value) || null;
   }

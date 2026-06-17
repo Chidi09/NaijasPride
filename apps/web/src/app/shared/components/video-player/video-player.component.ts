@@ -25,6 +25,7 @@ import { PwaService } from "../../../core/services/pwa.service";
 import { MilestoneService } from "../../../core/services/milestone.service";
 import { SymbolIconComponent } from "../symbol-icon/symbol-icon.component";
 import { CheckIconComponent } from "../icons/check-icon.component";
+import type Hls from "hls.js";
 
 interface SubtitleInfo {
   language: string;
@@ -37,6 +38,22 @@ interface VideoPlayerConfig {
   showSkipButtons?: boolean;
   autoResume?: boolean;
   saveProgress?: boolean;
+}
+
+interface YoutubePlayer {
+  destroy(): void;
+  playVideo(): void;
+  pauseVideo(): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
+  getPlayerState(): number;
+  getDuration(): number;
+  getCurrentTime(): number;
+  mute(): void;
+  unmute(): void;
+  setVolume(volume: number): void;
+  isMuted(): boolean;
+  getVolume(): number;
+  [key: string]: unknown;
 }
 
 interface QualityLevel {
@@ -430,11 +447,11 @@ export class VideoPlayerComponent
   private destroy$ = new Subject<void>();
   private progressUpdate = new Subject<number>();
 
-  private youtubePlayer: any | null = null;
+  private youtubePlayer: YoutubePlayer | null = null;
   private youtubePollTimer?: ReturnType<typeof setInterval>;
   private youtubeInitInFlight = false;
 
-  private hls: any | null = null;
+  private hls: Hls | null = null;
   private hlsInitSeq = 0;
 
   showControls = true;
@@ -512,11 +529,11 @@ export class VideoPlayerComponent
   togglePlayPause() {
     if (this.youtubeId && this.youtubePlayer) {
       try {
-        const state = this.youtubePlayer.getPlayerState?.();
+        const state = this.youtubePlayer?.getPlayerState?.();
         if (state === 1) {
-          this.youtubePlayer.pauseVideo?.();
+          this.youtubePlayer?.pauseVideo?.();
         } else {
-          this.youtubePlayer.playVideo?.();
+          this.youtubePlayer?.playVideo?.();
         }
       } catch {
         // ignore
@@ -577,13 +594,11 @@ export class VideoPlayerComponent
             this.availableSubtitles = response.data;
             if (this.availableSubtitles.length === 0) {
               // Show a toast or message - for now just log
-              console.log("No subtitles found for this movie");
             }
           }
         },
         error: (err) => {
           this.searchingSubtitles = false;
-          console.error("Failed to search subtitles:", err);
         },
       });
   }
@@ -649,7 +664,7 @@ export class VideoPlayerComponent
     if (this.youtubePlayer && this.config.saveProgress && this.movieId) {
       try {
         const current = Math.floor(
-          Number(this.youtubePlayer.getCurrentTime?.() || 0),
+          Number(this.youtubePlayer?.getCurrentTime?.() || 0),
         );
         if (current > 0) {
           this.saveProgress(current);
@@ -770,47 +785,67 @@ export class VideoPlayerComponent
       this.hls = hls;
       this.autoQualityEnabled = true;
 
-      // Listen for quality levels becoming available
-      hls.on(Hls.Events.MANIFEST_PARSED, (_event: any, data: any) => {
-        if (data?.levels) {
-          this.qualityLevels = data.levels.map((level: any, index: number) => ({
-            level: index,
-            height: level.height,
-            width: level.width,
-            bitrate: level.bitrate,
-            label: this.getQualityLabel(level.height, level.bitrate),
-          }));
-          console.log(
-            "[VideoPlayer] Quality levels available:",
-            this.qualityLevels.length,
-          );
-        }
-      });
+      hls.on(
+        Hls.Events.MANIFEST_PARSED,
+        (
+          _event: unknown,
+          data: {
+            levels: Array<{ height: number; width: number; bitrate: number }>;
+          },
+        ) => {
+          if (data?.levels) {
+            this.qualityLevels = data.levels.map(
+              (
+                level: { height: number; width: number; bitrate: number },
+                index: number,
+              ) => ({
+                level: index,
+                height: level.height,
+                width: level.width,
+                bitrate: level.bitrate,
+                label: this.getQualityLabel(level.height, level.bitrate),
+              }),
+            );
+            console.log(
+              "[VideoPlayer] Quality levels available:",
+              this.qualityLevels.length,
+            );
+          }
+        },
+      );
 
       // Listen for level switches
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_event: any, data: any) => {
-        this.currentLevel = data.level;
-        console.log("[VideoPlayer] Quality changed to level:", data.level);
-      });
+      hls.on(
+        Hls.Events.LEVEL_SWITCHED,
+        (_event: unknown, data: { level: number }) => {
+          this.currentLevel = data.level;
+        },
+      );
 
-      hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
-        if (!data) return;
-        if (data.fatal) {
-          console.error(
-            "[VideoPlayer] HLS fatal error:",
-            data.type,
-            data.details,
-          );
-          try {
-            hls.destroy();
-          } catch {
-            // ignore
+      hls.on(
+        Hls.Events.ERROR,
+        (
+          _event: unknown,
+          data: { fatal: boolean; type: string; details: string },
+        ) => {
+          if (!data) return;
+          if (data.fatal) {
+            console.error(
+              "[VideoPlayer] HLS fatal error:",
+              data.type,
+              data.details,
+            );
+            try {
+              hls.destroy();
+            } catch {
+              // ignore
+            }
+            if (this.hls === hls) {
+              this.hls = null;
+            }
           }
-          if (this.hls === hls) {
-            this.hls = null;
-          }
-        }
-      });
+        },
+      );
 
       hls.attachMedia(video);
       hls.on(Hls.Events.MEDIA_ATTACHED, () => {
@@ -820,12 +855,12 @@ export class VideoPlayerComponent
           // ignore
         }
       });
-    } catch (error) {
-      console.error("[VideoPlayer] Failed to load HLS.js", error);
+    } catch (_error) {
+      /* ignore */
     }
   }
 
-  private getQualityLabel(height: number, bitrate: number): string {
+  private getQualityLabel(height: number, _bitrate: number): string {
     if (height >= 2160) return "4K";
     if (height >= 1440) return "1440p";
     if (height >= 1080) return "1080p";
@@ -861,7 +896,6 @@ export class VideoPlayerComponent
     if (this.hls) {
       this.hls.currentLevel = level;
       this.autoQualityEnabled = false;
-      console.log("[VideoPlayer] Manual quality set to level:", level);
     }
     this.closeQualityMenu();
   }
@@ -870,7 +904,6 @@ export class VideoPlayerComponent
     if (this.hls) {
       this.hls.currentLevel = -1; // -1 = auto
       this.autoQualityEnabled = true;
-      console.log("[VideoPlayer] Auto quality enabled");
     }
     this.closeQualityMenu();
   }
@@ -968,8 +1001,8 @@ export class VideoPlayerComponent
   resumeFromSaved() {
     if (this.youtubeId && this.youtubePlayer) {
       try {
-        this.youtubePlayer.seekTo?.(this.savedProgress, true);
-        this.youtubePlayer.playVideo?.();
+        this.youtubePlayer?.seekTo?.(this.savedProgress, true);
+        this.youtubePlayer?.playVideo?.();
       } catch {
         // ignore
       }
@@ -985,8 +1018,8 @@ export class VideoPlayerComponent
     this.showResumeDialog = false;
     if (this.youtubeId && this.youtubePlayer) {
       try {
-        this.youtubePlayer.seekTo?.(0, true);
-        this.youtubePlayer.playVideo?.();
+        this.youtubePlayer?.seekTo?.(0, true);
+        this.youtubePlayer?.playVideo?.();
       } catch {
         // ignore
       }
@@ -1000,13 +1033,13 @@ export class VideoPlayerComponent
   skip(seconds: number) {
     if (this.youtubeId && this.youtubePlayer) {
       try {
-        const current = Number(this.youtubePlayer.getCurrentTime?.() || 0);
-        const duration = Number(this.youtubePlayer.getDuration?.() || 0);
+        const current = Number(this.youtubePlayer?.getCurrentTime?.() || 0);
+        const duration = Number(this.youtubePlayer?.getDuration?.() || 0);
         const next = Math.max(
           0,
           Math.min(current + seconds, duration || current + seconds),
         );
-        this.youtubePlayer.seekTo?.(next, true);
+        this.youtubePlayer?.seekTo?.(next, true);
       } catch {
         // ignore
       }
@@ -1093,14 +1126,14 @@ export class VideoPlayerComponent
           onReady: () => {
             try {
               this.duration = Math.floor(
-                Number(this.youtubePlayer.getDuration?.() || 0),
+                Number(this.youtubePlayer?.getDuration?.() || 0),
               );
             } catch {
               this.duration = 0;
             }
             this.playerReady.emit();
           },
-          onStateChange: (event: any) => {
+          onStateChange: (event: { data: number }) => {
             // YT.PlayerState: -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
             const state = event?.data;
             if (state === 1) {
@@ -1111,7 +1144,7 @@ export class VideoPlayerComponent
               this.stopYouTubePolling();
               try {
                 const current = Math.floor(
-                  Number(this.youtubePlayer.getCurrentTime?.() || 0),
+                  Number(this.youtubePlayer?.getCurrentTime?.() || 0),
                 );
                 if (current > 0) {
                   this.saveProgress(current);
@@ -1124,7 +1157,7 @@ export class VideoPlayerComponent
               this.stopYouTubePolling();
               try {
                 const current = Math.floor(
-                  Number(this.youtubePlayer.getCurrentTime?.() || 0),
+                  Number(this.youtubePlayer?.getCurrentTime?.() || 0),
                 );
                 if (current > 0) {
                   this.saveProgress(current);
@@ -1135,7 +1168,7 @@ export class VideoPlayerComponent
             }
           },
         },
-      });
+      }) as unknown as YoutubePlayer;
     } finally {
       this.youtubeInitInFlight = false;
     }
@@ -1151,10 +1184,10 @@ export class VideoPlayerComponent
       }
       try {
         const current = Math.floor(
-          Number(this.youtubePlayer.getCurrentTime?.() || 0),
+          Number(this.youtubePlayer?.getCurrentTime?.() || 0),
         );
         const duration = Math.floor(
-          Number(this.youtubePlayer.getDuration?.() || 0),
+          Number(this.youtubePlayer?.getDuration?.() || 0),
         );
         if (duration > 0) {
           this.duration = duration;

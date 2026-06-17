@@ -3,12 +3,17 @@ export type ParsedSourceEntityId = {
   rawId: string;
 };
 
-export const buildSourceEntityId = (sourceId: string, rawId: string): string => {
+export const buildSourceEntityId = (
+  sourceId: string,
+  rawId: string,
+): string => {
   return `${sourceId}:${encodeURIComponent(rawId)}`;
 };
 
-export const parseSourceEntityId = (entityId: string): ParsedSourceEntityId | null => {
-  const separatorIndex = entityId.indexOf(':');
+export const parseSourceEntityId = (
+  entityId: string,
+): ParsedSourceEntityId | null => {
+  const separatorIndex = entityId.indexOf(":");
   if (separatorIndex <= 0 || separatorIndex === entityId.length - 1) {
     return null;
   }

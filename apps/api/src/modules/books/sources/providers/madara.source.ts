@@ -1,4 +1,4 @@
-import { MadaraBaseSource } from '../base/madara.base';
+import { MadaraBaseSource } from "../base/madara.base";
 
 export class MadaraSource extends MadaraBaseSource {
   readonly id: string;

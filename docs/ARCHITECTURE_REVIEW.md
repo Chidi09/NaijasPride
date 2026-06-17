@@ -9,17 +9,20 @@ All critical issues have been resolved. The system is now **R2-only** with no GC
 ## 1. STORAGE - R2 ONLY ✅
 
 ### What Was Fixed
+
 - **Removed all GCS fallbacks** from `storage.service.ts`
 - **Removed GCS dependency** from `package.json`
 - **Added strict R2 config validation** - fails fast with clear error messages
 - **No Supabase S3 fallbacks** - pure R2 implementation
 
 ### Files Modified
+
 - `apps/api/src/shared/services/storage.service.ts` - Complete rewrite
 - `apps/api/src/workers/torrent.worker.ts` - Removed GCS imports and fallbacks
 - `apps/api/package.json` - Removed `@google-cloud/storage`
 
 ### Configuration Required
+
 ```bash
 # R2 Credentials (Required)
 STORAGE_BACKEND="r2"
@@ -36,21 +39,25 @@ STORAGE_PUBLIC_BASE_URL="https://media.naijaspride.com"
 ## 2. BULLMQ - PROPERLY IMPLEMENTED ✅
 
 ### Current Implementation
+
 - **Lazy initialization** - Only connects if `REDIS_URL` is set
 - **Queue separation** - Separate queues for torrents and book imports
 - **Error handling** - Connection errors logged but don't crash
 - **Graceful degradation** - Warns if Redis unavailable
 
 ### Configuration
+
 ```bash
 REDIS_URL="redis://default:password@host:port"
 ```
 
 ### Worker Startup
+
 Torrent worker now validates Redis URL at startup:
+
 ```typescript
 if (!REDIS_URL) {
-  console.error('[Worker] FATAL: REDIS_URL is required');
+  console.error("[Worker] FATAL: REDIS_URL is required");
   process.exit(1);
 }
 ```
@@ -62,24 +69,29 @@ if (!REDIS_URL) {
 ### Features Implemented
 
 #### HLS Support
+
 - ✅ Dynamic HLS.js loading (lazy-loaded chunk ~1MB)
 - ✅ Native Safari HLS support detection
 - ✅ Proper cleanup on destroy
 - ✅ Error recovery
 
 #### Adaptive Bitrate (ABR) - NEW!
+
 - ✅ Quality level detection from manifest
 - ✅ Manual quality selector UI
 - ✅ Auto quality mode (default)
 - ✅ Real-time quality switching without rebuffering
 
 #### Multi-Quality Support
+
 The torrent worker now creates:
+
 1. **720p** variant (high quality)
 2. **480p** variant (bandwidth saver)
 3. **Master playlist** (auto-switching)
 
 ### Video Player Enhancements
+
 ```typescript
 // Quality selector appears automatically for HLS streams
 - Shows available qualities (720p, 480p, etc.)
@@ -95,12 +107,14 @@ The torrent worker now creates:
 ### New Features
 
 #### HLS Packaging
+
 ```bash
 # Enable HLS creation (enabled by default)
 TORRENT_PACKAGE_HLS="true"
 ```
 
 Process flow:
+
 1. Download torrent video file
 2. Transcode MKV → MP4 (if needed)
 3. Create HLS package with multiple qualities
@@ -112,15 +126,17 @@ Process flow:
    - Segment files (.ts)
 
 #### Quality Presets
+
 ```typescript
 // 720p variant
 scale=-2:720, crf=23, bitrate=adaptive
 
-// 480p variant  
+// 480p variant
 scale=-2:480, crf=23, bitrate=adaptive
 ```
 
 #### File Structure in R2
+
 ```
 movies/
   {movie-id}/
@@ -146,24 +162,28 @@ movies/
 ### All Phases Implemented
 
 #### Phase 1: Component Architecture ✅
+
 - Modular toolbar, sidebar, EPUB/PDF viewers
 - Reader state service with signals
 - Local storage persistence
 - Gesture support
 
 #### Phase 2: PDF Search ✅
+
 - Text extraction with PDF.js
 - Indexed search with progress
 - Search result highlighting
 - Persisted search index
 
 #### Phase 3: Highlights ✅
+
 - EPUB selection highlights (epub.js)
 - PDF rectangle highlights
 - Server sync via API
 - Local + server merge strategy
 
 #### Phase 4: TTS ✅
+
 - Web Speech API integration
 - Voice selection dropdown
 - Rate/pitch controls
@@ -171,6 +191,7 @@ movies/
 - Reads selected text
 
 #### External Sources ✅
+
 - epubBooks integration
 - Proxy streaming through API
 - Queue-based bulk import
@@ -181,6 +202,7 @@ movies/
 ## 6. DEPLOYMENT - HETZNER READY ✅
 
 ### VPS Specifications (Recommended)
+
 ```
 Hetzner CAX21 (ARM64)
 - 4 vCPUs
@@ -192,12 +214,14 @@ Hetzner CAX21 (ARM64)
 ### Environment Variables Required
 
 #### Database
+
 ```bash
 DATABASE_URL="postgresql://..."
 DIRECT_URL="postgresql://..."
 ```
 
 #### Storage (R2 Only)
+
 ```bash
 STORAGE_BACKEND="r2"
 S3_ENDPOINT="..."
@@ -209,11 +233,13 @@ STORAGE_PUBLIC_BASE_URL="https://media.naijaspride.com"
 ```
 
 #### Redis (BullMQ)
+
 ```bash
 REDIS_URL="redis://..."
 ```
 
 #### Torrent Worker
+
 ```bash
 TORRENT_DOWNLOAD_DIR="/opt/naijaspride/torrent-downloads"
 TORRENT_TRANSCODE_MKV="true"
@@ -222,6 +248,7 @@ FFMPEG_PATH="/usr/bin/ffmpeg"
 ```
 
 ### System Requirements
+
 ```bash
 # Required packages on Hetzner VPS
 sudo apt update && sudo apt install -y \
@@ -299,6 +326,7 @@ sudo apt update && sudo apt install -y \
 ### Before Production Deploy
 
 #### API Tests
+
 - [ ] `npm run build` passes
 - [ ] Start API: `node dist/app.js`
 - [ ] Health check: `curl http://localhost:3000/health`
@@ -306,6 +334,7 @@ sudo apt update && sudo apt install -y \
 - [ ] Test R2 download: Verify public URL works
 
 #### Torrent Worker Tests
+
 - [ ] `npm run worker:torrent` starts without errors
 - [ ] Queue a test torrent via API
 - [ ] Verify download completes
@@ -314,6 +343,7 @@ sudo apt update && sudo apt install -y \
 - [ ] Test playback in browser
 
 #### Web Tests
+
 - [ ] `npm run build:prod` passes
 - [ ] Test YouTube playback
 - [ ] Test MP4 playback
@@ -323,6 +353,7 @@ sudo apt update && sudo apt install -y \
 - [ ] Test progress saving
 
 #### Books Tests
+
 - [ ] Test EPUB reading
 - [ ] Test PDF reading
 - [ ] Test highlights
@@ -336,18 +367,21 @@ sudo apt update && sudo apt install -y \
 ### Recommended Monitoring
 
 #### Disk Space (Critical)
+
 ```bash
 # Torrent downloads fill disk quickly
 # Alert if > 80% full
 ```
 
 #### Queue Health
+
 ```bash
 # Monitor BullMQ queue depth
 # Alert if > 10 pending torrents
 ```
 
 #### Error Rates
+
 ```bash
 # API 5xx errors
 # Worker crash loops

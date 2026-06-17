@@ -1,11 +1,11 @@
-import { Prisma, PrismaClient } from '@prisma/client';
-import { Book, PaginationMeta } from '@naijaspride/types';
+import { Prisma, PrismaClient } from "@prisma/client";
+import { Book, PaginationMeta } from "@naijaspride/types";
 
 type BookSearchParams = {
   page?: number;
   limit?: number;
   q?: string;
-  kind?: 'book' | 'comic';
+  kind?: "book" | "comic";
 };
 
 type LightNovelSearchParams = {
@@ -16,20 +16,20 @@ type LightNovelSearchParams = {
 
 export type LightNovelVolumeSummary = Pick<
   Book,
-  | 'id'
-  | 'title'
-  | 'slug'
-  | 'author'
-  | 'year'
-  | 'coverUrl'
-  | 'format'
-  | 'downloadUrl'
-  | 'fileSize'
-  | 'publisher'
-  | 'viewCount'
-  | 'description'
-  | 'createdAt'
-  | 'updatedAt'
+  | "id"
+  | "title"
+  | "slug"
+  | "author"
+  | "year"
+  | "coverUrl"
+  | "format"
+  | "downloadUrl"
+  | "fileSize"
+  | "publisher"
+  | "viewCount"
+  | "description"
+  | "createdAt"
+  | "updatedAt"
 > & {
   volumeNumber: number | null;
 };
@@ -64,24 +64,29 @@ type CreateBookInput = {
   publisher?: string;
 };
 
-const cleanWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+const cleanWhitespace = (value: string): string =>
+  value.replace(/\s+/g, " ").trim();
 
 const normalizeKey = (value: string): string =>
   cleanWhitespace(value)
     .toLowerCase()
-    .replace(/[._]/g, ' ')
-    .replace(/\[[^\]]+\]/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[._]/g, " ")
+    .replace(/\[[^\]]+\]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-const parseSeriesFromDescription = (description: string | null | undefined): string | null => {
+const parseSeriesFromDescription = (
+  description: string | null | undefined,
+): string | null => {
   if (!description) return null;
   const match = description.match(/(?:^|\n)\s*series\s*:\s*([^\n]+)/i);
-  const value = match?.[1] ? cleanWhitespace(match[1]) : '';
+  const value = match?.[1] ? cleanWhitespace(match[1]) : "";
   return value || null;
 };
 
-const parseVolumeFromDescription = (description: string | null | undefined): number | null => {
+const parseVolumeFromDescription = (
+  description: string | null | undefined,
+): number | null => {
   if (!description) return null;
   const match = description.match(/(?:^|\n)\s*volume\s*:\s*(\d{1,4})\b/i);
   if (!match?.[1]) return null;
@@ -109,27 +114,29 @@ const parseVolumeFromTitle = (title: string): number | null => {
 const stripVolumeSuffix = (title: string): string =>
   cleanWhitespace(
     title
-      .replace(/\bvol(?:ume)?\.?\s*\d{1,4}\b/gi, ' ')
-      .replace(/\bv\.?\s*\d{1,4}\b/gi, ' ')
-      .replace(/\bpart\s*\d{1,4}\b/gi, ' ')
-      .replace(/\[[^\]]+\]/g, ' ')
-      .replace(/\([^\)]*\)/g, ' '),
+      .replace(/\bvol(?:ume)?\.?\s*\d{1,4}\b/gi, " ")
+      .replace(/\bv\.?\s*\d{1,4}\b/gi, " ")
+      .replace(/\bpart\s*\d{1,4}\b/gi, " ")
+      .replace(/\[[^\]]+\]/g, " ")
+      .replace(/\([^\)]*\)/g, " "),
   );
 
 const parseSeriesFromSlug = (slug: string): string | null => {
   const match = slug.match(/^elsci-ln-([a-z0-9-]+)-[a-f0-9]{10}$/i);
   if (!match?.[1]) return null;
-  return cleanWhitespace(match[1].replace(/-/g, ' '));
+  return cleanWhitespace(match[1].replace(/-/g, " "));
 };
 
 const normalizeCoverUrl = (value: string | null): string | null => {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  return trimmed.replace(/^http:\/\//i, 'https://');
+  return trimmed.replace(/^http:\/\//i, "https://");
 };
 
-const pickLatestSeriesCover = (volumes: LightNovelVolumeSummary[]): string | null => {
+const pickLatestSeriesCover = (
+  volumes: LightNovelVolumeSummary[],
+): string | null => {
   if (volumes.length === 0) return null;
 
   const sorted = [...volumes].sort((a, b) => {
@@ -152,9 +159,10 @@ const isLikelyLightNovel = (book: {
   publisher: string | null;
   slug: string;
 }): boolean => {
-  if (book.genre.some((entry) => entry.toLowerCase() === 'light novel')) return true;
-  if ((book.publisher || '').toLowerCase().includes('elsci')) return true;
-  return book.slug.toLowerCase().startsWith('elsci-ln-');
+  if (book.genre.some((entry) => entry.toLowerCase() === "light novel"))
+    return true;
+  if ((book.publisher || "").toLowerCase().includes("elsci")) return true;
+  return book.slug.toLowerCase().startsWith("elsci-ln-");
 };
 
 export class BooksService {
@@ -169,8 +177,12 @@ export class BooksService {
     const seriesFromSlug = parseSeriesFromSlug(book.slug);
     const seriesFromTitle = stripVolumeSuffix(book.title);
     const seriesTitle =
-      cleanWhitespace(seriesFromDescription || seriesFromSlug || seriesFromTitle || book.title) ||
-      cleanWhitespace(book.title);
+      cleanWhitespace(
+        seriesFromDescription ||
+          seriesFromSlug ||
+          seriesFromTitle ||
+          book.title,
+      ) || cleanWhitespace(book.title);
 
     const volumeFromDescription = parseVolumeFromDescription(book.description);
     const volumeFromTitle = parseVolumeFromTitle(book.title);
@@ -185,9 +197,11 @@ export class BooksService {
 
   // Legacy Elsci proxy URLs point to a disabled endpoint — null them out so the
   // frontend never tries to fetch a path that always returns 404.
-  private static sanitizeElsciDownloadUrl(downloadUrl: string | null): string | null {
+  private static sanitizeElsciDownloadUrl(
+    downloadUrl: string | null,
+  ): string | null {
     if (!downloadUrl) return null;
-    if (downloadUrl.includes('/books/external/elsci/file')) return null;
+    if (downloadUrl.includes("/books/external/elsci/file")) return null;
     return downloadUrl;
   }
 
@@ -235,30 +249,50 @@ export class BooksService {
 
     const books = await this.prisma.book.findMany({
       where: {
-        status: 'active',
-        downloadUrl: { startsWith: '/api/v1/books/download' },
+        status: "active",
+        downloadUrl: { startsWith: "/api/v1/books/download" },
         AND: [
           {
             OR: [
-              { genre: { has: 'Light Novel' } },
-              { publisher: { contains: 'elsci', mode: Prisma.QueryMode.insensitive } },
-              { slug: { startsWith: 'elsci-ln-' } },
+              { genre: { has: "Light Novel" } },
+              {
+                publisher: {
+                  contains: "elsci",
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+              { slug: { startsWith: "elsci-ln-" } },
             ],
           },
           ...(q
             ? [
                 {
                   OR: [
-                    { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                    { author: { contains: q, mode: Prisma.QueryMode.insensitive } },
-                    { description: { contains: q, mode: Prisma.QueryMode.insensitive } },
+                    {
+                      title: {
+                        contains: q,
+                        mode: Prisma.QueryMode.insensitive,
+                      },
+                    },
+                    {
+                      author: {
+                        contains: q,
+                        mode: Prisma.QueryMode.insensitive,
+                      },
+                    },
+                    {
+                      description: {
+                        contains: q,
+                        mode: Prisma.QueryMode.insensitive,
+                      },
+                    },
                   ],
                 },
               ]
             : []),
         ],
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: "desc" },
       take: 4000,
     });
 
@@ -293,43 +327,45 @@ export class BooksService {
       }
 
       existing.volumes.push(volume);
-      if (!existing.coverUrl && book.coverUrl) existing.coverUrl = normalizeCoverUrl(book.coverUrl);
+      if (!existing.coverUrl && book.coverUrl)
+        existing.coverUrl = normalizeCoverUrl(book.coverUrl);
       if (book.year > existing.latestYear) existing.latestYear = book.year;
       if (book.updatedAt.getTime() > existing.latestUpdatedAt) {
         existing.latestUpdatedAt = book.updatedAt.getTime();
       }
     }
 
-    const seriesList: Array<LightNovelSeriesSummary & { latestUpdatedAt: number }> =
-      Array.from(grouped.entries()).map(([seriesKey, entry]) => {
-        const sortedVolumes = [...entry.volumes].sort((a, b) => {
-          const av = a.volumeNumber ?? Number.MAX_SAFE_INTEGER;
-          const bv = b.volumeNumber ?? Number.MAX_SAFE_INTEGER;
-          if (av !== bv) return av - bv;
-          if (a.year !== b.year) return a.year - b.year;
-          return a.title.localeCompare(b.title);
-        });
-
-        return {
-          seriesKey,
-          seriesTitle: entry.seriesTitle,
-          totalVolumes: sortedVolumes.length,
-          latestYear: entry.latestYear,
-          coverUrl:
-            pickLatestSeriesCover(sortedVolumes) ||
-            entry.coverUrl ||
-            null,
-          volumes: sortedVolumes,
-          latestUpdatedAt: entry.latestUpdatedAt,
-        };
+    const seriesList: Array<
+      LightNovelSeriesSummary & { latestUpdatedAt: number }
+    > = Array.from(grouped.entries()).map(([seriesKey, entry]) => {
+      const sortedVolumes = [...entry.volumes].sort((a, b) => {
+        const av = a.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+        const bv = b.volumeNumber ?? Number.MAX_SAFE_INTEGER;
+        if (av !== bv) return av - bv;
+        if (a.year !== b.year) return a.year - b.year;
+        return a.title.localeCompare(b.title);
       });
+
+      return {
+        seriesKey,
+        seriesTitle: entry.seriesTitle,
+        totalVolumes: sortedVolumes.length,
+        latestYear: entry.latestYear,
+        coverUrl:
+          pickLatestSeriesCover(sortedVolumes) || entry.coverUrl || null,
+        volumes: sortedVolumes,
+        latestUpdatedAt: entry.latestUpdatedAt,
+      };
+    });
 
     seriesList.sort((a, b) => b.latestUpdatedAt - a.latestUpdatedAt);
 
     const total = seriesList.length;
     const start = (page - 1) * limit;
     const end = start + limit;
-    const paged = seriesList.slice(start, end).map(({ latestUpdatedAt: _drop, ...rest }) => rest);
+    const paged = seriesList
+      .slice(start, end)
+      .map(({ latestUpdatedAt: _drop, ...rest }) => rest);
 
     return {
       data: paged,
@@ -344,12 +380,14 @@ export class BooksService {
     };
   }
 
-  async getLightNovelSeriesBySlug(slug: string): Promise<LightNovelSeriesDetail | null> {
+  async getLightNovelSeriesBySlug(
+    slug: string,
+  ): Promise<LightNovelSeriesDetail | null> {
     const current = await this.prisma.book.findFirst({
       where: {
         slug,
-        status: 'active',
-        downloadUrl: { startsWith: '/api/v1/books/download' },
+        status: "active",
+        downloadUrl: { startsWith: "/api/v1/books/download" },
       },
       select: {
         id: true,
@@ -376,21 +414,29 @@ export class BooksService {
 
     const candidates = await this.prisma.book.findMany({
       where: {
-        status: 'active',
-        downloadUrl: { startsWith: '/api/v1/books/download' },
+        status: "active",
+        downloadUrl: { startsWith: "/api/v1/books/download" },
         OR: [
-          { genre: { has: 'Light Novel' } },
-          { publisher: { contains: 'elsci', mode: Prisma.QueryMode.insensitive } },
-          { slug: { startsWith: 'elsci-ln-' } },
+          { genre: { has: "Light Novel" } },
+          {
+            publisher: {
+              contains: "elsci",
+              mode: Prisma.QueryMode.insensitive,
+            },
+          },
+          { slug: { startsWith: "elsci-ln-" } },
         ],
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: "desc" },
       take: 4000,
     });
 
     const sameSeries = candidates
       .filter((book) => isLikelyLightNovel(book))
-      .filter((book) => this.deriveLightNovelMeta(book).seriesKey === targetMeta.seriesKey)
+      .filter(
+        (book) =>
+          this.deriveLightNovelMeta(book).seriesKey === targetMeta.seriesKey,
+      )
       .map((book) => this.toLightNovelVolumeSummary(book));
 
     if (sameSeries.length === 0) return null;
@@ -403,10 +449,12 @@ export class BooksService {
       return a.title.localeCompare(b.title);
     });
 
-    const latestYear = sameSeries.reduce((acc, item) => Math.max(acc, item.year), 0);
+    const latestYear = sameSeries.reduce(
+      (acc, item) => Math.max(acc, item.year),
+      0,
+    );
     const coverUrl =
-      sameSeries.find((item) => !!item.coverUrl)?.coverUrl ||
-      null;
+      sameSeries.find((item) => !!item.coverUrl)?.coverUrl || null;
 
     return {
       seriesKey: targetMeta.seriesKey,
@@ -419,7 +467,9 @@ export class BooksService {
     };
   }
 
-  async search(params: BookSearchParams): Promise<{ data: Book[]; meta: PaginationMeta }> {
+  async search(
+    params: BookSearchParams,
+  ): Promise<{ data: Book[]; meta: PaginationMeta }> {
     const { page = 1, limit = 20, q, kind } = params;
     const skip = (page - 1) * limit;
 
@@ -434,18 +484,23 @@ export class BooksService {
       });
     }
 
-    if (kind === 'comic') {
-      filters.push({ genre: { has: 'Comic' } });
-    } else if (kind === 'book') {
+    if (kind === "comic") {
+      filters.push({ genre: { has: "Comic" } });
+    } else if (kind === "book") {
       filters.push({
         AND: [
-          { NOT: { genre: { has: 'Comic' } } },
+          { NOT: { genre: { has: "Comic" } } },
           {
             NOT: {
               OR: [
-                { genre: { has: 'Light Novel' } },
-                { publisher: { contains: 'elsci', mode: Prisma.QueryMode.insensitive } },
-                { slug: { startsWith: 'elsci-ln-' } },
+                { genre: { has: "Light Novel" } },
+                {
+                  publisher: {
+                    contains: "elsci",
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+                { slug: { startsWith: "elsci-ln-" } },
               ],
             },
           },
@@ -455,22 +510,22 @@ export class BooksService {
 
     // Frontend should only surface files mirrored to our storage-backed download endpoint.
     filters.push({
-      downloadUrl: { startsWith: '/api/v1/books/download' },
+      downloadUrl: { startsWith: "/api/v1/books/download" },
     });
 
     const where: Prisma.BookWhereInput = {
-      status: 'active',
+      status: "active",
       AND: filters,
     };
 
     const [total, books] = await Promise.all([
       this.prisma.book.count({ where }),
-      this.prisma.book.findMany({ 
-        where, 
-        skip, 
+      this.prisma.book.findMany({
+        where,
+        skip,
         take: limit,
-        orderBy: { createdAt: 'desc' }
-      })
+        orderBy: { createdAt: "desc" },
+      }),
     ]);
 
     return {
@@ -486,14 +541,14 @@ export class BooksService {
         total,
         totalPages: Math.ceil(total / limit),
         hasNext: page * limit < total,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     };
   }
 
   async findBySlug(slug: string): Promise<Book | null> {
     const book = await this.prisma.book.findFirst({
-      where: { slug, status: 'active' },
+      where: { slug, status: "active" },
     });
     if (!book) return null;
     return {
@@ -509,8 +564,8 @@ export class BooksService {
     const book = await this.prisma.book.create({
       data: {
         ...data,
-        slug: this.generateSlug(data.title, data.year)
-      }
+        slug: this.generateSlug(data.title, data.year),
+      },
     });
     return {
       ...book,
@@ -520,7 +575,7 @@ export class BooksService {
   }
 
   private generateSlug(title: string, year: number): string {
-    return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}`;
+    return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
   }
 
   async isFavorite(userId: string, bookId: string) {
@@ -545,10 +600,10 @@ export class BooksService {
             pageCount: true,
             genre: true,
             year: true,
-          }
+          },
         },
       },
-      orderBy: { addedAt: 'desc' },
+      orderBy: { addedAt: "desc" },
     });
   }
 
@@ -569,7 +624,7 @@ export class BooksService {
             pageCount: true,
             genre: true,
             year: true,
-          }
+          },
         },
       },
     });

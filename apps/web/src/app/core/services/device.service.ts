@@ -1,9 +1,8 @@
-import { Injectable } from '@angular/core';
-import { detectTvEnvironment } from '../utils/tv-detection';
+import { Injectable } from "@angular/core";
+import { detectTvEnvironment } from "../utils/tv-detection";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class DeviceService {
-
   isTV(): boolean {
     return detectTvEnvironment();
   }
@@ -15,7 +14,7 @@ export class DeviceService {
     }
 
     // Family plan is ad-free everywhere
-    if (userPlan?.name === 'Family') {
+    if (userPlan?.name === "Family") {
       return false;
     }
 

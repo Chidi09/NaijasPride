@@ -6,7 +6,6 @@ const NOREPLY = "noreply@naijaspride.com";
 const BILLING = "billing@naijaspride.com";
 
 export class EmailService {
-
   // ── 1. WELCOME ────────────────────────────────────────────────────────────
   async sendWelcomeEmail(email: string, name?: string) {
     try {
@@ -31,10 +30,14 @@ export class EmailService {
   }
 
   // ── 2. EMAIL VERIFICATION ─────────────────────────────────────────────────
-  async sendVerificationEmail(email: string, verificationToken: string, name?: string) {
+  async sendVerificationEmail(
+    email: string,
+    verificationToken: string,
+    name?: string,
+  ) {
     try {
       const verifyUrl = `${FRONTEND_URL}/verify-email?token=${verificationToken}`;
-      
+
       const { html, text } = compileTemplate("verification", {
         name: name || "there",
         verifyUrl,
@@ -57,10 +60,14 @@ export class EmailService {
   }
 
   // ── 3. PASSWORD RESET ─────────────────────────────────────────────────────
-  async sendPasswordResetEmail(email: string, resetToken: string, name?: string) {
+  async sendPasswordResetEmail(
+    email: string,
+    resetToken: string,
+    name?: string,
+  ) {
     try {
       const resetUrl = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
-      
+
       const { html, text } = compileTemplate("password-reset", {
         name: name || "there",
         resetUrl,
@@ -148,7 +155,7 @@ export class EmailService {
     name: string | undefined,
     plan: string,
     amount: string,
-    nextBillingDate: Date
+    nextBillingDate: Date,
   ) {
     try {
       const nextRenewal = nextBillingDate.toLocaleDateString("en-NG", {
@@ -186,7 +193,7 @@ export class EmailService {
     movieTitle: string,
     movieSlug: string,
     quality: string,
-    thumbnailUrl?: string
+    thumbnailUrl?: string,
   ) {
     try {
       const movieUrl = `${FRONTEND_URL}/movies/${movieSlug}`;
@@ -209,7 +216,8 @@ export class EmailService {
         text,
       });
 
-      if (sent) console.log(`[Email] Movie available (${movieTitle}) → ${email}`);
+      if (sent)
+        console.log(`[Email] Movie available (${movieTitle}) → ${email}`);
     } catch (error) {
       console.error(`[Email] Movie available failed → ${email}:`, error);
     }

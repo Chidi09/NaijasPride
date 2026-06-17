@@ -6,10 +6,13 @@
  * batch-downloads unmirrored Elsci light novel files to R2.
  */
 
-import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
-import { runElsciMirrorHarvester, type MirrorOptions } from '../modules/books/external/elsci/elsci-mirror-harvester';
+import { Worker } from "bullmq";
+import IORedis from "ioredis";
+import { PrismaClient } from "@prisma/client";
+import {
+  runElsciMirrorHarvester,
+  type MirrorOptions,
+} from "../modules/books/external/elsci/elsci-mirror-harvester";
 
 type ElsciMirrorJobData = {
   batchSize?: number;
@@ -24,7 +27,7 @@ type ElsciMirrorJobData = {
 
 const REDIS_URL = process.env.REDIS_URL;
 if (!REDIS_URL) {
-  console.error('[ElsciMirrorWorker] REDIS_URL is not set. Exiting.');
+  console.error("[ElsciMirrorWorker] REDIS_URL is not set. Exiting.");
   process.exit(1);
 }
 
@@ -35,11 +38,13 @@ const connection = new IORedis(REDIS_URL, {
 const prisma = new PrismaClient();
 
 const worker = new Worker(
-  'elsci-mirror',
+  "elsci-mirror",
   async (job) => {
     const data = (job.data || {}) as ElsciMirrorJobData;
 
-    console.log(`[ElsciMirrorWorker] Job ${job.id} started (batch=${data.batchSize || 20}, dryRun=${!!data.dryRun})`);
+    console.log(
+      `[ElsciMirrorWorker] Job ${job.id} started (batch=${data.batchSize || 20}, dryRun=${!!data.dryRun})`,
+    );
 
     const options: MirrorOptions = {
       batchSize: data.batchSize,
@@ -69,11 +74,11 @@ const worker = new Worker(
   },
 );
 
-worker.on('completed', (job) => {
+worker.on("completed", (job) => {
   console.log(`[ElsciMirrorWorker] Job ${job.id} completed`);
 });
 
-worker.on('failed', (job, err) => {
+worker.on("failed", (job, err) => {
   console.error(`[ElsciMirrorWorker] Job ${job?.id} failed: ${err.message}`);
 });
 
@@ -96,5 +101,5 @@ const shutdown = async () => {
   process.exit(0);
 };
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

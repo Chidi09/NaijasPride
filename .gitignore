@@ -99,3 +99,13 @@ Kotatsu/
 /recover_torrent_queue.js
 /reset_processing.js
 /test_webhook.js
+
+# AI Tools and Agents
+.agents/
+.claude/
+.do/
+.opencode/
+.gemini/
+
+# Generated Tools Data
+tools/generated/

@@ -13,10 +13,12 @@
 ### Task 1: Create VidkingPlayerComponent
 
 **Files:**
+
 - Create: `apps/web/src/app/shared/components/vidking-player/vidking-player.component.ts`
 
 **Context:**
 Vidking's player sends `postMessage` events to the parent window in this shape:
+
 ```json
 {
   "type": "PLAYER_EVENT",
@@ -33,6 +35,7 @@ Vidking's player sends `postMessage` events to the parent window in this shape:
   }
 }
 ```
+
 We listen for `timeupdate` and `ended` events and debounce saves every 5 seconds (matching the existing video player behaviour). Progress is saved via `WatchApiService.saveProgress(movieId, currentTime, duration)` for authenticated users, or `AnonymousWatchService` for guests.
 
 **Step 1: Create the component file**
@@ -47,38 +50,40 @@ import {
   inject,
   PLATFORM_ID,
   ChangeDetectionStrategy,
-} from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { Subject } from 'rxjs';
-import { debounceTime, takeUntil } from 'rxjs/operators';
-import { WatchApiService } from '../../../features/watch/services/watch-api.service';
-import { AnonymousWatchService } from '../../../core/services/anonymous-watch.service';
-import { AuthStateService } from '../../../core/auth/auth-state.service';
+} from "@angular/core";
+import { isPlatformBrowser } from "@angular/common";
+import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
+import { Subject } from "rxjs";
+import { debounceTime, takeUntil } from "rxjs/operators";
+import { WatchApiService } from "../../../features/watch/services/watch-api.service";
+import { AnonymousWatchService } from "../../../core/services/anonymous-watch.service";
+import { AuthStateService } from "../../../core/auth/auth-state.service";
 
 interface VidkingEventData {
-  event: 'timeupdate' | 'play' | 'pause' | 'ended' | 'seeked';
+  event: "timeupdate" | "play" | "pause" | "ended" | "seeked";
   currentTime: number;
   duration: number;
   progress: number;
   id: string;
-  mediaType: 'movie' | 'tv';
+  mediaType: "movie" | "tv";
   season?: number;
   episode?: number;
   timestamp: number;
 }
 
 interface VidkingMessage {
-  type: 'PLAYER_EVENT';
+  type: "PLAYER_EVENT";
   data: VidkingEventData;
 }
 
 @Component({
-  selector: 'app-vidking-player',
+  selector: "app-vidking-player",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+    <div
+      class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl"
+    >
       <iframe
         [src]="safeUrl"
         width="100%"
@@ -100,7 +105,7 @@ export class VidkingPlayerComponent implements OnInit, OnDestroy {
   /** Optional: resume position in seconds */
   @Input() startAt = 0;
   /** Optional: primary brand colour (hex without #) */
-  @Input() color = 'e50914';
+  @Input() color = "e50914";
 
   safeUrl!: SafeResourceUrl;
 
@@ -127,23 +132,23 @@ export class VidkingPlayerComponent implements OnInit, OnDestroy {
       });
 
     this.boundListener = this.onMessage.bind(this);
-    window.addEventListener('message', this.boundListener);
+    window.addEventListener("message", this.boundListener);
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
     if (isPlatformBrowser(this.platformId)) {
-      window.removeEventListener('message', this.boundListener);
+      window.removeEventListener("message", this.boundListener);
     }
   }
 
   private buildSafeUrl(): SafeResourceUrl {
     const params = new URLSearchParams({
       color: this.color,
-      autoPlay: 'true',
+      autoPlay: "true",
     });
-    if (this.startAt > 0) params.set('progress', String(this.startAt));
+    if (this.startAt > 0) params.set("progress", String(this.startAt));
 
     const url = `https://www.vidking.net/embed/movie/${this.tmdbId}?${params.toString()}`;
     return this.sanitizer.bypassSecurityTrustResourceUrl(url);
@@ -151,26 +156,28 @@ export class VidkingPlayerComponent implements OnInit, OnDestroy {
 
   private onMessage(event: MessageEvent): void {
     // Ignore messages from other origins
-    if (!event.origin.includes('vidking.net')) return;
+    if (!event.origin.includes("vidking.net")) return;
 
     let parsed: VidkingMessage;
     try {
-      parsed = typeof event.data === 'string'
-        ? JSON.parse(event.data)
-        : event.data;
+      parsed =
+        typeof event.data === "string" ? JSON.parse(event.data) : event.data;
     } catch {
       return;
     }
 
-    if (parsed?.type !== 'PLAYER_EVENT' || !parsed.data) return;
+    if (parsed?.type !== "PLAYER_EVENT" || !parsed.data) return;
 
     const { event: evtName, currentTime, duration } = parsed.data;
 
-    if (evtName === 'timeupdate' && currentTime > 0 && duration > 0) {
-      this.progress$.next({ currentTime: Math.floor(currentTime), duration: Math.floor(duration) });
+    if (evtName === "timeupdate" && currentTime > 0 && duration > 0) {
+      this.progress$.next({
+        currentTime: Math.floor(currentTime),
+        duration: Math.floor(duration),
+      });
     }
 
-    if (evtName === 'ended' && duration > 0) {
+    if (evtName === "ended" && duration > 0) {
       // Save final position immediately on end
       this.persistProgress(Math.floor(duration), Math.floor(duration));
     }
@@ -178,9 +185,11 @@ export class VidkingPlayerComponent implements OnInit, OnDestroy {
 
   private persistProgress(currentTime: number, duration: number): void {
     if (this.auth.isLoggedIn()) {
-      this.watchApi.saveProgress(this.movieId, currentTime, duration).subscribe({
-        error: (err) => console.warn('[Vidking] Progress save failed', err),
-      });
+      this.watchApi
+        .saveProgress(this.movieId, currentTime, duration)
+        .subscribe({
+          error: (err) => console.warn("[Vidking] Progress save failed", err),
+        });
     } else {
       this.anonWatch.saveProgress(this.movieId, currentTime, duration);
     }
@@ -205,16 +214,20 @@ git commit -m "feat: add VidkingPlayerComponent with postMessage progress sync"
 ### Task 2: Wire VidkingPlayerComponent into WatchRoomComponent
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/movies/pages/watch-room/watch-room.component.ts`
 
 **Context:**
 The current stream-priority chain in `WatchRoomComponent._resolveStreamUrl()` is:
+
 1. Offline cache → 2. self-hosted HLS/MP4 (`fileUrls`)
 
 We need to insert Vidking as priority 2 (after offline, before self-hosted):
+
 1. Offline cache → 2. Vidking (if `tmdbId` present) → 3. self-hosted HLS/MP4
 
 The template currently has two branches: `@if (m.youtubeId)` and `@else`. We replace the `@else` branch with three sub-branches:
+
 - Vidking iframe (`streamSource === 'vidking'`)
 - Native player (`streamSource === 'hosted'`)
 - Unavailable message
@@ -222,11 +235,13 @@ The template currently has two branches: `@if (m.youtubeId)` and `@else`. We rep
 **Step 1: Add imports and new signal to the component class**
 
 In `watch-room.component.ts`, add the import:
+
 ```typescript
 import { VidkingPlayerComponent } from "../../../../shared/components/vidking-player/vidking-player.component";
 ```
 
 Add it to the `imports` array:
+
 ```typescript
 imports: [
   CommonModule,
@@ -239,13 +254,15 @@ imports: [
 ```
 
 Add a new signal below the existing signals:
+
 ```typescript
-streamSource = signal<'vidking' | 'hosted' | null>(null);
+streamSource = signal<"vidking" | "hosted" | null>(null);
 ```
 
 **Step 2: Update `_resolveStreamUrl` to check for tmdbId first**
 
 Replace the existing `_resolveStreamUrl` method body with:
+
 ```typescript
 private async _resolveStreamUrl(movie: Movie) {
   // 1. Offline cache (highest priority — works when offline)
@@ -285,56 +302,59 @@ private async _resolveStreamUrl(movie: Movie) {
 Find the current `@else` block (everything after `@if (m.youtubeId)`) in the template and replace with:
 
 ```html
-} @else {
-  @if (streamSource() === 'vidking' && m.tmdbId) {
-    <app-vidking-player
-      [movieId]="m.id"
-      [tmdbId]="m.tmdbId"
-    ></app-vidking-player>
-  } @else if (streamSource() === 'hosted' && resolvedStreamUrl(); as streamUrl) {
-    @if (isOffline()) {
-      <div class="mb-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded">
-        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-        </svg>
-        Playing saved offline copy
-      </div>
-    }
-    <app-video-player
-      [videoUrl]="streamUrl"
-      [movieId]="m.id"
-      [movie]="m"
-      [config]="playerConfig"
-      (playerReady)="onPlayerReady()"
-    ></app-video-player>
-  } @else {
-    <div class="aspect-video rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center">
-      <div class="max-w-md">
-        <h2 class="text-white font-serif text-xl">Stream not available</h2>
-        <p class="text-[#9a857d] dark:text-gray-500 text-sm mt-2">
-          This title is currently download-only. Please use the download option on the details page.
-        </p>
-      </div>
-    </div>
-  }
+} @else { @if (streamSource() === 'vidking' && m.tmdbId) {
+<app-vidking-player [movieId]="m.id" [tmdbId]="m.tmdbId"></app-vidking-player>
+} @else if (streamSource() === 'hosted' && resolvedStreamUrl(); as streamUrl) {
+@if (isOffline()) {
+<div
+  class="mb-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded"
+>
+  <svg
+    class="w-3.5 h-3.5 flex-shrink-0"
+    fill="currentColor"
+    viewBox="0 0 20 20"
+  >
+    <path
+      fill-rule="evenodd"
+      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+      clip-rule="evenodd"
+    />
+  </svg>
+  Playing saved offline copy
+</div>
 }
+<app-video-player
+  [videoUrl]="streamUrl"
+  [movieId]="m.id"
+  [movie]="m"
+  [config]="playerConfig"
+  (playerReady)="onPlayerReady()"
+></app-video-player>
+} @else {
+<div
+  class="aspect-video rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 text-center"
+>
+  <div class="max-w-md">
+    <h2 class="text-white font-serif text-xl">Stream not available</h2>
+    <p class="text-[#9a857d] dark:text-gray-500 text-sm mt-2">
+      This title is currently download-only. Please use the download option on
+      the details page.
+    </p>
+  </div>
+</div>
+} }
 ```
 
 **Step 4: Update the info text below the player**
 
 Find the `@else if (isOffline())` text paragraph and add a Vidking branch:
+
 ```html
-@if (m.youtubeId) {
-  Streaming via YouTube • Support the creators by subscribing to their channel.
-} @else if (streamSource() === 'vidking') {
-  Streaming via Vidking • Enjoy the show.
-} @else if (isOffline()) {
-  Playing from offline storage • No internet required.
-} @else if (resolvedStreamUrl()) {
-  Streaming via NaijasPride • Enjoy the show.
-} @else {
-  Download-only right now.
-}
+@if (m.youtubeId) { Streaming via YouTube • Support the creators by subscribing
+to their channel. } @else if (streamSource() === 'vidking') { Streaming via
+Vidking • Enjoy the show. } @else if (isOffline()) { Playing from offline
+storage • No internet required. } @else if (resolvedStreamUrl()) { Streaming via
+NaijasPride • Enjoy the show. } @else { Download-only right now. }
 ```
 
 **Step 5: Commit**
@@ -349,6 +369,7 @@ git commit -m "feat: use Vidking iframe embed as primary stream source when tmdb
 ### Task 3: Check AnonymousWatchService signature
 
 **Files:**
+
 - Read: `apps/web/src/app/core/services/anonymous-watch.service.ts`
 
 **Context:**
@@ -380,9 +401,11 @@ Expected: `Build at: ... - Hash: ... - Time: ...ms` with no errors.
 **Step 2: Fix any TypeScript errors**
 
 Common issues to watch for:
+
 - `tmdbId` typed as `number | null` on the `Movie` type — the template guard `m.tmdbId` (truthy check) covers `null` but the `@Input() tmdbId!: number` in `VidkingPlayerComponent` must receive a `number`. If Angular flags a type mismatch, change the input to `@Input({ required: true }) tmdbId!: number | null` and add a guard in `buildSafeUrl()`:
   ```typescript
-  if (!this.tmdbId) return this.sanitizer.bypassSecurityTrustResourceUrl('about:blank');
+  if (!this.tmdbId)
+    return this.sanitizer.bypassSecurityTrustResourceUrl("about:blank");
   ```
 - `streamSource()` signal not recognised — ensure `streamSource = signal<...>(null)` is declared inside the class body before the `constructor`.
 
@@ -417,9 +440,9 @@ git push origin main
 
 ### Summary of files changed
 
-| File | Action |
-|---|---|
+| File                                                                            | Action     |
+| ------------------------------------------------------------------------------- | ---------- |
 | `apps/web/src/app/shared/components/vidking-player/vidking-player.component.ts` | **Create** |
-| `apps/web/src/app/features/movies/pages/watch-room/watch-room.component.ts` | **Modify** |
+| `apps/web/src/app/features/movies/pages/watch-room/watch-room.component.ts`     | **Modify** |
 
 No backend changes. No DB migration. No new dependencies.

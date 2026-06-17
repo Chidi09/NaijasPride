@@ -10,19 +10,24 @@
  * - Failure reporting endpoint for notifications/telemetry
  */
 
-import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, computed, inject, signal } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { firstValueFrom } from "rxjs";
 
-const MANGA_CACHE = 'np-manga-v1';
-const MANGA_META_DB = 'np_manga_offline_v1';
-const MANGA_META_STORE = 'chapters';
-const MANGA_QUEUE_STORE = 'queue';
-const MANGA_URL_PREFIX = '/offline/manga/';
+const MANGA_CACHE = "np-manga-v1";
+const MANGA_META_DB = "np_manga_offline_v1";
+const MANGA_META_STORE = "chapters";
+const MANGA_QUEUE_STORE = "queue";
+const MANGA_URL_PREFIX = "/offline/manga/";
 
 const PAGE_FETCH_ATTEMPTS = 3;
 
-export type MangaDLStatus = 'idle' | 'queued' | 'downloading' | 'complete' | 'error';
+export type MangaDLStatus =
+  | "idle"
+  | "queued"
+  | "downloading"
+  | "complete"
+  | "error";
 
 export interface MangaChapterMeta {
   id: string;
@@ -48,7 +53,7 @@ type QueueEntry = {
   updatedAt: number;
 };
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class MangaOfflineService {
   private http = inject(HttpClient);
 
@@ -61,23 +66,23 @@ export class MangaOfflineService {
   private _isProcessing = false;
 
   get isSupported(): boolean {
-    return typeof caches !== 'undefined' && typeof indexedDB !== 'undefined';
+    return typeof caches !== "undefined" && typeof indexedDB !== "undefined";
   }
 
   constructor() {
     if (this.isSupported) {
       this._loadFromDb()
         .then(() => this._restoreQueue())
-        .catch((err) => console.warn('[MangaOffline] Init failed:', err));
+        .catch((err) => console.warn("[MangaOffline] Init failed:", err));
     }
   }
 
   isAvailable(chapterId: string): boolean {
-    return this._chapters().get(chapterId)?.status === 'complete';
+    return this._chapters().get(chapterId)?.status === "complete";
   }
 
   getStatus(chapterId: string): MangaDLStatus {
-    return this._chapters().get(chapterId)?.status ?? 'idle';
+    return this._chapters().get(chapterId)?.status ?? "idle";
   }
 
   getProgress(chapterId: string): number {
@@ -85,16 +90,23 @@ export class MangaOfflineService {
   }
 
   downloadedChapterCount(mangaId: string): number {
-    return this.chapters().filter((c) => c.mangaId === mangaId && c.status === 'complete').length;
+    return this.chapters().filter(
+      (c) => c.mangaId === mangaId && c.status === "complete",
+    ).length;
   }
 
   downloadedChapters(mangaId: string): MangaChapterMeta[] {
     return this.chapters()
-      .filter((c) => c.mangaId === mangaId && c.status === 'complete')
-      .sort((a, b) => parseFloat(a.chapterNumber) - parseFloat(b.chapterNumber));
+      .filter((c) => c.mangaId === mangaId && c.status === "complete")
+      .sort(
+        (a, b) => parseFloat(a.chapterNumber) - parseFloat(b.chapterNumber),
+      );
   }
 
-  async getPageUrl(chapterId: string, pageIndex: number): Promise<string | null> {
+  async getPageUrl(
+    chapterId: string,
+    pageIndex: number,
+  ): Promise<string | null> {
     if (!this.isSupported) return null;
     try {
       const cache = await caches.open(MANGA_CACHE);
@@ -108,7 +120,7 @@ export class MangaOfflineService {
 
   async getAllPageUrls(chapterId: string): Promise<(string | null)[]> {
     const meta = this._chapters().get(chapterId);
-    if (!meta || meta.status !== 'complete') return [];
+    if (!meta || meta.status !== "complete") return [];
     const results: (string | null)[] = [];
     const cache = await caches.open(MANGA_CACHE);
 
@@ -132,7 +144,12 @@ export class MangaOfflineService {
   }) {
     const { chapterId } = params;
     const existing = this._chapters().get(chapterId);
-    if (existing?.status === 'complete' || existing?.status === 'downloading' || existing?.status === 'queued') return;
+    if (
+      existing?.status === "complete" ||
+      existing?.status === "downloading" ||
+      existing?.status === "queued"
+    )
+      return;
 
     const meta: MangaChapterMeta = {
       id: chapterId,
@@ -142,7 +159,7 @@ export class MangaOfflineService {
       chapterTitle: params.chapterTitle,
       chapterNumber: params.chapterNumber,
       coverUrl: params.coverUrl,
-      status: 'queued',
+      status: "queued",
       progress: 0,
       pageCount: params.pageUrls.length,
       downloadedPages: 0,
@@ -184,7 +201,10 @@ export class MangaOfflineService {
 
     const db = await this._openDb();
     await new Promise<void>((res, rej) => {
-      const tx = db.transaction([MANGA_META_STORE, MANGA_QUEUE_STORE], 'readwrite');
+      const tx = db.transaction(
+        [MANGA_META_STORE, MANGA_QUEUE_STORE],
+        "readwrite",
+      );
       tx.objectStore(MANGA_META_STORE).delete(chapterId);
       tx.objectStore(MANGA_QUEUE_STORE).delete(chapterId);
       tx.oncomplete = () => res();
@@ -195,7 +215,11 @@ export class MangaOfflineService {
     map.delete(chapterId);
     this._chapters.set(map);
 
-    firstValueFrom(this.http.delete('/api/v1/library/manga/offline', { body: { chapterId } })).catch(console.error);
+    firstValueFrom(
+      this.http.delete("/api/v1/library/manga/offline", {
+        body: { chapterId },
+      }),
+    ).catch(() => {});
   }
 
   async removeAllForManga(mangaId: string): Promise<void> {
@@ -208,11 +232,11 @@ export class MangaOfflineService {
   private _restoreQueue() {
     const map = new Map(this._chapters());
     for (const [chapterId, meta] of map.entries()) {
-      if (meta.status === 'queued' || meta.status === 'downloading') {
+      if (meta.status === "queued" || meta.status === "downloading") {
         if (this._queueEntries.has(chapterId)) {
           map.set(chapterId, {
             ...meta,
-            status: 'queued',
+            status: "queued",
             error: undefined,
           });
           if (!this._downloadQueue.includes(chapterId)) {
@@ -221,8 +245,8 @@ export class MangaOfflineService {
         } else {
           map.set(chapterId, {
             ...meta,
-            status: 'error',
-            error: 'Download was interrupted. Tap retry.',
+            status: "error",
+            error: "Download was interrupted. Tap retry.",
           });
         }
       }
@@ -243,14 +267,16 @@ export class MangaOfflineService {
         const chapterId = this._downloadQueue.shift();
         if (!chapterId) continue;
 
-        const pageUrls = this._queueEntries.get(chapterId) || await this._loadQueueEntry(chapterId);
+        const pageUrls =
+          this._queueEntries.get(chapterId) ||
+          (await this._loadQueueEntry(chapterId));
         if (!pageUrls || pageUrls.length === 0) {
           const meta = this._chapters().get(chapterId);
           if (meta) {
             this._update({
               ...meta,
-              status: 'error',
-              error: 'Queued chapter data missing. Retry download.',
+              status: "error",
+              error: "Queued chapter data missing. Retry download.",
             });
           }
           continue;
@@ -258,7 +284,7 @@ export class MangaOfflineService {
 
         this._queueEntries.set(chapterId, pageUrls);
         const meta = this._chapters().get(chapterId);
-        if (!meta || meta.status === 'complete') {
+        if (!meta || meta.status === "complete") {
           await this._deleteQueueEntry(chapterId);
           continue;
         }
@@ -270,7 +296,11 @@ export class MangaOfflineService {
     }
   }
 
-  private async _downloadChapter(chapterId: string, pageUrls: string[], meta: MangaChapterMeta) {
+  private async _downloadChapter(
+    chapterId: string,
+    pageUrls: string[],
+    meta: MangaChapterMeta,
+  ) {
     const cache = await caches.open(MANGA_CACHE);
 
     let downloaded = 0;
@@ -290,7 +320,7 @@ export class MangaOfflineService {
 
     this._update({
       ...meta,
-      status: 'downloading',
+      status: "downloading",
       downloadedPages: downloaded,
       fileSizeBytes: totalBytes,
       progress: Math.round((downloaded / Math.max(1, pageUrls.length)) * 100),
@@ -303,7 +333,10 @@ export class MangaOfflineService {
         const existing = await cache.match(pageKey);
         if (existing) continue;
 
-        const response = await this._fetchPageWithRetry(pageUrls[i], PAGE_FETCH_ATTEMPTS);
+        const response = await this._fetchPageWithRetry(
+          pageUrls[i],
+          PAGE_FETCH_ATTEMPTS,
+        );
         if (!response.ok) throw new Error(`Page ${i}: HTTP ${response.status}`);
 
         const blob = await response.blob();
@@ -312,13 +345,15 @@ export class MangaOfflineService {
 
         await cache.put(
           pageKey,
-          new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } }),
+          new Response(blob, {
+            headers: { "Content-Type": blob.type || "image/jpeg" },
+          }),
         );
 
         const progress = Math.round((downloaded / pageUrls.length) * 100);
         this._update({
           ...meta,
-          status: 'downloading',
+          status: "downloading",
           progress,
           downloadedPages: downloaded,
           fileSizeBytes: totalBytes,
@@ -329,7 +364,7 @@ export class MangaOfflineService {
 
       const done: MangaChapterMeta = {
         ...meta,
-        status: 'complete',
+        status: "complete",
         progress: 100,
         pageCount: pageUrls.length,
         downloadedPages: pageUrls.length,
@@ -344,7 +379,7 @@ export class MangaOfflineService {
       this._queueEntries.delete(chapterId);
 
       firstValueFrom(
-        this.http.post('/api/v1/library/manga/offline', {
+        this.http.post("/api/v1/library/manga/offline", {
           mangaId: meta.mangaId,
           mangaTitle: meta.mangaTitle,
           chapterId,
@@ -352,12 +387,12 @@ export class MangaOfflineService {
           pageCount: pageUrls.length,
           fileSizeBytes: totalBytes,
         }),
-      ).catch(console.error);
+      ).catch(() => {});
     } catch (err) {
-      const reason = err instanceof Error ? err.message : 'Download failed';
+      const reason = err instanceof Error ? err.message : "Download failed";
       this._update({
         ...meta,
-        status: 'error',
+        status: "error",
         error: reason,
         downloadedPages: downloaded,
         fileSizeBytes: totalBytes,
@@ -366,25 +401,28 @@ export class MangaOfflineService {
       });
 
       firstValueFrom(
-        this.http.post('/api/v1/library/manga/offline/failure', {
+        this.http.post("/api/v1/library/manga/offline/failure", {
           mangaId: meta.mangaId,
           mangaTitle: meta.mangaTitle,
           chapterId,
           reason,
         }),
-      ).catch(console.error);
+      ).catch(() => {});
     }
   }
 
-  private async _fetchPageWithRetry(url: string, attempts: number): Promise<Response> {
+  private async _fetchPageWithRetry(
+    url: string,
+    attempts: number,
+  ): Promise<Response> {
     let lastError: unknown = null;
 
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         const res = await fetch(url, {
-          mode: 'cors',
-          referrerPolicy: 'no-referrer',
-          cache: 'no-store',
+          mode: "cors",
+          referrerPolicy: "no-referrer",
+          cache: "no-store",
         });
 
         if (res.ok) return res;
@@ -400,11 +438,15 @@ export class MangaOfflineService {
       }
 
       if (attempt < attempts) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 250 * attempt));
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, 250 * attempt),
+        );
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error('Page download failed');
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Page download failed");
   }
 
   private _pageKey(chapterId: string, pageIndex: number): string {
@@ -415,13 +457,13 @@ export class MangaOfflineService {
     const map = new Map(this._chapters());
     map.set(meta.id, { ...meta });
     this._chapters.set(map);
-    this._persist(meta).catch(console.error);
+    this._persist(meta).catch(() => {});
   }
 
   private async _persist(meta: MangaChapterMeta): Promise<void> {
     const db = await this._openDb();
     return new Promise((res, rej) => {
-      const tx = db.transaction(MANGA_META_STORE, 'readwrite');
+      const tx = db.transaction(MANGA_META_STORE, "readwrite");
       tx.objectStore(MANGA_META_STORE).put(meta);
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
@@ -431,7 +473,7 @@ export class MangaOfflineService {
   private async _persistQueueEntry(entry: QueueEntry): Promise<void> {
     const db = await this._openDb();
     return new Promise((res, rej) => {
-      const tx = db.transaction(MANGA_QUEUE_STORE, 'readwrite');
+      const tx = db.transaction(MANGA_QUEUE_STORE, "readwrite");
       tx.objectStore(MANGA_QUEUE_STORE).put(entry);
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
@@ -441,7 +483,7 @@ export class MangaOfflineService {
   private async _deleteQueueEntry(chapterId: string): Promise<void> {
     const db = await this._openDb();
     return new Promise((res, rej) => {
-      const tx = db.transaction(MANGA_QUEUE_STORE, 'readwrite');
+      const tx = db.transaction(MANGA_QUEUE_STORE, "readwrite");
       tx.objectStore(MANGA_QUEUE_STORE).delete(chapterId);
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
@@ -451,7 +493,7 @@ export class MangaOfflineService {
   private async _loadQueueEntry(chapterId: string): Promise<string[] | null> {
     const db = await this._openDb();
     return new Promise((res, rej) => {
-      const tx = db.transaction(MANGA_QUEUE_STORE, 'readonly');
+      const tx = db.transaction(MANGA_QUEUE_STORE, "readonly");
       const req = tx.objectStore(MANGA_QUEUE_STORE).get(chapterId);
       req.onsuccess = () => {
         const entry = req.result as QueueEntry | undefined;
@@ -466,14 +508,14 @@ export class MangaOfflineService {
       const db = await this._openDb();
 
       const allMeta = await new Promise<MangaChapterMeta[]>((res, rej) => {
-        const tx = db.transaction(MANGA_META_STORE, 'readonly');
+        const tx = db.transaction(MANGA_META_STORE, "readonly");
         const req = tx.objectStore(MANGA_META_STORE).getAll();
         req.onsuccess = () => res(req.result as MangaChapterMeta[]);
         req.onerror = () => rej(req.error);
       });
 
       const allQueue = await new Promise<QueueEntry[]>((res, rej) => {
-        const tx = db.transaction(MANGA_QUEUE_STORE, 'readonly');
+        const tx = db.transaction(MANGA_QUEUE_STORE, "readonly");
         const req = tx.objectStore(MANGA_QUEUE_STORE).getAll();
         req.onsuccess = () => res(req.result as QueueEntry[]);
         req.onerror = () => rej(req.error);
@@ -490,7 +532,7 @@ export class MangaOfflineService {
         this._queueEntries.set(entry.chapterId, entry.pageUrls);
       }
     } catch (err) {
-      console.warn('[MangaOffline] Failed to load IndexedDB:', err);
+      console.warn("[MangaOffline] Failed to load IndexedDB:", err);
     }
   }
 
@@ -502,10 +544,10 @@ export class MangaOfflineService {
       req.onupgradeneeded = (e) => {
         const db = (e.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains(MANGA_META_STORE)) {
-          db.createObjectStore(MANGA_META_STORE, { keyPath: 'id' });
+          db.createObjectStore(MANGA_META_STORE, { keyPath: "id" });
         }
         if (!db.objectStoreNames.contains(MANGA_QUEUE_STORE)) {
-          db.createObjectStore(MANGA_QUEUE_STORE, { keyPath: 'chapterId' });
+          db.createObjectStore(MANGA_QUEUE_STORE, { keyPath: "chapterId" });
         }
       };
       req.onsuccess = (e) => res((e.target as IDBOpenDBRequest).result);

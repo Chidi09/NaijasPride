@@ -13,6 +13,7 @@
 ### Task 1: Root-Cause Runtime Error (NG0600)
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/movies/components/movie-card/movie-card.component.ts`
 - Modify: `apps/web/src/app/features/movies/components/movie-card-youtube/movie-card-youtube.component.ts`
 
@@ -25,9 +26,12 @@ Observed stack references `hydrateSavedState` from movie card chunks. Both compo
 Set effect options to allow signal writes:
 
 ```ts
-effect(() => {
-  this.hydrateSavedState();
-}, { allowSignalWrites: true });
+effect(
+  () => {
+    this.hydrateSavedState();
+  },
+  { allowSignalWrites: true },
+);
 ```
 
 **Step 3: Verify no type/build regressions**
@@ -39,6 +43,7 @@ Run: `npm run build --workspace web`
 ### Task 2: Clean Movie Search/Filter UX + Poster Preview Dropdown
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/movies/components/filter-bar/filter-bar.component.ts`
 - Modify: `apps/web/src/app/features/movies/services/movies-api.service.ts`
 
@@ -49,6 +54,7 @@ Add a helper method in API service for small suggestion result sets using existi
 **Step 2: Add debounced preview in filter bar**
 
 Enhance filter bar to:
+
 - debounce typing,
 - fetch suggestions for `q.length >= 2`,
 - display poster/thumbnail + title/year in a clean dropdown,
@@ -72,6 +78,7 @@ Run: `npm run build --workspace web`
 ### Task 3: Remove Misleading `% Match` Badge Logic
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/movies/components/movie-card/movie-card.component.ts`
 - Modify: `apps/web/src/app/features/movies/components/movie-card-youtube/movie-card-youtube.component.ts`
 
@@ -92,12 +99,14 @@ Run: `npm run build --workspace web`
 ### Task 4: Poster Fallback Strategy When TMDB Has No Image
 
 **Files:**
+
 - Modify: `apps/api/src/modules/movies/metadata.service.ts`
 - (If required) Modify: `apps/api/src/modules/admin/services/tmdb-metadata.service.ts`
 
 **Step 1: Add structured fallback chain**
 
 For metadata enrichment:
+
 - primary: TMDB poster/backdrop,
 - fallback: OMDb `Poster` using `imdb_id` + `OMDB_KEY`.
 
@@ -114,11 +123,13 @@ Run: `npm run build --workspace api`
 ### Task 5: Verification and Deployment
 
 **Files:**
+
 - No code changes required
 
 **Step 1: Local verification**
 
 Run:
+
 - `npm run build --workspace web`
 - `npm run build --workspace api`
 
@@ -129,6 +140,7 @@ Run blue/green deploy script and verify `/api/v1/health`.
 **Step 3: Validate user flows**
 
 Smoke-check:
+
 - movie list filter bar + dropdown suggestions,
 - movie cards render without `% Match` noise,
 - no NG0600 spam during page interactions.

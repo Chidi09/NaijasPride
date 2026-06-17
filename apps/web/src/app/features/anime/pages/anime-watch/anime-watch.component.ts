@@ -751,7 +751,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.episodePage.set(page);
   }
 
-  selectSource(url: string, index?: number): void {
+  selectSource(url: string, _index?: number): void {
     this.activeSourceUrl.set(url);
     this.playbackNotice.set(null);
 

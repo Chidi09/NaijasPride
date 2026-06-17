@@ -9,9 +9,9 @@
  * or TanStack Query. Signals are used for simple reactive local state.
  */
 
-import { Injectable, signal, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, signal, inject } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { firstValueFrom } from "rxjs";
 
 export interface BookFavorite {
   id: string;
@@ -40,9 +40,9 @@ export interface MangaChapterWatch {
   lastSeenAt: string | null;
 }
 
-const API = '/api/v1/library';
+const API = "/api/v1/library";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class LibraryService {
   private http = inject(HttpClient);
 
@@ -57,9 +57,11 @@ export class LibraryService {
 
   async loadBookFavorites(): Promise<BookFavorite[]> {
     const res = await firstValueFrom(
-      this.http.get<{ status: string; data: BookFavorite[] }>(`${API}/books/favorites`)
+      this.http.get<{ status: string; data: BookFavorite[] }>(
+        `${API}/books/favorites`,
+      ),
     );
-    const ids = new Set(res.data.map(f => f.bookId));
+    const ids = new Set(res.data.map((f) => f.bookId));
     this._favBookIds.set(ids);
     return res.data;
   }
@@ -72,20 +74,26 @@ export class LibraryService {
     const isFav = this.isFavoriteBook(bookId);
     // Optimistic update
     const next = new Set(this._favBookIds());
-    if (isFav) next.delete(bookId); else next.add(bookId);
+    if (isFav) next.delete(bookId);
+    else next.add(bookId);
     this._favBookIds.set(next);
 
     try {
       if (isFav) {
-        await firstValueFrom(this.http.delete(`${API}/books/favorites/${bookId}`));
+        await firstValueFrom(
+          this.http.delete(`${API}/books/favorites/${bookId}`),
+        );
       } else {
-        await firstValueFrom(this.http.post(`${API}/books/favorites`, { bookId }));
+        await firstValueFrom(
+          this.http.post(`${API}/books/favorites`, { bookId }),
+        );
       }
       return !isFav;
     } catch (err) {
       // Rollback on failure
       const rollback = new Set(this._favBookIds());
-      if (isFav) rollback.add(bookId); else rollback.delete(bookId);
+      if (isFav) rollback.add(bookId);
+      else rollback.delete(bookId);
       this._favBookIds.set(rollback);
       throw err;
     }
@@ -93,10 +101,13 @@ export class LibraryService {
 
   async checkBookFavorite(bookId: string): Promise<boolean> {
     const res = await firstValueFrom(
-      this.http.get<{ status: string; data: { favorited: boolean } }>(`${API}/books/favorites/${bookId}/check`)
+      this.http.get<{ status: string; data: { favorited: boolean } }>(
+        `${API}/books/favorites/${bookId}/check`,
+      ),
     );
     const next = new Set(this._favBookIds());
-    if (res.data.favorited) next.add(bookId); else next.delete(bookId);
+    if (res.data.favorited) next.add(bookId);
+    else next.delete(bookId);
     this._favBookIds.set(next);
     return res.data.favorited;
   }
@@ -105,9 +116,11 @@ export class LibraryService {
 
   async loadChapterWatches(): Promise<MangaChapterWatch[]> {
     const res = await firstValueFrom(
-      this.http.get<{ status: string; data: MangaChapterWatch[] }>(`${API}/manga/chapter-watch`)
+      this.http.get<{ status: string; data: MangaChapterWatch[] }>(
+        `${API}/manga/chapter-watch`,
+      ),
     );
-    const ids = new Set(res.data.map(w => w.mangaId));
+    const ids = new Set(res.data.map((w) => w.mangaId));
     this._watchedMangaIds.set(ids);
     return res.data;
   }
@@ -128,7 +141,9 @@ export class LibraryService {
     this._watchedMangaIds.set(next);
 
     try {
-      await firstValueFrom(this.http.post(`${API}/manga/chapter-watch`, params));
+      await firstValueFrom(
+        this.http.post(`${API}/manga/chapter-watch`, params),
+      );
     } catch (err) {
       const rollback = new Set(this._watchedMangaIds());
       rollback.delete(params.mangaId);
@@ -143,7 +158,11 @@ export class LibraryService {
     this._watchedMangaIds.set(next);
 
     try {
-      await firstValueFrom(this.http.delete(`${API}/manga/chapter-watch/${encodeURIComponent(mangaId)}`));
+      await firstValueFrom(
+        this.http.delete(
+          `${API}/manga/chapter-watch/${encodeURIComponent(mangaId)}`,
+        ),
+      );
     } catch (err) {
       const rollback = new Set(this._watchedMangaIds());
       rollback.add(mangaId);
@@ -167,13 +186,16 @@ export class LibraryService {
     }
   }
 
-  async markChapterSeen(mangaId: string, lastSeenChapterId: string): Promise<void> {
+  async markChapterSeen(
+    mangaId: string,
+    lastSeenChapterId: string,
+  ): Promise<void> {
     await firstValueFrom(
       this.http.patch(`${API}/manga/chapter-watch/mark-seen`, {
         mangaId,
         lastSeenChapterId,
         lastSeenAt: new Date().toISOString(),
-      })
+      }),
     );
   }
 
@@ -181,13 +203,16 @@ export class LibraryService {
 
   async getSummary() {
     const res = await firstValueFrom(
-      this.http.get<{ status: string; data: {
-        bookFavCount: number;
-        mangaFavCount: number;
-        offlineMangaCount: number;
-        offlineBookCount: number;
-        chapterWatchCount: number;
-      }}>(`${API}/summary`)
+      this.http.get<{
+        status: string;
+        data: {
+          bookFavCount: number;
+          mangaFavCount: number;
+          offlineMangaCount: number;
+          offlineBookCount: number;
+          chapterWatchCount: number;
+        };
+      }>(`${API}/summary`),
     );
     return res.data;
   }

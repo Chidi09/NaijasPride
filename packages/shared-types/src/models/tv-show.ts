@@ -1,4 +1,4 @@
-import { ContentStatus, Genre } from '../enums';
+import { ContentStatus, Genre } from "../enums";
 
 export interface TvEpisode {
   id: string;

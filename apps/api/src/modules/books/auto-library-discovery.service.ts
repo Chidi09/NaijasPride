@@ -1,24 +1,28 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
-import { promises as fs } from 'node:fs';
-import * as path from 'node:path';
-import { PrismaClient } from '@prisma/client';
-import { FlareSolverrFetcher } from './sources/fetch/flaresolverr.fetcher';
-import { HealthMonitorService } from '../../shared/services/health-monitor.service';
-import { retryWithBackoff, RetryableError, isRetryableStatus } from '../../shared/utils/retry';
-import { QueueService } from '../../shared/services/queue.service';
+import axios from "axios";
+import * as cheerio from "cheerio";
+import { promises as fs } from "node:fs";
+import * as path from "node:path";
+import { PrismaClient } from "@prisma/client";
+import { FlareSolverrFetcher } from "./sources/fetch/flaresolverr.fetcher";
+import { HealthMonitorService } from "../../shared/services/health-monitor.service";
+import {
+  retryWithBackoff,
+  RetryableError,
+  isRetryableStatus,
+} from "../../shared/utils/retry";
+import { QueueService } from "../../shared/services/queue.service";
 
-const DEFAULT_1337X_BASE_URL = 'https://www.1377x.to';
+const DEFAULT_1337X_BASE_URL = "https://www.1377x.to";
 
 // Mirror rotation list
 const MIRROR_URLS = [
-  'https://www.1377x.to',
-  'https://1337x.st',
-  'https://x1337x.ws',
-  'https://x1337x.eu',
-  'https://x1337x.se',
-  'https://1337x.is',
-  'https://1337x.gd',
+  "https://www.1377x.to",
+  "https://1337x.st",
+  "https://x1337x.ws",
+  "https://x1337x.eu",
+  "https://x1337x.se",
+  "https://1337x.is",
+  "https://1337x.gd",
 ].filter(Boolean);
 
 export type MustHaveBook = {
@@ -29,7 +33,7 @@ export type MustHaveBook = {
 };
 
 export type ExternalBookTarget = MustHaveBook & {
-  source: 'must-have' | 'google-trending';
+  source: "must-have" | "google-trending";
   description?: string;
   coverUrl?: string;
   language?: string;
@@ -44,7 +48,7 @@ export type BookTorrentListingCandidate = {
   leeches: number;
   isAudiobook: boolean;
   isLikelyVideo: boolean;
-  format: 'EPUB' | 'PDF' | 'MOBI' | 'AZW' | 'UNKNOWN';
+  format: "EPUB" | "PDF" | "MOBI" | "AZW" | "UNKNOWN";
   // For Anna's Archive results: direct download URL (no magnet link)
   downloadUrl?: string;
 };
@@ -95,59 +99,59 @@ const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 const toInt = (value: string): number => {
-  const parsed = Number.parseInt(value.replace(/[^\d]/g, ''), 10);
+  const parsed = Number.parseInt(value.replace(/[^\d]/g, ""), 10);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const cleanWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+const cleanWhitespace = (value: string): string =>
+  value.replace(/\s+/g, " ").trim();
 
 const normalizeTitle = (value: string): string =>
-  cleanWhitespace(value)
-    .replace(/[._]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  cleanWhitespace(value).replace(/[._]/g, " ").replace(/\s+/g, " ").trim();
 
 const normalizeForKey = (value: string): string =>
   normalizeTitle(value)
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
 const parseBookYear = (value?: string): number | undefined => {
   if (!value) return undefined;
   const match = value.match(/\b(19\d{2}|20\d{2})\b/);
   if (!match) return undefined;
-  const parsed = Number.parseInt(match[1] || '', 10);
+  const parsed = Number.parseInt(match[1] || "", 10);
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-const detectFormat = (title: string): BookTorrentListingCandidate['format'] => {
+const detectFormat = (title: string): BookTorrentListingCandidate["format"] => {
   const lower = title.toLowerCase();
-  if (lower.includes('epub')) return 'EPUB';
-  if (lower.includes('pdf')) return 'PDF';
-  if (lower.includes('mobi')) return 'MOBI';
-  if (lower.includes('azw')) return 'AZW';
-  return 'UNKNOWN';
+  if (lower.includes("epub")) return "EPUB";
+  if (lower.includes("pdf")) return "PDF";
+  if (lower.includes("mobi")) return "MOBI";
+  if (lower.includes("azw")) return "AZW";
+  return "UNKNOWN";
 };
 
 const isAudiobookTitle = (title: string): boolean => {
   const lower = title.toLowerCase();
   return (
-    lower.includes('audiobook') ||
-    lower.includes('audio book') ||
-    lower.includes('.mp3') ||
-    lower.includes('.m4b') ||
-    lower.includes('narrated') ||
-    lower.includes('audible')
+    lower.includes("audiobook") ||
+    lower.includes("audio book") ||
+    lower.includes(".mp3") ||
+    lower.includes(".m4b") ||
+    lower.includes("narrated") ||
+    lower.includes("audible")
   );
 };
 
 const isLikelyVideoRelease = (title: string): boolean => {
   const lower = title.toLowerCase();
   return (
-    /\b(2160p|1080p|720p|480p|x264|x265|h264|h265|webrip|web[- ]dl|bluray|brrip|hdrip|dvdrip|hdtv|ac3|aac|ddp|10bit|hevc|cam|ts)\b/i.test(lower) ||
-    lower.includes(' yts ') ||
-    lower.includes(' xvid ') ||
+    /\b(2160p|1080p|720p|480p|x264|x265|h264|h265|webrip|web[- ]dl|bluray|brrip|hdrip|dvdrip|hdtv|ac3|aac|ddp|10bit|hevc|cam|ts)\b/i.test(
+      lower,
+    ) ||
+    lower.includes(" yts ") ||
+    lower.includes(" xvid ") ||
     // JAV / AV release codes: e.g. MIAA-030, SSIS-123, IPX-456, PRED-789
     /\b[a-z]{2,5}-\d{3,5}\b/i.test(title)
   );
@@ -155,7 +159,7 @@ const isLikelyVideoRelease = (title: string): boolean => {
 
 const splitTokens = (value: string): string[] =>
   normalizeForKey(value)
-    .split(' ')
+    .split(" ")
     .map((token) => token.trim())
     .filter((token) => token.length >= 3);
 
@@ -166,9 +170,14 @@ const hasAuthorSignal = (title: string, author: string): boolean => {
   return authorTokens.some((token) => titleTokens.has(token));
 };
 
-const hasTitleSignal = (candidateTitle: string, targetTitle: string): boolean => {
+const hasTitleSignal = (
+  candidateTitle: string,
+  targetTitle: string,
+): boolean => {
   const candidateTokens = new Set(splitTokens(candidateTitle));
-  const targetTokens = splitTokens(targetTitle).filter((token) => token.length >= 4);
+  const targetTokens = splitTokens(targetTitle).filter(
+    (token) => token.length >= 4,
+  );
   if (!targetTokens.length) return false;
   const overlap = targetTokens.filter((token) => candidateTokens.has(token));
   return overlap.length >= Math.max(1, Math.floor(targetTokens.length / 2));
@@ -176,9 +185,14 @@ const hasTitleSignal = (candidateTitle: string, targetTitle: string): boolean =>
 
 // Stricter title match for UNKNOWN-format torrents: requires majority of
 // longer tokens (≥5 chars) to appear in the candidate title.
-const hasStrictTitleSignal = (candidateTitle: string, targetTitle: string): boolean => {
+const hasStrictTitleSignal = (
+  candidateTitle: string,
+  targetTitle: string,
+): boolean => {
   const candidateTokens = new Set(splitTokens(candidateTitle));
-  const targetTokens = splitTokens(targetTitle).filter((token) => token.length >= 5);
+  const targetTokens = splitTokens(targetTitle).filter(
+    (token) => token.length >= 5,
+  );
   if (!targetTokens.length) return hasTitleSignal(candidateTitle, targetTitle);
   const overlap = targetTokens.filter((token) => candidateTokens.has(token));
   return overlap.length >= Math.ceil(targetTokens.length * 0.6); // 60% of long tokens must match
@@ -189,18 +203,18 @@ export const parse1337xBookListingHtml = (
   baseUrl: string,
 ): BookTorrentListingCandidate[] => {
   const $ = cheerio.load(html);
-  const rows = $('table.table-list tbody tr');
+  const rows = $("table.table-list tbody tr");
   const results: BookTorrentListingCandidate[] = [];
   const seen = new Set<string>();
 
   rows.each((_, row) => {
-    const links = $(row).find('td.name a');
+    const links = $(row).find("td.name a");
     const titleAnchor = links.last();
     const title = normalizeTitle(titleAnchor.text().trim());
-    const detailHref = titleAnchor.attr('href');
+    const detailHref = titleAnchor.attr("href");
     if (!title || !detailHref) return;
 
-    let detailUrl = '';
+    let detailUrl = "";
     try {
       detailUrl = new URL(detailHref, baseUrl).toString();
     } catch {
@@ -213,8 +227,8 @@ export const parse1337xBookListingHtml = (
     results.push({
       title,
       detailUrl,
-      seeds: toInt($(row).find('td.seeds').first().text()),
-      leeches: toInt($(row).find('td.leeches').first().text()),
+      seeds: toInt($(row).find("td.seeds").first().text()),
+      leeches: toInt($(row).find("td.leeches").first().text()),
       isAudiobook: isAudiobookTitle(title),
       isLikelyVideo: isLikelyVideoRelease(title),
       format: detectFormat(title),
@@ -230,7 +244,7 @@ export const parse1337xBookListingHtml = (
 export const parseAnnasArchiveHtml = (
   html: string,
   baseUrl: string,
-  ext: 'epub' | 'pdf',
+  ext: "epub" | "pdf",
 ): BookTorrentListingCandidate[] => {
   const $ = cheerio.load(html);
   const results: BookTorrentListingCandidate[] = [];
@@ -239,7 +253,7 @@ export const parseAnnasArchiveHtml = (
   // Each search result is a <div> containing an <a href="/md5/...">
   // The structure varies but md5 links are stable
   $('a[href^="/md5/"]').each((_, el) => {
-    const href = $(el).attr('href');
+    const href = $(el).attr("href");
     if (!href) return;
 
     // Extract md5 hash from the href
@@ -253,24 +267,32 @@ export const parseAnnasArchiveHtml = (
     const downloadUrl = `${baseUrl}/md5/${md5}`;
 
     // Extract text content from the link or its container
-    const container = $(el).closest('div');
-    const rawText = (container.text() || $(el).text()).replace(/\s+/g, ' ').trim();
+    const container = $(el).closest("div");
+    const rawText = (container.text() || $(el).text())
+      .replace(/\s+/g, " ")
+      .trim();
 
     // Try to extract title from the link text or the h3/strong inside the container
-    let candidateTitle = (container.find('h3, strong, [class*="title"]').first().text() || $(el).text()).trim();
+    let candidateTitle = (
+      container.find('h3, strong, [class*="title"]').first().text() ||
+      $(el).text()
+    ).trim();
     if (!candidateTitle) candidateTitle = rawText.slice(0, 100);
 
     candidateTitle = normalizeTitle(candidateTitle);
     if (!candidateTitle) return;
 
-    const format: BookTorrentListingCandidate['format'] = ext === 'epub' ? 'EPUB' : 'PDF';
+    const format: BookTorrentListingCandidate["format"] =
+      ext === "epub" ? "EPUB" : "PDF";
 
     results.push({
       title: candidateTitle,
       detailUrl: downloadUrl,
       seeds: 999, // Anna's Archive is a library, not a torrent — use high synthetic seeder count
       leeches: 0,
-      isAudiobook: isAudiobookTitle(candidateTitle) || rawText.toLowerCase().includes('audiobook'),
+      isAudiobook:
+        isAudiobookTitle(candidateTitle) ||
+        rawText.toLowerCase().includes("audiobook"),
       isLikelyVideo: isLikelyVideoRelease(candidateTitle),
       format,
       downloadUrl,
@@ -280,10 +302,12 @@ export const parseAnnasArchiveHtml = (
   return results;
 };
 
-export const parse1337xBookDetailHtml = (html: string): { magnetLink: string | null } => {
+export const parse1337xBookDetailHtml = (
+  html: string,
+): { magnetLink: string | null } => {
   const $ = cheerio.load(html);
   const magnetLink =
-    $('a[href^="magnet:?xt=urn:btih:"]').first().attr('href') ||
+    $('a[href^="magnet:?xt=urn:btih:"]').first().attr("href") ||
     html.match(/magnet:\?xt=urn:btih:[^"'\s<]+/i)?.[0] ||
     null;
   return { magnetLink };
@@ -296,9 +320,9 @@ const extractInfoHash = (magnet: string): string | null => {
 
 const scoreListing = (entry: BookTorrentListingCandidate): number => {
   let score = 0;
-  if (entry.format === 'EPUB') score += 120;
-  if (entry.format === 'PDF') score += 100;
-  if (entry.format === 'MOBI' || entry.format === 'AZW') score += 70;
+  if (entry.format === "EPUB") score += 120;
+  if (entry.format === "PDF") score += 100;
+  if (entry.format === "MOBI" || entry.format === "AZW") score += 70;
   score += Math.min(entry.seeds, 500);
   if (entry.leeches > 0) score += Math.min(entry.leeches, 200) * 0.1;
   if (entry.isAudiobook) score -= 500;
@@ -306,28 +330,32 @@ const scoreListing = (entry: BookTorrentListingCandidate): number => {
 };
 
 const DEFAULT_ANNAS_ARCHIVE_HOSTS = [
-  'https://annas-archive.gl',
-  'https://annas-archive.pk',
-  'https://annas-archive.vg',
-  'https://annas-archive.gd',
+  "https://annas-archive.gl",
+  "https://annas-archive.pk",
+  "https://annas-archive.vg",
+  "https://annas-archive.gd",
 ];
 
 const getAnnasArchiveHosts = (): string[] => {
-  const configured = (process.env.ANNAS_ARCHIVE_HOSTS || '').trim();
-  const hosts = (configured ? configured.split(',') : DEFAULT_ANNAS_ARCHIVE_HOSTS)
-    .map((host) => host.trim().replace(/\/+$/, ''))
+  const configured = (process.env.ANNAS_ARCHIVE_HOSTS || "").trim();
+  const hosts = (
+    configured ? configured.split(",") : DEFAULT_ANNAS_ARCHIVE_HOSTS
+  )
+    .map((host) => host.trim().replace(/\/+$/, ""))
     .filter(Boolean);
-  return hosts.length > 0 ? Array.from(new Set(hosts)) : DEFAULT_ANNAS_ARCHIVE_HOSTS;
+  return hosts.length > 0
+    ? Array.from(new Set(hosts))
+    : DEFAULT_ANNAS_ARCHIVE_HOSTS;
 };
 
 const isCloudflareInterstitial = (body: string): boolean => {
-  const normalized = (body || '').toLowerCase();
+  const normalized = (body || "").toLowerCase();
   return (
-    normalized.includes('challenge-platform') ||
-    normalized.includes('just a moment') ||
-    normalized.includes('verifying your connection') ||
-    normalized.includes('cf-browser-verification') ||
-    normalized.includes('attention required')
+    normalized.includes("challenge-platform") ||
+    normalized.includes("just a moment") ||
+    normalized.includes("verifying your connection") ||
+    normalized.includes("cf-browser-verification") ||
+    normalized.includes("attention required")
   );
 };
 
@@ -340,9 +368,13 @@ export class AutoLibraryDiscoveryService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly logger: Pick<Console, 'info' | 'warn' | 'error'> = console,
+    private readonly logger: Pick<Console, "info" | "warn" | "error"> = console,
   ) {
-    this.sourceBaseUrl = (process.env.BOOK_AUTO_LIBRARY_SOURCE_URL || DEFAULT_1337X_BASE_URL).trim().replace(/\/+$/, '');
+    this.sourceBaseUrl = (
+      process.env.BOOK_AUTO_LIBRARY_SOURCE_URL || DEFAULT_1337X_BASE_URL
+    )
+      .trim()
+      .replace(/\/+$/, "");
     this.healthMonitor = new HealthMonitorService({
       windowMs: 300000, // 5 minutes
       failureThreshold: 3,
@@ -353,10 +385,13 @@ export class AutoLibraryDiscoveryService {
 
   async loadMustHaves(): Promise<MustHaveBook[]> {
     const candidates = [
-      path.resolve(process.cwd(), 'apps/api/src/modules/books/data/must-haves.json'),
-      path.resolve(process.cwd(), 'src/modules/books/data/must-haves.json'),
-      path.resolve(__dirname, '../../src/modules/books/data/must-haves.json'),
-      path.resolve(__dirname, 'data/must-haves.json'),
+      path.resolve(
+        process.cwd(),
+        "apps/api/src/modules/books/data/must-haves.json",
+      ),
+      path.resolve(process.cwd(), "src/modules/books/data/must-haves.json"),
+      path.resolve(__dirname, "../../src/modules/books/data/must-haves.json"),
+      path.resolve(__dirname, "data/must-haves.json"),
     ];
 
     let filePath: string | null = null;
@@ -371,24 +406,31 @@ export class AutoLibraryDiscoveryService {
     }
 
     if (!filePath) {
-      throw new Error('Auto-Library must-haves file was not found');
+      throw new Error("Auto-Library must-haves file was not found");
     }
 
-    const raw = await fs.readFile(filePath, 'utf8');
+    const raw = await fs.readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as MustHaveBook[];
     return parsed
       .map((entry) => ({
-        title: cleanWhitespace(entry.title || ''),
-        author: cleanWhitespace(entry.author || ''),
+        title: cleanWhitespace(entry.title || ""),
+        author: cleanWhitespace(entry.author || ""),
         year: entry.year,
-        genre: Array.isArray(entry.genre) ? entry.genre.filter(Boolean).map((g) => cleanWhitespace(g)) : [],
+        genre: Array.isArray(entry.genre)
+          ? entry.genre.filter(Boolean).map((g) => cleanWhitespace(g))
+          : [],
       }))
       .filter((entry) => !!entry.title && !!entry.author);
   }
 
-  async fetchGoogleTrendingBooks(maxResults: number): Promise<ExternalBookTarget[]> {
-    const queries = (process.env.BOOK_AUTO_LIBRARY_GOOGLE_QUERIES || 'subject:fiction bestseller,subject:literary fiction')
-      .split(',')
+  async fetchGoogleTrendingBooks(
+    maxResults: number,
+  ): Promise<ExternalBookTarget[]> {
+    const queries = (
+      process.env.BOOK_AUTO_LIBRARY_GOOGLE_QUERIES ||
+      "subject:fiction bestseller,subject:literary fiction"
+    )
+      .split(",")
       .map((q) => q.trim())
       .filter(Boolean);
 
@@ -398,23 +440,30 @@ export class AutoLibraryDiscoveryService {
     for (const query of queries) {
       if (results.length >= maxResults) break;
       try {
-        const response = await axios.get('https://www.googleapis.com/books/v1/volumes', {
-          params: {
-            q: query,
-            orderBy: 'relevance',
-            printType: 'books',
-            maxResults: Math.min(maxResults, 40),
-            langRestrict: 'en',
+        const response = await axios.get(
+          "https://www.googleapis.com/books/v1/volumes",
+          {
+            params: {
+              q: query,
+              orderBy: "relevance",
+              printType: "books",
+              maxResults: Math.min(maxResults, 40),
+              langRestrict: "en",
+            },
+            timeout: 20_000,
           },
-          timeout: 20_000,
-        });
+        );
 
-        const items = Array.isArray(response.data?.items) ? response.data.items : [];
+        const items = Array.isArray(response.data?.items)
+          ? response.data.items
+          : [];
         for (const item of items) {
           if (results.length >= maxResults) break;
           const volume = item?.volumeInfo || {};
-          const title = cleanWhitespace(String(volume.title || ''));
-          const author = cleanWhitespace(String((volume.authors || [])[0] || 'Unknown'));
+          const title = cleanWhitespace(String(volume.title || ""));
+          const author = cleanWhitespace(
+            String((volume.authors || [])[0] || "Unknown"),
+          );
           if (!title || !author) continue;
 
           const key = `${normalizeForKey(title)}::${normalizeForKey(author)}`;
@@ -422,44 +471,65 @@ export class AutoLibraryDiscoveryService {
           seen.add(key);
 
           const isbn = Array.isArray(volume.industryIdentifiers)
-            ? String(volume.industryIdentifiers.find((id: any) => id?.identifier)?.identifier || '')
-            : '';
+            ? String(
+                volume.industryIdentifiers.find(
+                  (id: { type?: string; identifier?: string }) =>
+                    id?.identifier,
+                )?.identifier || "",
+              )
+            : "";
 
           results.push({
             title,
             author,
-            year: parseBookYear(String(volume.publishedDate || '')),
-            genre: Array.isArray(volume.categories) ? volume.categories.slice(0, 3) : [],
-            source: 'google-trending',
-            description: cleanWhitespace(String(volume.description || '')) || undefined,
-            coverUrl: volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail || undefined,
-            language: volume.language ? String(volume.language).toUpperCase() : undefined,
-            publisher: cleanWhitespace(String(volume.publisher || '')) || undefined,
+            year: parseBookYear(String(volume.publishedDate || "")),
+            genre: Array.isArray(volume.categories)
+              ? volume.categories.slice(0, 3)
+              : [],
+            source: "google-trending",
+            description:
+              cleanWhitespace(String(volume.description || "")) || undefined,
+            coverUrl:
+              volume.imageLinks?.thumbnail ||
+              volume.imageLinks?.smallThumbnail ||
+              undefined,
+            language: volume.language
+              ? String(volume.language).toUpperCase()
+              : undefined,
+            publisher:
+              cleanWhitespace(String(volume.publisher || "")) || undefined,
             isbn: isbn || undefined,
           });
         }
       } catch (error) {
-        this.logger.warn(`[AutoLibrary] Google Books query failed for "${query}": ${toErrorMessage(error)}`);
+        this.logger.warn(
+          `[AutoLibrary] Google Books query failed for "${query}": ${toErrorMessage(error)}`,
+        );
       }
     }
 
     return results;
   }
 
-  async discoverAndSync(options: AutoLibraryRunOptions = {}): Promise<AutoLibraryRunSummary> {
+  async discoverAndSync(
+    options: AutoLibraryRunOptions = {},
+  ): Promise<AutoLibraryRunSummary> {
     const includeMustHaves = options.includeMustHaves ?? true;
     const includeTrending = options.includeTrending ?? true;
     const ingest = options.ingest ?? false;
     const dryRun = options.dryRun ?? false;
-    const maxTargets = Number.isFinite(options.maxTargets) && (options.maxTargets as number) > 0
-      ? Math.min(options.maxTargets as number, 60)
-      : 24;
-    const maxMatches = Number.isFinite(options.maxMatches) && (options.maxMatches as number) > 0
-      ? Math.min(options.maxMatches as number, 25)
-      : 8;
-    const minSeeders = Number.isFinite(options.minSeeders) && (options.minSeeders as number) >= 0
-      ? options.minSeeders as number
-      : 1;
+    const maxTargets =
+      Number.isFinite(options.maxTargets) && (options.maxTargets as number) > 0
+        ? Math.min(options.maxTargets as number, 60)
+        : 24;
+    const maxMatches =
+      Number.isFinite(options.maxMatches) && (options.maxMatches as number) > 0
+        ? Math.min(options.maxMatches as number, 25)
+        : 8;
+    const minSeeders =
+      Number.isFinite(options.minSeeders) && (options.minSeeders as number) >= 0
+        ? (options.minSeeders as number)
+        : 1;
 
     const summary: AutoLibraryRunSummary = {
       sourceBaseUrl: this.sourceBaseUrl,
@@ -479,10 +549,12 @@ export class AutoLibraryDiscoveryService {
     };
 
     const mustHaves = includeMustHaves ? await this.loadMustHaves() : [];
-    const trending = includeTrending ? await this.fetchGoogleTrendingBooks(maxTargets) : [];
+    const trending = includeTrending
+      ? await this.fetchGoogleTrendingBooks(maxTargets)
+      : [];
 
     const combined: ExternalBookTarget[] = [
-      ...mustHaves.map((entry) => ({ ...entry, source: 'must-have' as const })),
+      ...mustHaves.map((entry) => ({ ...entry, source: "must-have" as const })),
       ...trending,
     ];
 
@@ -504,20 +576,35 @@ export class AutoLibraryDiscoveryService {
 
       try {
         // ── Primary: Anna's Archive (works even when VPS IP is banned by 1337x) ──
-        let listing = await this.searchAnnasArchive(target.title, target.author);
+        let listing = await this.searchAnnasArchive(
+          target.title,
+          target.author,
+        );
         let source = "Anna's Archive";
 
         // ── Fallback: 1337x (append "book" to bias results toward book torrents) ──
         if (listing.length === 0) {
-          this.logger.info(`[AutoLibrary] "${target.title}" — Anna's Archive returned 0, falling back to 1337x`);
+          this.logger.info(
+            `[AutoLibrary] "${target.title}" — Anna's Archive returned 0, falling back to 1337x`,
+          );
           const query = `${target.title} ${target.author} book`;
           listing = await this.search1337xByQuery(query);
-          source = '1337x';
+          source = "1337x";
         }
 
-        this.logger.info(`[AutoLibrary] "${target.title}" — raw results: ${listing.length} (source: ${source})`);
+        this.logger.info(
+          `[AutoLibrary] "${target.title}" — raw results: ${listing.length} (source: ${source})`,
+        );
         if (listing.length > 0) {
-          this.logger.info(`[AutoLibrary] "${target.title}" — sample titles: ${listing.slice(0, 5).map(e => `"${e.title}" (video=${e.isLikelyVideo},fmt=${e.format})`).join(' | ')}`);
+          this.logger.info(
+            `[AutoLibrary] "${target.title}" — sample titles: ${listing
+              .slice(0, 5)
+              .map(
+                (e) =>
+                  `"${e.title}" (video=${e.isLikelyVideo},fmt=${e.format})`,
+              )
+              .join(" | ")}`,
+          );
         }
 
         const nonAudio = listing.filter((entry) => {
@@ -525,23 +612,34 @@ export class AutoLibraryDiscoveryService {
           summary.filteredAudio += 1;
           return false;
         });
-        this.logger.info(`[AutoLibrary] "${target.title}" — after audio filter: ${nonAudio.length}`);
+        this.logger.info(
+          `[AutoLibrary] "${target.title}" — after audio filter: ${nonAudio.length}`,
+        );
 
         const likelyBooks = nonAudio.filter((entry) => {
           if (entry.isLikelyVideo) return false;
-          if (entry.format !== 'UNKNOWN') return true;
+          if (entry.format !== "UNKNOWN") return true;
           // For UNKNOWN format: require a strong title match AND at least one author token.
-          return hasStrictTitleSignal(entry.title, target.title) && hasAuthorSignal(entry.title, target.author);
+          return (
+            hasStrictTitleSignal(entry.title, target.title) &&
+            hasAuthorSignal(entry.title, target.author)
+          );
         });
-        this.logger.info(`[AutoLibrary] "${target.title}" — after book filter: ${likelyBooks.length}`);
+        this.logger.info(
+          `[AutoLibrary] "${target.title}" — after book filter: ${likelyBooks.length}`,
+        );
 
         const seeded = likelyBooks.filter((entry) => entry.seeds >= minSeeders);
-        this.logger.info(`[AutoLibrary] "${target.title}" — after seeder filter (>=${minSeeders}): ${seeded.length}`);
+        this.logger.info(
+          `[AutoLibrary] "${target.title}" — after seeder filter (>=${minSeeders}): ${seeded.length}`,
+        );
 
         const top = seeded.sort((a, b) => scoreListing(b) - scoreListing(a))[0];
         if (!top) continue;
 
-        this.logger.info(`[AutoLibrary] "${target.title}" — best match: "${top.title}" (seeds=${top.seeds}, format=${top.format})`);
+        this.logger.info(
+          `[AutoLibrary] "${target.title}" — best match: "${top.title}" (seeds=${top.seeds}, format=${top.format})`,
+        );
 
         // Anna's Archive results have a direct downloadUrl — no magnet/detail page needed.
         if (top.downloadUrl) {
@@ -555,10 +653,15 @@ export class AutoLibraryDiscoveryService {
         }
 
         // 1337x path: fetch detail page to get magnet link
-        const detailHtml = await this.fetchHtml(top.detailUrl, 'book-auto-library');
+        const detailHtml = await this.fetchHtml(
+          top.detailUrl,
+          "book-auto-library",
+        );
         const detail = parse1337xBookDetailHtml(detailHtml);
         if (!detail.magnetLink) {
-          this.logger.warn(`[AutoLibrary] "${target.title}" — no magnet link found on detail page: ${top.detailUrl}`);
+          this.logger.warn(
+            `[AutoLibrary] "${target.title}" — no magnet link found on detail page: ${top.detailUrl}`,
+          );
           continue;
         }
 
@@ -570,8 +673,12 @@ export class AutoLibraryDiscoveryService {
         });
       } catch (error) {
         summary.failed += 1;
-        summary.errors.push(`${target.title} (${target.author}): ${toErrorMessage(error)}`);
-        this.logger.error(`[AutoLibrary] "${target.title}" failed: ${toErrorMessage(error)}`);
+        summary.errors.push(
+          `${target.title} (${target.author}): ${toErrorMessage(error)}`,
+        );
+        this.logger.error(
+          `[AutoLibrary] "${target.title}" failed: ${toErrorMessage(error)}`,
+        );
       }
     }
 
@@ -579,12 +686,12 @@ export class AutoLibraryDiscoveryService {
 
     if (ingest) {
       for (const match of matches) {
-        const slug = `${match.target.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${match.target.year || new Date().getFullYear()}`;
+        const slug = `${match.target.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${match.target.year || new Date().getFullYear()}`;
         const existing = await this.prisma.book.findUnique({
           where: { slug },
           select: { id: true, status: true },
         });
-        if (existing && existing.status === 'active') {
+        if (existing && existing.status === "active") {
           summary.skippedExisting += 1;
           continue;
         }
@@ -604,11 +711,17 @@ export class AutoLibraryDiscoveryService {
           isbn: match.target.isbn || null,
           coverUrl: match.target.coverUrl || null,
           downloadUrl: match.magnetLink,
-          format: match.listing.format === 'UNKNOWN' ? 'EPUB' : match.listing.format,
-          genre: match.target.genre && match.target.genre.length > 0 ? match.target.genre : ['General'],
-          language: match.target.language || 'EN',
-          publisher: match.target.publisher || (match.listing.downloadUrl ? "Anna's Archive" : 'AutoLibrary'),
-          status: 'active' as const,
+          format:
+            match.listing.format === "UNKNOWN" ? "EPUB" : match.listing.format,
+          genre:
+            match.target.genre && match.target.genre.length > 0
+              ? match.target.genre
+              : ["General"],
+          language: match.target.language || "EN",
+          publisher:
+            match.target.publisher ||
+            (match.listing.downloadUrl ? "Anna's Archive" : "AutoLibrary"),
+          status: "active" as const,
         };
 
         await this.prisma.book.upsert({
@@ -644,11 +757,15 @@ export class AutoLibraryDiscoveryService {
         try {
           await this.queueService.addAnnasMirrorJob({
             batchSize: annasCount,
-            triggeredBy: 'auto-library-discovery',
+            triggeredBy: "auto-library-discovery",
           });
-          this.logger.info(`[AutoLibrary] Enqueued Anna's Archive mirror job for ${annasCount} books`);
+          this.logger.info(
+            `[AutoLibrary] Enqueued Anna's Archive mirror job for ${annasCount} books`,
+          );
         } catch (err) {
-          this.logger.warn(`[AutoLibrary] Failed to enqueue Anna's Archive mirror job: ${toErrorMessage(err)}`);
+          this.logger.warn(
+            `[AutoLibrary] Failed to enqueue Anna's Archive mirror job: ${toErrorMessage(err)}`,
+          );
         }
       }
     }
@@ -663,7 +780,7 @@ export class AutoLibraryDiscoveryService {
       infoHash: match.infoHash,
     }));
 
-    this.logger.info({ summary }, '[AutoLibrary] Discovery run completed');
+    this.logger.info({ summary }, "[AutoLibrary] Discovery run completed");
     return summary;
   }
 
@@ -684,14 +801,17 @@ export class AutoLibraryDiscoveryService {
     const now = Date.now();
     const elapsed = now - this.annasLastRequestAt;
     if (elapsed < this.ANNAS_MIN_INTERVAL_MS) {
-      await new Promise((r) => setTimeout(r, this.ANNAS_MIN_INTERVAL_MS - elapsed));
+      await new Promise((r) =>
+        setTimeout(r, this.ANNAS_MIN_INTERVAL_MS - elapsed),
+      );
     }
     this.annasLastRequestAt = Date.now();
 
     const requestHeaders = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
       Referer: `${new URL(url).origin}/`,
     };
 
@@ -699,131 +819,179 @@ export class AutoLibraryDiscoveryService {
       const response = await axios.get<string>(url, {
         headers: requestHeaders,
         timeout: 30_000,
-        responseType: 'text',
+        responseType: "text",
         validateStatus: (s) => s < 500,
         maxRedirects: 5,
       });
 
       if (response.status === 403 || response.status === 429) {
-        this.logger.warn(`[AutoLibrary] Anna's Archive rate-limited (HTTP ${response.status}) for ${url}`);
+        this.logger.warn(
+          `[AutoLibrary] Anna's Archive rate-limited (HTTP ${response.status}) for ${url}`,
+        );
         this.annasLastRequestAt = Date.now() + 5000;
-      } else if (response.status === 200 && response.data && !isCloudflareInterstitial(response.data)) {
+      } else if (
+        response.status === 200 &&
+        response.data &&
+        !isCloudflareInterstitial(response.data)
+      ) {
         return response.data as string;
       } else if (response.status !== 200 || !response.data) {
-        this.logger.warn(`[AutoLibrary] Anna's Archive returned HTTP ${response.status} for ${url}`);
+        this.logger.warn(
+          `[AutoLibrary] Anna's Archive returned HTTP ${response.status} for ${url}`,
+        );
       }
     } catch (error) {
-      this.logger.warn(`[AutoLibrary] Anna direct fetch failed for ${url}: ${toErrorMessage(error)}`);
+      this.logger.warn(
+        `[AutoLibrary] Anna direct fetch failed for ${url}: ${toErrorMessage(error)}`,
+      );
     }
 
     try {
       const solved = await this.flaresolverr.get(url, {
-        sourceId: 'annas-archive',
+        sourceId: "annas-archive",
         timeoutMs: 60_000,
         headers: requestHeaders,
       });
-      if (solved.status === 200 && solved.body && !isCloudflareInterstitial(solved.body)) {
+      if (
+        solved.status === 200 &&
+        solved.body &&
+        !isCloudflareInterstitial(solved.body)
+      ) {
         return solved.body;
       }
-      this.logger.warn(`[AutoLibrary] FlareSolverr returned challenge/empty response for ${url}`);
+      this.logger.warn(
+        `[AutoLibrary] FlareSolverr returned challenge/empty response for ${url}`,
+      );
     } catch (error) {
-      this.logger.warn(`[AutoLibrary] FlareSolverr Anna fetch failed for ${url}: ${toErrorMessage(error)}`);
+      this.logger.warn(
+        `[AutoLibrary] FlareSolverr Anna fetch failed for ${url}: ${toErrorMessage(error)}`,
+      );
     }
 
     return null;
   }
 
-  async searchAnnasArchive(title: string, author: string): Promise<BookTorrentListingCandidate[]> {
+  async searchAnnasArchive(
+    title: string,
+    author: string,
+  ): Promise<BookTorrentListingCandidate[]> {
     const query = encodeURIComponent(`${title} ${author}`.trim());
     const results: BookTorrentListingCandidate[] = [];
 
     for (const host of this.ANNAS_ARCHIVE_HOSTS) {
       try {
         // Try epub first, then pdf as fallback
-        for (const ext of ['epub', 'pdf']) {
+        for (const ext of ["epub", "pdf"]) {
           const url = `${host}/search?q=${query}&lang=en&ext=${ext}&sort=`;
           this.logger.info(`[AutoLibrary] Anna's Archive search: ${url}`);
 
           const html = await this.annasThrottledGet(url).catch((err) => {
-            this.logger.warn(`[AutoLibrary] Anna's Archive host ${host} failed: ${toErrorMessage(err)}`);
+            this.logger.warn(
+              `[AutoLibrary] Anna's Archive host ${host} failed: ${toErrorMessage(err)}`,
+            );
             return null;
           });
 
           if (!html) continue;
 
-          const parsed = parseAnnasArchiveHtml(html, host, ext as 'epub' | 'pdf');
-          this.logger.info(`[AutoLibrary] Anna's Archive (${ext}): ${parsed.length} results from ${host}`);
+          const parsed = parseAnnasArchiveHtml(
+            html,
+            host,
+            ext as "epub" | "pdf",
+          );
+          this.logger.info(
+            `[AutoLibrary] Anna's Archive (${ext}): ${parsed.length} results from ${host}`,
+          );
           results.push(...parsed);
         }
 
         if (results.length > 0) break; // got results from this host, stop
       } catch (err) {
-        this.logger.warn(`[AutoLibrary] Anna's Archive host ${host} failed: ${toErrorMessage(err)}`);
+        this.logger.warn(
+          `[AutoLibrary] Anna's Archive host ${host} failed: ${toErrorMessage(err)}`,
+        );
       }
     }
 
     return results;
   }
 
-  private async search1337xByQuery(query: string): Promise<BookTorrentListingCandidate[]> {
+  private async search1337xByQuery(
+    query: string,
+  ): Promise<BookTorrentListingCandidate[]> {
     const encoded = encodeURIComponent(query.trim());
     const url = `${this.sourceBaseUrl}/sort-search/${encoded}/seeders/desc/1/`;
-    const html = await this.fetchHtml(url, 'book-auto-library');
+    const html = await this.fetchHtml(url, "book-auto-library");
     return parse1337xBookListingHtml(html, this.sourceBaseUrl);
   }
 
   private async fetchHtml(url: string, sourceId: string): Promise<string> {
-    const serviceName = '1337x';
-    
+    const serviceName = "1337x";
+
     if (!this.healthMonitor.shouldAttempt(serviceName)) {
-      throw new Error(`1337x is currently unhealthy. Last failure: ${this.healthMonitor.getHealth(serviceName)?.lastChecked}`);
+      throw new Error(
+        `1337x is currently unhealthy. Last failure: ${this.healthMonitor.getHealth(serviceName)?.lastChecked}`,
+      );
     }
 
-    return retryWithBackoff(async () => {
-      // Try current mirror
-      const currentMirror = MIRROR_URLS[this.mirrorIndex] || this.sourceBaseUrl;
-      const mirrorUrl = url.replace(this.sourceBaseUrl, currentMirror);
-      
-      try {
-        const result = await this.attemptFetch(mirrorUrl, sourceId);
-        this.healthMonitor.recordSuccess(serviceName);
-        return result;
-      } catch (error) {
-        const status = error instanceof Error && 'status' in error 
-          ? (error as any).status 
-          : null;
-        
-        // Rotate mirror on failure
-        this.mirrorIndex = (this.mirrorIndex + 1) % MIRROR_URLS.length;
-        this.logger.warn(`[AutoLibrary] Mirror ${currentMirror} failed, trying ${MIRROR_URLS[this.mirrorIndex]}`);
-        
-        // Only retry on network errors or specific HTTP status codes
-        if (!status || isRetryableStatus(status)) {
-          throw new RetryableError(`Fetch failed: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error : undefined);
+    return retryWithBackoff(
+      async () => {
+        // Try current mirror
+        const currentMirror =
+          MIRROR_URLS[this.mirrorIndex] || this.sourceBaseUrl;
+        const mirrorUrl = url.replace(this.sourceBaseUrl, currentMirror);
+
+        try {
+          const result = await this.attemptFetch(mirrorUrl, sourceId);
+          this.healthMonitor.recordSuccess(serviceName);
+          return result;
+        } catch (error) {
+          const status =
+            error instanceof Error && "status" in error
+              ? (error as Error & { status?: number }).status
+              : null;
+
+          // Rotate mirror on failure
+          this.mirrorIndex = (this.mirrorIndex + 1) % MIRROR_URLS.length;
+          this.logger.warn(
+            `[AutoLibrary] Mirror ${currentMirror} failed, trying ${MIRROR_URLS[this.mirrorIndex]}`,
+          );
+
+          // Only retry on network errors or specific HTTP status codes
+          if (!status || isRetryableStatus(status)) {
+            throw new RetryableError(
+              `Fetch failed: ${error instanceof Error ? error.message : String(error)}`,
+              error instanceof Error ? error : undefined,
+            );
+          }
+
+          this.healthMonitor.recordFailure(serviceName);
+          throw error;
         }
-        
-        this.healthMonitor.recordFailure(serviceName);
-        throw error;
-      }
-    }, {
-      maxAttempts: 3,
-      baseDelayMs: 2000,
-      maxDelayMs: 10000,
-      onRetry: (attempt, error, delay) => {
-        this.logger.warn(`[AutoLibrary] Retry attempt ${attempt} after ${delay}ms: ${error.message}`);
       },
-    });
+      {
+        maxAttempts: 3,
+        baseDelayMs: 2000,
+        maxDelayMs: 10000,
+        onRetry: (attempt, error, delay) => {
+          this.logger.warn(
+            `[AutoLibrary] Retry attempt ${attempt} after ${delay}ms: ${error.message}`,
+          );
+        },
+      },
+    );
   }
 
   private async attemptFetch(url: string, sourceId: string): Promise<string> {
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'DNT': '1',
-      'Connection': 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Accept-Encoding": "gzip, deflate, br",
+      DNT: "1",
+      Connection: "keep-alive",
+      "Upgrade-Insecure-Requests": "1",
     };
 
     // Try FlareSolverr first if available
@@ -834,11 +1002,17 @@ export class AutoLibraryDiscoveryService {
           timeoutMs: 60_000,
           sourceId,
         });
-        if (response.status >= 200 && response.status < 300 && response.body.trim().length > 0) {
+        if (
+          response.status >= 200 &&
+          response.status < 300 &&
+          response.body.trim().length > 0
+        ) {
           return response.body;
         }
       } catch (error) {
-        this.logger.warn(`[AutoLibrary] FlareSolverr failed for ${url}: ${toErrorMessage(error)}`);
+        this.logger.warn(
+          `[AutoLibrary] FlareSolverr failed for ${url}: ${toErrorMessage(error)}`,
+        );
       }
     }
 
@@ -846,25 +1020,34 @@ export class AutoLibraryDiscoveryService {
     const response = await axios.get<string>(url, {
       headers,
       timeout: 60_000,
-      responseType: 'text',
+      responseType: "text",
       validateStatus: () => true,
     });
-    
+
     if (response.status < 200 || response.status >= 300) {
-      const error = new Error(`HTTP ${response.status}`) as any;
+      const error = new Error(`HTTP ${response.status}`) as Error & {
+        status?: number;
+      };
       error.status = response.status;
       throw error;
     }
-    
-    if (typeof response.data !== 'string' || response.data.trim().length === 0) {
-      throw new Error('Empty response');
+
+    if (
+      typeof response.data !== "string" ||
+      response.data.trim().length === 0
+    ) {
+      throw new Error("Empty response");
     }
 
     // Check for Cloudflare challenge page
-    if (response.data.includes('cf-browser-verification') || 
-        response.data.includes('challenge-platform') ||
-        response.data.includes('Just a moment...')) {
-      const error = new Error('Cloudflare challenge detected') as any;
+    if (
+      response.data.includes("cf-browser-verification") ||
+      response.data.includes("challenge-platform") ||
+      response.data.includes("Just a moment...")
+    ) {
+      const error = new Error("Cloudflare challenge detected") as Error & {
+        status?: number;
+      };
       error.status = 503;
       throw error;
     }

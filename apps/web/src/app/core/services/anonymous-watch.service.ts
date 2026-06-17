@@ -1,5 +1,5 @@
-import { Injectable, signal } from '@angular/core';
-import { MovieSummary } from '@naijaspride/types';
+import { Injectable, signal } from "@angular/core";
+import { MovieSummary } from "@naijaspride/types";
 
 export interface AnonymousWatchHistory {
   movieId: string;
@@ -13,18 +13,18 @@ export interface AnonymousWatchHistory {
   completed: boolean;
 }
 
-const STORAGE_KEY = 'np_anonymous_watch_history';
+const STORAGE_KEY = "np_anonymous_watch_history";
 
 /**
  * Service to manage watch history for non-authenticated users
  * Stores data in localStorage and migrates to Supabase on account creation
  */
 @Injectable({
-  providedIn: 'root'
+  providedIn: "root",
 })
 export class AnonymousWatchService {
   private watchHistory = signal<AnonymousWatchHistory[]>([]);
-  
+
   constructor() {
     this.loadFromStorage();
   }
@@ -40,7 +40,7 @@ export class AnonymousWatchService {
    * Get watch progress for a specific movie
    */
   getProgress(movieId: string): AnonymousWatchHistory | undefined {
-    return this.watchHistory().find(h => h.movieId === movieId);
+    return this.watchHistory().find((h) => h.movieId === movieId);
   }
 
   /**
@@ -51,21 +51,21 @@ export class AnonymousWatchService {
     progressPercentage: number,
     lastPosition: number,
     totalDuration: number,
-    completed = false
+    completed = false,
   ): void {
     const history = this.watchHistory();
-    const existingIndex = history.findIndex(h => h.movieId === movie.id);
-    
+    const existingIndex = history.findIndex((h) => h.movieId === movie.id);
+
     const entry: AnonymousWatchHistory = {
       movieId: movie.id,
-      slug: movie.slug ?? '',
+      slug: movie.slug ?? "",
       title: movie.title,
       thumbnailUrl: movie.thumbnailUrl ?? undefined,
       progressPercentage: Math.max(0, Math.min(100, progressPercentage)),
       lastPosition,
       totalDuration,
       watchedAt: new Date().toISOString(),
-      completed
+      completed,
     };
 
     if (existingIndex >= 0) {
@@ -87,7 +87,7 @@ export class AnonymousWatchService {
    */
   markCompleted(movieId: string): void {
     const history = this.watchHistory();
-    const entry = history.find(h => h.movieId === movieId);
+    const entry = history.find((h) => h.movieId === movieId);
     if (entry) {
       entry.completed = true;
       entry.progressPercentage = 100;
@@ -100,7 +100,7 @@ export class AnonymousWatchService {
    * Remove an entry from history
    */
   removeFromHistory(movieId: string): void {
-    const history = this.watchHistory().filter(h => h.movieId !== movieId);
+    const history = this.watchHistory().filter((h) => h.movieId !== movieId);
     this.watchHistory.set(history);
     this.saveToStorage();
   }
@@ -144,7 +144,7 @@ export class AnonymousWatchService {
         }
       }
     } catch (error) {
-      console.error('Error loading anonymous watch history:', error);
+      console.error("Error loading anonymous watch history:", error);
       this.watchHistory.set([]);
     }
   }
@@ -153,9 +153,12 @@ export class AnonymousWatchService {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.watchHistory()));
     } catch (error) {
-      console.error('Error saving anonymous watch history:', error);
+      console.error("Error saving anonymous watch history:", error);
       // If storage is full, remove oldest entries
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      if (
+        error instanceof DOMException &&
+        error.name === "QuotaExceededError"
+      ) {
         const trimmed = this.watchHistory().slice(0, 50);
         this.watchHistory.set(trimmed);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));

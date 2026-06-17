@@ -49,26 +49,6 @@ interface BatchImportProgress {
   errors: string[];
 }
 
-interface RssItem {
-  title: string;
-  link: string | null;
-  pubDate: string | null;
-  magnet: string | null;
-  description: string | null;
-}
-
-interface SearchResults {
-  [title: string]: YouTubeVideo[];
-}
-
-interface ChannelImportResult {
-  imported: string[];
-  skipped: string[];
-  failed: { title: string; error: string }[];
-  notFound: string[];
-  dryRun: boolean;
-}
-
 @Component({
   selector: "app-content-discovery",
   standalone: true,
@@ -852,8 +832,8 @@ export class ContentDiscoveryComponent {
         next: (response) => {
           this.channels.set(response.data);
         },
-        error: (error) => {
-          console.error("Error loading channels:", error);
+        error: (_error) => {
+          /* ignore */
         },
       });
   }
@@ -904,7 +884,6 @@ export class ContentDiscoveryComponent {
           });
         },
         error: (error) => {
-          console.error("Error deleting channel:", error);
           this.toast.error("Failed to delete channel");
           this.deletingChannelIds.update((ids) => {
             ids.delete(id);
@@ -939,7 +918,6 @@ export class ContentDiscoveryComponent {
           this.startProgressPolling(channelId, progressId);
         },
         error: (error) => {
-          console.error("Error starting batch import:", error);
           this.toast.error("Failed to start batch import");
           this.batchImportingChannels.update((ids) => {
             ids.delete(channelId);
@@ -982,7 +960,6 @@ export class ContentDiscoveryComponent {
             }
           },
           error: (error) => {
-            console.error("Error polling progress:", error);
             window.clearInterval(intervalId);
             this.progressPollingIntervals.delete(channelId);
           },
@@ -1066,7 +1043,6 @@ export class ContentDiscoveryComponent {
           this.isLoadingMoreVideos.set(false);
         },
         error: (error) => {
-          console.error("Error loading channel videos:", error);
           this.isLoadingChannelVideos.set(false);
           this.isLoadingMoreVideos.set(false);
         },
@@ -1116,7 +1092,6 @@ export class ContentDiscoveryComponent {
           });
         },
         error: (error) => {
-          console.error("Error importing video:", error);
           this.toast.error("Failed to import video");
           this.importingVideoIds.update((ids) => {
             ids.delete(video.youtubeId);
@@ -1167,7 +1142,6 @@ export class ContentDiscoveryComponent {
           this.startBackfillPolling(jobId);
         },
         error: (error) => {
-          console.error("Backfill failed to start:", error);
           this.backfillProgress.set({
             processed: 0,
             total: 0,
@@ -1215,7 +1189,6 @@ export class ContentDiscoveryComponent {
             }
           },
           error: (error) => {
-            console.error("Backfill polling error:", error);
             window.clearInterval(this.backfillPollInterval!);
             this.backfillPollInterval = null;
             this.isBackfilling.set(false);

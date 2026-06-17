@@ -1,4 +1,4 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, signal } from "@angular/core";
 
 export interface AuthUser {
   id?: string;
@@ -7,7 +7,7 @@ export interface AuthUser {
   role: string;
   isGuest?: boolean;
   isPremium?: boolean;
-  subStatus?: 'active' | 'inactive' | 'cancelled' | 'past_due';
+  subStatus?: "active" | "inactive" | "cancelled" | "past_due";
 }
 
 interface SessionData {
@@ -16,17 +16,17 @@ interface SessionData {
   refreshToken?: string;
 }
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class AuthStateService {
-  private readonly tokenKey = 'token';
-  private readonly refreshTokenKey = 'refreshToken';
-  private readonly userKey = 'user';
+  private readonly tokenKey = "token";
+  private readonly refreshTokenKey = "refreshToken";
+  private readonly userKey = "user";
 
   readonly currentUser = signal<AuthUser | null>(this.getUserFromStorage());
   readonly isPremium = computed(() => {
     const user = this.currentUser();
     if (!user) return false;
-    return !!user.isPremium || user.subStatus === 'active';
+    return !!user.isPremium || user.subStatus === "active";
   });
   readonly isGuest = computed(() => !!this.currentUser()?.isGuest);
 
@@ -97,7 +97,7 @@ export class AuthStateService {
   }
 
   private canUseStorage(): boolean {
-    return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+    return typeof window !== "undefined" && typeof localStorage !== "undefined";
   }
 
   private safeGet(key: string): string | null {

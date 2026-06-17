@@ -1,19 +1,21 @@
-import { z } from 'zod';
-import { Genre } from '@naijaspride/types';
+import { z } from "zod";
+import { Genre } from "@naijaspride/types";
 
 export const tvShowSearchSchema = z.object({
   q: z.string().max(200).optional(),
   genre: z.preprocess(
     (value) => {
-      if (typeof value === 'string') {
+      if (typeof value === "string") {
         return value
-          .split(',')
+          .split(",")
           .map((entry) => entry.trim())
           .filter(Boolean);
       }
       if (Array.isArray(value)) {
         return value
-          .flatMap((entry) => (typeof entry === 'string' ? entry.split(',') : []))
+          .flatMap((entry) =>
+            typeof entry === "string" ? entry.split(",") : [],
+          )
           .map((entry) => entry.trim())
           .filter(Boolean);
       }
@@ -21,9 +23,14 @@ export const tvShowSearchSchema = z.object({
     },
     z.array(z.nativeEnum(Genre)).optional(),
   ),
-  year: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 2).optional(),
+  year: z.coerce
+    .number()
+    .int()
+    .min(1900)
+    .max(new Date().getFullYear() + 2)
+    .optional(),
   language: z.string().optional(),
-  sortBy: z.enum(['latest', 'popular', 'title', 'trending']).default('latest'),
+  sortBy: z.enum(["latest", "popular", "title", "trending"]).default("latest"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });

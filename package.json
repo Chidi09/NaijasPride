@@ -25,11 +25,13 @@
     "extract:kotatsu-sources": "node tools/scripts/extract-kotatsu-sources.mjs",
     "extract:kotatsu-sources:en": "node tools/scripts/extract-kotatsu-sources.mjs --locale en --exclude-broken --format env",
     "extract:kotatsu-sources:en:manga": "node tools/scripts/extract-kotatsu-sources.mjs --families madara,mangareader,mmrcms,wpcomics --locale en --content-types manga --exclude-broken --dedupe-base-url --format env --split-dir tools/generated/en-manga --out tools/generated/en-manga/index.json",
-    "probe:manga-sources": "node tools/scripts/probe-manga-sources.mjs"
+    "probe:manga-sources": "node tools/scripts/probe-manga-sources.mjs",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/handlebars": "^4.0.40",
     "@types/mjml": "^4.7.4",
+    "husky": "^9.1.7",
     "prettier": "^3.2.0",
     "ts-node": "^10.9.2",
     "turbo": "^2.0.0",

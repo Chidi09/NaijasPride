@@ -13,6 +13,7 @@
 ### Task 1: Add TV schema models and relations
 
 **Files:**
+
 - Modify: `apps/api/prisma/schema.prisma`
 
 **Step 1: Write migration-driven schema assertions (failing check)**
@@ -58,6 +59,7 @@ git commit -m "feat(api): add tv show domain models"
 ### Task 2: Create SQL migration `0012_tv_shows`
 
 **Files:**
+
 - Create: `apps/api/prisma/migrations/0012_tv_shows/migration.sql`
 
 **Step 1: Write migration SQL**
@@ -82,6 +84,7 @@ git commit -m "feat(api): add tv shows migration"
 ### Task 3: Add shared TV types
 
 **Files:**
+
 - Create: `packages/shared-types/src/models/tv-show.ts`
 - Modify: `packages/shared-types/src/index.ts`
 - Modify: `packages/shared-types/src/api/index.ts`
@@ -109,7 +112,7 @@ export interface TvShowSearchParams extends PaginationParams { ... }
 **Step 3: Export from package entrypoint**
 
 ```ts
-export * from './models/tv-show';
+export * from "./models/tv-show";
 ```
 
 **Step 4: Re-run typecheck**
@@ -130,13 +133,14 @@ git commit -m "feat(types): add tv show contracts"
 ### Task 4: Add shared TV validators
 
 **Files:**
+
 - Create: `packages/shared-validators/src/tv-show.schema.ts`
 - Modify: `packages/shared-validators/src/index.ts`
 
 **Step 1: Write failing usage import in route stub (temporary)**
 
 ```ts
-import { tvShowSearchSchema } from '@naijaspride/validators';
+import { tvShowSearchSchema } from "@naijaspride/validators";
 ```
 
 Expected: unresolved export before implementation.
@@ -153,7 +157,7 @@ export const tvEmbedQuerySchema = z.object({ season: z.coerce.number().int().min
 **Step 3: Export validators**
 
 ```ts
-export * from './tv-show.schema';
+export * from "./tv-show.schema";
 ```
 
 **Step 4: Build validators package**
@@ -174,6 +178,7 @@ git commit -m "feat(validators): add tv show query schemas"
 ### Task 5: Build TMDB TV metadata + sync service
 
 **Files:**
+
 - Create: `apps/api/src/modules/tv-shows/tv-tmdb-sync.service.ts`
 
 **Step 1: Write failing minimal test harness command (build-time)**
@@ -195,6 +200,7 @@ private upsertShowByTmdbId(tmdbId: number): Promise<void>;
 ```
 
 Requirements:
+
 - use `TMDB_API_KEY` with fallback `TMDB_KEY`
 - fetch trending/popular/top-rated lists
 - dedupe tmdb ids
@@ -218,12 +224,13 @@ git commit -m "feat(api): add automated tmdb tv sync service"
 ### Task 6: Build TV service and mapping layer
 
 **Files:**
+
 - Create: `apps/api/src/modules/tv-shows/tv-shows.service.ts`
 
 **Step 1: Add failing imports in routes file stub**
 
 ```ts
-import { TvShowsService } from './tv-shows.service';
+import { TvShowsService } from "./tv-shows.service";
 ```
 
 Expected: unresolved until file exists.
@@ -233,10 +240,10 @@ Expected: unresolved until file exists.
 Methods:
 
 ```ts
-search(params)
-findBySlug(slug)
-resolveEpisode(slug, season, episode)
-saveProgress(userId, payload)
+search(params);
+findBySlug(slug);
+resolveEpisode(slug, season, episode);
+saveProgress(userId, payload);
 ```
 
 Include Redis caching pattern aligned with `movies.service.ts`.
@@ -259,12 +266,13 @@ git commit -m "feat(api): add tv shows domain service"
 ### Task 7: Extend embed resolver for TV mode
 
 **Files:**
+
 - Modify: `apps/api/src/modules/movies/embed-resolver.service.ts`
 
 **Step 1: Write failing type usage for TV params**
 
 ```ts
-resolveTv(imdbId, tmdbId, season, episode)
+resolveTv(imdbId, tmdbId, season, episode);
 ```
 
 Expected: missing method before implementation.
@@ -293,12 +301,14 @@ git commit -m "feat(api): add tv episode embed provider resolution"
 ### Task 8: Add TV routes module
 
 **Files:**
+
 - Create: `apps/api/src/modules/tv-shows/tv-shows.routes.ts`
 - Modify: `apps/api/src/app.ts`
 
 **Step 1: Implement route handlers**
 
 Add endpoints:
+
 - `GET /api/v1/tv-shows`
 - `GET /api/v1/tv-shows/:slug`
 - `GET /api/v1/tv-shows/:slug/embeds?season=&episode=`
@@ -329,6 +339,7 @@ git commit -m "feat(api): add tv show endpoints and route wiring"
 ### Task 9: Add automated scheduler wiring
 
 **Files:**
+
 - Modify: `apps/api/src/app.ts`
 
 **Step 1: Add env-driven scheduler block**
@@ -353,6 +364,7 @@ git commit -m "feat(api): add scheduled tmdb tv catalog sync"
 ### Task 10: Add frontend TV API service and query layer
 
 **Files:**
+
 - Create: `apps/web/src/app/features/tv-shows/services/tv-shows-api.service.ts`
 - Create: `apps/web/src/app/features/tv-shows/services/tv-shows-query.service.ts`
 
@@ -365,10 +377,10 @@ Expected: unresolved files before implementation.
 Methods:
 
 ```ts
-list(params)
-getBySlug(slug)
-getEmbeds(slug, season, episode)
-saveProgress(payload)
+list(params);
+getBySlug(slug);
+getEmbeds(slug, season, episode);
+saveProgress(payload);
 ```
 
 **Step 3: Build web app**
@@ -389,6 +401,7 @@ git commit -m "feat(web): add tv shows data services"
 ### Task 11: Add TV listing/detail/watch pages
 
 **Files:**
+
 - Create: `apps/web/src/app/features/tv-shows/pages/tv-shows-list/tv-shows-list.component.ts`
 - Create: `apps/web/src/app/features/tv-shows/pages/tv-show-detail/tv-show-detail.component.ts`
 - Create: `apps/web/src/app/features/tv-shows/pages/tv-watch-room/tv-watch-room.component.ts`
@@ -401,6 +414,7 @@ Use existing movie cards UX patterns for consistency.
 **Step 2: Build detail page with season + episode selectors**
 
 Default selection logic:
+
 - first season with episodes
 - first episode in selected season
 
@@ -426,6 +440,7 @@ git commit -m "feat(web): add tv shows browse detail and watch pages"
 ### Task 12: Wire app routes for TV shows
 
 **Files:**
+
 - Modify: `apps/web/src/app/app.routes.ts`
 
 **Step 1: Add TV route tree**
@@ -460,6 +475,7 @@ git commit -m "feat(web): add tv shows routing"
 ### Task 13: Add TV progress persistence flow
 
 **Files:**
+
 - Modify: `apps/web/src/app/shared/components/embed-player/embed-player.component.ts`
 - Modify: `apps/api/src/modules/users/watch.routes.ts` or `apps/api/src/modules/tv-shows/tv-shows.routes.ts`
 
@@ -490,6 +506,7 @@ git commit -m "feat: persist tv watch progress"
 ### Task 14: Remove unused Vidking player component
 
 **Files:**
+
 - Delete: `apps/web/src/app/shared/components/vidking-player/vidking-player.component.ts`
 - Modify any remaining imports/references if present
 
@@ -523,6 +540,7 @@ git commit -m "chore(web): remove unused vidking player component"
 ### Task 15: Full verification and deployment
 
 **Files:**
+
 - Modify: `.env.example` (if adding TV sync env docs)
 - Verify runtime via existing deployment scripts
 
