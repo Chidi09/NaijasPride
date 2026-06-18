@@ -1492,32 +1492,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               });
 
               // EXTRACT M3U8 NATIVELY FOR "PERFECTION"
-              // Limit extraction to the first 3 to prevent memory overload
-              const targetSources = embedResult.sources.slice(0, 3);
-              const resolvedSources = await Promise.all(
-                targetSources.map(async (s) => {
-                  try {
-                    // Fast HTML HTTP parsing with 10s Playwright fallback
-                    const resolved = await Promise.race([
-                      resolveDirectMediaFromEmbed(s.url),
-                      new Promise<null>((_, r) =>
-                        setTimeout(() => r(null), 12000),
-                      ),
-                    ]);
-                    if (resolved && resolved.url) {
-                      return {
-                        url: proxifyUrl(resolved.url, s.url),
-                        quality: s.quality,
-                        isM3U8: resolved.isM3U8,
-                        isEmbed: false, // Converted to native!
-                      };
-                    }
-                  } catch (e) {
-                    // Ignore extraction errors
-                  }
-                  return s; // Fallback to iframe if extraction fails
-                }),
-              );
+              // Reverted: Extracting the m3u8 breaks due to hotlink/CORS protections
+              // on Vidsrc/2Embed. We fallback to iframe.
+              const resolvedSources = embedResult.sources;
 
               logResolutionTrace(request, resolutionTrace);
               return sendWatchSuccess({

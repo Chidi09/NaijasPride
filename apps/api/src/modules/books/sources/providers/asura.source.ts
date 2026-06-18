@@ -46,7 +46,7 @@ export class AsuraSource extends BaseHtmlSource {
   }
 
   private extractSeriesId(href: string): string | null {
-    const match = href.match(/\/series\/([^/?#]+)/i);
+    const match = href.match(/\/(?:series|comics|manga)\/([^/?#]+)/i);
     return match ? match[1] : null;
   }
 
@@ -70,7 +70,7 @@ export class AsuraSource extends BaseHtmlSource {
   }
 
   private toSeriesPath(seriesId: string): string {
-    return `/series/${seriesId}`;
+    return `/comics/${seriesId}`;
   }
 
   private toChapterPath(chapterId: string): string {
@@ -120,10 +120,9 @@ export class AsuraSource extends BaseHtmlSource {
         const id = this.extractSeriesId(href);
         if (!id || map.has(id)) return;
 
-        // Kotatsu: div.block > span.block for title
-        const title =
-          this.strip($el.find("div.block > span.block").text()) ||
-          this.strip($el.find("span.block").first().text());
+        // Kotatsu: img for cover and title
+        const $img = $el.find("img").first();
+        const title = this.strip($img.attr("alt") || "");
 
         if (!title || title.length < 2) return;
 
@@ -194,10 +193,10 @@ export class AsuraSource extends BaseHtmlSource {
         const id = this.extractSeriesId(href);
         if (!id || map.has(id)) return;
 
-        // Kotatsu: div.block > span.block for title
-        const title =
-          this.strip($el.find("div.block > span.block").text()) ||
-          this.strip($el.find("span.block").first().text());
+        // Kotatsu: img for cover and title
+        const $img = $el.find("img").first();
+        const title = this.strip($img.attr("alt") || "");
+        if (!title || title.length < 2) return;
 
         if (!title || title.length < 2) return;
 
