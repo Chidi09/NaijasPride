@@ -1251,7 +1251,7 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
           this.activeSourceUrl.set(first?.url || null);
           this.loading.set(false);
           if (first) {
-            this.selectSource(first.url, 0);
+            setTimeout(() => this.selectSource(first.url, 0), 0);
           } else {
             this.error.set("No playable source available for this episode.");
           }
