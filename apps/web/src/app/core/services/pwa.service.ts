@@ -47,6 +47,7 @@ export class PwaService {
   }
 
   private detectPWA(): void {
+    if (typeof window === "undefined") return;
     // Check if running in standalone mode (PWA installed)
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -94,6 +95,7 @@ export class PwaService {
   }
 
   private listenForInstallPrompt(): void {
+    if (typeof window === "undefined") return;
     // Capture the install prompt event
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();

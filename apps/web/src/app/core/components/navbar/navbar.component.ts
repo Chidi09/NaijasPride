@@ -62,8 +62,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.router.events.pipe(takeUntil(this.destroy$)).subscribe((event) => {
       if (event instanceof NavigationEnd) {
-        const url = new URL(event.urlAfterRedirects, window.location.origin);
-        const searchQuery = url.searchParams.get("q");
+        const tree = this.router.parseUrl(event.urlAfterRedirects);
+        const searchQuery = tree.queryParams["q"];
         this.searchForm.patchValue(
           { query: searchQuery ?? "" },
           { emitEvent: false },

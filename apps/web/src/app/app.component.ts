@@ -252,7 +252,7 @@ export class AppComponent implements OnInit {
       setTimeout(initializeMessaging, 2000);
     }
 
-    if (this.pwaService.isTV()) {
+    if (this.pwaService.isTV() && typeof document !== "undefined") {
       document.body.classList.add("tv-mode");
     }
 

@@ -283,6 +283,9 @@ const buildServer = async () => {
     prefix: `${apiPrefix}/download-requests`,
   });
 
+  const { sitemapRoutes } = await import("./modules/sitemap/sitemap.routes");
+  await app.register(sitemapRoutes);
+
   return app;
 };
 

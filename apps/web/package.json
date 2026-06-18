@@ -12,7 +12,8 @@
     "build:prod:mem": "node --max-old-space-size=8192 ./node_modules/@angular/cli/bin/ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "serve:ssr:web": "node dist/web/server/server.mjs"
   },
   "dependencies": {
     "@angular-devkit/build-angular": "^17.2.0",
@@ -27,12 +28,15 @@
     "@angular/material": "^17.2.0",
     "@angular/platform-browser": "^17.2.0",
     "@angular/platform-browser-dynamic": "^17.2.0",
+    "@angular/platform-server": "^17.2.0",
     "@angular/router": "^17.2.0",
+    "@angular/ssr": "^17.3.17",
     "@naijaspride/types": "*",
     "@naijaspride/utils": "*",
     "@tanstack/angular-query-experimental": "^5.24.0",
     "axios": "^1.13.4",
     "epubjs": "^0.3.93",
+    "express": "^4.18.2",
     "firebase": "^12.9.0",
     "hls.js": "^1.5.20",
     "pdfjs-dist": "^5.4.624",
@@ -47,6 +51,7 @@
     "@angular-eslint/builder": "21.0.1",
     "@eslint/js": "^9.39.1",
     "@naijaspride/config": "*",
+    "@types/express": "^4.17.17",
     "@types/node": "^18.18.0",
     "angular-eslint": "21.0.1",
     "autoprefixer": "^10.4.18",

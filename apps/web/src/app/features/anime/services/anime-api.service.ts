@@ -34,6 +34,7 @@ type AnilistDate = {
 
 export type AnilistMedia = {
   id: number;
+  idMal?: number;
   title?: AnilistTitle;
   coverImage?: AnilistCoverImage;
   bannerImage?: string;

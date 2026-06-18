@@ -11,6 +11,7 @@ import {
 import { CommonModule } from "@angular/common";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
+import { HttpClient } from "@angular/common/http";
 import Hls from "hls.js";
 import { timeout } from "rxjs";
 import {
@@ -21,6 +22,8 @@ import { PwaService } from "../../../../core/services/pwa.service";
 import { SymbolIconComponent } from "../../../../shared/components/symbol-icon/symbol-icon.component";
 import { TvFocusGroupDirective } from "../../../../shared/directives/tv-focus-group.directive";
 import { StarIconComponent } from "../../../../shared/components/icons/star-icon.component";
+
+type SkipInterval = { startTime: number; endTime: number };
 
 @Component({
   selector: "app-anime-watch",
@@ -139,8 +142,9 @@ import { StarIconComponent } from "../../../../shared/components/icons/star-icon
                   </div>
                 }
 
+                <!-- Player wrapper with overlays -->
                 <div
-                  class="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black"
+                  class="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-black"
                 >
                   @if (selectedSourceIsEmbed()) {
                     <iframe
@@ -157,6 +161,131 @@ import { StarIconComponent } from "../../../../shared/components/icons/star-icon
                       class="aspect-video w-full bg-black"
                     ></video>
                   }
+
+                  <!-- Skip Intro / Outro pill -->
+                  @if (showSkipIntro() && !skipIntroDismissed()) {
+                    <div
+                      class="absolute bottom-16 right-4 z-20 flex items-center gap-2 animate-fade-in"
+                    >
+                      <button
+                        type="button"
+                        (click)="skipIntro()"
+                        class="rounded-full border border-white/30 bg-black/70 px-5 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                      >
+                        Skip Intro
+                      </button>
+                      <button
+                        type="button"
+                        (click)="dismissSkipIntro()"
+                        class="rounded-full bg-black/50 p-1.5 text-white/60 hover:text-white backdrop-blur-md"
+                      >
+                        <app-symbol-icon
+                          name="close"
+                          [size]="14"
+                        ></app-symbol-icon>
+                      </button>
+                    </div>
+                  }
+                  @if (showSkipOutro() && !skipOutroDismissed()) {
+                    <div
+                      class="absolute bottom-16 right-4 z-20 flex items-center gap-2 animate-fade-in"
+                    >
+                      <button
+                        type="button"
+                        (click)="skipOutro()"
+                        class="rounded-full border border-white/30 bg-black/70 px-5 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                      >
+                        Skip Outro
+                      </button>
+                      <button
+                        type="button"
+                        (click)="dismissSkipOutro()"
+                        class="rounded-full bg-black/50 p-1.5 text-white/60 hover:text-white backdrop-blur-md"
+                      >
+                        <app-symbol-icon
+                          name="close"
+                          [size]="14"
+                        ></app-symbol-icon>
+                      </button>
+                    </div>
+                  }
+
+                  <!-- Next-episode countdown overlay -->
+                  @if (nextEpisodeCountdown() !== null && nextEpisode()) {
+                    <div
+                      class="absolute inset-0 z-30 flex items-end justify-end p-5 pointer-events-none"
+                    >
+                      <div
+                        class="pointer-events-auto flex flex-col items-end gap-3 rounded-2xl border border-white/15 bg-black/80 p-4 backdrop-blur-lg"
+                      >
+                        <p
+                          class="text-xs uppercase tracking-widest text-white/50"
+                        >
+                          Up next
+                        </p>
+                        <p class="text-sm font-bold text-white">
+                          Episode {{ nextEpisode()!.number }}
+                        </p>
+                        <div class="flex items-center gap-2">
+                          <button
+                            type="button"
+                            (click)="cancelNextEpisodeCountdown()"
+                            class="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            (click)="goToNextEpisode()"
+                            class="rounded-xl bg-[#800020] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#9f0030]"
+                          >
+                            Play now ({{ nextEpisodeCountdown() }}s)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- Prev / Next episode controls -->
+                <div class="mt-3 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    [disabled]="!prevEpisode()"
+                    (click)="goToPrevEpisode()"
+                    class="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold transition"
+                    [class]="
+                      prevEpisode()
+                        ? 'bg-white/[0.07] text-white hover:bg-white/15'
+                        : 'cursor-not-allowed bg-white/[0.03] text-white/25'
+                    "
+                  >
+                    <app-symbol-icon
+                      name="skip_previous"
+                      [size]="18"
+                    ></app-symbol-icon>
+                    Prev Episode
+                  </button>
+                  <span class="text-xs text-white/40"
+                    >Episode {{ episodeNumber() }}</span
+                  >
+                  <button
+                    type="button"
+                    [disabled]="!nextEpisode()"
+                    (click)="goToNextEpisode()"
+                    class="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold transition"
+                    [class]="
+                      nextEpisode()
+                        ? 'bg-white/[0.07] text-white hover:bg-white/15'
+                        : 'cursor-not-allowed bg-white/[0.03] text-white/25'
+                    "
+                  >
+                    Next Episode
+                    <app-symbol-icon
+                      name="skip_next"
+                      [size]="18"
+                    ></app-symbol-icon>
+                  </button>
                 </div>
               </section>
             </div>
@@ -437,8 +566,9 @@ import { StarIconComponent } from "../../../../shared/components/icons/star-icon
               </div>
             }
 
+            <!-- Player wrapper with overlays -->
             <div
-              class="overflow-hidden rounded-xl border border-white/10 bg-black"
+              class="relative overflow-hidden rounded-xl border border-white/10 bg-black"
             >
               @if (selectedSourceIsEmbed()) {
                 <iframe
@@ -455,6 +585,115 @@ import { StarIconComponent } from "../../../../shared/components/icons/star-icon
                   class="aspect-video w-full bg-black"
                 ></video>
               }
+
+              <!-- Skip Intro / Outro pill -->
+              @if (showSkipIntro() && !skipIntroDismissed()) {
+                <div
+                  class="absolute bottom-16 right-4 z-20 flex items-center gap-2"
+                >
+                  <button
+                    type="button"
+                    (click)="skipIntro()"
+                    class="rounded-full border border-white/30 bg-black/70 px-5 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                  >
+                    Skip Intro
+                  </button>
+                  <button
+                    type="button"
+                    (click)="dismissSkipIntro()"
+                    class="rounded-full bg-black/50 p-1.5 text-white/60 hover:text-white backdrop-blur-md"
+                  >
+                    ✕
+                  </button>
+                </div>
+              }
+              @if (showSkipOutro() && !skipOutroDismissed()) {
+                <div
+                  class="absolute bottom-16 right-4 z-20 flex items-center gap-2"
+                >
+                  <button
+                    type="button"
+                    (click)="skipOutro()"
+                    class="rounded-full border border-white/30 bg-black/70 px-5 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                  >
+                    Skip Outro
+                  </button>
+                  <button
+                    type="button"
+                    (click)="dismissSkipOutro()"
+                    class="rounded-full bg-black/50 p-1.5 text-white/60 hover:text-white backdrop-blur-md"
+                  >
+                    ✕
+                  </button>
+                </div>
+              }
+
+              <!-- Next-episode countdown overlay -->
+              @if (nextEpisodeCountdown() !== null && nextEpisode()) {
+                <div
+                  class="absolute inset-0 z-30 flex items-end justify-end p-5 pointer-events-none"
+                >
+                  <div
+                    class="pointer-events-auto flex flex-col items-end gap-3 rounded-2xl border border-white/15 bg-black/80 p-4 backdrop-blur-lg"
+                  >
+                    <p class="text-xs uppercase tracking-widest text-white/50">
+                      Up next
+                    </p>
+                    <p class="text-sm font-bold text-white">
+                      Episode {{ nextEpisode()!.number }}
+                    </p>
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        (click)="cancelNextEpisodeCountdown()"
+                        class="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        (click)="goToNextEpisode()"
+                        class="rounded-xl bg-[#800020] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#9f0030]"
+                      >
+                        Play now ({{ nextEpisodeCountdown() }}s)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Prev / Next episode controls -->
+            <div class="mt-4 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                [disabled]="!prevEpisode()"
+                (click)="goToPrevEpisode()"
+                class="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold transition"
+                [class]="
+                  prevEpisode()
+                    ? 'bg-white/[0.07] text-white hover:bg-white/15'
+                    : 'cursor-not-allowed bg-white/[0.03] text-white/25'
+                "
+              >
+                ← Prev Episode
+              </button>
+              <span class="text-xs text-white/40"
+                >Episode {{ episodeNumber() }}</span
+              >
+              <button
+                type="button"
+                [disabled]="!nextEpisode()"
+                (click)="goToNextEpisode()"
+                class="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold transition"
+                [class]="
+                  nextEpisode()
+                    ? 'bg-white/[0.07] text-white hover:bg-white/15'
+                    : 'cursor-not-allowed bg-white/[0.03] text-white/25'
+                "
+              >
+                Next Episode →
+              </button>
             </div>
           </section>
 
@@ -562,11 +801,30 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   private sanitizer = inject(DomSanitizer);
   protected pwaService = inject(PwaService);
 
+  private http = inject(HttpClient);
+
   private hls: Hls | null = null;
   private mediaRecoveryAttempted = false;
   private progressInterval: ReturnType<typeof setInterval> | null = null;
   private lastSavedProgress = 0;
   private embedStartTime = 0;
+  private videoEndedHandler: (() => void) | null = null;
+  private videoTimeUpdateHandler: (() => void) | null = null;
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
+  private _paramsLoaded = false;
+
+  // ── Skip intro / outro ────────────────────────────────────────────────────
+  skipIntroInterval = signal<SkipInterval | null>(null);
+  skipOutroInterval = signal<SkipInterval | null>(null);
+  showSkipIntro = signal(false);
+  showSkipOutro = signal(false);
+  skipIntroDismissed = signal(false);
+  skipOutroDismissed = signal(false);
+
+  // ── Next-episode prediction overlay ──────────────────────────────────────
+  /** null = hidden, number = seconds remaining in countdown */
+  nextEpisodeCountdown = signal<number | null>(null);
+  private countdownCancelled = false;
 
   animeId = signal(0);
   episodeNumber = signal(1);
@@ -709,27 +967,68 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     );
   }
 
+  // Computed helpers for next/prev episode navigation
+  nextEpisode = computed(() => {
+    const eps = this.episodes();
+    const current = this.episodeNumber();
+    return eps.find((e) => e.number === current + 1) || null;
+  });
+
+  prevEpisode = computed(() => {
+    const eps = this.episodes();
+    const current = this.episodeNumber();
+    return eps.find((e) => e.number === current - 1) || null;
+  });
+
   constructor() {
     this.route.paramMap.subscribe((params) => {
       const animeId = Number(params.get("id") || 0);
       const episodeNumber = Number(params.get("episodeNumber") || 1);
       if (!animeId || !episodeNumber) return;
+
+      const idChanged = this.animeId() !== animeId;
       this.animeId.set(animeId);
       this.episodeNumber.set(episodeNumber);
       // Auto-select the correct episode range page
       this.episodePage.set(
         Math.floor((episodeNumber - 1) / this.EPISODES_PER_PAGE),
       );
+
+      // When the anime changes, clear old episode list
+      if (idChanged) {
+        this.episodes.set([]);
+      }
+      // paramMap is the authoritative trigger for loading.
+      this._paramsLoaded = true;
+      this.load();
     });
 
     this.route.queryParamMap.subscribe((query) => {
       const provider = (query.get("provider") || "auto").trim();
       const server = (query.get("server") || "").trim();
       const type = (query.get("type") || "").trim();
+
+      const prevProvider = this.provider();
+      const prevServer = this.server();
+      const prevType = this.audioType();
+
       this.provider.set(provider || "auto");
       this.server.set(server);
       if (type === "sub" || type === "dub") this.audioType.set(type);
-      if (this.animeId() && this.episodeNumber()) {
+
+      // Only reload on explicit query-param changes (not on the initial
+      // emission that fires alongside paramMap on page load).
+      const queryChanged =
+        prevProvider !== (provider || "auto") ||
+        prevServer !== server ||
+        (type === "sub" || type === "dub" ? prevType !== type : false);
+
+      if (
+        this._paramsLoaded &&
+        queryChanged &&
+        this.animeId() &&
+        this.episodeNumber()
+      ) {
         this.load();
       }
     });
@@ -744,7 +1043,57 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.saveCurrentProgress();
     this.stopProgressTracking();
+    this.cancelNextEpisodeCountdown();
+    this.removeVideoEndedListener();
+    this.removeVideoTimeUpdateListener();
     this.destroyPlayer();
+  }
+
+  goToNextEpisode(): void {
+    const next = this.nextEpisode();
+    if (!next) return;
+    this.cancelNextEpisodeCountdown();
+    void this.router.navigate(["/anime", this.animeId(), "watch", next.number]);
+  }
+
+  goToPrevEpisode(): void {
+    const prev = this.prevEpisode();
+    if (!prev) return;
+    this.cancelNextEpisodeCountdown();
+    void this.router.navigate(["/anime", this.animeId(), "watch", prev.number]);
+  }
+
+  cancelNextEpisodeCountdown(): void {
+    this.countdownCancelled = true;
+    this.nextEpisodeCountdown.set(null);
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+  }
+
+  skipIntro(): void {
+    const interval = this.skipIntroInterval();
+    if (!interval) return;
+    const video = this.videoRef?.nativeElement;
+    if (video) video.currentTime = interval.endTime;
+    this.showSkipIntro.set(false);
+  }
+
+  skipOutro(): void {
+    const interval = this.skipOutroInterval();
+    if (!interval) return;
+    const video = this.videoRef?.nativeElement;
+    if (video) video.currentTime = interval.endTime;
+    this.showSkipOutro.set(false);
+  }
+
+  dismissSkipIntro(): void {
+    this.skipIntroDismissed.set(true);
+  }
+
+  dismissSkipOutro(): void {
+    this.skipOutroDismissed.set(true);
   }
 
   setEpisodePage(page: number): void {
@@ -808,6 +1157,15 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.loading.set(true);
     this.error.set(null);
     this.playbackNotice.set(null);
+    // Reset skip/overlay state for new episode
+    this.skipIntroDismissed.set(false);
+    this.skipOutroDismissed.set(false);
+    this.showSkipIntro.set(false);
+    this.showSkipOutro.set(false);
+    this.skipIntroInterval.set(null);
+    this.skipOutroInterval.set(null);
+    this.cancelNextEpisodeCountdown();
+    this.countdownCancelled = false;
 
     this.api.getAnime(this.animeId()).subscribe({
       next: (res) => {
@@ -822,6 +1180,11 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
         // If episodes are still empty after bridge failed, generate from metadata
         if (this.episodes().length === 0 && anime?.episodes) {
           this.generateFallbackEpisodes();
+        }
+        // Fetch AniSkip data once we have the MAL id
+        const malId = anime?.idMal;
+        if (malId) {
+          this.fetchSkipTimes(malId, this.episodeNumber());
         }
       },
     });
@@ -957,6 +1320,126 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     return quality.replace(/[-_]/g, " ").slice(0, 18);
   }
 
+  private attachVideoEndedListener(video: HTMLVideoElement): void {
+    this.removeVideoEndedListener();
+    this.videoEndedHandler = () => {
+      this.saveCurrentProgress();
+      // ended fires after the countdown would have navigated — cancel to avoid double nav
+      this.cancelNextEpisodeCountdown();
+      const next = this.nextEpisode();
+      if (next) {
+        void this.router.navigate([
+          "/anime",
+          this.animeId(),
+          "watch",
+          next.number,
+        ]);
+      }
+    };
+    video.addEventListener("ended", this.videoEndedHandler);
+  }
+
+  private removeVideoEndedListener(): void {
+    const video = this.videoRef?.nativeElement;
+    if (video && this.videoEndedHandler) {
+      video.removeEventListener("ended", this.videoEndedHandler);
+    }
+    this.videoEndedHandler = null;
+  }
+
+  /**
+   * Attaches a timeupdate listener that:
+   *  - Shows skip-intro / skip-outro buttons when playback is inside those intervals
+   *  - Starts the next-episode countdown when ≥85% of the episode has been watched
+   */
+  private attachVideoTimeUpdateListener(video: HTMLVideoElement): void {
+    this.removeVideoTimeUpdateListener();
+    this.videoTimeUpdateHandler = () => {
+      const current = video.currentTime;
+      const duration = video.duration;
+
+      // ── Skip intro/outro detection ─────────────────────────
+      const intro = this.skipIntroInterval();
+      if (intro) {
+        this.showSkipIntro.set(
+          current >= intro.startTime && current < intro.endTime,
+        );
+      }
+      const outro = this.skipOutroInterval();
+      if (outro) {
+        this.showSkipOutro.set(
+          current >= outro.startTime && current < outro.endTime,
+        );
+      }
+
+      // ── Next-episode prediction ────────────────────────────
+      if (
+        !this.countdownCancelled &&
+        this.nextEpisode() &&
+        this.nextEpisodeCountdown() === null &&
+        duration > 0 &&
+        current / duration >= 0.85
+      ) {
+        this.startNextEpisodeCountdown();
+      }
+    };
+    video.addEventListener("timeupdate", this.videoTimeUpdateHandler);
+  }
+
+  private removeVideoTimeUpdateListener(): void {
+    const video = this.videoRef?.nativeElement;
+    if (video && this.videoTimeUpdateHandler) {
+      video.removeEventListener("timeupdate", this.videoTimeUpdateHandler);
+    }
+    this.videoTimeUpdateHandler = null;
+  }
+
+  private startNextEpisodeCountdown(seconds = 10): void {
+    this.nextEpisodeCountdown.set(seconds);
+    this.countdownInterval = setInterval(() => {
+      const remaining = this.nextEpisodeCountdown();
+      if (remaining === null || this.countdownCancelled) {
+        clearInterval(this.countdownInterval!);
+        this.countdownInterval = null;
+        return;
+      }
+      if (remaining <= 1) {
+        clearInterval(this.countdownInterval!);
+        this.countdownInterval = null;
+        this.nextEpisodeCountdown.set(null);
+        this.goToNextEpisode();
+      } else {
+        this.nextEpisodeCountdown.set(remaining - 1);
+      }
+    }, 1000);
+  }
+
+  private fetchSkipTimes(malId: number, episode: number): void {
+    // AniSkip is a free community-maintained API for anime skip timestamps.
+    // Docs: https://api.aniskip.com
+    const url = `https://api.aniskip.com/v2/skip-times/${malId}/${episode}?types[]=op&types[]=ed&episodeLength=0`;
+    this.http
+      .get<{
+        found: boolean;
+        results: Array<{ interval: SkipInterval; skipType: string }>;
+      }>(url)
+      .subscribe({
+        next: (res) => {
+          if (!res?.found) return;
+          for (const result of res.results) {
+            if (result.skipType === "op") {
+              this.skipIntroInterval.set(result.interval);
+            } else if (result.skipType === "ed") {
+              this.skipOutroInterval.set(result.interval);
+            }
+          }
+        },
+        error: () => {
+          /* silently ignore — skip data is optional */
+        },
+      });
+  }
+
   private attachSource(url: string, isM3U8: boolean): void {
     const video = this.videoRef?.nativeElement;
     if (!video) return;
@@ -965,6 +1448,10 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
     this.qualityOptions.set([{ value: "-1", label: "Auto" }]);
     this.selectedQualityLevel.set(-1);
     this.mediaRecoveryAttempted = false;
+
+    // Attach ended + timeupdate listeners for auto-advance and skip detection
+    this.attachVideoEndedListener(video);
+    this.attachVideoTimeUpdateListener(video);
 
     if (isM3U8 && Hls.isSupported()) {
       this.hls = new Hls({
@@ -1136,6 +1623,8 @@ export class AnimeWatchComponent implements AfterViewInit, OnDestroy {
   }
 
   private destroyPlayer(): void {
+    this.removeVideoEndedListener();
+    this.removeVideoTimeUpdateListener();
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;
