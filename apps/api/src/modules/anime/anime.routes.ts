@@ -1506,7 +1506,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                     ]);
                     if (resolved && resolved.url) {
                       return {
-                        url: resolved.url,
+                        url: proxifyUrl(resolved.url, s.url),
                         quality: s.quality,
                         isM3U8: resolved.isM3U8,
                         isEmbed: false, // Converted to native!
