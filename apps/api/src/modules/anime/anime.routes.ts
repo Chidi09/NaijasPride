@@ -600,24 +600,40 @@ async function hianimeEmbedFallback(
               });
             }
           } else {
-            // Try extraction with timeout - don't block response
-            extractVideoSources(payload.link)
-              .then((extractedSources) => {
-                if (extractedSources.length > 0) {
-                  setCachedVideoSources(cacheKey, extractedSources);
-                }
-              })
-              .catch(() => {
-                // Extraction failed, cache will remain empty
-              });
+            // Try extraction with a 15-second timeout so the user gets a native player
+            try {
+              const extractedSources = await Promise.race([
+                extractVideoSources(payload.link),
+                new Promise<VideoSource[]>((_, reject) =>
+                  setTimeout(
+                    () => reject(new Error("Extraction timeout")),
+                    15000,
+                  ),
+                ),
+              ]);
 
-            // Return embed URL immediately while extraction happens in background
-            sources.push({
-              url: payload.link,
-              quality: `embed-${serverId}`,
-              isM3U8: false,
-              isEmbed: true,
-            });
+              if (extractedSources && extractedSources.length > 0) {
+                setCachedVideoSources(cacheKey, extractedSources);
+                for (const src of extractedSources) {
+                  sources.push({
+                    url: src.url,
+                    quality: src.quality,
+                    isM3U8: src.isM3U8,
+                    isEmbed: false,
+                  });
+                }
+              } else {
+                throw new Error("Empty extraction");
+              }
+            } catch (error) {
+              // Extraction failed or timed out, fallback to iframe embed
+              sources.push({
+                url: payload.link,
+                quality: `embed-${serverId}`,
+                isM3U8: false,
+                isEmbed: true,
+              });
+            }
           }
         }
 
@@ -1474,6 +1490,35 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 outcome: "success",
                 detail: `TMDB ${embedResult.tmdbId} → ${embedResult.sources.length} embeds`,
               });
+
+              // EXTRACT M3U8 NATIVELY FOR "PERFECTION"
+              // Limit extraction to the first 3 to prevent memory overload
+              const targetSources = embedResult.sources.slice(0, 3);
+              const resolvedSources = await Promise.all(
+                targetSources.map(async (s) => {
+                  try {
+                    // Fast HTML HTTP parsing with 10s Playwright fallback
+                    const resolved = await Promise.race([
+                      resolveDirectMediaFromEmbed(s.url),
+                      new Promise<null>((_, r) =>
+                        setTimeout(() => r(null), 12000),
+                      ),
+                    ]);
+                    if (resolved && resolved.url) {
+                      return {
+                        url: resolved.url,
+                        quality: s.quality,
+                        isM3U8: resolved.isM3U8,
+                        isEmbed: false, // Converted to native!
+                      };
+                    }
+                  } catch (e) {
+                    // Ignore extraction errors
+                  }
+                  return s; // Fallback to iframe if extraction fails
+                }),
+              );
+
               logResolutionTrace(request, resolutionTrace);
               return sendWatchSuccess({
                 success: true,
@@ -1490,12 +1535,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                   provider: "embed",
                   requestedProvider: provider,
                   server: server || null,
-                  sources: embedResult.sources.map((s) => ({
-                    url: s.url,
-                    quality: s.quality,
-                    isM3U8: s.isM3U8,
-                    isEmbed: s.isEmbed,
-                  })),
+                  sources: resolvedSources,
                   subtitles: [],
                   headers: {},
                   download: null,

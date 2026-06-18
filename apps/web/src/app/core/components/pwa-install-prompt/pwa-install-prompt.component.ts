@@ -265,6 +265,9 @@ export class PwaInstallPromptComponent implements OnInit {
   }
 
   ngOnInit() {
+    if (typeof window === "undefined" || typeof navigator === "undefined")
+      return;
+
     // Already in standalone mode? Don't show anything
     if (
       window.matchMedia("(display-mode: standalone)").matches ||
