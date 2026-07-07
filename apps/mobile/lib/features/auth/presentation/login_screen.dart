@@ -6,8 +6,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../application/auth_controller.dart';
 
-// TODO(config): supply the Google OAuth **Web** client ID here once created in Google Cloud Console
-const _googleWebClientId = null;
+const _googleWebClientIdEnv = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+const _googleWebClientId =
+    _googleWebClientIdEnv == '' ? null : _googleWebClientIdEnv;
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});

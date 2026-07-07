@@ -110,3 +110,8 @@ GEMINI.md
 
 # Generated Tools Data
 tools/generated/
+
+# Firebase service account credentials (never commit — live Admin SDK key)
+apps/api/*firebase*.json
+apps/api/naijaspride-*.json
+*-service-account*.json

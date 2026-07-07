@@ -13,6 +13,18 @@ workflows:
       # These are the same R2 credentials used by the backend - this build
       # just needs write access to the same bucket to publish the APK
       # the website's download button points at.
+      #
+      # Same group also holds (add once available):
+      #   ANILIST_CLIENT_ID    - from https://anilist.co/settings/developer
+      #                           (not secret, but fine in the same group)
+      #   GOOGLE_WEB_CLIENT_ID - the "Web application" OAuth client id from
+      #                           Google Cloud Console (not the Android
+      #                           client id - google_sign_in on Android uses
+      #                           the Web client id as serverClientId so the
+      #                           backend can verify tokens). Not secret.
+      # Until both are set, the build below passes empty strings for them,
+      # which is safe: AniList linking and Google Sign-In just no-op/fail
+      # gracefully in that case rather than breaking the build.
       groups:
         - naijaspride
     # No triggering block - manual trigger only for now (no webhook,
@@ -22,7 +34,9 @@ workflows:
         script: cd apps/mobile && flutter packages pub get
       - name: Build Android App Bundle (release)
         script: |
-          cd apps/mobile && flutter build appbundle --release
+          cd apps/mobile && flutter build appbundle --release \
+            --dart-define=ANILIST_CLIENT_ID=${ANILIST_CLIENT_ID:-} \
+            --dart-define=GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}
       - name: Build Android APK (release)
         script: |
           # Plain --target-platform android-arm64 only restricts Flutter's
@@ -34,7 +48,9 @@ workflows:
           # android-tv-release workflow passing:
           #   flutter build apk --release --target-platform android-arm64
           #   --split-per-abi --dart-define=IS_TV_BUILD=true
-          cd apps/mobile && flutter build apk --release --target-platform android-arm64 --split-per-abi
+          cd apps/mobile && flutter build apk --release --target-platform android-arm64 --split-per-abi \
+            --dart-define=ANILIST_CLIENT_ID=${ANILIST_CLIENT_ID:-} \
+            --dart-define=GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}
       - name: Publish release APK to R2 (updates the website download link)
         script: |
           cd apps/mobile

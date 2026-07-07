@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1030111619631",
+    "project_id": "naijaspride",
+    "storage_bucket": "naijaspride.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1030111619631:android:4c7e46b17ae368c719b4da",
+        "android_client_info": {
+          "package_name": "com.naijaspride.naijaspride_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB34VKdVeKBrf-bDriQx0K_bA_UOovi1wE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
