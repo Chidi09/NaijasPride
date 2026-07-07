@@ -6,6 +6,9 @@ const WatchProgressSchema = z.object({
   movieId: z.string().uuid(),
   progress: z.number().int().min(0).default(0),
   duration: z.number().int().min(0).default(0),
+  status: z
+    .enum(["WATCHING", "PLAN_TO_WATCH", "ON_HOLD", "COMPLETED", "DROPPED"])
+    .optional(),
 });
 
 export const watchRoutes = async (
@@ -42,10 +45,13 @@ export const watchRoutes = async (
       body: WatchProgressSchema,
     },
     handler: async (request, reply) => {
-      const { movieId, progress, duration } = request.body as z.infer<
+      const { movieId, progress, duration, status } = request.body as z.infer<
         typeof WatchProgressSchema
       >;
       const userId = request.user.userId;
+      const autoCompleted = duration > 0 && progress / duration >= 0.85;
+      const resolvedStatus =
+        status ?? (autoCompleted ? "COMPLETED" : undefined);
       await app.prisma.watchHistory.upsert({
         where: {
           userId_movieId: { userId, movieId },
@@ -54,12 +60,14 @@ export const watchRoutes = async (
           progress,
           duration,
           updatedAt: new Date(),
+          ...(resolvedStatus ? { status: resolvedStatus as never } : {}),
         },
         create: {
           userId,
           movieId,
           progress,
           duration,
+          ...(resolvedStatus ? { status: resolvedStatus as never } : {}),
         },
       });
       return reply.send({

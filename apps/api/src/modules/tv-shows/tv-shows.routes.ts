@@ -7,6 +7,7 @@ import {
 } from "@naijaspride/validators";
 import { TvShowsService } from "./tv-shows.service";
 import { EmbedResolverService } from "../movies/embed-resolver.service";
+import { RemoteStreamResolverService } from "../movies/remote-stream-resolver.service";
 import { TvTmdbSyncService } from "./tv-tmdb-sync.service";
 import { z } from "zod";
 // Import auth plugin for requireAdmin type augmentation
@@ -20,6 +21,7 @@ export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
   const service = new TvShowsService(fastify.prisma);
   const embedResolver = new EmbedResolverService();
+  const remoteResolver = new RemoteStreamResolverService();
   const tmdbSyncService = new TvTmdbSyncService(fastify.prisma);
 
   app.get(
@@ -134,6 +136,93 @@ export const tvShowRoutes: FastifyPluginAsync = async (fastify) => {
           season,
           episode,
           providers: embeds,
+        },
+      });
+    },
+  );
+
+  app.get(
+    "/:slug/extract-stream",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        params: z.object({ slug: z.string().min(1) }),
+        querystring: tvEmbedQuerySchema,
+      },
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      const { slug } = request.params as { slug: string };
+      const { season, episode } = request.query as z.infer<
+        typeof tvEmbedQuerySchema
+      >;
+
+      const resolved = await service.resolveEpisode(slug, season, episode);
+      if (!resolved) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: "NOT_FOUND", message: "TV show or episode not found" },
+        });
+      }
+
+      const embeds = embedResolver.resolveTv(
+        resolved.imdbId,
+        resolved.tmdbId,
+        season,
+        episode,
+      );
+
+      if (!embeds.length) {
+        return reply.status(404).send({
+          success: false,
+          error: {
+            code: "NO_PROVIDERS",
+            message: "No embed providers available for this episode",
+          },
+        });
+      }
+
+      let streamResult: Awaited<
+        ReturnType<typeof remoteResolver.resolveFromPage>
+      > | null = null;
+      let providerId = "";
+
+      for (const provider of embeds) {
+        try {
+          const result = await remoteResolver.resolveFromPage(provider.url, {
+            provider: "generic",
+            timeoutMs: 45000,
+          });
+          streamResult = result;
+          providerId = provider.id;
+          break;
+        } catch {
+          continue;
+        }
+      }
+
+      if (!streamResult) {
+        return reply.status(422).send({
+          success: false,
+          error: {
+            code: "EXTRACT_FAILED",
+            message: "Could not extract a playable stream from any provider",
+          },
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          streamUrl: streamResult.streamUrl,
+          kind: streamResult.kind,
+          referer: streamResult.referer ?? null,
+          providerId,
         },
       });
     },

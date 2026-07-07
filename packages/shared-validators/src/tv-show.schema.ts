@@ -47,4 +47,7 @@ export const saveTvProgressSchema = z.object({
   episodeNumber: z.number().int().min(1),
   progress: z.number().int().min(0).default(0),
   duration: z.number().int().min(0).default(0),
+  status: z
+    .enum(["WATCHING", "PLAN_TO_WATCH", "ON_HOLD", "COMPLETED", "DROPPED"])
+    .optional(),
 });

@@ -169,8 +169,14 @@ export class TvShowsService {
       episodeNumber: number;
       progress: number;
       duration: number;
+      status?: string;
     },
   ): Promise<void> {
+    const autoCompleted =
+      payload.duration > 0 && payload.progress / payload.duration >= 0.85;
+    const resolvedStatus =
+      payload.status ?? (autoCompleted ? "COMPLETED" : undefined);
+
     await this.prisma.tvWatchHistory.upsert({
       where: {
         userId_showId: {
@@ -183,6 +189,7 @@ export class TvShowsService {
         progress: payload.progress,
         duration: payload.duration,
         updatedAt: new Date(),
+        ...(resolvedStatus ? { status: resolvedStatus as never } : {}),
       },
       create: {
         userId,
@@ -190,6 +197,7 @@ export class TvShowsService {
         episodeId: payload.episodeId,
         progress: payload.progress,
         duration: payload.duration,
+        ...(resolvedStatus ? { status: resolvedStatus as never } : {}),
       },
     });
   }

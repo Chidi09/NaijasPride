@@ -33,6 +33,7 @@ import {
 } from "./anime-provider-manager";
 import { getEmbedSources, isEmbedProviderAvailable } from "./embed-provider";
 import { resolveGoGoAnimeByEpisode } from "./gogoanime-by-provider";
+import { RemoteStreamResolverService } from "../movies/remote-stream-resolver.service";
 
 const ANILIST_API_URL = "https://graphql.anilist.co";
 const ANILIST_TIMEOUT_MS = 12_000;
@@ -136,11 +137,16 @@ const videoSourceCache = new Map<
 
 const ANIME_EPISODES_CACHE_TTL_MS = 90 * 1000;
 const ANIME_WATCH_CACHE_TTL_MS = 60 * 1000;
+const SKIP_TIMES_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const animeEpisodesCache = new Map<
   string,
   { payload: unknown; timestamp: number }
 >();
 const animeWatchCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
+const skipTimesCache = new Map<
   string,
   { payload: unknown; timestamp: number }
 >();
@@ -251,6 +257,14 @@ query SearchAnime(
         airingAt
       }
     }
+  }
+}
+`;
+
+const ANIME_IDMAL_QUERY = `
+query AnimeIdMal($id: Int!) {
+  Media(id: $id, type: ANIME) {
+    idMal
   }
 }
 `;
@@ -911,6 +925,7 @@ const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
 
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
+  const remoteResolver = new RemoteStreamResolverService();
 
   const logResolutionTrace = (
     request: { log: { info: (payload: unknown, message: string) => void } },
@@ -1072,6 +1087,51 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         throw new ExternalServiceError();
       } finally {
         clearTimeout(timeout);
+      }
+    },
+  );
+
+  // GET /extract-stream?url=... - Resolve a playable stream URL from an embed page (requires auth)
+  app.get(
+    "/extract-stream",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        querystring: z.object({ url: z.string().url() }),
+      },
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      const { url } = request.query as { url: string };
+      try {
+        const result = await remoteResolver.resolveFromPage(url, {
+          provider: "generic",
+          timeoutMs: 45000,
+        });
+        return reply.send({
+          success: true,
+          data: {
+            streamUrl: result.streamUrl,
+            kind: result.kind,
+            referer: result.referer ?? null,
+          },
+        });
+      } catch (error) {
+        return reply.status(422).send({
+          success: false,
+          error: {
+            code: "EXTRACT_FAILED",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Could not extract a playable stream",
+          },
+        });
       }
     },
   );
@@ -1891,6 +1951,88 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  app.get(
+    "/:id/skip-times/:episodeNumber",
+    {
+      schema: {
+        params: animeWatchParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id, episodeNumber } = request.params;
+      const cacheKey = `${id}:${episodeNumber}`;
+
+      const cached = readCachedPayload(
+        skipTimesCache,
+        cacheKey,
+        SKIP_TIMES_CACHE_TTL_MS,
+      );
+      if (cached) {
+        return { success: true, data: cached };
+      }
+
+      try {
+        const idMalData = await anilistRequest<{
+          Media: { idMal: number | null } | null;
+        }>(ANIME_IDMAL_QUERY, { id });
+        const malId = idMalData.Media?.idMal;
+
+        if (!malId) {
+          const empty = { op: null, ed: null };
+          writeCachedPayload(skipTimesCache, cacheKey, empty);
+          return { success: true, data: empty };
+        }
+
+        const aniskipUrl = `https://api.aniskip.com/v2/skip-times/${malId}/${episodeNumber}?types[]=op&types[]=ed&episodeLength=0`;
+        const response = await fetch(aniskipUrl);
+
+        if (!response.ok) {
+          const empty = { op: null, ed: null };
+          writeCachedPayload(skipTimesCache, cacheKey, empty);
+          return { success: true, data: empty };
+        }
+
+        const json = (await response.json()) as {
+          found: boolean;
+          results?: Array<{
+            interval: { startTime: number; endTime: number };
+            skipType: string;
+          }>;
+        };
+
+        let op: { start: number; end: number } | null = null;
+        let ed: { start: number; end: number } | null = null;
+
+        if (json.found && Array.isArray(json.results)) {
+          for (const result of json.results) {
+            if (result.skipType === "op" && !op) {
+              op = {
+                start: result.interval.startTime,
+                end: result.interval.endTime,
+              };
+            } else if (result.skipType === "ed" && !ed) {
+              ed = {
+                start: result.interval.startTime,
+                end: result.interval.endTime,
+              };
+            }
+          }
+        }
+
+        const payload = { op, ed };
+        writeCachedPayload(skipTimesCache, cacheKey, payload);
+        return { success: true, data: payload };
+      } catch (error) {
+        request.log.warn(
+          { error },
+          "AniSkip lookup failed, returning empty result",
+        );
+        const empty = { op: null, ed: null };
+        return { success: true, data: empty };
+      }
+    },
+  );
+
   // === Anime Watch Progress ===
   app.post(
     "/progress",
@@ -1904,6 +2046,15 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           imageUrl: z.string().optional(),
           progress: z.number().int().min(0),
           duration: z.number().int().min(0),
+          status: z
+            .enum([
+              "WATCHING",
+              "PLAN_TO_WATCH",
+              "ON_HOLD",
+              "COMPLETED",
+              "DROPPED",
+            ])
+            .optional(),
         }),
       },
     },
@@ -1916,7 +2067,13 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         imageUrl?: string;
         progress: number;
         duration: number;
+        status?: string;
       };
+
+      const autoCompleted =
+        body.duration > 0 && body.progress / body.duration >= 0.85;
+      const resolvedStatus =
+        body.status ?? (autoCompleted ? "COMPLETED" : undefined);
 
       await fastify.prisma.animeWatchHistory.upsert({
         where: {
@@ -1931,6 +2088,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           duration: body.duration,
           title: body.title,
           ...(body.imageUrl ? { imageUrl: body.imageUrl } : {}),
+          ...(resolvedStatus ? { status: resolvedStatus as never } : {}),
         },
         create: {
           userId,
@@ -1940,8 +2098,55 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           imageUrl: body.imageUrl || null,
           progress: body.progress,
           duration: body.duration,
+          ...(resolvedStatus ? { status: resolvedStatus as never } : {}),
         },
       });
+
+      // Fire-and-forget AniList sync — never blocks or affects this endpoint's response.
+      void (async () => {
+        try {
+          const clientId = process.env.ANILIST_CLIENT_ID;
+          const clientSecret = process.env.ANILIST_CLIENT_SECRET;
+          if (!clientId || !clientSecret) return;
+
+          const link = await fastify.prisma.aniListAccountLink.findUnique({
+            where: { userId },
+          });
+          if (!link) return;
+
+          const statusMap: Record<string, string> = {
+            WATCHING: "CURRENT",
+            PLAN_TO_WATCH: "PLANNING",
+            ON_HOLD: "PAUSED",
+            COMPLETED: "COMPLETED",
+            DROPPED: "DROPPED",
+          };
+          const anilistStatus = resolvedStatus
+            ? statusMap[resolvedStatus]
+            : undefined;
+
+          await fetch("https://graphql.anilist.co", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${link.accessToken}`,
+            },
+            body: JSON.stringify({
+              query: `mutation ($mediaId: Int, $progress: Int, $status: MediaListStatus) {
+          SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: $status) { id }
+        }`,
+              variables: {
+                mediaId: body.anilistId,
+                progress: body.episodeNumber,
+                status: anilistStatus,
+              },
+            }),
+          });
+        } catch (error) {
+          request.log.warn({ error }, "AniList background sync failed");
+        }
+      })();
 
       return reply.send({ success: true, message: "Anime progress saved" });
     },
@@ -1986,6 +2191,164 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       return { success: true, data: rows };
+    },
+  );
+
+  // === AniList Account Linking ===
+
+  app.post(
+    "/anilist-link",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: z.object({
+          code: z.string().min(1),
+          redirectUri: z.string().url(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      try {
+        const clientId = process.env.ANILIST_CLIENT_ID;
+        const clientSecret = process.env.ANILIST_CLIENT_SECRET;
+        if (!clientId || !clientSecret) {
+          return reply.status(503).send({
+            success: false,
+            error: {
+              code: "NOT_CONFIGURED",
+              message: "AniList sync is not configured on this server.",
+            },
+          });
+        }
+
+        const body = request.body as { code: string; redirectUri: string };
+
+        const tokenResponse = await fetch(
+          "https://anilist.co/api/v2/oauth/token",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              grant_type: "authorization_code",
+              client_id: clientId,
+              client_secret: clientSecret,
+              redirect_uri: body.redirectUri,
+              code: body.code,
+            }),
+          },
+        );
+
+        if (!tokenResponse.ok) {
+          return reply.status(422).send({
+            success: false,
+            error: {
+              code: "OAUTH_EXCHANGE_FAILED",
+              message: "Failed to exchange AniList authorization code",
+            },
+          });
+        }
+
+        const tokenJson = (await tokenResponse.json()) as {
+          access_token: string;
+          refresh_token?: string;
+          expires_in?: number;
+        };
+
+        const viewerResponse = await fetch("https://graphql.anilist.co", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${tokenJson.access_token}`,
+          },
+          body: JSON.stringify({ query: "query { Viewer { id } }" }),
+        });
+
+        const viewerJson = (await viewerResponse.json()) as {
+          data?: { Viewer?: { id: number } };
+        };
+        const anilistUserId = viewerJson.data?.Viewer?.id;
+        if (!anilistUserId) {
+          return reply.status(422).send({
+            success: false,
+            error: {
+              code: "VIEWER_LOOKUP_FAILED",
+              message: "Could not resolve AniList account",
+            },
+          });
+        }
+
+        const expiresAt = tokenJson.expires_in
+          ? new Date(Date.now() + tokenJson.expires_in * 1000)
+          : null;
+
+        await fastify.prisma.aniListAccountLink.upsert({
+          where: { userId: request.user.userId },
+          update: {
+            anilistUserId,
+            accessToken: tokenJson.access_token,
+            refreshToken: tokenJson.refresh_token ?? null,
+            expiresAt,
+          },
+          create: {
+            userId: request.user.userId,
+            anilistUserId,
+            accessToken: tokenJson.access_token,
+            refreshToken: tokenJson.refresh_token ?? null,
+            expiresAt,
+          },
+        });
+
+        return reply.send({ success: true, data: { anilistUserId } });
+      } catch (error) {
+        request.log.error({ error }, "AniList link failed");
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: "LINK_FAILED",
+            message: "Failed to link AniList account",
+          },
+        });
+      }
+    },
+  );
+
+  app.delete(
+    "/anilist-link",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      await fastify.prisma.aniListAccountLink.deleteMany({
+        where: { userId: request.user.userId },
+      });
+      return reply.send({ success: true, message: "AniList account unlinked" });
+    },
+  );
+
+  app.get(
+    "/anilist-link",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const link = await fastify.prisma.aniListAccountLink.findUnique({
+        where: { userId: request.user.userId },
+        select: { anilistUserId: true, linkedAt: true },
+      });
+      return reply.send({
+        success: true,
+        data: link
+          ? {
+              linked: true,
+              anilistUserId: link.anilistUserId,
+              linkedAt: link.linkedAt,
+            }
+          : { linked: false },
+      });
     },
   );
 };

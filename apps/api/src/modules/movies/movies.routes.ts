@@ -414,6 +414,81 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /api/movies/:slug/extract-stream - Resolve a playable stream URL from embed providers
+  app.get(
+    "/:slug/extract-stream",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        params: z.object({ slug: z.string() }),
+      },
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      const { slug } = request.params as { slug: string };
+
+      const movie = await service.findBySlug(slug);
+      if (!movie || movie.status !== "active") {
+        throw new NotFoundError("Movie");
+      }
+
+      const embeds = embedResolver.resolve(movie.imdbId, movie.tmdbId);
+      if (!embeds.length) {
+        return reply.status(404).send({
+          success: false,
+          error: {
+            code: "NO_PROVIDERS",
+            message: "No embed providers available for this movie",
+          },
+        });
+      }
+
+      let streamResult: Awaited<
+        ReturnType<typeof remoteResolver.resolveFromPage>
+      > | null = null;
+      let providerId = "";
+
+      for (const provider of embeds) {
+        try {
+          const result = await remoteResolver.resolveFromPage(provider.url, {
+            provider: "generic",
+            timeoutMs: 45000,
+          });
+          streamResult = result;
+          providerId = provider.id;
+          break;
+        } catch {
+          continue;
+        }
+      }
+
+      if (!streamResult) {
+        return reply.status(422).send({
+          success: false,
+          error: {
+            code: "EXTRACT_FAILED",
+            message: "Could not extract a playable stream from any provider",
+          },
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          streamUrl: streamResult.streamUrl,
+          kind: streamResult.kind,
+          referer: streamResult.referer ?? null,
+          providerId,
+        },
+      });
+    },
+  );
+
   // GET /api/movies/:slug/similar - Get similar/related movies
   app.get(
     "/:slug/similar",
@@ -801,6 +876,110 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
         data: result,
         message: `Metadata synced for ${result.title}`,
       });
+    },
+  );
+
+  // ─── Offline Download Routes ────────────────────────────────────────────────
+
+  // POST /api/movies/offline - Save a movie for offline viewing
+  app.post(
+    "/offline",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: z.object({
+          movieId: z.string().uuid(),
+          quality: z.string().min(1).max(32).default("1080p"),
+          fileSizeBytes: z.number().int().positive().optional(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const body = request.body as {
+        movieId: string;
+        quality: string;
+        fileSizeBytes?: number;
+      };
+
+      const movie = await fastify.prisma.movie.findUnique({
+        where: { id: body.movieId },
+        select: { id: true },
+      });
+      if (!movie) throw new NotFoundError("Movie");
+
+      const saved = await fastify.prisma.offlineSavedContent.upsert({
+        where: {
+          userId_movieId_quality: {
+            userId: request.user.userId,
+            movieId: body.movieId,
+            quality: body.quality,
+          },
+        },
+        update: {
+          fileSizeBytes: body.fileSizeBytes ?? null,
+          savedAt: new Date(),
+        },
+        create: {
+          userId: request.user.userId,
+          movieId: body.movieId,
+          quality: body.quality,
+          fileSizeBytes: body.fileSizeBytes ?? null,
+        },
+      });
+
+      return reply.send({ success: true, data: saved });
+    },
+  );
+
+  // DELETE /api/movies/offline/:movieId - Remove offline movie record
+  app.delete(
+    "/offline/:movieId",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        params: z.object({ movieId: z.string().uuid() }),
+      },
+    },
+    async (request, reply) => {
+      await fastify.prisma.offlineSavedContent.deleteMany({
+        where: {
+          userId: request.user.userId,
+          movieId: request.params.movieId,
+        },
+      });
+
+      return reply.send({
+        success: true,
+        message: "Removed offline movie record",
+      });
+    },
+  );
+
+  // GET /api/movies/offline - List all offline movies
+  app.get(
+    "/offline",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const rows = await fastify.prisma.offlineSavedContent.findMany({
+        where: { userId: request.user.userId },
+        include: {
+          movie: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              posterUrl: true,
+              thumbnailUrl: true,
+              durationMinutes: true,
+            },
+          },
+        },
+        orderBy: { savedAt: "desc" },
+      });
+
+      return reply.send({ success: true, data: rows });
     },
   );
 
