@@ -917,3 +917,30 @@ model AniListAccountLink {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// ─── AD CREATIVES ──────────────────────────────────────────────────────────
+
+enum AdPlacement {
+  HOME_FEED
+  BROWSE_GRID
+  DETAIL
+  PLAYER_END
+  TV_HERO
+}
+
+model AdCreative {
+  id         String      @id @default(uuid())
+  placement  AdPlacement
+  title      String
+  imageUrl   String
+  targetUrl  String?
+  ctaLabel   String?
+  isActive   Boolean     @default(true)
+  weight     Int         @default(1)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([placement, isActive])
+}

@@ -33,6 +33,7 @@ import { notificationsRoutes } from "./modules/notifications/notifications.route
 import { downloadRequestRoutes } from "./modules/downloads/download-requests.routes";
 import { tvShowRoutes } from "./modules/tv-shows/tv-shows.routes";
 import { animeRoutes } from "./modules/anime/anime.routes";
+import { adRoutes } from "./modules/ads/ads.routes";
 
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
@@ -272,6 +273,7 @@ const buildServer = async () => {
   await app.register(musicRoutes, { prefix: `${apiPrefix}/music` });
   await app.register(tvShowRoutes, { prefix: `${apiPrefix}/tv-shows` });
   await app.register(animeRoutes, { prefix: `${apiPrefix}/anime` });
+  await app.register(adRoutes, { prefix: `${apiPrefix}/ads` });
   await app.register(searchRoutes, { prefix: `${apiPrefix}/search` });
   await app.register(adminMusicRoutes, { prefix: `${apiPrefix}/admin/music` });
   await app.register(wrappedRoutes, { prefix: `${apiPrefix}/wrapped` });
