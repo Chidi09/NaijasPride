@@ -33,7 +33,7 @@ class PushService {
 
   Future<void> _registerToken(String token) async {
     try {
-      final response = await dio.post('/api/profile/push-tokens', data: {
+      final response = await dio.post('/api/v1/profile/push-tokens', data: {
         'token': token,
         'platform': 'android',
       });

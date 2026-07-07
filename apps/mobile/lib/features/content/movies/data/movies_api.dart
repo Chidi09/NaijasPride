@@ -26,7 +26,7 @@ class MoviesApi extends BaseApi {
       'page': page,
       'limit': limit,
     };
-    final body = await get('/api/movies', queryParameters: params);
+    final body = await get('/api/v1/movies', queryParameters: params);
     final data = (body['data'] as List<dynamic>?)
             ?.map((e) => MovieSummary.fromJson(e as Map<String, dynamic>))
             .toList() ??
@@ -36,7 +36,7 @@ class MoviesApi extends BaseApi {
   }
 
   Future<Map<String, List<MovieSummary>>> featured() async {
-    final body = await get('/api/movies/featured');
+    final body = await get('/api/v1/movies/featured');
     final data = body['data'] as Map<String, dynamic>? ?? {};
     return data.map((key, value) => MapEntry(
           key,
@@ -49,13 +49,13 @@ class MoviesApi extends BaseApi {
   }
 
   Future<Movie> detail(String slug) async {
-    final body = await get('/api/movies/$slug');
+    final body = await get('/api/v1/movies/$slug');
     final data = body['data'] as Map<String, dynamic>;
     return Movie.fromJson(data);
   }
 
   Future<List<MovieEmbedProvider>> embeds(String slug) async {
-    final body = await get('/api/movies/$slug/embeds');
+    final body = await get('/api/v1/movies/$slug/embeds');
     final data = body['data'] as Map<String, dynamic>?;
     final providers = data?['providers'] as List<dynamic>?;
     return providers
@@ -68,7 +68,7 @@ class MoviesApi extends BaseApi {
     String slug,
   ) async {
     try {
-      final body = await get('/api/movies/$slug/extract-stream');
+      final body = await get('/api/v1/movies/$slug/extract-stream');
       final data = body['data'] as Map<String, dynamic>?;
       if (data == null) return null;
       return (
@@ -82,7 +82,7 @@ class MoviesApi extends BaseApi {
   }
 
   Future<List<MovieSummary>> similar(String slug) async {
-    final body = await get('/api/movies/$slug/similar');
+    final body = await get('/api/v1/movies/$slug/similar');
     final data = (body['data'] as List<dynamic>?)
             ?.map((e) => MovieSummary.fromJson(e as Map<String, dynamic>))
             .toList() ??
@@ -92,7 +92,7 @@ class MoviesApi extends BaseApi {
 
   Future<bool> saveOffline(String movieId, String quality, int? fileSizeBytes) async {
     try {
-      await post('/api/movies/offline', data: {
+      await post('/api/v1/movies/offline', data: {
         'movieId': movieId,
         'quality': quality,
         // ignore: use_null_aware_elements
@@ -106,7 +106,7 @@ class MoviesApi extends BaseApi {
 
   Future<bool> removeOffline(String movieId) async {
     try {
-      await delete('/api/movies/offline/$movieId');
+      await delete('/api/v1/movies/offline/$movieId');
       return true;
     } catch (_) {
       return false;
@@ -115,7 +115,7 @@ class MoviesApi extends BaseApi {
 
   Future<List<OfflineMovieRecord>> listOffline() async {
     try {
-      final body = await get('/api/movies/offline');
+      final body = await get('/api/v1/movies/offline');
       final data = body['data'] as List<dynamic>?;
       return data
               ?.map((e) => OfflineMovieRecord.fromJson(e as Map<String, dynamic>))

@@ -20,7 +20,7 @@ class AuthApi {
     required String password,
     String? name,
   }) async {
-    return _request('/auth/signup', data: {
+    return _request('/api/v1/auth/signup', data: {
       'email': email,
       'password': password,
       'name': name,
@@ -31,22 +31,22 @@ class AuthApi {
     required String email,
     required String password,
   }) async {
-    return _request('/auth/login', data: {
+    return _request('/api/v1/auth/login', data: {
       'email': email,
       'password': password,
     });
   }
 
   Future<Map<String, dynamic>> loginWithGoogle(String idToken) async {
-    return _request('/auth/google', data: {'idToken': idToken});
+    return _request('/api/v1/auth/google', data: {'idToken': idToken});
   }
 
   Future<Map<String, dynamic>> continueAsGuest() async {
-    return _request('/auth/guest');
+    return _request('/api/v1/auth/guest');
   }
 
   Future<Map<String, dynamic>> refresh(String refreshToken) async {
-    return _request('/auth/refresh', data: {'refreshToken': refreshToken});
+    return _request('/api/v1/auth/refresh', data: {'refreshToken': refreshToken});
   }
 
   Future<Map<String, dynamic>> convertGuest({
@@ -56,7 +56,7 @@ class AuthApi {
     required String token,
   }) async {
     return _request(
-      '/auth/convert-guest',
+      '/api/v1/auth/convert-guest',
       data: {
         'email': email,
         'password': password,
@@ -69,7 +69,7 @@ class AuthApi {
   Future<void> logout(String token) async {
     try {
       await _dio.post(
-        '/auth/logout',
+        '/api/v1/auth/logout',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
     } catch (_) {}
