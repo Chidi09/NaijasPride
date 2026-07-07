@@ -1,0 +1,99 @@
+workflows:
+  android-release:
+    name: Android Release Build
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+      vars:
+        PACKAGE_NAME: "com.naijaspride.naijaspride_mobile"
+      # Group "naijaspride" (must be created in the Codemagic dashboard
+      # environment variables settings) holds S3_ENDPOINT, S3_ACCESS_KEY_ID,
+      # S3_SECRET_ACCESS_KEY, S3_BUCKET - key id/secret marked Secure.
+      # These are the same R2 credentials used by the backend - this build
+      # just needs write access to the same bucket to publish the APK
+      # the website's download button points at.
+      groups:
+        - naijaspride
+    # No triggering block - manual trigger only for now (no webhook,
+    # no auto-build on push). Start builds from the Codemagic dashboard.
+    scripts:
+      - name: Get Flutter packages
+        script: cd apps/mobile && flutter packages pub get
+      - name: Build Android App Bundle (release)
+        script: |
+          cd apps/mobile && flutter build appbundle --release
+      - name: Build Android APK (release)
+        script: |
+          # Plain --target-platform android-arm64 only restricts Flutter's
+          # own engine binary. --split-per-abi activates Android's actual
+          # splits.abi packaging mechanism, which filters every native lib
+          # regardless of source. Combined with --target-platform, only one
+          # output file is produced: app-arm64-v8a-release.apk.
+          # If a separate Android-TV build is ever wanted, add a second
+          # android-tv-release workflow passing:
+          #   flutter build apk --release --target-platform android-arm64
+          #   --split-per-abi --dart-define=IS_TV_BUILD=true
+          cd apps/mobile && flutter build apk --release --target-platform android-arm64 --split-per-abi
+      - name: Publish release APK to R2 (updates the website download link)
+        script: |
+          cd apps/mobile
+          pip3 install --quiet --break-system-packages boto3 2>/dev/null || pip3 install --quiet boto3
+          python3 - <<'PYEOF'
+          import os
+          import boto3
+          from botocore.client import Config
+
+          # Newer botocore (as freshly pip-installed on the CI machine, vs.
+          # an older version) defaults to computing/sending extra request
+          # checksum headers for S3 calls, which R2's signature validation
+          # doesn't handle correctly - causing SignatureDoesNotMatch on
+          # both multipart AND plain PutObject. Confirmed by reproducing
+          # locally with the same botocore version and verifying these two
+          # Config flags (restoring pre-default-checksum behavior) fix it
+          # against the real bucket before pushing this.
+          # Strip defensively - a stray trailing newline/space picked up
+          # when pasting a secret into Codemagic's env var UI is enough to
+          # break S3 signature calculation (SignatureDoesNotMatch) while
+          # leaving the access key id "valid-looking", which is exactly
+          # what happened on a prior run of this exact script/code.
+          s3_endpoint = os.environ["S3_ENDPOINT"].strip()
+          s3_access_key_id = os.environ["S3_ACCESS_KEY_ID"].strip()
+          s3_secret_access_key = os.environ["S3_SECRET_ACCESS_KEY"].strip()
+          s3_bucket = os.environ["S3_BUCKET"].strip()
+          print(f"[diag] endpoint={s3_endpoint!r} access_key_id len={len(s3_access_key_id)} secret len={len(s3_secret_access_key)} bucket={s3_bucket!r}")
+
+          s3 = boto3.client(
+              "s3",
+              endpoint_url=s3_endpoint,
+              aws_access_key_id=s3_access_key_id,
+              aws_secret_access_key=s3_secret_access_key,
+              region_name="auto",
+              config=Config(
+                  signature_version="s3v4",
+                  request_checksum_calculation="when_required",
+                  response_checksum_validation="when_required",
+              ),
+          )
+          apk_path = "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          key = "downloads/naijaspride-android-latest.apk"
+          with open(apk_path, "rb") as f:
+              s3.put_object(
+                  Bucket=s3_bucket,
+                  Key=key,
+                  Body=f,
+                  ContentType="application/vnd.android.package-archive",
+              )
+          print(f"Published {apk_path} to r2://{s3_bucket}/{key}")
+          PYEOF
+    artifacts:
+      - apps/mobile/build/**/outputs/**/*.aab
+      - apps/mobile/build/**/outputs/**/*.apk
+      - apps/mobile/build/**/outputs/**/mapping.txt
+    publishing:
+      email:
+        recipients:
+          - preyealalibo23@gmail.com
+        notify:
+          success: true
+          failure: true
