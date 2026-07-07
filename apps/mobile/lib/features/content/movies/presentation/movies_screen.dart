@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/build_flavor.dart';
+import '../../../ads/data/ads_api.dart';
+import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
@@ -18,6 +21,10 @@ class MoviesScreen extends ConsumerStatefulWidget {
 }
 
 class _MoviesScreenState extends ConsumerState<MoviesScreen> {
+  bool get _showAds =>
+      !isTvBuild &&
+      (ref.watch(adSlotsProvider('BROWSE_GRID')).value?.isNotEmpty ?? false);
+
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   Timer? _debounce;
@@ -196,26 +203,31 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
-            itemCount: _movies.length,
+            itemCount: !_showAds
+                ? _movies.length
+                : _movies.length + (_movies.length ~/ 12),
             itemBuilder: (context, index) {
-              final movie = _movies[index];
+              if (_showAds && (index + 1) % 13 == 0) {
+                return AdPosterCard(index: index ~/ 13);
+              }
+              final contentIndex = !_showAds ? index : index - index ~/ 13;
+              final movie = _movies[contentIndex];
               return PosterCard(
                 width: itemWidth,
                 imageUrl: movie.youtubeId != null
                     ? (movie.backdropUrl ??
-                        movie.thumbnailUrl ??
-                        movie.posterUrl ??
-                        movie.coverUrl ??
-                        '')
+                          movie.thumbnailUrl ??
+                          movie.posterUrl ??
+                          movie.coverUrl ??
+                          '')
                     : (movie.posterUrl ??
-                        movie.thumbnailUrl ??
-                        movie.coverUrl ??
-                        ''),
+                          movie.thumbnailUrl ??
+                          movie.coverUrl ??
+                          ''),
                 isRectangular: movie.youtubeId != null,
                 heroTag: 'movie-poster-${movie.id}',
                 title: movie.title,
-                onTap: () =>
-                    context.go('/movies/${movie.slug ?? movie.id}'),
+                onTap: () => context.go('/movies/${movie.slug ?? movie.id}'),
               );
             },
           ),

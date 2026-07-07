@@ -20,13 +20,16 @@ class WatchProgressApi extends BaseApi {
     String? status,
   }) async {
     try {
-      await dio.post('/api/v1/watch/progress', data: {
-        'movieId': movieId,
-        'progress': progressSeconds,
-        'duration': durationSeconds,
-        // ignore: use_null_aware_elements
-        if (status != null) 'status': status,
-      });
+      await dio.post(
+        '/api/v1/watch/progress',
+        data: {
+          'movieId': movieId,
+          'progress': progressSeconds,
+          'duration': durationSeconds,
+          // ignore: use_null_aware_elements
+          if (status != null) 'status': status,
+        },
+      );
       return true;
     } catch (_) {
       return false;
@@ -65,27 +68,28 @@ class WatchProgressApi extends BaseApi {
     required int durationSeconds,
   }) async {
     try {
-      await post('/api/v1/anime/progress', data: {
-        'anilistId': anilistId,
-        'episodeNumber': episodeNumber,
-        'title': title,
-        // ignore: use_null_aware_elements
-        if (imageUrl != null) 'imageUrl': imageUrl,
-        'progress': progressSeconds,
-        'duration': durationSeconds,
-        // ignore: use_null_aware_elements
-        if (status != null) 'status': status,
-      });
+      await post(
+        '/api/v1/anime/progress',
+        data: {
+          'anilistId': anilistId,
+          'episodeNumber': episodeNumber,
+          'title': title,
+          // ignore: use_null_aware_elements
+          if (imageUrl != null) 'imageUrl': imageUrl,
+          'progress': progressSeconds,
+          'duration': durationSeconds,
+          // ignore: use_null_aware_elements
+          if (status != null) 'status': status,
+        },
+      );
       return true;
     } catch (_) {
       return false;
     }
   }
 
-  Future<({int progress, int duration, String? status})?> getAnimeEpisodeProgress(
-    int anilistId,
-    int episodeNumber,
-  ) async {
+  Future<({int progress, int duration, String? status})?>
+  getAnimeEpisodeProgress(int anilistId, int episodeNumber) async {
     try {
       final body = await get('/api/v1/anime/progress/$anilistId');
       final data = body['data'] as List<dynamic>?;
@@ -106,6 +110,31 @@ class WatchProgressApi extends BaseApi {
     }
   }
 
+  Future<Map<int, ({int progress, int duration, String? status})>>
+  getAnimeProgress(int anilistId) async {
+    try {
+      final body = await get('/api/v1/anime/progress/$anilistId');
+      final data = body['data'] as List<dynamic>?;
+      if (data == null) return {};
+      final map = <int, ({int progress, int duration, String? status})>{};
+      for (final entry in data) {
+        if (entry is Map<String, dynamic>) {
+          final epNum = (entry['episodeNumber'] as num?)?.toInt();
+          if (epNum != null) {
+            map[epNum] = (
+              progress: (entry['progress'] as num?)?.toInt() ?? 0,
+              duration: (entry['duration'] as num?)?.toInt() ?? 0,
+              status: entry['status'] as String?,
+            );
+          }
+        }
+      }
+      return map;
+    } catch (_) {
+      return {};
+    }
+  }
+
   Future<bool> saveTvProgress({
     required String showId,
     required String episodeId,
@@ -113,28 +142,30 @@ class WatchProgressApi extends BaseApi {
     required int episodeNumber,
     required int progressSeconds,
     required int durationSeconds,
-      String? status,
+    String? status,
   }) async {
     try {
-      await post('/api/v1/tv-shows/progress', data: {
-        'showId': showId,
-        'episodeId': episodeId,
-        'seasonNumber': seasonNumber,
-        'episodeNumber': episodeNumber,
-        'progress': progressSeconds,
-        'duration': durationSeconds,
-        // ignore: use_null_aware_elements
-        if (status != null) 'status': status,
-      });
+      await post(
+        '/api/v1/tv-shows/progress',
+        data: {
+          'showId': showId,
+          'episodeId': episodeId,
+          'seasonNumber': seasonNumber,
+          'episodeNumber': episodeNumber,
+          'progress': progressSeconds,
+          'duration': durationSeconds,
+          // ignore: use_null_aware_elements
+          if (status != null) 'status': status,
+        },
+      );
       return true;
     } catch (_) {
       return false;
     }
   }
 
-  Future<({int progress, int duration, String? episodeId, String? status})?> getTvProgress(
-    String showId,
-  ) async {
+  Future<({int progress, int duration, String? episodeId, String? status})?>
+  getTvProgress(String showId) async {
     try {
       final body = await get('/api/v1/tv-shows/progress/$showId');
       final data = body['data'] as Map<String, dynamic>?;

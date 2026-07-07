@@ -8,12 +8,14 @@ import '../../../../core/player/embed_webview_screen.dart';
 import '../../../../core/player/playback_source.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
 import '../../../../core/player/watch_progress_api.dart';
+import '../../../../core/build_flavor.dart';
+import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/pressable_scale.dart';
 import '../../shared/presentation/status_picker.dart';
+import '../../shared/presentation/stream_preparing_overlay.dart';
 
-final tvShowDetailProvider =
-    FutureProvider.family<TvShow, String>((ref, slug) {
+final tvShowDetailProvider = FutureProvider.family<TvShow, String>((ref, slug) {
   return ref.watch(tvShowsApiProvider).detail(slug);
 });
 
@@ -28,12 +30,24 @@ class TvShowDetailScreen extends ConsumerStatefulWidget {
 
 class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
   int _selectedSeason = 1;
+  ({int progress, int duration, String? episodeId, String? status})?
+  _savedProgress;
+  bool _hasCheckedProgress = false;
+
+  Future<void> _fetchProgress(String showId) async {
+    final api = ref.read(watchProgressApiProvider);
+    final result = await api.getTvProgress(showId);
+    if (mounted) setState(() => _savedProgress = result);
+  }
 
   Future<void> _onEpisodeTap(TvShow show, TvEpisode episode) async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => StreamPreparingOverlay(
+        title: episode.title,
+        imageUrl: show.backdropUrl ?? show.posterUrl,
+      ),
     );
     try {
       final api = ref.read(tvShowsApiProvider);
@@ -84,9 +98,9 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load episode: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load episode: $e')));
     }
   }
 
@@ -96,17 +110,19 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
     final showAsync = ref.watch(tvShowDetailProvider(widget.slug));
 
     return showAsync.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => Scaffold(
         body: ErrorStateView(
           onRetry: () => ref.invalidate(tvShowDetailProvider(widget.slug)),
         ),
       ),
       data: (show) {
-        if (show.seasons.isNotEmpty &&
-            _selectedSeason > show.seasons.length) {
+        if (!_hasCheckedProgress) {
+          _hasCheckedProgress = true;
+          Future.microtask(() => _fetchProgress(show.id));
+        }
+        if (show.seasons.isNotEmpty && _selectedSeason > show.seasons.length) {
           _selectedSeason = show.seasons.first.seasonNumber;
         }
         final currentSeason = show.seasons
@@ -118,11 +134,13 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
           body: CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 220,
+                expandedHeight: MediaQuery.of(context).size.height * 0.42,
                 pinned: true,
                 actions: [
                   PressableScale(
-                    pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                    pressedColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withAlpha(40),
                     child: IconButton(
                       icon: const Icon(Icons.playlist_add),
                       tooltip: 'Add to list',
@@ -130,12 +148,19 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
                         final api = ref.read(watchProgressApiProvider);
                         final existing = await api.getTvProgress(show.id);
                         if (!context.mounted) return;
-                        final selected = await showStatusPicker(context, current: existing?.status);
+                        final selected = await showStatusPicker(
+                          context,
+                          current: existing?.status,
+                        );
                         if (selected == null) return;
                         if (existing == null) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Watch an episode first to add this to your list')),
+                              const SnackBar(
+                                content: Text(
+                                  'Watch an episode first to add this to your list',
+                                ),
+                              ),
                             );
                           }
                           return;
@@ -151,7 +176,11 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
                         );
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Marked as ${watchStatusLabel(selected)}')),
+                            SnackBar(
+                              content: Text(
+                                'Marked as ${watchStatusLabel(selected)}',
+                              ),
+                            ),
                           );
                         }
                       },
@@ -159,95 +188,208 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Hero(
-                    tag: 'tv-poster-${show.id}',
-                    child: Image.network(
-                      show.backdropUrl ?? show.posterUrl ?? '',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: theme.colorScheme.surface,
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        show.backdropUrl ?? show.posterUrl ?? '',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            Container(color: theme.colorScheme.surface),
                       ),
-                    ),
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                theme.scaffoldBackgroundColor,
+                              ],
+                              stops: const [0.6, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        show.title,
-                        style: theme.textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Text('${show.year}'),
-                          if (show.language != null) ...[
+                child: Column(
+                  children: [
+                    Transform.translate(
+                      offset: const Offset(0, -48),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              width: 110,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(60),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: AspectRatio(
+                                  aspectRatio: 2 / 3,
+                                  child: Hero(
+                                    tag: 'tv-poster-${show.id}',
+                                    child: Image.network(
+                                      show.posterUrl ?? show.backdropUrl ?? '',
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Container(
+                                                color:
+                                                    theme.colorScheme.surface,
+                                              ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                             const SizedBox(width: 16),
-                            Text(show.language!),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    show.title,
+                                    style: theme.textTheme.titleLarge,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Text('${show.year}'),
+                                      if (show.language != null) ...[
+                                        const SizedBox(width: 16),
+                                        Text(show.language!),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
-                        ],
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      if (show.genre.isNotEmpty)
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: show.genre.map((g) {
-                            return Chip(
-                              label: Text(g.wireValue),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            );
-                          }).toList(),
-                        ),
-                      const SizedBox(height: 16),
-                      if (show.overview != null)
-                        Text(
-                          show.overview!,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                      if (show.seasons.length > 1) ...[
-                        const SizedBox(height: 24),
-                        Text('Seasons', style: theme.textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          height: 40,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: show.seasons.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 8),
-                            itemBuilder: (context, index) {
-                              final season = show.seasons[index];
-                              return ChoiceChip(
-                                label: Text('Season ${season.seasonNumber}'),
-                                selected: _selectedSeason ==
-                                    season.seasonNumber,
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() =>
-                                        _selectedSeason = season.seasonNumber);
+                    ),
+                    Transform.translate(
+                      offset: const Offset(0, -48),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (show.genre.isNotEmpty)
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: show.genre.map((g) {
+                                  return Chip(
+                                    label: Text(g.wireValue),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  );
+                                }).toList(),
+                              ),
+                            const SizedBox(height: 16),
+                            if (show.overview != null)
+                              Text(
+                                show.overview!,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                            if (!isTvBuild)
+                              const AdBannerCard(placement: 'DETAIL'),
+                            if (show.seasons.length > 1) ...[
+                              const SizedBox(height: 24),
+                              Text(
+                                'Seasons',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 40,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: show.seasons.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(width: 8),
+                                  itemBuilder: (context, index) {
+                                    final season = show.seasons[index];
+                                    return ChoiceChip(
+                                      label: Text(
+                                        'Season ${season.seasonNumber}',
+                                      ),
+                                      selected:
+                                          _selectedSeason ==
+                                          season.seasonNumber,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(
+                                            () => _selectedSeason =
+                                                season.seasonNumber,
+                                          );
+                                        }
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                            if (episodes.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              Text(
+                                'Episodes',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              ...episodes.map((ep) {
+                                final epProgress = _savedProgress;
+                                final match =
+                                    epProgress != null &&
+                                    epProgress.episodeId == ep.id;
+                                double? progressFraction;
+                                bool watched = false;
+                                if (match) {
+                                  final pct = epProgress.duration > 0
+                                      ? epProgress.progress /
+                                            epProgress.duration
+                                      : 0.0;
+                                  if (pct >= 0.95) {
+                                    watched = true;
+                                  } else if (pct > 0.05) {
+                                    progressFraction = pct;
                                   }
-                                },
-                              );
-                            },
-                          ),
+                                }
+                                return _EpisodeTile(
+                                  episode: ep,
+                                  onTap: () => _onEpisodeTap(show, ep),
+                                  progressFraction: progressFraction,
+                                  watched: watched,
+                                );
+                              }),
+                            ],
+                            const SizedBox(height: 24),
+                          ],
                         ),
-                      ],
-                      if (episodes.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Text('Episodes', style: theme.textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        ...episodes.map((ep) => _EpisodeTile(episode: ep, onTap: () => _onEpisodeTap(show, ep))),
-                      ],
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -261,8 +403,15 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
 class _EpisodeTile extends StatelessWidget {
   final TvEpisode episode;
   final VoidCallback? onTap;
+  final double? progressFraction;
+  final bool watched;
 
-  const _EpisodeTile({required this.episode, this.onTap});
+  const _EpisodeTile({
+    required this.episode,
+    this.onTap,
+    this.progressFraction,
+    this.watched = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -272,26 +421,57 @@ class _EpisodeTile extends StatelessWidget {
       leading: SizedBox(
         width: 80,
         height: 56,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Image.network(
-            episode.thumbnailUrl ?? '',
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              color: theme.colorScheme.surface,
-              child: Center(
-                child: Icon(
-                  Icons.tv,
-                  color: theme.colorScheme.onSurface.withAlpha(100),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(
+                episode.thumbnailUrl ?? '',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: theme.colorScheme.surface,
+                  child: Center(
+                    child: Icon(
+                      Icons.tv,
+                      color: theme.colorScheme.onSurface.withAlpha(100),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            if (progressFraction != null &&
+                progressFraction! >= 0.05 &&
+                progressFraction! <= 0.95)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(
+                  value: progressFraction,
+                  minHeight: 2,
+                ),
+              ),
+          ],
         ),
       ),
-      title: Text(
-        '${episode.episodeNumber}. ${episode.title}',
-        style: theme.textTheme.bodyMedium,
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${episode.episodeNumber}. ${episode.title}',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          if (watched)
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: Icon(
+                Icons.check,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+        ],
       ),
       subtitle: episode.durationMinutes != null
           ? Text(

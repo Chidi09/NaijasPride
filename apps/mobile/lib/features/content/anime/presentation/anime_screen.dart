@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/build_flavor.dart';
+import '../../../ads/data/ads_api.dart';
+import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
@@ -18,6 +21,10 @@ class AnimeScreen extends ConsumerStatefulWidget {
 }
 
 class _AnimeScreenState extends ConsumerState<AnimeScreen> {
+  bool get _showAds =>
+      !isTvBuild &&
+      (ref.watch(adSlotsProvider('BROWSE_GRID')).value?.isNotEmpty ?? false);
+
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   Timer? _debounce;
@@ -196,16 +203,22 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
-            itemCount: _media.length,
+            itemCount: !_showAds
+                ? _media.length
+                : _media.length + (_media.length ~/ 12),
             itemBuilder: (context, index) {
-              final entry = _media[index];
+              if (_showAds && (index + 1) % 13 == 0) {
+                return AdPosterCard(index: index ~/ 13);
+              }
+              final contentIndex = !_showAds ? index : index - index ~/ 13;
+              final entry = _media[contentIndex];
               return PosterCard(
                 width: itemWidth,
-                imageUrl: entry.coverImage.large ??
-                    entry.coverImage.medium ??
-                    '',
+                imageUrl:
+                    entry.coverImage.large ?? entry.coverImage.medium ?? '',
                 heroTag: 'anime-poster-${entry.id}',
-                title: entry.title.english ??
+                title:
+                    entry.title.english ??
                     entry.title.romaji ??
                     entry.title.native ??
                     'Untitled',

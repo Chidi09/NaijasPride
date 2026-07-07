@@ -35,22 +35,21 @@ Future<EmbedResolutionResult> resolveTvEpisodePlayback({
     final extracted = await extractStreamFromEmbed(provider.url);
     if (extracted != null) {
       return ResolvedDirectSource(
-        DirectPlaybackSource(
-          extracted.url,
-          headers: {'Referer': extracted.referer ?? provider.url},
-        ),
+        DirectPlaybackSource(extracted.url, headers: extracted.headers),
       );
     }
   }
 
-  final serverResult = await api.extractStream(slug, season: season, episode: episode);
+  final serverResult = await api.extractStream(
+    slug,
+    season: season,
+    episode: episode,
+  );
   if (serverResult != null && serverResult.streamUrl.isNotEmpty) {
     return ResolvedDirectSource(
       DirectPlaybackSource(
         serverResult.streamUrl,
-        headers: serverResult.referer != null
-            ? {'Referer': serverResult.referer!}
-            : null,
+        headers: _buildServerHeaders(serverResult.referer),
       ),
     );
   }
@@ -58,10 +57,30 @@ Future<EmbedResolutionResult> resolveTvEpisodePlayback({
   return EmbedWebViewFallback(providers.first.url);
 }
 
+Map<String, String>? _buildServerHeaders(String? referer) {
+  if (referer == null) return null;
+  final origin = _originFromReferer(referer);
+  final headers = <String, String>{
+    'Referer': referer,
+    'User-Agent': desktopUserAgent,
+  };
+  if (origin != null) headers['Origin'] = origin;
+  return headers;
+}
+
+String? _originFromReferer(String referer) {
+  try {
+    final u = Uri.parse(referer);
+    return '${u.scheme}://${u.host}${u.hasPort ? ':${u.port}' : ''}';
+  } catch (_) {
+    return null;
+  }
+}
+
 Future<EmbedResolutionResult> resolveEmbedOnlyPlayback({
   required List<String> providerUrls,
   Future<({String streamUrl, String kind, String? referer})?> Function()?
-      backendExtract,
+  backendExtract,
 }) async {
   if (providerUrls.isEmpty) {
     return EmbedResolutionFailed('No embed providers available');
@@ -71,10 +90,7 @@ Future<EmbedResolutionResult> resolveEmbedOnlyPlayback({
     final extracted = await extractStreamFromEmbed(url);
     if (extracted != null) {
       return ResolvedDirectSource(
-        DirectPlaybackSource(
-          extracted.url,
-          headers: {'Referer': extracted.referer ?? url},
-        ),
+        DirectPlaybackSource(extracted.url, headers: extracted.headers),
       );
     }
   }
@@ -85,9 +101,7 @@ Future<EmbedResolutionResult> resolveEmbedOnlyPlayback({
       return ResolvedDirectSource(
         DirectPlaybackSource(
           serverResult.streamUrl,
-          headers: serverResult.referer != null
-              ? {'Referer': serverResult.referer!}
-              : null,
+          headers: _buildServerHeaders(serverResult.referer),
         ),
       );
     }

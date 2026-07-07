@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/build_flavor.dart';
+import '../../ads/presentation/ad_slot_card.dart';
 import '../../content/anime/data/anime_api.dart';
 import '../../content/anime/data/anime_models.dart';
 import '../../content/movies/data/movies_api.dart';
@@ -14,28 +16,32 @@ import '../../content/tv_shows/data/tv_show_models.dart';
 import '../../../core/network/api_client.dart';
 import '../data/continue_watching_api.dart';
 import '../../content/shared/presentation/status_picker.dart';
-import '../../../core/build_flavor.dart';
 import 'hero_banner.dart';
 
 final homeFeaturedMoviesProvider =
     FutureProvider<Map<String, List<MovieSummary>>>((ref) {
-  return ref.watch(moviesApiProvider).featured();
-});
+      return ref.watch(moviesApiProvider).featured();
+    });
 
 final homePopularTvProvider =
-    FutureProvider<({List<TvShowSummary> data, Map<String, dynamic> meta})>(
-        (ref) {
-  return ref.watch(tvShowsApiProvider).search(sortBy: 'popular', limit: 10);
-});
+    FutureProvider<({List<TvShowSummary> data, Map<String, dynamic> meta})>((
+      ref,
+    ) {
+      return ref.watch(tvShowsApiProvider).search(sortBy: 'popular', limit: 10);
+    });
 
 final homeTrendingAnimeProvider =
     FutureProvider<({List<AnimeSummary> media, Map<String, dynamic> pageInfo})>(
-        (ref) {
-  return ref.watch(animeApiProvider).search(sort: 'TRENDING_DESC', perPage: 10);
-});
+      (ref) {
+        return ref
+            .watch(animeApiProvider)
+            .search(sort: 'TRENDING_DESC', perPage: 10);
+      },
+    );
 
-final continueWatchingProvider =
-    FutureProvider<List<ContinueWatchingItem>>((ref) async {
+final continueWatchingProvider = FutureProvider<List<ContinueWatchingItem>>((
+  ref,
+) async {
   final dio = ref.watch(dioProvider);
   final results = await Future.wait([
     fetchMovieHistory(dio),
@@ -56,8 +62,8 @@ class ContinueWatchingFilterNotifier extends Notifier<String?> {
 
 final continueWatchingFilterProvider =
     NotifierProvider<ContinueWatchingFilterNotifier, String?>(
-  ContinueWatchingFilterNotifier.new,
-);
+      ContinueWatchingFilterNotifier.new,
+    );
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -71,24 +77,46 @@ class HomeScreen extends ConsumerWidget {
     final selectedFilter = ref.watch(continueWatchingFilterProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('NaijaSpride')),
+      extendBodyBehindAppBar: !isTvBuild,
+      appBar: isTvBuild
+          ? AppBar(title: const Text('NaijaSpride'))
+          : AppBar(
+              title: const Text('NaijaSpride'),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+            ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isTvBuild)
-              featuredAsync.when(
-                data: (featured) {
-                  final heroMovie =
-                      (featured['trending'] ?? featured['mostWatched'] ?? [])
-                          .cast<MovieSummary>()
-                          .firstOrNull;
-                  if (heroMovie == null) return const SizedBox.shrink();
+            featuredAsync.when(
+              data: (featured) {
+                final heroMovie =
+                    (featured['trending'] ?? featured['mostWatched'] ?? [])
+                        .cast<MovieSummary>()
+                        .firstOrNull;
+                if (heroMovie == null) return const SizedBox.shrink();
+                if (isTvBuild) {
                   return HeroBanner(movie: heroMovie);
-                },
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
+                }
+                final heroMovies = [
+                  if (featured['trending'] != null) ...featured['trending']!,
+                  if (featured['mostWatched'] != null)
+                    ...featured['mostWatched']!,
+                  if (featured['latestUploads'] != null)
+                    ...featured['latestUploads']!,
+                  if (featured['newReleases'] != null)
+                    ...featured['newReleases']!,
+                  if (featured['comingSoon'] != null)
+                    ...featured['comingSoon']!,
+                ].take(5).toList();
+                return HeroBanner(movie: heroMovie, featuredMovies: heroMovies);
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => _inlineError(
+                () => ref.invalidate(homeFeaturedMoviesProvider),
               ),
+            ),
             continueAsync.when(
               data: (items) {
                 if (items.isEmpty) return const SizedBox.shrink();
@@ -99,7 +127,10 @@ class HomeScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       child: SizedBox(
                         height: 36,
                         child: ListView(
@@ -110,8 +141,11 @@ class HomeScreen extends ConsumerWidget {
                               child: ChoiceChip(
                                 label: const Text('All'),
                                 selected: selectedFilter == null,
-                                onSelected: (_) =>
-                                    ref.read(continueWatchingFilterProvider.notifier).setFilter(null),
+                                onSelected: (_) => ref
+                                    .read(
+                                      continueWatchingFilterProvider.notifier,
+                                    )
+                                    .setFilter(null),
                               ),
                             ),
                             ...kWatchStatuses.map((s) {
@@ -120,8 +154,11 @@ class HomeScreen extends ConsumerWidget {
                                 child: ChoiceChip(
                                   label: Text(watchStatusLabel(s)),
                                   selected: selectedFilter == s,
-                                  onSelected: (_) =>
-                                      ref.read(continueWatchingFilterProvider.notifier).setFilter(s),
+                                  onSelected: (_) => ref
+                                      .read(
+                                        continueWatchingFilterProvider.notifier,
+                                      )
+                                      .setFilter(s),
                                 ),
                               );
                             }),
@@ -131,7 +168,10 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     if (filteredItems.isEmpty)
                       const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         child: Text('No items with this status'),
                       )
                     else
@@ -159,7 +199,8 @@ class HomeScreen extends ConsumerWidget {
                 );
               },
               loading: () => const SizedBox.shrink(),
-              error: (_, _) => const SizedBox.shrink(),
+              error: (_, _) =>
+                  _inlineError(() => ref.invalidate(continueWatchingProvider)),
             ),
             featuredAsync.when(
               data: (featured) {
@@ -171,78 +212,112 @@ class HomeScreen extends ConsumerWidget {
                   ('Coming Soon', 'comingSoon'),
                 ];
                 final carousels = sections
-                    .where((s) =>
-                        featured[s.$2] != null && featured[s.$2]!.isNotEmpty)
-                    .map((s) => ContentCarousel(
-                          title: s.$1,
-                          children: featured[s.$2]!
-                              .map((movie) => PosterCard(
-                                    imageUrl: movie.youtubeId != null
-                                        ? (movie.backdropUrl ??
-                                            movie.thumbnailUrl ??
-                                            movie.posterUrl ??
-                                            movie.coverUrl ??
-                                            '')
-                                        : (movie.posterUrl ??
-                                            movie.thumbnailUrl ??
-                                            movie.coverUrl ??
-                                            ''),
-                                    isRectangular: movie.youtubeId != null,
-                                    title: movie.title,
-                                    onTap: () => context.go(
-                                        '/movies/${movie.slug ?? movie.id}'),
-                                  ))
-                              .toList(),
-                        ))
+                    .where(
+                      (s) =>
+                          featured[s.$2] != null && featured[s.$2]!.isNotEmpty,
+                    )
+                    .map(
+                      (s) => ContentCarousel(
+                        title: s.$1,
+                        children: featured[s.$2]!
+                            .map(
+                              (movie) => PosterCard(
+                                imageUrl: movie.youtubeId != null
+                                    ? (movie.backdropUrl ??
+                                          movie.thumbnailUrl ??
+                                          movie.posterUrl ??
+                                          movie.coverUrl ??
+                                          '')
+                                    : (movie.posterUrl ??
+                                          movie.thumbnailUrl ??
+                                          movie.coverUrl ??
+                                          ''),
+                                isRectangular: movie.youtubeId != null,
+                                title: movie.title,
+                                onTap: () => context.go(
+                                  '/movies/${movie.slug ?? movie.id}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    )
                     .toList();
-                return Column(children: carousels);
+                return Column(
+                  children: [
+                    ...carousels.take(2),
+                    if (!isTvBuild) const AdBannerCard(placement: 'HOME_FEED'),
+                    ...carousels.skip(2),
+                  ],
+                );
               },
               loading: () => _loadingRow,
-              error: (_, _) => const SizedBox.shrink(),
+              error: (_, _) => _inlineError(
+                () => ref.invalidate(homeFeaturedMoviesProvider),
+              ),
             ),
             tvAsync.when(
               data: (tv) => tv.data.isNotEmpty
                   ? ContentCarousel(
                       title: 'Popular TV Shows',
                       children: tv.data
-                          .map((show) => PosterCard(
-                                imageUrl: show.posterUrl ??
-                                    show.thumbnailUrl ??
-                                    '',
-                                title: show.title,
-                                onTap: () =>
-                                    context.go('/tv/${show.slug}'),
-                              ))
+                          .map(
+                            (show) => PosterCard(
+                              imageUrl:
+                                  show.posterUrl ?? show.thumbnailUrl ?? '',
+                              title: show.title,
+                              onTap: () => context.go('/tv/${show.slug}'),
+                            ),
+                          )
                           .toList(),
                     )
                   : const SizedBox.shrink(),
               loading: () => _loadingRow,
-              error: (_, _) => const SizedBox.shrink(),
+              error: (_, _) =>
+                  _inlineError(() => ref.invalidate(homePopularTvProvider)),
             ),
             animeAsync.when(
               data: (anime) => anime.media.isNotEmpty
                   ? ContentCarousel(
                       title: 'Trending Anime',
                       children: anime.media
-                          .map((entry) => PosterCard(
-                                imageUrl: entry.coverImage.large ??
-                                    entry.coverImage.medium ??
-                                    '',
-                                title: entry.title.english ??
-                                    entry.title.romaji ??
-                                    entry.title.native ??
-                                    'Untitled',
-                                onTap: () =>
-                                    context.go('/anime/${entry.id}'),
-                              ))
+                          .map(
+                            (entry) => PosterCard(
+                              imageUrl:
+                                  entry.coverImage.large ??
+                                  entry.coverImage.medium ??
+                                  '',
+                              title:
+                                  entry.title.english ??
+                                  entry.title.romaji ??
+                                  entry.title.native ??
+                                  'Untitled',
+                              onTap: () => context.go('/anime/${entry.id}'),
+                            ),
+                          )
                           .toList(),
                     )
                   : const SizedBox.shrink(),
               loading: () => _loadingRow,
-              error: (_, _) => const SizedBox.shrink(),
+              error: (_, _) =>
+                  _inlineError(() => ref.invalidate(homeTrendingAnimeProvider)),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _inlineError(VoidCallback onRetry) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, size: 18),
+          const SizedBox(width: 8),
+          const Text("Couldn't load"),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }

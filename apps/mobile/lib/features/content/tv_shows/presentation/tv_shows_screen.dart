@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/build_flavor.dart';
+import '../../../ads/data/ads_api.dart';
+import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
@@ -18,6 +21,10 @@ class TvShowsScreen extends ConsumerStatefulWidget {
 }
 
 class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
+  bool get _showAds =>
+      !isTvBuild &&
+      (ref.watch(adSlotsProvider('BROWSE_GRID')).value?.isNotEmpty ?? false);
+
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   Timer? _debounce;
@@ -196,18 +203,21 @@ class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
-            itemCount: _shows.length,
+            itemCount: !_showAds
+                ? _shows.length
+                : _shows.length + (_shows.length ~/ 12),
             itemBuilder: (context, index) {
-              final show = _shows[index];
+              if (_showAds && (index + 1) % 13 == 0) {
+                return AdPosterCard(index: index ~/ 13);
+              }
+              final contentIndex = !_showAds ? index : index - index ~/ 13;
+              final show = _shows[contentIndex];
               return PosterCard(
                 width: itemWidth,
-                imageUrl: show.posterUrl ??
-                    show.thumbnailUrl ??
-                    '',
+                imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
                 heroTag: 'tv-poster-${show.id}',
                 title: show.title,
-                onTap: () =>
-                    context.go('/tv/${show.slug}'),
+                onTap: () => context.go('/tv/${show.slug}'),
               );
             },
           ),

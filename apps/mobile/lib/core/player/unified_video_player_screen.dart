@@ -21,6 +21,7 @@ class UnifiedVideoPlayerScreen extends ConsumerStatefulWidget {
   final String? nextEpisodeLabel;
   final VoidCallback? onNextEpisode;
   final AnimeSkipTimes? skipTimes;
+  final bool restoreProgress;
 
   const UnifiedVideoPlayerScreen({
     super.key,
@@ -30,6 +31,7 @@ class UnifiedVideoPlayerScreen extends ConsumerStatefulWidget {
     this.nextEpisodeLabel,
     this.onNextEpisode,
     this.skipTimes,
+    this.restoreProgress = true,
   });
 
   @override
@@ -126,7 +128,7 @@ class _UnifiedVideoPlayerScreenState
       });
       PipService.setEnabled(true);
 
-      await _restoreProgress(player);
+      if (widget.restoreProgress) await _restoreProgress(player);
       _startAutosave(player);
       _flushPendingProgress();
     } catch (e) {
