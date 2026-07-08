@@ -14,7 +14,9 @@ import '../../../../core/player/playback_resolver.dart';
 import '../../../../core/player/playback_source.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
 import '../../../../core/player/watch_progress_api.dart';
+import '../../../../core/router/app_back_button.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
+import '../../shared/presentation/content_detail_scaffold.dart';
 import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/pressable_scale.dart';
 import '../../shared/presentation/status_picker.dart';
@@ -47,17 +49,6 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
     final api = ref.read(watchProgressApiProvider);
     final result = await api.getMovieProgress(movieId);
     if (mounted) setState(() => _savedProgress = result);
-  }
-
-  String _formatDuration(int totalSeconds) {
-    final d = Duration(seconds: totalSeconds);
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    if (h > 0) {
-      return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-    }
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   Future<void> _playMovie(Movie movie, {required bool restoreProgress}) async {
@@ -162,7 +153,6 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
           _hasCheckedProgress = true;
           Future.microtask(() => _fetchProgress(movie.id));
         }
-        final screenHeight = MediaQuery.of(context).size.height;
         final hasResume =
             _savedProgress != null &&
             _savedProgress!.progress > 30 &&
@@ -170,379 +160,249 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
             _savedProgress!.progress < _savedProgress!.duration * 0.95;
 
         return Scaffold(
-          body: CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: screenHeight * 0.42,
-                pinned: true,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.network(
-                        movie.backdropUrl ?? movie.posterUrl ?? '',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Container(color: theme.colorScheme.surface),
-                      ),
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                theme.scaffoldBackgroundColor,
-                              ],
-                              stops: const [0.6, 1.0],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    Transform.translate(
-                      offset: const Offset(0, -48),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+          body: ContentDetailScaffold(
+            heroImageUrl: movie.backdropUrl ?? movie.posterUrl ?? '',
+            posterUrl: movie.posterUrl ?? movie.backdropUrl ?? '',
+            heroTag: 'movie-poster-${movie.id}',
+            titleWidget: Text(
+              movie.title,
+              style: theme.textTheme.titleLarge,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            metadataRow: Row(
+              children: [
+                Text('${movie.year}'),
+                if (movie.durationMinutes != null) ...[
+                  const SizedBox(width: 16),
+                  const Icon(Icons.access_time, size: 16),
+                  const SizedBox(width: 4),
+                  Text('${movie.durationMinutes} min'),
+                ],
+                if (movie.rating != null) ...[
+                  const SizedBox(width: 16),
+                  const Icon(Icons.star, size: 16, color: Colors.amber),
+                  const SizedBox(width: 4),
+                  Text(movie.rating!.toStringAsFixed(1)),
+                ],
+              ],
+            ),
+            genres: movie.genre.map((g) => g.wireValue).toList(),
+            description: movie.overview ?? movie.description,
+            description2: movie.cast.isNotEmpty ? 'Cast' : null,
+            extraSections: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (movie.cast.isNotEmpty) ...[
+                  Text('Cast', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: movie.cast.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final castMember = movie.cast[index];
+                        return Column(
                           children: [
-                            Container(
-                              width: 110,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withAlpha(60),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: AspectRatio(
-                                  aspectRatio: 2 / 3,
-                                  child: Hero(
-                                    tag: 'movie-poster-${movie.id}',
-                                    child: Image.network(
-                                      movie.posterUrl ??
-                                          movie.backdropUrl ??
-                                          '',
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              Container(
-                                                color:
-                                                    theme.colorScheme.surface,
-                                              ),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundImage: castMember.photoUrl != null
+                                  ? NetworkImage(castMember.photoUrl!)
+                                  : null,
+                              child: castMember.photoUrl == null
+                                  ? const Icon(Icons.person)
+                                  : null,
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    movie.title,
-                                    style: theme.textTheme.titleLarge,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Text('${movie.year}'),
-                                      if (movie.durationMinutes != null) ...[
-                                        const SizedBox(width: 16),
-                                        const Icon(Icons.access_time, size: 16),
-                                        const SizedBox(width: 4),
-                                        Text('${movie.durationMinutes} min'),
-                                      ],
-                                      if (movie.rating != null) ...[
-                                        const SizedBox(width: 16),
-                                        const Icon(
-                                          Icons.star,
-                                          size: 16,
-                                          color: Colors.amber,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(movie.rating!.toStringAsFixed(1)),
-                                      ],
-                                    ],
-                                  ),
-                                ],
-                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              castMember.name,
+                              style: theme.textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Transform.translate(
-                      offset: const Offset(0, -48),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (movie.genre.isNotEmpty)
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 4,
-                                children: movie.genre.map((g) {
-                                  return Chip(
-                                    label: Text(g.wireValue),
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
-                                  );
-                                }).toList(),
-                              ),
-                            const SizedBox(height: 16),
-                            if ((movie.overview ?? movie.description) != null)
+                            if (castMember.character != null)
                               Text(
-                                movie.overview ?? movie.description ?? '',
-                                style: theme.textTheme.bodyLarge,
-                              ),
-                            if (movie.cast.isNotEmpty) ...[
-                              const SizedBox(height: 24),
-                              Text('Cast', style: theme.textTheme.titleMedium),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 100,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: movie.cast.length,
-                                  separatorBuilder: (_, _) =>
-                                      const SizedBox(width: 12),
-                                  itemBuilder: (context, index) {
-                                    final castMember = movie.cast[index];
-                                    return Column(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 28,
-                                          backgroundImage:
-                                              castMember.photoUrl != null
-                                              ? NetworkImage(
-                                                  castMember.photoUrl!,
-                                                )
-                                              : null,
-                                          child: castMember.photoUrl == null
-                                              ? const Icon(Icons.person)
-                                              : null,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          castMember.name,
-                                          style: theme.textTheme.bodySmall,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (castMember.character != null)
-                                          Text(
-                                            castMember.character!,
-                                            style: theme.textTheme.bodySmall
-                                                ?.copyWith(
-                                                  color: theme
-                                                      .colorScheme
-                                                      .onSurface
-                                                      .withAlpha(153),
-                                                ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                      ],
-                                    );
-                                  },
+                                castMember.character!,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withAlpha(153),
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                            const SizedBox(height: 24),
-                            Column(
-                              children: [
-                                Center(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.playlist_add),
-                                        tooltip: 'Add to list',
-                                        onPressed: () async {
-                                          final api = ref.read(
-                                            watchProgressApiProvider,
-                                          );
-                                          final existing = await api
-                                              .getMovieProgress(movie.id);
-                                          if (!context.mounted) return;
-                                          final selected =
-                                              await showStatusPicker(
-                                                context,
-                                                current: existing?.status,
-                                              );
-                                          if (selected == null) return;
-                                          await api.saveMovieProgress(
-                                            movie.id,
-                                            existing?.progress ?? 0,
-                                            existing?.duration ?? 0,
-                                            status: selected,
-                                          );
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Marked as ${watchStatusLabel(selected)}',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                      ),
-                                      const SizedBox(width: 8),
-                                      if (hasResume)
-                                        PressableScale(
-                                          pressedColor: Theme.of(
-                                            context,
-                                          ).colorScheme.primary.withAlpha(40),
-                                          child: ElevatedButton.icon(
-                                            onPressed: () => _playMovie(
-                                              movie,
-                                              restoreProgress: true,
-                                            ),
-                                            icon: const Icon(Icons.play_arrow),
-                                            label: Text(
-                                              'Resume · ${_formatDuration(_savedProgress!.progress)}',
-                                            ),
-                                          ),
-                                        )
-                                      else
-                                        PressableScale(
-                                          pressedColor: Theme.of(
-                                            context,
-                                          ).colorScheme.primary.withAlpha(40),
-                                          child: ElevatedButton.icon(
-                                            onPressed: () => _playMovie(
-                                              movie,
-                                              restoreProgress: true,
-                                            ),
-                                            icon: const Icon(Icons.play_arrow),
-                                            label: const Text('Play'),
-                                          ),
-                                        ),
-                                      if (hasResume) ...[
-                                        const SizedBox(width: 8),
-                                        TextButton(
-                                          onPressed: () => _playMovie(
-                                            movie,
-                                            restoreProgress: false,
-                                          ),
-                                          child: const Text('Start over'),
-                                        ),
-                                      ],
-                                      if (!isTvBuild &&
-                                          movie.fileUrls.values.any(
-                                            (v) => v.toLowerCase().contains(
-                                              '.mp4',
-                                            ),
-                                          ))
-                                        const SizedBox(width: 12),
-                                      if (!isTvBuild &&
-                                          movie.fileUrls.values.any(
-                                            (v) => v.toLowerCase().contains(
-                                              '.mp4',
-                                            ),
-                                          ))
-                                        PressableScale(
-                                          pressedColor: Theme.of(
-                                            context,
-                                          ).colorScheme.primary.withAlpha(40),
-                                          child: OutlinedButton.icon(
-                                            onPressed: () async {
-                                              final mp4Entry = movie
-                                                  .fileUrls
-                                                  .entries
-                                                  .firstWhere(
-                                                    (e) => e.value
-                                                        .toLowerCase()
-                                                        .contains('.mp4'),
-                                                  );
-                                              await DownloadManager.instance
-                                                  .startDownload(
-                                                    movieId: movie.id,
-                                                    title: movie.title,
-                                                    posterUrl:
-                                                        movie.posterUrl ??
-                                                        movie.thumbnailUrl,
-                                                    quality: mp4Entry.key,
-                                                    fileUrl: mp4Entry.value,
-                                                  );
-                                              ref
-                                                  .read(moviesApiProvider)
-                                                  .saveOffline(
-                                                    movie.id,
-                                                    mp4Entry.key,
-                                                    null,
-                                                  );
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Download started',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                            icon: const Icon(
-                                              Icons.download_outlined,
-                                            ),
-                                            label: const Text('Download'),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                if (hasResume)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: LinearProgressIndicator(
-                                      value:
-                                          _savedProgress!.progress /
-                                          _savedProgress!.duration,
-                                      minHeight: 3,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            if (!isTvBuild)
-                              const AdBannerCard(placement: 'DETAIL'),
-                            _SimilarMoviesSection(slug: widget.slug),
                           ],
-                        ),
-                      ),
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
+                const SizedBox(height: 24),
+              ],
+            ),
+            actionButtonsRow: _MovieActionButtons(
+              movie: movie,
+              hasResume: hasResume,
+              savedProgress: _savedProgress,
+              onPlay: (restore) => _playMovie(movie, restoreProgress: restore),
+            ),
+            episodeSection: Column(
+              children: [
+                if (!isTvBuild) const AdBannerCard(placement: 'DETAIL'),
+                _SimilarMoviesSection(slug: widget.slug),
+              ],
+            ),
+            sliverFooter: [
+              SliverAppBar(
+                pinned: true,
+                leading: const AppBackButton(),
+                automaticallyImplyLeading: false,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _MovieActionButtons extends ConsumerWidget {
+  final Movie movie;
+  final bool hasResume;
+  final ({int progress, int duration, String? status})? savedProgress;
+  final void Function(bool restoreProgress) onPlay;
+
+  const _MovieActionButtons({
+    required this.movie,
+    required this.hasResume,
+    this.savedProgress,
+    required this.onPlay,
+  });
+
+  String _formatDuration(int totalSeconds) {
+    final d = Duration(seconds: totalSeconds);
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (h > 0) {
+      return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: [
+        Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.playlist_add),
+                tooltip: 'Add to list',
+                onPressed: () async {
+                  final api = ref.read(watchProgressApiProvider);
+                  final existing = await api.getMovieProgress(movie.id);
+                  if (!context.mounted) return;
+                  final selected = await showStatusPicker(
+                    context,
+                    current: existing?.status,
+                  );
+                  if (selected == null) return;
+                  await api.saveMovieProgress(
+                    movie.id,
+                    existing?.progress ?? 0,
+                    existing?.duration ?? 0,
+                    status: selected,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Marked as ${watchStatusLabel(selected)}'),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              if (hasResume)
+                PressableScale(
+                  pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                  child: ElevatedButton.icon(
+                    onPressed: () => onPlay(true),
+                    icon: const Icon(Icons.play_arrow),
+                    label: Text('Resume · ${_formatDuration(savedProgress!.progress)}'),
+                  ),
+                )
+              else
+                PressableScale(
+                  pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                  child: ElevatedButton.icon(
+                    onPressed: () => onPlay(true),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Play'),
+                  ),
+                ),
+              if (hasResume) ...[
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => onPlay(false),
+                  child: const Text('Start over'),
+                ),
+              ],
+              if (!isTvBuild &&
+                  movie.fileUrls.values.any(
+                    (v) => v.toLowerCase().contains('.mp4'),
+                  ))
+                const SizedBox(width: 12),
+              if (!isTvBuild &&
+                  movie.fileUrls.values.any(
+                    (v) => v.toLowerCase().contains('.mp4'),
+                  ))
+                PressableScale(
+                  pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final mp4Entry = movie.fileUrls.entries.firstWhere(
+                        (e) => e.value.toLowerCase().contains('.mp4'),
+                      );
+                      await DownloadManager.instance.startDownload(
+                        movieId: movie.id,
+                        title: movie.title,
+                        posterUrl: movie.posterUrl ?? movie.thumbnailUrl,
+                        quality: mp4Entry.key,
+                        fileUrl: mp4Entry.value,
+                      );
+                      ref.read(moviesApiProvider).saveOffline(
+                        movie.id,
+                        mp4Entry.key,
+                        null,
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Download started')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.download_outlined),
+                    label: const Text('Download'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (hasResume)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: LinearProgressIndicator(
+              value: savedProgress!.progress / savedProgress!.duration,
+              minHeight: 3,
+            ),
+          ),
+      ],
     );
   }
 }

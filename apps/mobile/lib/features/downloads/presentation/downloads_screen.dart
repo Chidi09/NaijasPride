@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -125,10 +126,12 @@ class _DownloadTile extends StatelessWidget {
           width: 48,
           height: 64,
           child: record.posterUrl != null && record.posterUrl!.isNotEmpty
-              ? Image.network(
-                  record.posterUrl!,
+              ? CachedNetworkImage(
+                  imageUrl: record.posterUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
+                  errorWidget: (_, _, _) =>
+                      const Icon(Icons.movie_outlined),
+                  placeholder: (_, _) =>
                       const Icon(Icons.movie_outlined),
                 )
               : const Icon(Icons.movie_outlined),

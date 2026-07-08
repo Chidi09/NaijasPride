@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../../core/router/app_back_button.dart';
+
 import '../application/auth_controller.dart';
 
 const _googleWebClientIdEnv = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
@@ -107,7 +109,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        automaticallyImplyLeading: false,
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),

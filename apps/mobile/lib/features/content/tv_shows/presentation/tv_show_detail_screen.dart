@@ -9,10 +9,11 @@ import '../../../../core/player/playback_source.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
 import '../../../../core/player/watch_progress_api.dart';
 import '../../../../core/build_flavor.dart';
+import '../../../../core/router/app_back_button.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
+import '../../shared/presentation/content_detail_scaffold.dart';
+import '../../shared/presentation/episode_tile.dart';
 import '../../shared/presentation/error_state_view.dart';
-import '../../shared/presentation/pressable_scale.dart';
-import '../../shared/presentation/status_picker.dart';
 import '../../shared/presentation/stream_preparing_overlay.dart';
 
 final tvShowDetailProvider = FutureProvider.family<TvShow, String>((ref, slug) {
@@ -125,272 +126,46 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
         if (show.seasons.isNotEmpty && _selectedSeason > show.seasons.length) {
           _selectedSeason = show.seasons.first.seasonNumber;
         }
-        final currentSeason = show.seasons
-            .where((s) => s.seasonNumber == _selectedSeason)
-            .firstOrNull;
-        final episodes = currentSeason?.episodes ?? [];
-
         return Scaffold(
-          body: CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: MediaQuery.of(context).size.height * 0.42,
-                pinned: true,
-                actions: [
-                  PressableScale(
-                    pressedColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withAlpha(40),
-                    child: IconButton(
-                      icon: const Icon(Icons.playlist_add),
-                      tooltip: 'Add to list',
-                      onPressed: () async {
-                        final api = ref.read(watchProgressApiProvider);
-                        final existing = await api.getTvProgress(show.id);
-                        if (!context.mounted) return;
-                        final selected = await showStatusPicker(
-                          context,
-                          current: existing?.status,
-                        );
-                        if (selected == null) return;
-                        if (existing == null) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Watch an episode first to add this to your list',
-                                ),
-                              ),
-                            );
-                          }
-                          return;
-                        }
-                        await api.saveTvProgress(
-                          showId: show.id,
-                          episodeId: existing.episodeId ?? '',
-                          seasonNumber: 0,
-                          episodeNumber: 0,
-                          progressSeconds: existing.progress,
-                          durationSeconds: existing.duration,
-                          status: selected,
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Marked as ${watchStatusLabel(selected)}',
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  ),
+          body: ContentDetailScaffold(
+            heroImageUrl: show.backdropUrl ?? show.posterUrl ?? '',
+            posterUrl: show.posterUrl ?? show.backdropUrl ?? '',
+            heroTag: 'tv-poster-${show.id}',
+            titleWidget: Text(
+              show.title,
+              style: theme.textTheme.titleLarge,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            metadataRow: Row(
+              children: [
+                Text('${show.year}'),
+                if (show.language != null) ...[
+                  const SizedBox(width: 16),
+                  Text(show.language!),
                 ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.network(
-                        show.backdropUrl ?? show.posterUrl ?? '',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Container(color: theme.colorScheme.surface),
-                      ),
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                theme.scaffoldBackgroundColor,
-                              ],
-                              stops: const [0.6, 1.0],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    Transform.translate(
-                      offset: const Offset(0, -48),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Container(
-                              width: 110,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withAlpha(60),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: AspectRatio(
-                                  aspectRatio: 2 / 3,
-                                  child: Hero(
-                                    tag: 'tv-poster-${show.id}',
-                                    child: Image.network(
-                                      show.posterUrl ?? show.backdropUrl ?? '',
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              Container(
-                                                color:
-                                                    theme.colorScheme.surface,
-                                              ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    show.title,
-                                    style: theme.textTheme.titleLarge,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Text('${show.year}'),
-                                      if (show.language != null) ...[
-                                        const SizedBox(width: 16),
-                                        Text(show.language!),
-                                      ],
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Transform.translate(
-                      offset: const Offset(0, -48),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (show.genre.isNotEmpty)
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 4,
-                                children: show.genre.map((g) {
-                                  return Chip(
-                                    label: Text(g.wireValue),
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
-                                  );
-                                }).toList(),
-                              ),
-                            const SizedBox(height: 16),
-                            if (show.overview != null)
-                              Text(
-                                show.overview!,
-                                style: theme.textTheme.bodyLarge,
-                              ),
-                            if (!isTvBuild)
-                              const AdBannerCard(placement: 'DETAIL'),
-                            if (show.seasons.length > 1) ...[
-                              const SizedBox(height: 24),
-                              Text(
-                                'Seasons',
-                                style: theme.textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 40,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: show.seasons.length,
-                                  separatorBuilder: (_, _) =>
-                                      const SizedBox(width: 8),
-                                  itemBuilder: (context, index) {
-                                    final season = show.seasons[index];
-                                    return ChoiceChip(
-                                      label: Text(
-                                        'Season ${season.seasonNumber}',
-                                      ),
-                                      selected:
-                                          _selectedSeason ==
-                                          season.seasonNumber,
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          setState(
-                                            () => _selectedSeason =
-                                                season.seasonNumber,
-                                          );
-                                        }
-                                      },
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                            if (episodes.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              Text(
-                                'Episodes',
-                                style: theme.textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 8),
-                              ...episodes.map((ep) {
-                                final epProgress = _savedProgress;
-                                final match =
-                                    epProgress != null &&
-                                    epProgress.episodeId == ep.id;
-                                double? progressFraction;
-                                bool watched = false;
-                                if (match) {
-                                  final pct = epProgress.duration > 0
-                                      ? epProgress.progress /
-                                            epProgress.duration
-                                      : 0.0;
-                                  if (pct >= 0.95) {
-                                    watched = true;
-                                  } else if (pct > 0.05) {
-                                    progressFraction = pct;
-                                  }
-                                }
-                                return _EpisodeTile(
-                                  episode: ep,
-                                  onTap: () => _onEpisodeTap(show, ep),
-                                  progressFraction: progressFraction,
-                                  watched: watched,
-                                );
-                              }),
-                            ],
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              ],
+            ),
+            genres: show.genre.map((g) => g.wireValue).toList(),
+            description: show.overview,
+            extraSections: !isTvBuild
+                ? const AdBannerCard(placement: 'DETAIL')
+                : null,
+            episodeSection: TvSeasonEpisodesSection(
+              show: show,
+              selectedSeason: _selectedSeason,
+              onSeasonChanged: (season) =>
+                  setState(() => _selectedSeason = season),
+              savedProgress: _savedProgress,
+              onEpisodeTap: (ep) => _onEpisodeTap(show, ep),
+            ),
+            sliverFooter: [
+              SliverAppBar(
+                pinned: true,
+                leading: const AppBackButton(),
+                automaticallyImplyLeading: false,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
               ),
             ],
           ),
@@ -400,86 +175,90 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
   }
 }
 
-class _EpisodeTile extends StatelessWidget {
-  final TvEpisode episode;
-  final VoidCallback? onTap;
-  final double? progressFraction;
-  final bool watched;
+class TvSeasonEpisodesSection extends StatelessWidget {
+  final TvShow show;
+  final int selectedSeason;
+  final ValueChanged<int> onSeasonChanged;
+  final ({int progress, int duration, String? episodeId, String? status})?
+  savedProgress;
+  final void Function(TvEpisode episode) onEpisodeTap;
 
-  const _EpisodeTile({
-    required this.episode,
-    this.onTap,
-    this.progressFraction,
-    this.watched = false,
+  const TvSeasonEpisodesSection({
+    super.key,
+    required this.show,
+    required this.selectedSeason,
+    required this.onSeasonChanged,
+    this.savedProgress,
+    required this.onEpisodeTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: SizedBox(
-        width: 80,
-        height: 56,
-        child: Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.network(
-                episode.thumbnailUrl ?? '',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: theme.colorScheme.surface,
-                  child: Center(
-                    child: Icon(
-                      Icons.tv,
-                      color: theme.colorScheme.onSurface.withAlpha(100),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (progressFraction != null &&
-                progressFraction! >= 0.05 &&
-                progressFraction! <= 0.95)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: LinearProgressIndicator(
-                  value: progressFraction,
-                  minHeight: 2,
-                ),
-              ),
-          ],
-        ),
-      ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '${episode.episodeNumber}. ${episode.title}',
-              style: theme.textTheme.bodyMedium,
+    final currentSeason = show.seasons
+        .where((s) => s.seasonNumber == selectedSeason)
+        .firstOrNull;
+    final episodes = currentSeason?.episodes ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (show.seasons.length > 1) ...[
+          Text('Seasons', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: show.seasons.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final season = show.seasons[index];
+                return ChoiceChip(
+                  label: Text('Season ${season.seasonNumber}'),
+                  selected: selectedSeason == season.seasonNumber,
+                  onSelected: (selected) {
+                    if (selected) onSeasonChanged(season.seasonNumber);
+                  },
+                );
+              },
             ),
           ),
-          if (watched)
-            Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: Icon(
-                Icons.check,
-                size: 16,
-                color: theme.colorScheme.primary,
-              ),
-            ),
         ],
-      ),
-      subtitle: episode.durationMinutes != null
-          ? Text(
-              '${episode.durationMinutes} min',
-              style: theme.textTheme.bodySmall,
-            )
-          : null,
-      onTap: onTap,
+        if (episodes.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Episodes', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ...episodes.map((ep) {
+            final match =
+                savedProgress != null && savedProgress!.episodeId == ep.id;
+            double? progressFraction;
+            bool watched = false;
+            if (match) {
+              final pct = savedProgress!.duration > 0
+                  ? savedProgress!.progress / savedProgress!.duration
+                  : 0.0;
+              if (pct >= 0.95) {
+                watched = true;
+              } else if (pct > 0.05) {
+                progressFraction = pct;
+              }
+            }
+            return EpisodeTile(
+              thumbnailUrl: ep.thumbnailUrl,
+              number: ep.episodeNumber,
+              title: ep.title,
+              subtitle: ep.durationMinutes != null
+                  ? '${ep.durationMinutes} min'
+                  : null,
+              onTap: () => onEpisodeTap(ep),
+              progressFraction: progressFraction,
+              watched: watched,
+            );
+          }),
+        ],
+        const SizedBox(height: 24),
+      ],
     );
   }
 }

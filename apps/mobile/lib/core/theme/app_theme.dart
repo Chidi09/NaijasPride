@@ -80,6 +80,12 @@ class AppTheme {
         unselectedLabelTextStyle: TextStyle(color: colors.text.withAlpha(153)),
         indicatorColor: colors.primary.withAlpha(26),
       ),
+      chipTheme: ChipThemeData(
+        labelStyle: TextStyle(color: colors.text),
+        backgroundColor: colors.surface,
+        side: BorderSide(color: colors.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
     );
   }
 }

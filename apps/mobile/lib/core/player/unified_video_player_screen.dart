@@ -22,6 +22,7 @@ class UnifiedVideoPlayerScreen extends ConsumerStatefulWidget {
   final VoidCallback? onNextEpisode;
   final AnimeSkipTimes? skipTimes;
   final bool restoreProgress;
+  final List<AnimeWatchSubtitle>? subtitles;
 
   const UnifiedVideoPlayerScreen({
     super.key,
@@ -32,6 +33,7 @@ class UnifiedVideoPlayerScreen extends ConsumerStatefulWidget {
     this.onNextEpisode,
     this.skipTimes,
     this.restoreProgress = true,
+    this.subtitles,
   });
 
   @override
@@ -111,10 +113,22 @@ class _UnifiedVideoPlayerScreenState
       }
 
       player = Player();
+
       await player.open(
         Media(mediaUrl, httpHeaders: httpHeaders),
         play: true,
       );
+
+      if (widget.subtitles != null && widget.subtitles!.isNotEmpty) {
+        for (final s in widget.subtitles!) {
+          if (s.url != null && s.lang != null) {
+            player.setSubtitleTrack(
+              SubtitleTrack.uri(s.url!, title: s.lang, language: s.lang),
+            );
+          }
+        }
+        player.setSubtitleTrack(SubtitleTrack.auto());
+      }
 
       if (!mounted) {
         player.dispose();
@@ -691,9 +705,11 @@ class _UnifiedVideoPlayerScreenState
   }
 
   void _showSubtitleSettings() {
+    final tracks = _player?.state.tracks.subtitle ?? [];
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.grey[900],
+      isScrollControlled: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -711,6 +727,50 @@ class _UnifiedVideoPlayerScreenState
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  if (tracks.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Track',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                            ActionChip(
+                              label: const Text('Off'),
+                              onPressed: () {
+                                _player?.setSubtitleTrack(SubtitleTrack.no());
+                                setSheetState(() {});
+                              },
+                            ),
+                          ...tracks.asMap().entries.map((entry) {
+                            final track = entry.value;
+                            final label =
+                                track.language ??
+                                track.title ??
+                                'Track ${entry.key + 1}';
+                            return ActionChip(
+                              label: Text(label),
+                              onPressed: () {
+                                _player?.setSubtitleTrack(track);
+                                setSheetState(() {});
+                              },
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No subtitle tracks available',
+                      style: TextStyle(color: Colors.white38, fontSize: 14),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   _buildSlider(
                     label: 'Font Size',

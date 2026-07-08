@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -138,10 +139,12 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(
-                  movie.backdropUrl ?? movie.posterUrl ?? '',
+                CachedNetworkImage(
+                  imageUrl: movie.backdropUrl ?? movie.posterUrl ?? '',
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
+                  errorWidget: (_, _, _) =>
+                      Container(color: theme.colorScheme.surface),
+                  placeholder: (_, _) =>
                       Container(color: theme.colorScheme.surface),
                 ),
                 AnimatedOpacity(
@@ -218,11 +221,13 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
         children: [
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 800),
-            child: Image.network(
+            child: CachedNetworkImage(
               key: ValueKey(_currentIndex),
-              movie.backdropUrl ?? movie.posterUrl ?? '',
+              imageUrl: movie.backdropUrl ?? movie.posterUrl ?? '',
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
+              errorWidget: (_, _, _) =>
+                  Container(color: theme.colorScheme.surface),
+              placeholder: (_, _) =>
                   Container(color: theme.colorScheme.surface),
             ),
           ),

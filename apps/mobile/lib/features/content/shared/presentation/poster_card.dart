@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class PosterCard extends StatefulWidget {
@@ -113,16 +114,11 @@ class _PosterCardState extends State<PosterCard> {
   }
 
   Widget _buildPosterImage(ThemeData theme) {
-    final image = Image.network(
-      widget.imageUrl,
+    final image = CachedNetworkImage(
+      imageUrl: widget.imageUrl,
       fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return _placeholder(theme);
-      },
-      errorBuilder: (context, error, stackTrace) {
-        return _placeholder(theme);
-      },
+      placeholder: (_, _) => _placeholder(theme),
+      errorWidget: (_, _, _) => _placeholder(theme),
     );
     if (widget.heroTag != null) {
       return Hero(tag: widget.heroTag!, child: image);

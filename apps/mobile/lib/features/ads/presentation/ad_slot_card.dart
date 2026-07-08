@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -43,10 +44,12 @@ class AdBannerCard extends ConsumerWidget {
                     fit: StackFit.expand,
                     children: [
                       if (ad.imageUrl != null)
-                        Image.network(
-                          ad.imageUrl!,
+                        CachedNetworkImage(
+                          imageUrl: ad.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
+                          errorWidget: (_, _, _) =>
+                              Container(color: theme.colorScheme.surface),
+                          placeholder: (_, _) =>
                               Container(color: theme.colorScheme.surface),
                         )
                       else
@@ -158,10 +161,12 @@ class AdPosterCard extends ConsumerWidget {
                       fit: StackFit.expand,
                       children: [
                         if (ad.imageUrl != null)
-                          Image.network(
-                            ad.imageUrl!,
+                          CachedNetworkImage(
+                            imageUrl: ad.imageUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) =>
+                            errorWidget: (_, _, _) =>
+                                Container(color: theme.colorScheme.surface),
+                            placeholder: (_, _) =>
                                 Container(color: theme.colorScheme.surface),
                           )
                         else

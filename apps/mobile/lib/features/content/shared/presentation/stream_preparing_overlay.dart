@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class StreamPreparingOverlay extends StatefulWidget {
@@ -47,11 +48,11 @@ class _StreamPreparingOverlayState extends State<StreamPreparingOverlay> {
       children: [
         if (widget.imageUrl != null)
           Positioned.fill(
-            child: Image.network(
-              widget.imageUrl!,
+            child: CachedNetworkImage(
+              imageUrl: widget.imageUrl!,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const SizedBox.shrink(),
+              errorWidget: (_, _, _) => const SizedBox.shrink(),
+              placeholder: (_, _) => const SizedBox.shrink(),
             ),
           )
         else

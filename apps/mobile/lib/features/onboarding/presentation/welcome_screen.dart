@@ -1,9 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/router/app_back_button.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../content/anime/data/anime_api.dart';
@@ -138,13 +140,19 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         : AppColors.dark;
 
     return Scaffold(
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, right: 16),
-              child: Align(
-                alignment: Alignment.topRight,
+            Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16),
                 child: TextButton(
                   onPressed: () => _markSeenAndGo('/login'),
                   child: Text(
@@ -222,10 +230,15 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                                                 0,
                                               ),
                                               child: imageUrl != null
-                                                  ? Image.network(
-                                                      imageUrl,
+                                                  ? CachedNetworkImage(
+                                                      imageUrl: imageUrl,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (_, _, _) =>
+                                                      errorWidget: (_, _, _) =>
+                                                          Container(
+                                                            color:
+                                                                colors.surface,
+                                                          ),
+                                                      placeholder: (_, _) =>
                                                           Container(
                                                             color:
                                                                 colors.surface,

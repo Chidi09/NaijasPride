@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/router/app_back_button.dart';
+
 import '../../../core/anilist/anilist_config.dart';
 import '../../../core/anilist/anilist_deep_link_service.dart';
 import '../../../core/theme/theme_mode_provider.dart';
@@ -94,7 +96,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        automaticallyImplyLeading: false,
+        title: const Text('Profile'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -315,12 +316,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                s.imageUrl,
+              child: CachedNetworkImage(
+                imageUrl: s.imageUrl,
                 width: 32,
                 height: 48,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
+                errorWidget: (_, _, _) => Container(
+                  width: 32,
+                  height: 48,
+                  color: theme.colorScheme.onSurface.withAlpha(26),
+                ),
+                placeholder: (_, _) => Container(
                   width: 32,
                   height: 48,
                   color: theme.colorScheme.onSurface.withAlpha(26),

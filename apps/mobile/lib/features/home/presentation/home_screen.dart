@@ -84,6 +84,16 @@ class HomeScreen extends ConsumerWidget {
               title: const Text('NaijaSpride'),
               backgroundColor: Colors.transparent,
               elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.person_outline),
+                onPressed: () => context.push('/profile'),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.download_outlined),
+                  onPressed: () => context.push('/downloads'),
+                ),
+              ],
             ),
       body: SingleChildScrollView(
         child: Column(

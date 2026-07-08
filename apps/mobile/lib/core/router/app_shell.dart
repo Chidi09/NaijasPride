@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../build_flavor.dart';
+import '../theme/app_colors.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child});
@@ -101,15 +103,120 @@ class _NarrowLayout extends StatelessWidget {
 
     return Scaffold(
       body: _wrapForOverscan(context, child),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: _GlassBottomNav(
         selectedIndex: currentIndex,
-        onDestinationSelected: (index) {
-          _onNavigate(context, index);
-        },
-        destinations: _destinations(),
+        onTap: (index) => _onNavigate(context, index),
+        destinations: _navDestinations(),
       ),
     );
   }
+}
+
+class _GlassBottomNav extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onTap;
+  final List<_NavItem> destinations;
+
+  const _GlassBottomNav({
+    required this.selectedIndex,
+    required this.onTap,
+    required this.destinations,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
+
+    Widget navContent = Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: colors.surface.withAlpha(180),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(
+          color: colors.border.withAlpha(153),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.primary.withAlpha(13),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: destinations.asMap().entries.map((entry) {
+          final index = entry.key;
+          final dest = entry.value;
+          final selected = index == selectedIndex;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onTap(index),
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? colors.primary.withAlpha(26)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      selected ? dest.selectedIcon : dest.icon,
+                      size: 22,
+                      color: selected ? colors.accent : colors.text.withAlpha(153),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      dest.label,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        color: selected ? colors.accent : colors.text.withAlpha(153),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+
+    navContent = ClipRRect(
+      borderRadius: BorderRadius.circular(32),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: navContent,
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
+      child: navContent,
+    );
+  }
+}
+
+class _NavItem {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+
+  const _NavItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
 }
 
 class _WideLayout extends StatefulWidget {
@@ -156,7 +263,7 @@ class _WideLayoutState extends State<_WideLayout> {
 }
 
 const _baseRoutes = ['/', '/movies', '/tv', '/anime', '/search'];
-final _routes = [..._baseRoutes, if (!isTvBuild) '/downloads'];
+final _routes = _baseRoutes;
 
 int _destinationIndex(String location) {
   final idx = _routes.indexOf(location);
@@ -167,39 +274,13 @@ void _onNavigate(BuildContext context, int index) {
   context.go(_routes[index]);
 }
 
-List<NavigationDestination> _destinations() {
-  return [
-    const NavigationDestination(
-      icon: Icon(Icons.home_outlined),
-      selectedIcon: Icon(Icons.home),
-      label: 'Home',
-    ),
-    const NavigationDestination(
-      icon: Icon(Icons.movie_outlined),
-      selectedIcon: Icon(Icons.movie),
-      label: 'Movies',
-    ),
-    const NavigationDestination(
-      icon: Icon(Icons.tv_outlined),
-      selectedIcon: Icon(Icons.tv),
-      label: 'TV',
-    ),
-    const NavigationDestination(
-      icon: Icon(Icons.auto_awesome_outlined),
-      selectedIcon: Icon(Icons.auto_awesome),
-      label: 'Anime',
-    ),
-    const NavigationDestination(
-      icon: Icon(Icons.search_outlined),
-      selectedIcon: Icon(Icons.search),
-      label: 'Search',
-    ),
-    if (!isTvBuild)
-      const NavigationDestination(
-        icon: Icon(Icons.download_outlined),
-        selectedIcon: Icon(Icons.download),
-        label: 'Downloads',
-      ),
+List<_NavItem> _navDestinations() {
+  return const [
+    _NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
+    _NavItem(icon: Icons.movie_outlined, selectedIcon: Icons.movie, label: 'Movies'),
+    _NavItem(icon: Icons.tv_outlined, selectedIcon: Icons.tv, label: 'TV'),
+    _NavItem(icon: Icons.auto_awesome_outlined, selectedIcon: Icons.auto_awesome, label: 'Anime'),
+    _NavItem(icon: Icons.search_outlined, selectedIcon: Icons.search, label: 'Search'),
   ];
 }
 
@@ -230,11 +311,5 @@ List<NavigationRailDestination> _railDestinations() {
       selectedIcon: Icon(Icons.search),
       label: Text('Search'),
     ),
-    if (!isTvBuild)
-      const NavigationRailDestination(
-        icon: Icon(Icons.download_outlined),
-        selectedIcon: Icon(Icons.download),
-        label: Text('Downloads'),
-      ),
   ];
 }
