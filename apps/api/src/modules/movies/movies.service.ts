@@ -276,8 +276,11 @@ export class MoviesService {
       }),
     };
 
+    // Skip count() for text searches — pagination metadata isn't needed for
+    // typeahead and count() with ILIKE is an extra full-table scan.
+    const isTextSearch = !!q;
     const [total, movies] = await Promise.all([
-      this.prisma.movie.count({ where }),
+      isTextSearch ? Promise.resolve(0) : this.prisma.movie.count({ where }),
       this.prisma.movie.findMany({
         where,
         skip,

@@ -160,6 +160,7 @@ model Movie {
   @@index([slug])
   @@index([year])
   @@index([status])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model Cast {
@@ -311,6 +312,7 @@ model TvShow {
   @@index([year])
   @@index([status])
   @@index([viewCount])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model TvSeason {

@@ -63,8 +63,10 @@ export class TvShowsService {
     const cacheKey = `tv-shows:search:${JSON.stringify({ ...params, page, limit })}`;
 
     return withCache(cacheKey, 300, async () => {
+      // Skip count() for text searches — saves an extra full-table scan per keystroke.
+      const isTextSearch = !!params.q;
       const [total, shows] = await Promise.all([
-        this.prisma.tvShow.count({ where }),
+        isTextSearch ? Promise.resolve(0) : this.prisma.tvShow.count({ where }),
         this.prisma.tvShow.findMany({
           where,
           orderBy,
