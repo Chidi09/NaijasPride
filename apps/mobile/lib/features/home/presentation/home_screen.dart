@@ -221,38 +221,39 @@ class HomeScreen extends ConsumerWidget {
                   ('New Releases', 'newReleases'),
                   ('Coming Soon', 'comingSoon'),
                 ];
-                final carousels = sections
-                    .where(
-                      (s) =>
-                          featured[s.$2] != null && featured[s.$2]!.isNotEmpty,
-                    )
-                    .map(
-                      (s) => ContentCarousel(
-                        title: s.$1,
-                        children: featured[s.$2]!
-                            .map(
-                              (movie) => PosterCard(
-                                imageUrl: movie.youtubeId != null
-                                    ? (movie.backdropUrl ??
-                                          movie.thumbnailUrl ??
-                                          movie.posterUrl ??
-                                          movie.coverUrl ??
-                                          '')
-                                    : (movie.posterUrl ??
-                                          movie.thumbnailUrl ??
-                                          movie.coverUrl ??
-                                          ''),
-                                isRectangular: movie.youtubeId != null,
-                                title: movie.title,
-                                onTap: () => context.push(
-                                  '/movies/${movie.slug ?? movie.id}',
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    )
-                    .toList();
+                final carousels = <Widget>[];
+                for (final s in sections) {
+                  final list = featured[s.$2];
+                  if (list == null || list.isEmpty) continue;
+
+                  final stdMovies = list.where((m) => m.youtubeId == null).toList();
+                  final ytMovies = list.where((m) => m.youtubeId != null).toList();
+
+                  if (stdMovies.isNotEmpty) {
+                    carousels.add(ContentCarousel(
+                      title: s.$1,
+                      children: stdMovies.map((movie) => PosterCard(
+                        imageUrl: movie.posterUrl ?? movie.thumbnailUrl ?? movie.coverUrl ?? '',
+                        isRectangular: false,
+                        title: movie.title,
+                        onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
+                      )).toList(),
+                    ));
+                  }
+
+                  if (ytMovies.isNotEmpty) {
+                    carousels.add(ContentCarousel(
+                      title: '${s.$1} (Nollywood/Free)',
+                      height: 160,
+                      children: ytMovies.map((movie) => PosterCard(
+                        imageUrl: movie.backdropUrl ?? movie.thumbnailUrl ?? movie.posterUrl ?? movie.coverUrl ?? '',
+                        isRectangular: true,
+                        title: movie.title,
+                        onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
+                      )).toList(),
+                    ));
+                  }
+                }
                 return Column(
                   children: [
                     ...carousels.take(2),

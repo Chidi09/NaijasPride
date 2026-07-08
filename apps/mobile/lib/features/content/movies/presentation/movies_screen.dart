@@ -36,6 +36,7 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
   bool _loadingMore = false;
   String? _error;
   String _query = '';
+  bool _youtubeOnly = false;
 
   @override
   void initState() {
@@ -76,6 +77,7 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
       final api = ref.read(moviesApiProvider);
       final result = await api.search(
         q: _query.isNotEmpty ? _query : null,
+        youtubeOnly: _youtubeOnly,
         page: _currentPage,
       );
       if (!mounted) return;
@@ -99,6 +101,7 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
       final api = ref.read(moviesApiProvider);
       final result = await api.search(
         q: _query.isNotEmpty ? _query : null,
+        youtubeOnly: _youtubeOnly,
         page: _currentPage + 1,
       );
       if (!mounted) return;
@@ -175,7 +178,12 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
 
   Widget _buildBody(double itemWidth, ThemeData theme) {
     if (_loading && _movies.isEmpty) {
-      return const ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.65);
+      return Column(
+        children: [
+          _buildTypeToggle(),
+          const Expanded(child: ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.53)),
+        ],
+      );
     }
 
     if (_error != null && _movies.isEmpty) {
@@ -193,13 +201,14 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
 
     return Column(
       children: [
+        _buildTypeToggle(),
         Expanded(
           child: GridView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              childAspectRatio: 0.65,
+              childAspectRatio: _youtubeOnly ? 1.05 : 0.53,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
@@ -242,6 +251,30 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildTypeToggle() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(value: false, label: Text('Movies')),
+            ButtonSegment(value: true, label: Text('Nollywood / Free')),
+          ],
+          selected: {_youtubeOnly},
+          onSelectionChanged: (set) {
+            setState(() {
+              _youtubeOnly = set.first;
+              _currentPage = 1;
+              _movies = [];
+            });
+            _fetchMovies();
+          },
+        ),
+      ),
     );
   }
 }

@@ -175,7 +175,7 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
 
   Widget _buildBody(double itemWidth, ThemeData theme) {
     if (_loading && _media.isEmpty) {
-      return const ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.65);
+      return const ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.53);
     }
 
     if (_error != null && _media.isEmpty) {
@@ -199,7 +199,7 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              childAspectRatio: 0.65,
+              childAspectRatio: 0.53,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),

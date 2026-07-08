@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class ContentCarousel extends StatefulWidget {
   final String title;
   final List<Widget> children;
+  final double height;
 
   const ContentCarousel({
     super.key,
     required this.title,
     required this.children,
+    this.height = 240,
   });
 
   @override
@@ -69,7 +71,7 @@ class _ContentCarouselState extends State<ContentCarousel> {
           ),
         ),
         SizedBox(
-          height: 240,
+          height: widget.height,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),

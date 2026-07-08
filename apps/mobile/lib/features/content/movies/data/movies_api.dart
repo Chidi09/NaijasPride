@@ -14,6 +14,7 @@ class MoviesApi extends BaseApi {
     int? year,
     Quality? quality,
     String? sortBy,
+    bool? youtubeOnly,
     int page = 1,
     int limit = 20,
   }) async {
@@ -23,6 +24,7 @@ class MoviesApi extends BaseApi {
       'year': ?year,
       if (quality != null) 'quality': quality.wireValue,
       'sortBy': ?sortBy,
+      'youtubeOnly': ?youtubeOnly,
       'page': page,
       'limit': limit,
     };
