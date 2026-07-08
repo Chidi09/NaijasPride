@@ -87,8 +87,10 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
         case EmbedWebViewFallback(:final url):
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  EmbedWebViewScreen(embedUrl: url, title: episode.title),
+              builder: (_) => EmbedWebViewScreen(
+                sources: [EmbedSource(url: url, label: 'Server 1')],
+                title: episode.title,
+              ),
             ),
           );
         case EmbedResolutionFailed(:final reason):

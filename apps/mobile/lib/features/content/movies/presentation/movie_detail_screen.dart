@@ -116,8 +116,10 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
         case EmbedWebViewFallback(:final url):
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  EmbedWebViewScreen(embedUrl: url, title: movie.title),
+              builder: (_) => EmbedWebViewScreen(
+                sources: [EmbedSource(url: url, label: 'Server 1')],
+                title: movie.title,
+              ),
             ),
           );
         case EmbedResolutionFailed(:final reason):

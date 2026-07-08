@@ -16,7 +16,6 @@ import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/pressable_scale.dart';
 import '../../shared/presentation/status_picker.dart';
 import '../../shared/presentation/stream_preparing_overlay.dart';
-import '../../../../core/player/embed_playback_resolver.dart';
 import '../../../../core/player/embed_webview_screen.dart';
 
 final animeDetailProvider = FutureProvider.family<AnimeDetail, int>((ref, id) {
@@ -124,32 +123,22 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
           return;
         }
 
-        final resolved = await resolveEmbedOnlyPlayback(
-          providerUrls: embedSources.map((s) => s.url).toList(),
-          backendExtract: () =>
-              ref.read(animeApiProvider).extractStream(embedSources.first.url),
-        );
-
         if (!mounted) return;
         Navigator.of(context).pop();
 
-        switch (resolved) {
-          case ResolvedDirectSource(:final source):
-            pushPlayer(source, skipTimes: skipTimes);
-          case EmbedWebViewFallback(:final url):
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => EmbedWebViewScreen(
-                  embedUrl: url,
-                  title: episode.title ?? 'Episode ${episode.number}',
-                ),
-              ),
-            );
-          case EmbedResolutionFailed(:final reason):
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('No playable source found: $reason')),
-            );
-        }
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EmbedWebViewScreen(
+              sources: embedSources
+                  .map((s) => EmbedSource(
+                        url: s.url,
+                        label: s.quality.isNotEmpty ? s.quality : 'Server',
+                      ))
+                  .toList(),
+              title: episode.title ?? 'Episode ${episode.number}',
+            ),
+          ),
+        );
         return;
       }
 
