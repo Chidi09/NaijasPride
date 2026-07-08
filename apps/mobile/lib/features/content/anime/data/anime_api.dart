@@ -46,8 +46,9 @@ class AnimeApi extends BaseApi {
     return AnimeDetail.fromJson(data);
   }
 
-  Future<List<AnimeEpisode>> episodes(int id) async {
-    final body = await get('/api/v1/anime/$id/episodes');
+  Future<List<AnimeEpisode>> episodes(int id, {String provider = 'auto'}) async {
+    final body = await get('/api/v1/anime/$id/episodes',
+        queryParameters: {'provider': provider});
     final data = body['data'] as Map<String, dynamic>? ?? {};
     final episodes = (data['episodes'] as List<dynamic>?)
             ?.map((e) => AnimeEpisode.fromJson(e as Map<String, dynamic>))
@@ -113,9 +114,18 @@ class AnimeApi extends BaseApi {
 
   Future<({List<AnimeWatchSource> sources, List<AnimeWatchSubtitle> subtitles})> watch(
     int id,
-    int episodeNumber,
-  ) async {
-    final body = await get('/api/v1/anime/$id/watch/$episodeNumber');
+    int episodeNumber, {
+    String provider = 'auto',
+    String? server,
+    String type = 'sub',
+  }) async {
+    final params = <String, dynamic>{
+      'provider': provider,
+      'type': type,
+      if (server != null) 'server': server,
+    };
+    final body = await get('/api/v1/anime/$id/watch/$episodeNumber',
+        queryParameters: params);
     final data = body['data'] as Map<String, dynamic>? ?? {};
     final sources = (data['sources'] as List<dynamic>?)
             ?.map(
@@ -138,6 +148,55 @@ class AnimeApi extends BaseApi {
       return AnimeSkipTimes.fromJson(data);
     } catch (_) {
       return const AnimeSkipTimes();
+    }
+  }
+
+  Future<void> saveProgress({
+    required int anilistId,
+    required int episodeNumber,
+    required String title,
+    String? imageUrl,
+    required int progress,
+    required int duration,
+    String? status,
+  }) async {
+    await post('/api/v1/anime/progress', data: {
+      'anilistId': anilistId,
+      'episodeNumber': episodeNumber,
+      'title': title,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      'progress': progress,
+      'duration': duration,
+      if (status != null) 'status': status,
+    });
+  }
+
+  Future<List<AnimeWatchProgress>> getProgress(int anilistId) async {
+    try {
+      final body = await get('/api/v1/anime/progress/$anilistId');
+      final data = body['data'] as List<dynamic>?;
+      return data
+              ?.map((e) =>
+                  AnimeWatchProgress.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<AnimeWatchProgress>> getHistory({int limit = 10}) async {
+    try {
+      final body = await get('/api/v1/anime/history',
+          queryParameters: {'limit': limit});
+      final data = body['data'] as List<dynamic>?;
+      return data
+              ?.map((e) =>
+                  AnimeWatchProgress.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [];
+    } catch (_) {
+      return [];
     }
   }
 }

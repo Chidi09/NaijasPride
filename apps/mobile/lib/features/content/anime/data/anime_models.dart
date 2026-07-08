@@ -300,3 +300,44 @@ class AnimeSkipTimes {
     );
   }
 }
+
+class AnimeWatchProgress {
+  final String id;
+  final int anilistId;
+  final int episodeNumber;
+  final String title;
+  final String? imageUrl;
+  final int progress;
+  final int duration;
+  final String? status;
+  final String createdAt;
+  final String updatedAt;
+
+  AnimeWatchProgress({
+    required this.id,
+    required this.anilistId,
+    required this.episodeNumber,
+    required this.title,
+    this.imageUrl,
+    required this.progress,
+    required this.duration,
+    this.status,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory AnimeWatchProgress.fromJson(Map<String, dynamic> json) {
+    return AnimeWatchProgress(
+      id: json['id'] as String? ?? '',
+      anilistId: (json['anilistId'] as num?)?.toInt() ?? 0,
+      episodeNumber: (json['episodeNumber'] as num?)?.toInt() ?? 0,
+      title: json['title'] as String? ?? '',
+      imageUrl: json['imageUrl'] as String?,
+      progress: (json['progress'] as num?)?.toInt() ?? 0,
+      duration: (json['duration'] as num?)?.toInt() ?? 0,
+      status: json['status'] as String?,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+    );
+  }
+}
