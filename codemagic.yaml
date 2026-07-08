@@ -36,11 +36,6 @@ workflows:
     # No triggering block - manual trigger only for now (no webhook,
     # no auto-build on push). Start builds from the Codemagic dashboard.
     scripts:
-      - name: Clean build artifacts
-        script: |
-          # Guards against reusing any stale build/.dart_tool output from
-          # a previous run on this machine.
-          cd apps/mobile && flutter clean
       - name: Get Flutter packages
         script: cd apps/mobile && flutter packages pub get
       - name: Build Android App Bundle (release)
