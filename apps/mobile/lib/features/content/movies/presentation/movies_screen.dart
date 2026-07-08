@@ -48,7 +48,7 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
 
   void _onSearchChanged() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () {
+    _debounce = Timer(const Duration(milliseconds: 260), () {
       setState(() {
         _query = _searchController.text;
         _currentPage = 1;
