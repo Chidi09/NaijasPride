@@ -511,3 +511,14 @@ implementation notes:
 Analyzing mobile...
 No issues found! (ran in 3.5s)
 ```
+
+---
+
+## Deploy
+
+| Item                | Value                                                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commit              | `c5c7a9747a480771d95b8985fd3d2563de1b0f9d`                                                                                                                  |
+| Codemagic build ID  | `6a4e5dfedfcfeafab8323363`                                                                                                                                  |
+| Build status        | `finished` (all steps passed)                                                                                                                               |
+| Binary verification | ✅ `Failed to load episodes`, `AppBackButton`, `EpisodeTile`, `ContentDetailScaffold` all confirmed present in `lib/arm64-v8a/libapp.so` via `strings` grep |
