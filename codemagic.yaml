@@ -43,16 +43,19 @@ workflows:
         script: cd apps/mobile && flutter packages pub get
       - name: Build Android App Bundle (release)
         script: |
-          # --build-number is explicit and derived from Codemagic's own
-          # auto-incrementing $CM_BUILD_NUMBER rather than relying on
-          # flutter.versionCode (from pubspec.yaml's version: x.y.z+N).
-          # Without this, two builds produced identical versionCode 2001
-          # back to back - Android silently refuses to install an "update"
-          # whose versionCode isn't strictly higher than what's already
-          # installed, so a real user re-downloading a fixed APK got no
-          # error and no update, just the same broken app still running.
+          # --build-number is explicit and derived from a Unix timestamp
+          # rather than relying on flutter.versionCode (from pubspec.yaml's
+          # version: x.y.z+N) - two builds produced identical versionCode
+          # 2001 back to back, and Android silently refuses to install an
+          # "update" whose versionCode isn't strictly higher than what's
+          # already installed, so a real user re-downloading a fixed APK
+          # got no error and no update, just the same broken app still
+          # running. $CM_BUILD_NUMBER was tried first but is empty when a
+          # build is triggered via the direct REST API rather than a
+          # webhook/dashboard click ("buildNumber:  was not a valid integer
+          # value" build failure) - date +%s is always populated.
           cd apps/mobile && flutter build appbundle --release \
-            --build-number=$CM_BUILD_NUMBER \
+            --build-number=$(date +%s) \
             --dart-define=ANILIST_CLIENT_ID=${ANILIST_CLIENT_ID:-} \
             --dart-define=GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}
       - name: Build Android APK (release)
@@ -67,7 +70,7 @@ workflows:
           #   flutter build apk --release --target-platform android-arm64
           #   --split-per-abi --dart-define=IS_TV_BUILD=true
           cd apps/mobile && flutter build apk --release --target-platform android-arm64 --split-per-abi \
-            --build-number=$CM_BUILD_NUMBER \
+            --build-number=$(date +%s) \
             --dart-define=ANILIST_CLIENT_ID=${ANILIST_CLIENT_ID:-} \
             --dart-define=GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}
       - name: Publish release APK to R2 (updates the website download link)
