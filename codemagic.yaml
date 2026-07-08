@@ -163,12 +163,25 @@ workflows:
               if "lib/arm64-v8a/libapp.so" not in zf.namelist():
                   raise SystemExit("APK is missing lib/arm64-v8a/libapp.so - refusing to publish")
 
+          # Cloudflare (fronting the R2 custom domain) was found caching this
+          # exact object aggressively and INCONSISTENTLY across edge nodes -
+          # after a confirmed-correct upload (verified via origin ETag), the
+          # public URL kept serving stale, and even truncated, bytes for
+          # minutes afterward, with zero way to force-purge (no Cloudflare
+          # API token available). no-cache/must-revalidate tells Cloudflare
+          # to always revalidate with origin before serving instead of
+          # trusting a cached copy - the correct fix for a URL that's
+          # expected to change contents under the same filename on every
+          # release, instead of routing around it with a new filename each
+          # time (which was used as an emergency one-off fix for the
+          # already-poisoned "latest.apk" cache entry, not a real solution).
           with open(apk_path, "rb") as f:
               s3.put_object(
                   Bucket=s3_bucket,
                   Key=key,
                   Body=f,
                   ContentType="application/vnd.android.package-archive",
+                  CacheControl="no-cache, must-revalidate",
               )
           print(f"Published {apk_path} (sha256={digest}) to r2://{s3_bucket}/{key}")
           PYEOF
