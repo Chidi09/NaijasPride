@@ -92,11 +92,18 @@ class AuthApi {
       }
       throw Exception(body['error'] ?? 'Request failed');
     } on DioException catch (e) {
+      // TEMPORARY diagnostic detail (full request URL + status code) appended
+      // to the error message so a real-device failure that can't be
+      // reproduced from a dev machine is fully diagnosable from the on-screen
+      // text alone. Remove once the root cause behind a live "not found" on
+      // fresh installs is confirmed and fixed.
+      final url = e.requestOptions.uri.toString();
+      final status = e.response?.statusCode;
       if (e.response?.data is Map) {
         final error = (e.response!.data as Map<String, dynamic>)['error'];
-        throw Exception(error ?? 'Request failed');
+        throw Exception('${error ?? 'Request failed'} [$status $url]');
       }
-      throw Exception('Network error: ${e.message}');
+      throw Exception('Network error: ${e.message} [$url]');
     }
   }
 }

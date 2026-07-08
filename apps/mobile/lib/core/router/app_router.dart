@@ -6,6 +6,7 @@ import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/profile_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
+import '../../features/onboarding/presentation/welcome_screen.dart';
 import '../../features/content/anime/presentation/anime_detail_screen.dart';
 import '../../features/content/anime/presentation/anime_screen.dart';
 import '../../features/content/movies/presentation/movie_detail_screen.dart';
@@ -70,16 +71,21 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
       final authState = ref.read(authControllerProvider);
-      final isAuthRoute = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/signup';
+      final hasSeenOnboarding = ref.read(onboardingSeenProvider);
+      final isAuthOrWelcomeRoute =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/signup' ||
+          state.matchedLocation == '/welcome';
 
       if (authState.status == AuthStatus.unknown) {
         return null;
       }
-      if (authState.status == AuthStatus.unauthenticated && !isAuthRoute) {
-        return '/login';
+      if (authState.status == AuthStatus.unauthenticated &&
+          !isAuthOrWelcomeRoute) {
+        return hasSeenOnboarding ? '/login' : '/welcome';
       }
-      if (authState.status == AuthStatus.authenticated && isAuthRoute) {
+      if (authState.status == AuthStatus.authenticated &&
+          isAuthOrWelcomeRoute) {
         return '/';
       }
       return null;
@@ -90,23 +96,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/',
-            pageBuilder: (context, state) => _tabSwitchPage(const HomeScreen(), state),
+            pageBuilder: (context, state) =>
+                _tabSwitchPage(const HomeScreen(), state),
           ),
           GoRoute(
             path: '/movies',
-            pageBuilder: (context, state) => _tabSwitchPage(const MoviesScreen(), state),
+            pageBuilder: (context, state) =>
+                _tabSwitchPage(const MoviesScreen(), state),
           ),
           GoRoute(
             path: '/tv',
-            pageBuilder: (context, state) => _tabSwitchPage(const TvShowsScreen(), state),
+            pageBuilder: (context, state) =>
+                _tabSwitchPage(const TvShowsScreen(), state),
           ),
           GoRoute(
             path: '/anime',
-            pageBuilder: (context, state) => _tabSwitchPage(const AnimeScreen(), state),
+            pageBuilder: (context, state) =>
+                _tabSwitchPage(const AnimeScreen(), state),
           ),
           GoRoute(
             path: '/search',
-            pageBuilder: (context, state) => _tabSwitchPage(const SearchScreen(), state),
+            pageBuilder: (context, state) =>
+                _tabSwitchPage(const SearchScreen(), state),
           ),
         ],
       ),
@@ -133,19 +144,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/profile',
-        pageBuilder: (context, state) => _drillInPage(const ProfileScreen(), state),
+        pageBuilder: (context, state) =>
+            _drillInPage(const ProfileScreen(), state),
       ),
       GoRoute(
         path: '/downloads',
-        pageBuilder: (context, state) => _drillInPage(const DownloadsScreen(), state),
+        pageBuilder: (context, state) =>
+            _drillInPage(const DownloadsScreen(), state),
+      ),
+      GoRoute(
+        path: '/welcome',
+        pageBuilder: (context, state) =>
+            _drillInPage(const WelcomeScreen(), state),
       ),
       GoRoute(
         path: '/login',
-        pageBuilder: (context, state) => _drillInPage(const LoginScreen(), state),
+        pageBuilder: (context, state) =>
+            _drillInPage(const LoginScreen(), state),
       ),
       GoRoute(
         path: '/signup',
-        pageBuilder: (context, state) => _drillInPage(const SignupScreen(), state),
+        pageBuilder: (context, state) =>
+            _drillInPage(const SignupScreen(), state),
       ),
     ],
   );

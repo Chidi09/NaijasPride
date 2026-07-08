@@ -36,7 +36,7 @@ class AuthInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     if (err.response?.statusCode == 401 &&
-        !err.requestOptions.path.startsWith('/auth')) {
+        !err.requestOptions.path.startsWith('/api/v1/auth')) {
       try {
         final session = await _tokenStorage.readSession();
         if (session == null) {
@@ -54,7 +54,7 @@ class AuthInterceptor extends Interceptor {
         );
 
         final refreshResponse = await refreshDio.post(
-          '/auth/refresh',
+          '/api/v1/auth/refresh',
           data: {'refreshToken': session.refreshToken},
         );
 
