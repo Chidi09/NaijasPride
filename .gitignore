@@ -115,3 +115,7 @@ tools/generated/
 apps/api/*firebase*.json
 apps/api/naijaspride-*.json
 *-service-account*.json
+
+# Vercel CLI project link (project/org IDs only, but not needed in git —
+# git-triggered deploys use the dashboard-configured project linkage)
+/.vercel
