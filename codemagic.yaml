@@ -74,8 +74,24 @@ workflows:
         script: |
           cd apps/mobile
           pip3 install --quiet --break-system-packages boto3 2>/dev/null || pip3 install --quiet boto3
+          # Root-caused a real incident: this step used to read the just-built
+          # APK immediately after the prior script exited, but on Codemagic's
+          # build filesystem the file wasn't always fully flushed/visible yet
+          # by the time this step's `open()` ran - it silently read a stale,
+          # incomplete, or previous-run copy instead of erroring, and uploaded
+          # THAT to production. Confirmed by comparing this step's uploaded
+          # bytes against Codemagic's own build-artifact copy of the exact
+          # same file (from the SAME build) - they differed, proving the
+          # Flutter/Gradle build itself was always correct and this read was
+          # the actual bug. `sync` + a poll-until-content-hash-is-stable loop
+          # + a zip-integrity check before upload eliminates the race instead
+          # of masking it with a blind sleep.
+          sync
           python3 - <<'PYEOF'
+          import hashlib
           import os
+          import time
+          import zipfile
           import boto3
           from botocore.client import Config
 
@@ -112,6 +128,41 @@ workflows:
           )
           apk_path = "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
           key = "downloads/naijaspride-android-latest.apk"
+
+          def sha256_of(path):
+              h = hashlib.sha256()
+              with open(path, "rb") as fh:
+                  for chunk in iter(lambda: fh.read(1 << 20), b""):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          # Poll until the file's size + hash are stable across two reads a
+          # second apart - a still-being-written file will change between
+          # samples; a fully-flushed one won't. Caps at 10 attempts (~10s).
+          prev_sig = None
+          for attempt in range(10):
+              size = os.path.getsize(apk_path)
+              digest = sha256_of(apk_path)
+              sig = (size, digest)
+              if sig == prev_sig:
+                  break
+              prev_sig = sig
+              time.sleep(1)
+          else:
+              raise SystemExit(f"APK content never stabilized after {attempt + 1} attempts - refusing to publish a possibly-still-writing file")
+
+          size, digest = prev_sig
+          print(f"[diag] {apk_path}: {size} bytes, sha256={digest}")
+
+          # A truncated/mid-write zip fails this even if size/hash looked
+          # momentarily stable between two fast reads - the definitive check.
+          with zipfile.ZipFile(apk_path) as zf:
+              bad = zf.testzip()
+              if bad is not None:
+                  raise SystemExit(f"APK failed zip integrity check at {bad} - refusing to publish a corrupt file")
+              if "lib/arm64-v8a/libapp.so" not in zf.namelist():
+                  raise SystemExit("APK is missing lib/arm64-v8a/libapp.so - refusing to publish")
+
           with open(apk_path, "rb") as f:
               s3.put_object(
                   Bucket=s3_bucket,
@@ -119,7 +170,7 @@ workflows:
                   Body=f,
                   ContentType="application/vnd.android.package-archive",
               )
-          print(f"Published {apk_path} to r2://{s3_bucket}/{key}")
+          print(f"Published {apk_path} (sha256={digest}) to r2://{s3_bucket}/{key}")
           PYEOF
     artifacts:
       - apps/mobile/build/**/outputs/**/*.aab
