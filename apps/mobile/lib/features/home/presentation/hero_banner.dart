@@ -131,7 +131,7 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
         onFocusChange: _onFocusChange,
         child: GestureDetector(
           onTap: () =>
-              context.go('/movies/${movie.slug ?? movie.id}'),
+              context.push('/movies/${movie.slug ?? movie.id}'),
           child: SizedBox(
             height: 400,
             width: double.infinity,
@@ -182,7 +182,7 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
-                          onPressed: () => context.go(
+                          onPressed: () => context.push(
                               '/movies/${movie.slug ?? movie.id}'),
                           icon: const Icon(Icons.play_arrow),
                           label: const Text('View'),
@@ -261,7 +261,7 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                     children: [
                       FilledButton.icon(
                         onPressed: () =>
-                            context.go('/movies/${movie.slug ?? movie.id}'),
+                            context.push('/movies/${movie.slug ?? movie.id}'),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Play'),
                       ),

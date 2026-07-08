@@ -227,7 +227,7 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
                 isRectangular: movie.youtubeId != null,
                 heroTag: 'movie-poster-${movie.id}',
                 title: movie.title,
-                onTap: () => context.go('/movies/${movie.slug ?? movie.id}'),
+                onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
               );
             },
           ),

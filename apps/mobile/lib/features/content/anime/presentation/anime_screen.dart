@@ -222,7 +222,7 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
                     entry.title.romaji ??
                     entry.title.native ??
                     'Untitled',
-                onTap: () => context.go('/anime/${entry.id}'),
+                onTap: () => context.push('/anime/${entry.id}'),
               );
             },
           ),

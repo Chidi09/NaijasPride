@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import 'embed_stream_extractor.dart'
+    show desktopUserAgent, embedOrigin, wrapperHtmlFor;
+
 class EmbedWebViewScreen extends StatelessWidget {
   final String embedUrl;
   final String title;
@@ -32,10 +35,16 @@ class EmbedWebViewScreen extends StatelessWidget {
           ),
           Expanded(
             child: InAppWebView(
-              initialUrlRequest: URLRequest(url: WebUri(embedUrl)),
+              initialData: InAppWebViewInitialData(
+                data: wrapperHtmlFor(embedUrl),
+                baseUrl: WebUri(embedOrigin),
+              ),
               initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,
                 mediaPlaybackRequiresUserGesture: false,
+                userAgent: desktopUserAgent,
+                mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+                thirdPartyCookiesEnabled: true,
               ),
             ),
           ),

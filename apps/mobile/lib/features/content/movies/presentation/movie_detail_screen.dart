@@ -579,7 +579,7 @@ class _SimilarMoviesSection extends ConsumerWidget {
                   : (m.posterUrl ?? m.thumbnailUrl ?? m.coverUrl ?? ''),
               isRectangular: m.youtubeId != null,
               title: m.title,
-              onTap: () => context.go('/movies/${m.slug ?? m.id}'),
+              onTap: () => context.push('/movies/${m.slug ?? m.id}'),
             );
           }).toList(),
         );

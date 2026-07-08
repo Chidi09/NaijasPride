@@ -27,25 +27,33 @@ class AppTheme {
       onSecondary: Colors.white,
     );
 
-    final cinzelTextTheme = GoogleFonts.cinzelTextTheme();
-    final jakartaTextTheme = GoogleFonts.plusJakartaSansTextTheme();
+    // GoogleFonts.xxxTextTheme() with no argument returns styles colored for
+    // Typography.black (near-black text) regardless of the brightness passed
+    // to this theme - on the dark palette (background #0A0A0A) that renders
+    // as near-black-on-black, i.e. invisible. Seeding from the
+    // brightness-correct base TextTheme first, then forcing every style's
+    // color explicitly, guarantees readable text in both themes.
+    final baseTextTheme = (isLight ? ThemeData.light() : ThemeData.dark())
+        .textTheme;
+    final cinzelTextTheme = GoogleFonts.cinzelTextTheme(baseTextTheme);
+    final jakartaTextTheme = GoogleFonts.plusJakartaSansTextTheme(baseTextTheme);
 
     final textTheme = TextTheme(
-      displayLarge: cinzelTextTheme.displayLarge,
-      displayMedium: cinzelTextTheme.displayMedium,
-      displaySmall: cinzelTextTheme.displaySmall,
-      headlineLarge: cinzelTextTheme.headlineLarge,
-      headlineMedium: cinzelTextTheme.headlineMedium,
-      headlineSmall: cinzelTextTheme.headlineSmall,
-      titleLarge: cinzelTextTheme.titleLarge,
-      titleMedium: jakartaTextTheme.titleMedium,
-      titleSmall: jakartaTextTheme.titleSmall,
-      bodyLarge: jakartaTextTheme.bodyLarge,
-      bodyMedium: jakartaTextTheme.bodyMedium,
-      bodySmall: jakartaTextTheme.bodySmall,
-      labelLarge: jakartaTextTheme.labelLarge,
-      labelMedium: jakartaTextTheme.labelMedium,
-      labelSmall: jakartaTextTheme.labelSmall,
+      displayLarge: cinzelTextTheme.displayLarge?.copyWith(color: colors.textStrong),
+      displayMedium: cinzelTextTheme.displayMedium?.copyWith(color: colors.textStrong),
+      displaySmall: cinzelTextTheme.displaySmall?.copyWith(color: colors.textStrong),
+      headlineLarge: cinzelTextTheme.headlineLarge?.copyWith(color: colors.textStrong),
+      headlineMedium: cinzelTextTheme.headlineMedium?.copyWith(color: colors.textStrong),
+      headlineSmall: cinzelTextTheme.headlineSmall?.copyWith(color: colors.textStrong),
+      titleLarge: cinzelTextTheme.titleLarge?.copyWith(color: colors.textStrong),
+      titleMedium: jakartaTextTheme.titleMedium?.copyWith(color: colors.text),
+      titleSmall: jakartaTextTheme.titleSmall?.copyWith(color: colors.text),
+      bodyLarge: jakartaTextTheme.bodyLarge?.copyWith(color: colors.text),
+      bodyMedium: jakartaTextTheme.bodyMedium?.copyWith(color: colors.text),
+      bodySmall: jakartaTextTheme.bodySmall?.copyWith(color: colors.text.withAlpha(200)),
+      labelLarge: jakartaTextTheme.labelLarge?.copyWith(color: colors.text),
+      labelMedium: jakartaTextTheme.labelMedium?.copyWith(color: colors.text),
+      labelSmall: jakartaTextTheme.labelSmall?.copyWith(color: colors.text.withAlpha(200)),
     );
 
     return ThemeData(

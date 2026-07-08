@@ -156,7 +156,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ''),
         title: m.title,
         type: 'Movie',
-        onTap: () => context.go('/movies/${m.slug ?? m.id}'),
+        onTap: () => context.push('/movies/${m.slug ?? m.id}'),
       ));
     }
     for (final t in _tvShows) {
@@ -165,7 +165,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         imageUrl: t.posterUrl ?? t.thumbnailUrl ?? '',
         title: t.title,
         type: 'TV',
-        onTap: () => context.go('/tv/${t.slug}'),
+        onTap: () => context.push('/tv/${t.slug}'),
       ));
     }
     for (final a in _anime) {
@@ -179,7 +179,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             a.title.native ??
             '',
         type: 'Anime',
-        onTap: () => context.go('/anime/${a.id}'),
+        onTap: () => context.push('/anime/${a.id}'),
       ));
     }
     return list;
@@ -405,7 +405,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         ''),
                 isRectangular: m.youtubeId != null,
                 title: m.title,
-                onTap: () => context.go('/movies/${m.slug ?? m.id}'),
+                onTap: () => context.push('/movies/${m.slug ?? m.id}'),
               );
             }).toList(),
           ),
@@ -416,7 +416,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               return PosterCard(
                 imageUrl: t.posterUrl ?? t.thumbnailUrl ?? '',
                 title: t.title,
-                onTap: () => context.go('/tv/${t.slug}'),
+                onTap: () => context.push('/tv/${t.slug}'),
               );
             }).toList(),
           ),
@@ -432,7 +432,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     a.title.romaji ??
                     a.title.native ??
                     '',
-                onTap: () => context.go('/anime/${a.id}'),
+                onTap: () => context.push('/anime/${a.id}'),
               );
             }).toList(),
           ),

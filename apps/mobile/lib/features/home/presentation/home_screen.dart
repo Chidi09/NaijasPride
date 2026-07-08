@@ -185,11 +185,11 @@ class HomeScreen extends ConsumerWidget {
                             onTap: () {
                               switch (item.contentType) {
                                 case 'movie':
-                                  context.go('/movies/${item.slug}');
+                                  context.push('/movies/${item.slug}');
                                 case 'tv':
-                                  context.go('/tv/${item.slug}');
+                                  context.push('/tv/${item.slug}');
                                 case 'anime':
-                                  context.go('/anime/${item.anilistId}');
+                                  context.push('/anime/${item.anilistId}');
                               }
                             },
                           );
@@ -234,7 +234,7 @@ class HomeScreen extends ConsumerWidget {
                                           ''),
                                 isRectangular: movie.youtubeId != null,
                                 title: movie.title,
-                                onTap: () => context.go(
+                                onTap: () => context.push(
                                   '/movies/${movie.slug ?? movie.id}',
                                 ),
                               ),
@@ -266,7 +266,7 @@ class HomeScreen extends ConsumerWidget {
                               imageUrl:
                                   show.posterUrl ?? show.thumbnailUrl ?? '',
                               title: show.title,
-                              onTap: () => context.go('/tv/${show.slug}'),
+                              onTap: () => context.push('/tv/${show.slug}'),
                             ),
                           )
                           .toList(),
@@ -292,7 +292,7 @@ class HomeScreen extends ConsumerWidget {
                                   entry.title.romaji ??
                                   entry.title.native ??
                                   'Untitled',
-                              onTap: () => context.go('/anime/${entry.id}'),
+                              onTap: () => context.push('/anime/${entry.id}'),
                             ),
                           )
                           .toList(),

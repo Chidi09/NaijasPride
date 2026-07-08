@@ -119,6 +119,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) =>
                 _tabSwitchPage(const SearchScreen(), state),
           ),
+          GoRoute(
+            path: '/downloads',
+            pageBuilder: (context, state) =>
+                _tabSwitchPage(const DownloadsScreen(), state),
+          ),
         ],
       ),
       GoRoute(
@@ -146,11 +151,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         pageBuilder: (context, state) =>
             _drillInPage(const ProfileScreen(), state),
-      ),
-      GoRoute(
-        path: '/downloads',
-        pageBuilder: (context, state) =>
-            _drillInPage(const DownloadsScreen(), state),
       ),
       GoRoute(
         path: '/welcome',

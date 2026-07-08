@@ -217,7 +217,7 @@ class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
                 imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
                 heroTag: 'tv-poster-${show.id}',
                 title: show.title,
-                onTap: () => context.go('/tv/${show.slug}'),
+                onTap: () => context.push('/tv/${show.slug}'),
               );
             },
           ),

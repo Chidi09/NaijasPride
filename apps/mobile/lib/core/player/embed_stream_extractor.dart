@@ -12,6 +12,34 @@ class ExtractedEmbedStream {
 const String desktopUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
+// naijaspride.com's own web app plays every one of these providers
+// (vidking, vidsrc, 2embed, etc.) by dropping the provider URL straight into
+// an <iframe src="..."> on the live site - see
+// apps/web/src/app/shared/components/embed-player/embed-player.component.ts.
+// Navigating a WebView directly (top-level) to the provider URL is a very
+// different request context: no parent Referer, and window.top === self,
+// which is exactly the shape these providers block/serve blank-player pages
+// for. Loading a local wrapper page that iframes the provider URL - with
+// baseUrl set to the real production origin, so the iframe's own request
+// carries a Referer of https://www.naijaspride.com/, matching the one known
+// working configuration - reproduces the site's real embed context instead
+// of guessing at a new one.
+const String embedOrigin = 'https://www.naijaspride.com/';
+
+String wrapperHtmlFor(String embedUrl) {
+  final escaped = embedUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+  return '''
+<!DOCTYPE html>
+<html>
+<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#000;overflow:hidden;">
+<iframe src="$escaped" allow="autoplay; fullscreen; encrypted-media" allowfullscreen
+  style="position:fixed;top:0;left:0;width:100%;height:100%;border:0;"></iframe>
+</body>
+</html>
+''';
+}
+
 final RegExp _mediaUrlPattern = RegExp(
   r'\.(m3u8|mp4)(\?|$|/)',
   caseSensitive: false,
@@ -110,13 +138,18 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
   }
 
   headlessWebView = HeadlessInAppWebView(
-    initialUrlRequest: URLRequest(url: WebUri(embedUrl)),
+    initialData: InAppWebViewInitialData(
+      data: wrapperHtmlFor(embedUrl),
+      baseUrl: WebUri(embedOrigin),
+    ),
     initialSettings: InAppWebViewSettings(
       javaScriptEnabled: true,
       useShouldInterceptRequest: true,
       mediaPlaybackRequiresUserGesture: false,
       userAgent: desktopUserAgent,
       transparentBackground: true,
+      mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+      thirdPartyCookiesEnabled: true,
     ),
     shouldInterceptRequest: (controller, request) async {
       if (settled) return null;

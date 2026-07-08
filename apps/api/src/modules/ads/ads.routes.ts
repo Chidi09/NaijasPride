@@ -93,7 +93,9 @@ export const adRoutes: FastifyPluginAsync = async (fastify) => {
       };
 
       if (!placement) {
-        throw new BadRequestError("placement querystring parameter is required");
+        throw new BadRequestError(
+          "placement querystring parameter is required",
+        );
       }
 
       const parsed = placementSchema.safeParse(placement);
