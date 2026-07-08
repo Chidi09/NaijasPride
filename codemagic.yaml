@@ -4,7 +4,13 @@ workflows:
     max_build_duration: 60
     instance_type: linux_x2
     environment:
-      flutter: stable
+      # Pinned exact version, matching the sibling gogo_app project (which
+      # has never hit CI staleness issues) - "stable" is a floating channel
+      # name that can resolve to a different SDK build on every single CI
+      # run, unlike gogo_app's exact pin. Matches this project's local dev
+      # Flutter version too (3.44.1, Dart 3.12.1, satisfying pubspec.yaml's
+      # `sdk: ^3.12.1` constraint).
+      flutter: 3.44.1
       vars:
         PACKAGE_NAME: "com.naijaspride.naijaspride_mobile"
       # Group "naijaspride" (must be created in the Codemagic dashboard
@@ -30,29 +36,10 @@ workflows:
     # No triggering block - manual trigger only for now (no webhook,
     # no auto-build on push). Start builds from the Codemagic dashboard.
     scripts:
-      - name: DIAGNOSTIC - print actual checked-out source
-        script: |
-          # Temporary diagnostic: two prior builds compiled a libapp.so
-          # that still contained OLD, pre-fix API paths despite Codemagic
-          # reporting the correct commit hash and flutter clean running.
-          # This step prints the ACTUAL file content as checked out on
-          # this machine, right after fetch and before any Flutter tooling
-          # runs, to determine whether the problem is a stale/wrong git
-          # checkout or something in the build toolchain itself.
-          echo "=== git HEAD on this machine ==="
-          git -C . rev-parse HEAD
-          echo "=== auth_api.dart _request paths ==="
-          grep -n "_request('" apps/mobile/lib/features/auth/data/auth_api.dart
-          echo "=== movies_api.dart get/post paths ==="
-          grep -n "await get\|await post\|await delete" apps/mobile/lib/features/content/movies/data/movies_api.dart
       - name: Clean build artifacts
         script: |
-          # A prior build's compiled binary (libapp.so) was confirmed - by
-          # extracting strings from the actual published APK - to contain
-          # OLD API paths despite Codemagic reporting it built from a commit
-          # that fixed them. flutter clean guarantees no stale .dart_tool/
-          # or build/ output from a previous run can be reused, forcing a
-          # genuine full recompile from the checked-out source every time.
+          # Guards against reusing any stale build/.dart_tool output from
+          # a previous run on this machine.
           cd apps/mobile && flutter clean
       - name: Get Flutter packages
         script: cd apps/mobile && flutter packages pub get
