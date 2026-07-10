@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/build_flavor.dart';
 
 class ContentDetailScaffold extends StatelessWidget {
   final String heroImageUrl;
@@ -35,14 +36,18 @@ class ContentDetailScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isTvBuild) return _buildTvLayout(context);
+    return _buildPhoneLayout(context);
+  }
+
+  Widget _buildPhoneLayout(BuildContext context) {
     final theme = Theme.of(context);
     return CustomScrollView(
       slivers: [
-        SliverAppBar(
-          expandedHeight: MediaQuery.of(context).size.height * 0.42,
-          pinned: true,
-          flexibleSpace: FlexibleSpaceBar(
-            background: Stack(
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.45,
+            child: Stack(
               fit: StackFit.expand,
               children: [
                 CachedNetworkImage(
@@ -63,9 +68,29 @@ class ContentDetailScaffold extends StatelessWidget {
                           Colors.transparent,
                           theme.scaffoldBackgroundColor,
                         ],
-                        stops: const [0.6, 1.0],
+                        stops: const [0.3, 0.85],
                       ),
                     ),
+                  ),
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleWidget,
+                      if (metadataRow != null) ...[
+                        const SizedBox(height: 8),
+                        metadataRow!,
+                      ],
+                      if (actionButtonsRow != null) ...[
+                        const SizedBox(height: 12),
+                        actionButtonsRow!,
+                      ],
+                    ],
                   ),
                 ),
               ],
@@ -73,71 +98,81 @@ class ContentDetailScaffold extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(
-          child: Column(
-            children: [
-              Transform.translate(
-                offset: const Offset(0, -48),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        width: 110,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withAlpha(60),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: AspectRatio(
-                            aspectRatio: 2 / 3,
-                            child: Hero(
-                              tag: heroTag,
-                              child: CachedNetworkImage(
-                                imageUrl: posterUrl,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, _, _) =>
-                                    Container(color: theme.colorScheme.surface),
-                                placeholder: (_, _) =>
-                                    Container(color: theme.colorScheme.surface),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            titleWidget,
-                            if (metadataRow != null) ...[
-                              const SizedBox(height: 8),
-                              metadataRow!,
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (genres.isNotEmpty)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: genres.map((g) {
+                      return Chip(
+                        label: Text(g),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      );
+                    }).toList(),
                   ),
-                ),
-              ),
-              Transform.translate(
-                offset: const Offset(0, -48),
+                if (description != null) ...[
+                  const SizedBox(height: 16),
+                  Text(description!, style: theme.textTheme.bodyLarge),
+                ],
+                if (description2 != null) ...[
+                  const SizedBox(height: 16),
+                  Text(description2!, style: theme.textTheme.bodyLarge),
+                ],
+                if (extraSections != null) ...[
+                  const SizedBox(height: 24),
+                  extraSections!,
+                ],
+                if (episodeSection != null) ...[
+                  const SizedBox(height: 24),
+                  episodeSection!,
+                ],
+              ],
+            ),
+          ),
+        ),
+        ...?sliverFooter,
+      ],
+    );
+  }
+
+  Widget _buildTvLayout(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          flex: 1,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (genres.isNotEmpty)
+                      titleWidget,
+                      if (metadataRow != null) ...[
+                        const SizedBox(height: 12),
+                        metadataRow!,
+                      ],
+                      if (actionButtonsRow != null) ...[
+                        const SizedBox(height: 16),
+                        actionButtonsRow!,
+                      ],
+                      if (description != null) ...[
+                        const SizedBox(height: 24),
+                        Text(description!, style: theme.textTheme.bodyLarge),
+                      ],
+                      if (description2 != null) ...[
+                        const SizedBox(height: 16),
+                        Text(description2!, style: theme.textTheme.bodyLarge),
+                      ],
+                      if (genres.isNotEmpty) ...[
+                        const SizedBox(height: 16),
                         Wrap(
                           spacing: 8,
                           runSpacing: 4,
@@ -150,23 +185,6 @@ class ContentDetailScaffold extends StatelessWidget {
                             );
                           }).toList(),
                         ),
-                      if (description != null) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          description!,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                      ],
-                      if (description2 != null) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          description2!,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                      ],
-                      if (actionButtonsRow != null) ...[
-                        const SizedBox(height: 16),
-                        actionButtonsRow!,
                       ],
                       if (extraSections != null) ...[
                         const SizedBox(height: 24),
@@ -180,10 +198,44 @@ class ContentDetailScaffold extends StatelessWidget {
                   ),
                 ),
               ),
+              ...?sliverFooter,
             ],
           ),
         ),
-        ...?sliverFooter,
+        Expanded(
+          flex: 1,
+          child: ClipRRect(
+            child: Stack(
+              children: [
+                CachedNetworkImage(
+                  imageUrl: heroImageUrl,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorWidget: (_, _, _) =>
+                      Container(color: theme.colorScheme.surface),
+                  placeholder: (_, _) =>
+                      Container(color: theme.colorScheme.surface),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          theme.scaffoldBackgroundColor,
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.3],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
