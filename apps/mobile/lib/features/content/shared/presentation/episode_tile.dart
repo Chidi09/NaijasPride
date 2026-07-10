@@ -38,6 +38,7 @@ class EpisodeTile extends StatelessWidget {
               child: CachedNetworkImage(
                 imageUrl: thumbnailUrl ?? '',
                 fit: BoxFit.cover,
+                memCacheWidth: 200,
                 errorWidget: (_, _, _) => Container(
                   color: theme.colorScheme.surface,
                   child: Center(

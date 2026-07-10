@@ -117,6 +117,7 @@ class _PosterCardState extends State<PosterCard> {
     final image = CachedNetworkImage(
       imageUrl: widget.imageUrl,
       fit: BoxFit.cover,
+      memCacheWidth: (widget.width * 2.5).toInt(),
       placeholder: (_, _) => _placeholder(theme),
       errorWidget: (_, _, _) => _placeholder(theme),
     );

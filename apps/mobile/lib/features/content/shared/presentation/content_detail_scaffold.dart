@@ -53,6 +53,7 @@ class ContentDetailScaffold extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: heroImageUrl,
                   fit: BoxFit.cover,
+                  memCacheWidth: 1080,
                   errorWidget: (_, _, _) =>
                       Container(color: theme.colorScheme.surface),
                   placeholder: (_, _) =>
@@ -210,6 +211,7 @@ class ContentDetailScaffold extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: heroImageUrl,
                   fit: BoxFit.cover,
+                  memCacheWidth: 1080,
                   width: double.infinity,
                   height: double.infinity,
                   errorWidget: (_, _, _) =>

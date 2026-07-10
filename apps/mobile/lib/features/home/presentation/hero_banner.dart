@@ -140,6 +140,7 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                 CachedNetworkImage(
                   imageUrl: movie.backdropUrl ?? movie.posterUrl ?? '',
                   fit: BoxFit.cover,
+                  memCacheWidth: 1080,
                   errorWidget: (_, _, _) =>
                       Container(color: theme.colorScheme.surface),
                   placeholder: (_, _) =>
@@ -240,6 +241,7 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
               key: ValueKey(_currentIndex),
               imageUrl: movie.backdropUrl ?? movie.posterUrl ?? '',
               fit: BoxFit.cover,
+              memCacheWidth: 1080,
               errorWidget: (_, _, _) =>
                   Container(color: theme.colorScheme.surface),
               placeholder: (_, _) =>
