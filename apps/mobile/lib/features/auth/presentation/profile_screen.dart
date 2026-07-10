@@ -32,7 +32,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void initState() {
     super.initState();
     aniListDeepLinkService.initialize();
-    _codeSubscription = aniListDeepLinkService.onAuthCode.listen(_handleAuthCode);
+    _codeSubscription = aniListDeepLinkService.onAuthCode.listen(
+      _handleAuthCode,
+    );
     _loadLinkStatus();
   }
 
@@ -66,9 +68,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(anilistUserId != null
-              ? 'AniList account linked'
-              : 'Failed to link AniList account'),
+          content: Text(
+            anilistUserId != null
+                ? 'AniList account linked'
+                : 'Failed to link AniList account',
+          ),
         ),
       );
     }
@@ -94,6 +98,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final theme = Theme.of(context);
+    final name = authState.user?.name ?? 'User';
+    final email = authState.user?.email ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -101,102 +107,263 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         automaticallyImplyLeading: false,
         title: const Text('Profile'),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        children: [
+          const SizedBox(height: 16),
+          Column(
             children: [
+              CircleAvatar(
+                radius: 48,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: GoogleFonts.cinzel(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
-                authState.user?.name ?? 'User',
+                name,
                 style: GoogleFonts.cinzel(
-                  fontSize: 24,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                authState.user?.email ?? '',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: theme.colorScheme.onSurface.withAlpha(179),
-                ),
-              ),
-              if (authState.isGuest) ...[
-                const SizedBox(height: 8),
+              if (email.isNotEmpty) ...[
+                const SizedBox(height: 4),
                 Text(
-                  'Guest',
+                  email,
                   style: TextStyle(
-                    fontSize: 14,
-                    color: theme.colorScheme.secondary,
+                    fontSize: 15,
+                    color: theme.colorScheme.onSurface.withAlpha(153),
                   ),
                 ),
               ],
-              const SizedBox(height: 32),
-              Text('Appearance', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<ThemeMode>(
-                  segments: const [
-                    ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode), label: Text('Light')),
-                    ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode), label: Text('Dark')),
-                    ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.brightness_auto), label: Text('System')),
-                  ],
-                  selected: {ref.watch(themeModeProvider)},
-                  onSelectionChanged: (selected) {
-                    ref.read(themeModeProvider.notifier).setThemeMode(selected.first);
-                  },
-                ),
-              ),
-              const SizedBox(height: 32),
-              Text('AniList Sync', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              if (_loadingStatus)
-                const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else if (_linked)
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Linked as AniList user #$_anilistUserId',
-                      style: TextStyle(color: theme.colorScheme.onSurface.withAlpha(179)),
+              if (authState.isGuest)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
                     ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: _unlink,
-                      child: const Text('Unlink AniList'),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondary.withAlpha(30),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                  ],
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: _linking ? null : _startLinking,
-                  icon: _linking
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.link),
-                  label: Text(_linking ? 'Linking...' : 'Link AniList Account'),
+                    child: Text(
+                      'Guest',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ),
+                  ),
                 ),
-              const SizedBox(height: 32),
-              FilledButton(
-                onPressed: () async {
-                  await ref.read(authControllerProvider.notifier).logout();
-                  if (context.mounted) context.go('/login');
-                },
-                child: const Text('Logout'),
-              ),
             ],
           ),
-        ),
+          const SizedBox(height: 40),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Appearance',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Theme(
+                  data: theme.copyWith(
+                    colorScheme: theme.colorScheme.copyWith(
+                      primary: Colors.white,
+                    ),
+                    segmentedButtonTheme: SegmentedButtonThemeData(
+                      style: SegmentedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.onSurface.withAlpha(
+                          179,
+                        ),
+                        selectedForegroundColor: Colors.white,
+                        selectedBackgroundColor: theme.colorScheme.primary
+                            .withAlpha(60),
+                        backgroundColor: Colors.white.withAlpha(8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  child: SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode),
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode),
+                        label: Text('Dark'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.brightness_auto),
+                        label: Text('System'),
+                      ),
+                    ],
+                    selected: {ref.watch(themeModeProvider)},
+                    onSelectionChanged: (selected) {
+                      ref
+                          .read(themeModeProvider.notifier)
+                          .setThemeMode(selected.first);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AniList Sync',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (_loadingStatus)
+                  const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (_linked)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withAlpha(30),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.green.withAlpha(80)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: Colors.green.shade300,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Linked as AniList user #$_anilistUserId',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.green.shade300,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _unlink,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.colorScheme.onSurface
+                                .withAlpha(179),
+                            side: BorderSide(
+                              color: theme.colorScheme.onSurface.withAlpha(40),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Unlink AniList'),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _linking ? null : _startLinking,
+                      icon: _linking
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.link),
+                      label: Text(
+                        _linking ? 'Linking...' : 'Link AniList Account',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.primary,
+                        side: BorderSide(
+                          color: theme.colorScheme.primary.withAlpha(100),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: OutlinedButton(
+              onPressed: () async {
+                await ref.read(authControllerProvider.notifier).logout();
+                if (context.mounted) context.go('/login');
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red.shade300,
+                side: BorderSide(color: Colors.red.withAlpha(80)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'Logout',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+        ],
       ),
     );
   }
