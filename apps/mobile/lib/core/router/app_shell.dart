@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../build_flavor.dart';
 import '../theme/app_colors.dart';
@@ -170,9 +170,9 @@ class _GlassBottomNav extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      selected ? dest.selectedIcon : dest.icon,
-                      size: 22,
+                    HugeIcon(
+                      icon: selected ? dest.selectedIcon : dest.icon,
+                      size: 22.0,
                       color: selected ? colors.accent : colors.text.withAlpha(153),
                     ),
                     const SizedBox(height: 2),
@@ -209,8 +209,8 @@ class _GlassBottomNav extends StatelessWidget {
 }
 
 class _NavItem {
-  final IconData icon;
-  final IconData selectedIcon;
+  final List<List<dynamic>> icon;
+  final List<List<dynamic>> selectedIcon;
   final String label;
 
   const _NavItem({
@@ -277,39 +277,39 @@ void _onNavigate(BuildContext context, int index) {
 
 List<_NavItem> _navDestinations() {
   return const [
-    _NavItem(icon: LucideIcons.home, selectedIcon: LucideIcons.home, label: 'Home'),
-    _NavItem(icon: LucideIcons.film, selectedIcon: LucideIcons.film, label: 'Movies'),
-    _NavItem(icon: LucideIcons.tv, selectedIcon: LucideIcons.tv, label: 'TV'),
-    _NavItem(icon: LucideIcons.sparkles, selectedIcon: LucideIcons.sparkles, label: 'Anime'),
-    _NavItem(icon: LucideIcons.search, selectedIcon: LucideIcons.search, label: 'Search'),
+    _NavItem(icon: HugeIcons.strokeRoundedHome01, selectedIcon: HugeIcons.strokeRoundedHome01, label: 'Home'),
+    _NavItem(icon: HugeIcons.strokeRoundedFilm01, selectedIcon: HugeIcons.strokeRoundedFilm01, label: 'Movies'),
+    _NavItem(icon: HugeIcons.strokeRoundedTv01, selectedIcon: HugeIcons.strokeRoundedTv01, label: 'TV'),
+    _NavItem(icon: HugeIcons.strokeRoundedSparkles, selectedIcon: HugeIcons.strokeRoundedSparkles, label: 'Anime'),
+    _NavItem(icon: HugeIcons.strokeRoundedSearch01, selectedIcon: HugeIcons.strokeRoundedSearch01, label: 'Search'),
   ];
 }
 
 List<NavigationRailDestination> _railDestinations() {
   return const [
     NavigationRailDestination(
-      icon: Icon(LucideIcons.home),
-      selectedIcon: Icon(LucideIcons.home),
+      icon: HugeIcon(icon: HugeIcons.strokeRoundedHome01, color: Colors.white),
+      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedHome01, color: Colors.white),
       label: Text('Home'),
     ),
     NavigationRailDestination(
-      icon: Icon(LucideIcons.film),
-      selectedIcon: Icon(LucideIcons.film),
+      icon: HugeIcon(icon: HugeIcons.strokeRoundedFilm01, color: Colors.white),
+      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedFilm01, color: Colors.white),
       label: Text('Movies'),
     ),
     NavigationRailDestination(
-      icon: Icon(LucideIcons.tv),
-      selectedIcon: Icon(LucideIcons.tv),
+      icon: HugeIcon(icon: HugeIcons.strokeRoundedTv01, color: Colors.white),
+      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedTv01, color: Colors.white),
       label: Text('TV'),
     ),
     NavigationRailDestination(
-      icon: Icon(LucideIcons.sparkles),
-      selectedIcon: Icon(LucideIcons.sparkles),
+      icon: HugeIcon(icon: HugeIcons.strokeRoundedSparkles, color: Colors.white),
+      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedSparkles, color: Colors.white),
       label: Text('Anime'),
     ),
     NavigationRailDestination(
-      icon: Icon(LucideIcons.search),
-      selectedIcon: Icon(LucideIcons.search),
+      icon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, color: Colors.white),
+      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, color: Colors.white),
       label: Text('Search'),
     ),
   ];
