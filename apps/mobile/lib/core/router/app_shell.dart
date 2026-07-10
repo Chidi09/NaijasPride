@@ -103,11 +103,23 @@ class _NarrowLayout extends StatelessWidget {
     final currentIndex = _destinationIndex(location);
 
     return Scaffold(
-      body: _wrapForOverscan(context, child),
-      bottomNavigationBar: _GlassBottomNav(
-        selectedIndex: currentIndex,
-        onTap: (index) => _onNavigate(context, index),
-        destinations: _navDestinations(),
+      extendBody: true,
+      body: Stack(
+        children: [
+          _wrapForOverscan(context, child),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              child: _GlassBottomNav(
+                selectedIndex: currentIndex,
+                onTap: (index) => _onNavigate(context, index),
+                destinations: _navDestinations(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -134,11 +146,11 @@ class _GlassBottomNav extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: colors.surface.withAlpha(180),
+        color: colors.surface.withAlpha(140),
         borderRadius: BorderRadius.circular(32),
         border: Border.all(
-          color: colors.border.withAlpha(153),
-          width: 1.5,
+          color: colors.border.withAlpha(50),
+          width: 1.0,
         ),
         boxShadow: [
           BoxShadow(

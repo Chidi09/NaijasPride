@@ -137,6 +137,7 @@ class AnimeDetail {
   final String? countryOfOrigin;
   final String? siteUrl;
   final Map<String, dynamic>? trailer;
+  final int? nextAiringEpisode;
 
   AnimeDetail({
     required this.id,
@@ -160,6 +161,7 @@ class AnimeDetail {
     this.countryOfOrigin,
     this.siteUrl,
     this.trailer,
+    this.nextAiringEpisode,
   });
 
   factory AnimeDetail.fromJson(Map<String, dynamic> json) {
@@ -196,6 +198,7 @@ class AnimeDetail {
       countryOfOrigin: json['countryOfOrigin'] as String?,
       siteUrl: json['siteUrl'] as String?,
       trailer: json['trailer'] as Map<String, dynamic>?,
+      nextAiringEpisode: (json['nextAiringEpisode']?['episode'] as num?)?.toInt(),
     );
   }
 }

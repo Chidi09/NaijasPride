@@ -227,6 +227,7 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
               onEpisodeTap: (ep, episodes) => _onEpisodeTap(ep, episodes),
               watchProgressApi: ref,
               anilistId: widget.id,
+              detail: detail,
             ),
             sliverFooter: [
               SliverAppBar(
@@ -250,6 +251,7 @@ class EpisodesSection extends ConsumerWidget {
   final void Function(AnimeEpisode episode, List<AnimeEpisode> episodes) onEpisodeTap;
   final WidgetRef watchProgressApi;
   final int anilistId;
+  final AnimeDetail detail;
 
   const EpisodesSection({
     super.key,
@@ -258,6 +260,7 @@ class EpisodesSection extends ConsumerWidget {
     required this.onEpisodeTap,
     required this.watchProgressApi,
     required this.anilistId,
+    required this.detail,
   });
 
   @override
@@ -285,7 +288,25 @@ class EpisodesSection extends ConsumerWidget {
         ),
       ),
       data: (episodes) {
-        if (episodes.isEmpty) return const SizedBox.shrink();
+        List<AnimeEpisode> displayEpisodes = episodes.toList();
+        if (displayEpisodes.isEmpty) {
+          int total = detail.episodes ?? 0;
+          if (total == 0) {
+            if (detail.nextAiringEpisode != null && detail.nextAiringEpisode! > 1) {
+              total = detail.nextAiringEpisode! - 1;
+            } else if (detail.status != 'NOT_YET_RELEASED') {
+              total = 1;
+            }
+          }
+          if (total > 0) {
+            displayEpisodes = List.generate(total, (index) => AnimeEpisode(
+              id: 'meta-${index + 1}',
+              number: index + 1,
+              title: 'Episode ${index + 1}',
+            ));
+          }
+        }
+        if (displayEpisodes.isEmpty) return const SizedBox.shrink();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -299,7 +320,7 @@ class EpisodesSection extends ConsumerWidget {
                     icon: const Icon(Icons.playlist_add),
                     tooltip: 'Add to list',
                     onPressed: () async {
-                      final ep = episodes.first;
+                      final ep = displayEpisodes.first;
                       final api = ref.read(watchProgressApiProvider);
                       final existing = await api.getAnimeEpisodeProgress(
                         anilistId,
@@ -333,7 +354,7 @@ class EpisodesSection extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            ...episodes.map((ep) {
+            ...displayEpisodes.map((ep) {
               final epProgress = episodeProgress[ep.number];
               double? progressFraction;
               bool watched = false;
@@ -352,7 +373,7 @@ class EpisodesSection extends ConsumerWidget {
                 number: ep.number,
                 title: ep.title ?? '',
                 isFiller: ep.isFiller,
-                onTap: () => onEpisodeTap(ep, episodes),
+                onTap: () => onEpisodeTap(ep, displayEpisodes),
                 progressFraction: progressFraction,
                 watched: watched,
               );
