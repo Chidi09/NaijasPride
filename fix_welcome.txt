@@ -1,0 +1,20 @@
+Task: Redesign the Welcome/Onboarding screen for a breathtaking, cinematic Netflix/Amazon aesthetic.
+
+Read these files first:
+- lib/features/onboarding/presentation/welcome_screen.dart
+
+Scope: ONLY touch this file:
+- lib/features/onboarding/presentation/welcome_screen.dart
+
+What's needed:
+1. True Full-Screen Hero Background: Instead of placing the image in a padded `Container` inside a `Column`, make the `PageView` take up the entire screen (`Positioned.fill` or `Stack`). The images should bleed to the absolute edges.
+2. Seamless Gradients: Overlay the images with a rich gradient that fades from `Colors.transparent` at the top to a solid deep dark color at the bottom, so the text and buttons sit flawlessly on top.
+3. Typography: Use `GoogleFonts.cinzel` or a massive cinematic display font for the titles (e.g., size 36, `fontWeight.bold`, bright white). Subtitles should be sleek grey.
+4. Controls & Buttons: 
+   - The pagination dots should be sleek and minimalistic.
+   - The "Next" and "Get Started" buttons should be massive 56px tall premium buttons (either solid primary color or frosted glassmorphism). 
+   - The "Continue as Guest" should use a sleek outline or glass effect, not a default Material style.
+5. Keep the Riverpod providers, API calls (`_fetchImages`), and `PageView` navigation logic unchanged. DO NOT alter the core logic, just build a stunning visual tree around it.
+
+Verification:
+Run `dart format lib/features/onboarding/presentation/welcome_screen.dart`

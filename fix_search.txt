@@ -1,0 +1,19 @@
+Task: Redesign the Search screen for a breathtaking, cinematic Netflix/Amazon aesthetic.
+
+Read these files first:
+- lib/features/search/presentation/search_screen.dart
+
+Scope: ONLY touch this file:
+- lib/features/search/presentation/search_screen.dart
+
+What's needed:
+1. Immersive UI: The `Scaffold` should have a deeply dark, premium background. 
+2. Search Bar: Use a sleek, borderless `TextField` filled with `Colors.white.withAlpha(15)`. Use `BorderRadius.circular(16)` with subtle padding. Prefix/suffix icons should be sleek (`Colors.white70`).
+3. Search Suggestions Dropdown: Transform it into a stunning floating glass panel. Use `BackdropFilter` with blur, bordered by `Colors.white.withAlpha(20)`. The `_Suggestion` rows should have elegant spacing, cinematic thumbnail ratios, and sleek typography.
+4. Empty/Loading States: 
+   - When loading, use a subtle, themed `CircularProgressIndicator`.
+   - When "No results found" or empty, show a premium layout (e.g., a massive, soft `Icons.search_off` icon in `Colors.white.withAlpha(10)` with elegant typography).
+5. Keep all Riverpod providers, search logic, speech-to-text logic, and debouncing exactly the same. Do not touch the logic.
+
+Verification:
+Run `dart format lib/features/search/presentation/search_screen.dart`

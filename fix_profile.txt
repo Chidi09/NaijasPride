@@ -1,0 +1,21 @@
+Task: Redesign the Profile screen to look like a premium streaming app dashboard (Netflix/Amazon style).
+
+Read these files first:
+- lib/features/auth/presentation/profile_screen.dart
+
+Scope: ONLY touch this file:
+- lib/features/auth/presentation/profile_screen.dart
+
+What's needed:
+1. Layout: Remove the basic `Center > Padding > Column`. Use a scrollable list view with generous margins (`EdgeInsets.symmetric(horizontal: 24)`).
+2. User Header: Display the user's Name and Email in a beautiful hero section at the top. Use a massive `CircleAvatar` (radius 48) with an elegant icon or the first letter of their name, followed by bold typography (`GoogleFonts.cinzel` size 28 for name, sleek grey for email) centered below it.
+3. Grouped Settings: Group the "Appearance" and "AniList Sync" sections into sleek glass/card containers.
+   - Use containers filled with `Colors.white.withAlpha(10)` and `BorderRadius.circular(20)`.
+   - Add generous padding inside the cards.
+   - Customize the `SegmentedButton` theme so it looks polished and premium (e.g. using `SegmentedButton.styleFrom` or wrapping it in a themed block).
+4. The AniList linking state should use premium indicators. If linked, show a sleek success chip (e.g. subtle green background) instead of plain text.
+5. The "Logout" button should be a wide 56px tall button styled to look distinct but premium, perhaps with an outline or a subtle red tint.
+6. DO NOT change `authControllerProvider` logic, `url_launcher` logic, or AniList deep link initialization. Just wrap them in a stunning new UI.
+
+Verification:
+Run `dart format lib/features/auth/presentation/profile_screen.dart`

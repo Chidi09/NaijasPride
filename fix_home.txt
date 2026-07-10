@@ -1,0 +1,28 @@
+Task: Redesign the Home screen and Hero Banner for a breathtaking, cinematic Netflix/Amazon aesthetic.
+
+Read these files first:
+- lib/features/home/presentation/home_screen.dart
+- lib/features/home/presentation/hero_banner.dart
+
+Scope: ONLY touch these files:
+- lib/features/home/presentation/home_screen.dart
+- lib/features/home/presentation/hero_banner.dart
+
+What's needed:
+1. **Hero Banner (`hero_banner.dart`)**:
+   - The gradient overlay must be a rich, multi-stop `LinearGradient` from `topCenter` to `bottomCenter` to create a flawless fade into the background.
+     Example: `stops: [0.0, 0.4, 0.7, 1.0]`, `colors: [Colors.transparent, Colors.transparent, theme.scaffoldBackgroundColor.withAlpha(180), theme.scaffoldBackgroundColor]`
+   - Cinematic Title: Use `theme.textTheme.displayMedium` with `fontWeight: FontWeight.w900`, `letterSpacing: -1.0`, and a soft drop shadow (`Shadow(color: Colors.black, blurRadius: 10)`).
+   - Action Buttons Row: Use rounded pill buttons (`StadiumBorder()`). The "Play"/ "View" button should be filled with `Colors.white`, with text/icon in `Colors.black`. The "My List" button should be a frosted glass button (`Colors.white.withAlpha(40)`) with `Colors.white` text/icon and a subtle white border.
+2. **Home Screen (`home_screen.dart`)**:
+   - `_LoadingCard`: Redesign the shimmer to look premium. Use `Shimmer.fromColors` with `baseColor: Colors.grey.shade900` and `highlightColor: Colors.grey.shade800`. Set `borderRadius: BorderRadius.circular(12)`.
+   - `ContinueWatching` Filter Chips: Replace standard `ChoiceChip` with sleek, un-bordered pill toggles. 
+     - Selected state: `Theme.of(context).colorScheme.primary` background, white text. 
+     - Unselected: `Colors.white.withAlpha(15)` background, `Colors.white70` text.
+     - Remove default borders.
+   - Add generous padding (e.g., `EdgeInsets.symmetric(horizontal: 24)`) to section headers and horizontal lists to give the layout premium breathing room.
+3. DO NOT change provider logic, imports, or navigation routes.
+
+Verification:
+Run `dart format lib/features/home/presentation/home_screen.dart lib/features/home/presentation/hero_banner.dart`
+Do not change provider logic or navigation logic.

@@ -44,6 +44,7 @@ class ContentDetailScaffold extends StatelessWidget {
     final theme = Theme.of(context);
     return CustomScrollView(
       slivers: [
+        ...?sliverFooter,
         SliverToBoxAdapter(
           child: SizedBox(
             height: MediaQuery.of(context).size.height * 0.45,
@@ -136,7 +137,6 @@ class ContentDetailScaffold extends StatelessWidget {
             ),
           ),
         ),
-        ...?sliverFooter,
       ],
     );
   }
@@ -149,6 +149,7 @@ class ContentDetailScaffold extends StatelessWidget {
           flex: 1,
           child: CustomScrollView(
             slivers: [
+              ...?sliverFooter,
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -199,7 +200,6 @@ class ContentDetailScaffold extends StatelessWidget {
                   ),
                 ),
               ),
-              ...?sliverFooter,
             ],
           ),
         ),

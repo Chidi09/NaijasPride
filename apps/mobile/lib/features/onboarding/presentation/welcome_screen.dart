@@ -127,6 +127,23 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     }
   }
 
+  Widget _buildFallbackGradient(int index) {
+    final colorsList = [
+      [const Color(0xFF0f172a), const Color(0xFF1e1b4b), const Color(0xFF000000)], // TV Shows
+      [const Color(0xFF3f0071), const Color(0xFF150050), const Color(0xFF000000)], // Anime
+      [const Color(0xFF450a0a), const Color(0xFF1f0505), const Color(0xFF000000)], // Movies
+    ];
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colorsList[index],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -192,11 +209,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                                           memCacheWidth: 1080,
                                           fadeInDuration: const Duration(milliseconds: 150),
                                           errorWidget: (_, _, _) =>
-                                              Container(color: colors.surface),
+                                              _buildFallbackGradient(index),
                                           placeholder: (_, _) =>
-                                              Container(color: colors.surface),
+                                              _buildFallbackGradient(index),
                                         )
-                                      : Container(color: colors.surface),
+                                      : _buildFallbackGradient(index),
                                 ),
                               ),
                               Positioned.fill(
@@ -241,10 +258,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                                         offset: Offset(pageOffset * 80, 0),
                                         child: Text(
                                           title,
-                                          style: GoogleFonts.cinzel(
-                                            fontSize: 36,
-                                            fontWeight: FontWeight.bold,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 34,
+                                            fontWeight: FontWeight.w800,
                                             color: Colors.white,
+                                            height: 1.1,
+                                            letterSpacing: -0.5,
                                           ),
                                           textAlign: TextAlign.center,
                                         ),
@@ -281,12 +300,20 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                       padding: const EdgeInsets.only(right: 16, top: 8),
                       child: TextButton(
                         onPressed: () => _markSeenAndGo('/login'),
-                        child: Text(
-                          'Skip',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white.withAlpha(200),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(60),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withAlpha(20)),
+                          ),
+                          child: Text(
+                            'Skip',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white.withAlpha(220),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ),

@@ -705,7 +705,9 @@ class _UnifiedVideoPlayerScreenState
   }
 
   void _showSubtitleSettings() {
-    final tracks = _player?.state.tracks.subtitle ?? [];
+    final embeddedTracks = _player?.state.tracks.subtitle ?? [];
+    final externalTracks = widget.subtitles ?? [];
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.grey[900],
@@ -713,6 +715,7 @@ class _UnifiedVideoPlayerScreenState
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final activeTrack = _player?.state.track.subtitle;
             return Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -727,7 +730,7 @@ class _UnifiedVideoPlayerScreenState
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (tracks.isNotEmpty) ...[
+                  if (embeddedTracks.isNotEmpty || externalTracks.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     const Text(
                       'Track',
@@ -740,22 +743,35 @@ class _UnifiedVideoPlayerScreenState
                         spacing: 8,
                         runSpacing: 4,
                         children: [
-                            ActionChip(
+                            ChoiceChip(
                               label: const Text('Off'),
-                              onPressed: () {
+                              selected: activeTrack == SubtitleTrack.no() || activeTrack == SubtitleTrack.auto(),
+                              onSelected: (_) {
                                 _player?.setSubtitleTrack(SubtitleTrack.no());
                                 setSheetState(() {});
                               },
                             ),
-                          ...tracks.asMap().entries.map((entry) {
-                            final track = entry.value;
-                            final label =
-                                track.language ??
-                                track.title ??
-                                'Track ${entry.key + 1}';
-                            return ActionChip(
+                          ...externalTracks.map((sub) {
+                            final isSelected = activeTrack?.uri == sub.url || activeTrack?.title == sub.lang || activeTrack?.language == sub.lang;
+                            return ChoiceChip(
+                              label: Text(sub.lang ?? 'External'),
+                              selected: isSelected,
+                              onSelected: (_) {
+                                if (sub.url != null) {
+                                  _player?.setSubtitleTrack(SubtitleTrack.uri(sub.url!, title: sub.lang, language: sub.lang));
+                                }
+                                setSheetState(() {});
+                              },
+                            );
+                          }),
+                          ...embeddedTracks.map((track) {
+                            if (externalTracks.any((ext) => ext.url == track.uri || ext.lang == track.title)) return const SizedBox.shrink();
+                            final isSelected = activeTrack == track;
+                            final label = track.language ?? track.title ?? 'Track ${track.id}';
+                            return ChoiceChip(
                               label: Text(label),
-                              onPressed: () {
+                              selected: isSelected,
+                              onSelected: (_) {
                                 _player?.setSubtitleTrack(track);
                                 setSheetState(() {});
                               },

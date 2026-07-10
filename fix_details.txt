@@ -1,0 +1,29 @@
+Task: Redesign the content detail pages to look premium (Netflix/Amazon level) and adapt beautifully for both mobile phones and TV interfaces.
+
+Read these files in full first:
+- lib/features/content/shared/presentation/content_detail_scaffold.dart
+- lib/features/content/movies/presentation/movie_detail_screen.dart
+- lib/features/content/tv_shows/presentation/tv_show_detail_screen.dart
+- lib/features/content/anime/presentation/anime_detail_screen.dart
+
+Scope: ONLY these files:
+- lib/features/content/shared/presentation/content_detail_scaffold.dart
+
+What's needed:
+The current `ContentDetailScaffold` uses an outdated overlap design (`Transform.translate`) with a small floating poster and a vertical `CustomScrollView`. 
+This looks basic on phones and is terrible for TV UX. 
+
+Please rewrite `ContentDetailScaffold` completely with the following requirements:
+1. **Premium Aesthetic**: Ditch the overlapping translated poster. Use a large, full-width `heroImageUrl` at the top that smoothly fades into the background color using a rich `LinearGradient`. Overlay the `titleWidget`, `metadataRow`, and `actionButtonsRow` directly over the bottom of this hero gradient area (like Netflix/Amazon).
+2. **TV Mode vs Phone Mode**: Import `../../../core/build_flavor.dart`.
+   - If `isTvBuild` is true: The layout should be optimized for landscape TV. Use a Row-based layout. Left side contains Title, metadata, action buttons, description, genres. Right side contains the `heroImageUrl` fading in. The entire screen should fit well on a landscape TV without forcing awkward vertical scrolling for the main actions.
+   - If `isTvBuild` is false: Standard premium mobile layout. Hero image at top fading to background, Title/Metadata/Actions over the gradient, followed by description, cast (`extraSections`), and episodes vertically in a scrollable view.
+3. Keep the exact same constructor parameters for `ContentDetailScaffold`. Do NOT change the constructor. We don't want to break `movie_detail_screen.dart`, `tv_show_detail_screen.dart`, or `anime_detail_screen.dart`. You only need to change how `ContentDetailScaffold` renders them.
+4. Omit the small vertical `posterUrl` image from the layout entirely to make it look cleaner and more modern. Just rely on `heroImageUrl`.
+5. Remove the `Transform.translate` negative offsets.
+
+Verification:
+Run `dart format lib/features/content/shared/presentation/content_detail_scaffold.dart`.
+Do NOT modify `movie_detail_screen.dart` or other screens. ONLY modify `content_detail_scaffold.dart`.
+
+Report the final diff.

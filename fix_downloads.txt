@@ -1,0 +1,22 @@
+Task: Redesign the Downloads screen to look deeply premium and modern, matching a Netflix/Amazon style aesthetic.
+
+Read these files first:
+- lib/features/downloads/presentation/downloads_screen.dart
+
+Scope: ONLY touch this file:
+- lib/features/downloads/presentation/downloads_screen.dart
+
+What's needed:
+1. Immersive UI: Ensure the scaffold has a clean dark background.
+2. Empty State: If `_downloads.isEmpty`, show a stunning empty state (e.g., a massive `Icons.file_download_off` in `Colors.white.withAlpha(20)` with a polished, typography-rich message).
+3. `_DownloadTile`: Replace the generic `ListTile` with a custom polished layout.
+   - Wrap the item in a sleek card background (`Colors.white.withAlpha(10)` with `BorderRadius.circular(16)`) and add margin between items (`margin: EdgeInsets.only(bottom: 16)`).
+   - The poster thumbnail should have `BorderRadius.circular(12)` and be a cinematic ratio (e.g. 70x100).
+   - Replace the generic text layout with precise spacing. Title should be crisp white, subtitle a subtle grey.
+   - The progress indicator should be a sleek rounded `LinearProgressIndicator` (e.g. `borderRadius: BorderRadius.circular(4)` and `minHeight: 6`) with `Theme.of(context).colorScheme.primary`.
+   - The trailing delete button should be an elegant circular icon button (`Container` with `BoxShape.circle` and `Colors.white.withAlpha(15)` background).
+4. Do not forget to wrap the ListView inside an `EdgeInsets.symmetric(horizontal: 20)` padding to match premium margins.
+5. Keep all Riverpod providers, `DownloadManager` logic, navigation, and logic unchanged. DO NOT alter the logic.
+
+Verification:
+Run `dart format lib/features/downloads/presentation/downloads_screen.dart`

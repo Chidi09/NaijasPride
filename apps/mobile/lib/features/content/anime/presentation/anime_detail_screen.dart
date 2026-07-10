@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/anime_api.dart';
 import '../data/anime_models.dart';
+import '../../../../core/player/embed_playback_resolver.dart';
 import '../../../../core/player/playback_resolver.dart';
 import '../../../../core/player/playback_source.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
@@ -123,22 +124,36 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
           return;
         }
 
+        final embedResult = await resolveEmbedOnlyPlayback(
+          providerUrls: embedSources.map((s) => s.url).toList(),
+          backendExtract: () => ref.read(animeApiProvider).extractStream(embedSources.first.url),
+        );
+
         if (!mounted) return;
         Navigator.of(context).pop();
 
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => EmbedWebViewScreen(
-              sources: embedSources
-                  .map((s) => EmbedSource(
-                        url: s.url,
-                        label: s.quality.isNotEmpty ? s.quality : 'Server',
-                      ))
-                  .toList(),
-              title: episode.title ?? 'Episode ${episode.number}',
-            ),
-          ),
-        );
+        switch (embedResult) {
+          case ResolvedDirectSource(:final source):
+            pushPlayer(source, skipTimes: skipTimes);
+          case EmbedWebViewFallback(:final url):
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EmbedWebViewScreen(
+                  sources: embedSources
+                      .map((s) => EmbedSource(
+                            url: s.url,
+                            label: s.quality.isNotEmpty ? s.quality : 'Server',
+                          ))
+                      .toList(),
+                  title: episode.title ?? 'Episode ${episode.number}',
+                ),
+              ),
+            );
+          case EmbedResolutionFailed(:final reason):
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('No playable source found: $reason')),
+            );
+        }
         return;
       }
 

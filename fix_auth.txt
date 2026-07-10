@@ -1,0 +1,32 @@
+Task: Redesign the Login and Signup screens to be breathtaking and highly premium.
+
+Read these files first:
+- lib/features/auth/presentation/login_screen.dart
+- lib/features/auth/presentation/signup_screen.dart
+
+Scope: ONLY touch these files:
+- lib/features/auth/presentation/login_screen.dart
+- lib/features/auth/presentation/signup_screen.dart
+
+What's needed:
+1. Immersive Dark Aesthetic: Wrap the entire screen in a `BoxDecoration` with a `LinearGradient` fading from very dark grey to black (`Colors.black87` to `Colors.black`).
+2. Glassmorphism Card: Place the form inside a glassmorphism container: use `BackdropFilter` with `ImageFilter.blur(sigmaX: 16, sigmaY: 16)`, inside a `Container` with `color: Colors.white.withAlpha(15)` and `Border.all(color: Colors.white.withAlpha(30))`. Add `borderRadius: BorderRadius.circular(24)` and a soft `BoxShadow`.
+3. Input Fields:
+   - Use `InputDecoration` filled with `Colors.white.withAlpha(10)`.
+   - Set `border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)`.
+   - Set `focusedBorder` to highlight the input softly with `Theme.of(context).colorScheme.primary`.
+   - Add elegant prefix icons (`Icons.email_outlined`, `Icons.lock_outline`) with `color: Colors.white70`.
+   - Text color must be white.
+4. Primary Action Button (Log In / Create Account):
+   - Make it 56px tall (`SizedBox(height: 56, width: double.infinity)`).
+   - Use a sleek, solid color (e.g. primary color) with `borderRadius: BorderRadius.circular(16)`.
+   - The loading indicator must be a subtle `CircularProgressIndicator(strokeWidth: 2, color: Colors.white)`.
+5. Secondary Buttons (Google / Guest):
+   - Make them 56px tall. Use rounded borders (`16px`).
+   - Use glassmorphism or sleek outlines (`Colors.white.withAlpha(20)` fill, `Colors.white.withAlpha(40)` border).
+6. Typography: Use `GoogleFonts.cinzel` for the "Welcome" / "Create Account" title, increased to font size 36, `fontWeight: FontWeight.bold`, and `color: Colors.white`.
+7. Keep all existing functionality, validation logic, Riverpod provider calls (`authControllerProvider`), and navigation exactly as they are. DO NOT change how the logic works.
+
+Verification:
+Run `dart format lib/features/auth/presentation/login_screen.dart lib/features/auth/presentation/signup_screen.dart`
+Do not change the form validation logic.
