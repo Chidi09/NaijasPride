@@ -96,17 +96,26 @@ bool _isBlockedHost(String url) {
 }
 
 const String _playKickJs = r'''
-try {
-  const selectors = [
-    '.jw-icon-display', '.jw-icon-play', '.vjs-big-play-button',
-    '.play', '#player', 'button[aria-label="Play"]', '.plyr__control--overlaid'
-  ];
-  for (const sel of selectors) {
-    const el = document.querySelector(sel);
-    if (el) { el.click(); break; }
-  }
-  document.querySelectorAll('video').forEach(v => { v.muted = true; v.play().catch(()=>{}); });
-} catch(e) {}
+(function() {
+  if (window.__playKickStarted) return;
+  window.__playKickStarted = true;
+  let attempts = 0;
+  const interval = setInterval(() => {
+    attempts++;
+    if (attempts > 30) { clearInterval(interval); return; }
+    try {
+      const selectors = [
+        '.jw-icon-display', '.jw-icon-play', '.vjs-big-play-button',
+        '.play', '#player', 'button[aria-label="Play"]', '.plyr__control--overlaid'
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) { el.click(); clearInterval(interval); break; }
+      }
+      document.querySelectorAll('video').forEach(v => { v.muted = true; v.play().catch(()=>{}); });
+    } catch(e) {}
+  }, 400);
+})();
 ''';
 
 Future<ExtractedEmbedStream?> extractStreamFromEmbed(
@@ -142,6 +151,13 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       data: wrapperHtmlFor(embedUrl),
       baseUrl: WebUri(embedOrigin),
     ),
+    initialUserScripts: UnmodifiableListView<UserScript>([
+      UserScript(
+        source: _playKickJs,
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+        forMainFrameOnly: false,
+      )
+    ]),
     initialSettings: InAppWebViewSettings(
       javaScriptEnabled: true,
       useShouldInterceptRequest: true,
@@ -219,19 +235,6 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
     },
     onLoadStop: (controller, url) async {
       if (url != null) lastDocumentUrl = url.toString();
-      try {
-        await controller.evaluateJavascript(source: _playKickJs);
-      } catch (_) {}
-      Timer(const Duration(milliseconds: 800), () async {
-        try {
-          await controller.evaluateJavascript(source: _playKickJs);
-        } catch (_) {}
-      });
-      Timer(const Duration(milliseconds: 2500), () async {
-        try {
-          await controller.evaluateJavascript(source: _playKickJs);
-        } catch (_) {}
-      });
     },
   );
 
