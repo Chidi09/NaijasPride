@@ -15,8 +15,9 @@ import '../../content/shared/presentation/status_picker.dart';
 import '../../../core/build_flavor.dart';
 import '../../../core/theme/app_colors.dart';
 
-final RegExp _youtubeIdPattern =
-    RegExp(r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})');
+final RegExp _youtubeIdPattern = RegExp(
+  r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})',
+);
 
 String? _extractYoutubeId(String url) {
   final match = _youtubeIdPattern.firstMatch(url);
@@ -42,10 +43,9 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
   bool _isFocused = false;
   int _currentIndex = 0;
 
-  MovieSummary get _effectiveMovie =>
-      isTvBuild
-          ? widget.movie
-          : (widget.featuredMovies ?? [widget.movie])[_currentIndex];
+  MovieSummary get _effectiveMovie => isTvBuild
+      ? widget.movie
+      : (widget.featuredMovies ?? [widget.movie])[_currentIndex];
 
   @override
   void initState() {
@@ -56,8 +56,7 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
       _rotationTimer = Timer.periodic(const Duration(seconds: 6), (_) {
         if (mounted) {
           setState(() {
-            _currentIndex =
-                (_currentIndex + 1) % widget.featuredMovies!.length;
+            _currentIndex = (_currentIndex + 1) % widget.featuredMovies!.length;
           });
         }
       });
@@ -131,8 +130,7 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
       return Focus(
         onFocusChange: _onFocusChange,
         child: GestureDetector(
-          onTap: () =>
-              context.push('/movies/${movie.slug ?? movie.id}'),
+          onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
           child: SizedBox(
             height: 400,
             width: double.infinity,
@@ -170,8 +168,11 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withAlpha(200),
+                          Colors.transparent,
+                          Colors.black.withAlpha(180),
+                          Colors.black,
                         ],
+                        stops: const [0.0, 0.4, 0.7, 1.0],
                       ),
                     ),
                     child: Column(
@@ -180,13 +181,24 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                       children: [
                         Text(
                           movie.title,
-                          style: theme.textTheme.headlineSmall
-                              ?.copyWith(color: Colors.white),
+                          style: theme.textTheme.displayMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -1.0,
+                            shadows: const [
+                              Shadow(color: Colors.black, blurRadius: 10),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
-                          onPressed: () => context.push(
-                              '/movies/${movie.slug ?? movie.id}'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            shape: const StadiumBorder(),
+                          ),
+                          onPressed: () =>
+                              context.push('/movies/${movie.slug ?? movie.id}'),
                           icon: const Icon(Icons.play_arrow),
                           label: const Text('View'),
                         ),
@@ -201,7 +213,10 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                     child: AnimatedOpacity(
                       opacity: _showVideo ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 400),
-                      child: const Icon(Icons.volume_off, color: Colors.white70),
+                      child: const Icon(
+                        Icons.volume_off,
+                        color: Colors.white70,
+                      ),
                     ),
                   ),
               ],
@@ -243,9 +258,11 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
+                    Colors.transparent,
+                    theme.scaffoldBackgroundColor.withAlpha(180),
                     theme.scaffoldBackgroundColor,
                   ],
-                  stops: const [0.45, 1.0],
+                  stops: const [0.0, 0.4, 0.7, 1.0],
                 ),
               ),
               child: Column(
@@ -256,15 +273,24 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                     movie.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    style: theme.textTheme.displayMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
                       color: Colors.white,
+                      letterSpacing: -1.0,
+                      shadows: const [
+                        Shadow(color: Colors.black, blurRadius: 10),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          shape: const StadiumBorder(),
+                        ),
                         onPressed: () =>
                             context.push('/movies/${movie.slug ?? movie.id}'),
                         icon: const Icon(Icons.play_arrow),
@@ -272,13 +298,20 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                       ),
                       const SizedBox(width: 12),
                       OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white.withAlpha(40),
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withAlpha(80)),
+                          shape: const StadiumBorder(),
+                        ),
                         onPressed: () async {
                           final api = ref.read(watchProgressApiProvider);
-                          final existing =
-                              await api.getMovieProgress(movie.id);
+                          final existing = await api.getMovieProgress(movie.id);
                           if (!context.mounted) return;
                           final selected = await showStatusPicker(
-                              context, current: existing?.status);
+                            context,
+                            current: existing?.status,
+                          );
                           if (selected == null) return;
                           await api.saveMovieProgress(
                             movie.id,
@@ -290,7 +323,8 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Added to ${watchStatusLabel(selected)}'),
+                                  'Added to ${watchStatusLabel(selected)}',
+                                ),
                               ),
                             );
                           }
@@ -319,8 +353,8 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                       shape: BoxShape.circle,
                       color: i == _currentIndex
                           ? (theme.brightness == Brightness.dark
-                              ? AppColors.dark.accent
-                              : AppColors.light.accent)
+                                ? AppColors.dark.accent
+                                : AppColors.light.accent)
                           : Colors.white.withAlpha(100),
                     ),
                   );

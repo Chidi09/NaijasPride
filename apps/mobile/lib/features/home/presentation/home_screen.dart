@@ -138,7 +138,7 @@ class HomeScreen extends ConsumerWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                        horizontal: 24,
                         vertical: 4,
                       ),
                       child: SizedBox(
@@ -156,6 +156,17 @@ class HomeScreen extends ConsumerWidget {
                                       continueWatchingFilterProvider.notifier,
                                     )
                                     .setFilter(null),
+                                labelStyle: TextStyle(
+                                  color: selectedFilter == null
+                                      ? Colors.white
+                                      : Colors.white70,
+                                ),
+                                backgroundColor: Colors.white.withAlpha(15),
+                                selectedColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                                side: BorderSide.none,
+                                shape: const StadiumBorder(),
                               ),
                             ),
                             ...kWatchStatuses.map((s) {
@@ -169,6 +180,17 @@ class HomeScreen extends ConsumerWidget {
                                         continueWatchingFilterProvider.notifier,
                                       )
                                       .setFilter(s),
+                                  labelStyle: TextStyle(
+                                    color: selectedFilter == s
+                                        ? Colors.white
+                                        : Colors.white70,
+                                  ),
+                                  backgroundColor: Colors.white.withAlpha(15),
+                                  selectedColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                  side: BorderSide.none,
+                                  shape: const StadiumBorder(),
                                 ),
                               );
                             }),
@@ -179,7 +201,7 @@ class HomeScreen extends ConsumerWidget {
                     if (filteredItems.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: 16,
+                          horizontal: 24,
                           vertical: 8,
                         ),
                         child: Text('No items with this status'),
@@ -226,32 +248,61 @@ class HomeScreen extends ConsumerWidget {
                   final list = featured[s.$2];
                   if (list == null || list.isEmpty) continue;
 
-                  final stdMovies = list.where((m) => m.youtubeId == null).toList();
-                  final ytMovies = list.where((m) => m.youtubeId != null).toList();
+                  final stdMovies = list
+                      .where((m) => m.youtubeId == null)
+                      .toList();
+                  final ytMovies = list
+                      .where((m) => m.youtubeId != null)
+                      .toList();
 
                   if (stdMovies.isNotEmpty) {
-                    carousels.add(ContentCarousel(
-                      title: s.$1,
-                      children: stdMovies.map((movie) => PosterCard(
-                        imageUrl: movie.posterUrl ?? movie.thumbnailUrl ?? movie.coverUrl ?? '',
-                        isRectangular: false,
-                        title: movie.title,
-                        onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
-                      )).toList(),
-                    ));
+                    carousels.add(
+                      ContentCarousel(
+                        title: s.$1,
+                        children: stdMovies
+                            .map(
+                              (movie) => PosterCard(
+                                imageUrl:
+                                    movie.posterUrl ??
+                                    movie.thumbnailUrl ??
+                                    movie.coverUrl ??
+                                    '',
+                                isRectangular: false,
+                                title: movie.title,
+                                onTap: () => context.push(
+                                  '/movies/${movie.slug ?? movie.id}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    );
                   }
 
                   if (ytMovies.isNotEmpty) {
-                    carousels.add(ContentCarousel(
-                      title: '${s.$1} (Nollywood/Free)',
-                      height: 160,
-                      children: ytMovies.map((movie) => PosterCard(
-                        imageUrl: movie.backdropUrl ?? movie.thumbnailUrl ?? movie.posterUrl ?? movie.coverUrl ?? '',
-                        isRectangular: true,
-                        title: movie.title,
-                        onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
-                      )).toList(),
-                    ));
+                    carousels.add(
+                      ContentCarousel(
+                        title: '${s.$1} (Nollywood/Free)',
+                        height: 160,
+                        children: ytMovies
+                            .map(
+                              (movie) => PosterCard(
+                                imageUrl:
+                                    movie.backdropUrl ??
+                                    movie.thumbnailUrl ??
+                                    movie.posterUrl ??
+                                    movie.coverUrl ??
+                                    '',
+                                isRectangular: true,
+                                title: movie.title,
+                                onTap: () => context.push(
+                                  '/movies/${movie.slug ?? movie.id}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    );
                   }
                 }
                 return Column(
@@ -321,7 +372,7 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _inlineError(VoidCallback onRetry) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Row(
         children: [
           const Icon(Icons.error_outline, size: 18),
@@ -338,7 +389,7 @@ class HomeScreen extends ConsumerWidget {
       height: 240,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         itemCount: 5,
         itemBuilder: (context, index) => const Padding(
           padding: EdgeInsets.only(right: 8),
@@ -358,12 +409,12 @@ class _LoadingCard extends StatelessWidget {
     return SizedBox(
       width: 130,
       child: Shimmer.fromColors(
-        baseColor: theme.colorScheme.surface,
-        highlightColor: theme.colorScheme.surface.withAlpha(150),
+        baseColor: Colors.grey.shade900,
+        highlightColor: Colors.grey.shade800,
         child: Column(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: AspectRatio(
                 aspectRatio: 2 / 3,
                 child: Container(color: theme.colorScheme.surface),
