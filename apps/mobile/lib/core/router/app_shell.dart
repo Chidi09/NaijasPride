@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../build_flavor.dart';
 import '../theme/app_colors.dart';
@@ -276,39 +277,39 @@ void _onNavigate(BuildContext context, int index) {
 
 List<_NavItem> _navDestinations() {
   return const [
-    _NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
-    _NavItem(icon: Icons.movie_outlined, selectedIcon: Icons.movie, label: 'Movies'),
-    _NavItem(icon: Icons.tv_outlined, selectedIcon: Icons.tv, label: 'TV'),
-    _NavItem(icon: Icons.auto_awesome_outlined, selectedIcon: Icons.auto_awesome, label: 'Anime'),
-    _NavItem(icon: Icons.search_outlined, selectedIcon: Icons.search, label: 'Search'),
+    _NavItem(icon: LucideIcons.home, selectedIcon: LucideIcons.home, label: 'Home'),
+    _NavItem(icon: LucideIcons.film, selectedIcon: LucideIcons.film, label: 'Movies'),
+    _NavItem(icon: LucideIcons.tv, selectedIcon: LucideIcons.tv, label: 'TV'),
+    _NavItem(icon: LucideIcons.sparkles, selectedIcon: LucideIcons.sparkles, label: 'Anime'),
+    _NavItem(icon: LucideIcons.search, selectedIcon: LucideIcons.search, label: 'Search'),
   ];
 }
 
 List<NavigationRailDestination> _railDestinations() {
-  return [
-    const NavigationRailDestination(
-      icon: Icon(Icons.home_outlined),
-      selectedIcon: Icon(Icons.home),
+  return const [
+    NavigationRailDestination(
+      icon: Icon(LucideIcons.home),
+      selectedIcon: Icon(LucideIcons.home),
       label: Text('Home'),
     ),
-    const NavigationRailDestination(
-      icon: Icon(Icons.movie_outlined),
-      selectedIcon: Icon(Icons.movie),
+    NavigationRailDestination(
+      icon: Icon(LucideIcons.film),
+      selectedIcon: Icon(LucideIcons.film),
       label: Text('Movies'),
     ),
-    const NavigationRailDestination(
-      icon: Icon(Icons.tv_outlined),
-      selectedIcon: Icon(Icons.tv),
+    NavigationRailDestination(
+      icon: Icon(LucideIcons.tv),
+      selectedIcon: Icon(LucideIcons.tv),
       label: Text('TV'),
     ),
-    const NavigationRailDestination(
-      icon: Icon(Icons.auto_awesome_outlined),
-      selectedIcon: Icon(Icons.auto_awesome),
+    NavigationRailDestination(
+      icon: Icon(LucideIcons.sparkles),
+      selectedIcon: Icon(LucideIcons.sparkles),
       label: Text('Anime'),
     ),
-    const NavigationRailDestination(
-      icon: Icon(Icons.search_outlined),
-      selectedIcon: Icon(Icons.search),
+    NavigationRailDestination(
+      icon: Icon(LucideIcons.search),
+      selectedIcon: Icon(LucideIcons.search),
       label: Text('Search'),
     ),
   ];
