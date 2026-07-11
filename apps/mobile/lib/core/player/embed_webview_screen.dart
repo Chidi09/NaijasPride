@@ -5,6 +5,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'embed_stream_extractor.dart'
     show
+        adBlockerRules,
         desktopUserAgent,
         embedOrigin,
         wrapperHtmlFor,
@@ -172,6 +173,9 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
                 userAgent: desktopUserAgent,
                 mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
                 thirdPartyCookiesEnabled: true,
+                supportMultipleWindows: false,
+                javaScriptCanOpenWindowsAutomatically: false,
+                contentBlockers: adBlockerRules,
               ),
             ),
           ),

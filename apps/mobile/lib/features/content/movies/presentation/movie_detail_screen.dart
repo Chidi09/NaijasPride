@@ -94,7 +94,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
       final moviesApi = ref.read(moviesApiProvider);
       final providers = await moviesApi.embeds(slug);
       final result = await resolveEmbedOnlyPlayback(
-        providerUrls: providers.map((p) => p.url).toList(),
+        servers: providers.map((p) => EmbedServer(p.url, p.name)).toList(),
         backendExtract: () => moviesApi.extractStream(slug),
       );
 
@@ -114,21 +114,24 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
               ),
             ),
           );
-        case EmbedVideasyFallback(:final url):
+        case EmbedVideasyFallback(:final url, :final alternates):
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => VideasyPlayerScreen(
                 videasyUrl: url,
                 title: movie.title,
+                alternates: alternates,
                 progressTarget: MovieProgressTarget(movie.id),
               ),
             ),
           );
-        case EmbedWebViewFallback(:final url):
+        case EmbedWebViewFallback(:final servers):
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => EmbedWebViewScreen(
-                sources: [EmbedSource(url: url, label: 'Server 1')],
+                sources: servers
+                    .map((s) => EmbedSource(url: s.url, label: s.label))
+                    .toList(),
                 title: movie.title,
               ),
             ),

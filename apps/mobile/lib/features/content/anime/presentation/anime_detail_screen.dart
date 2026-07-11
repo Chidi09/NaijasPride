@@ -126,7 +126,14 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
         }
 
         final embedResult = await resolveEmbedOnlyPlayback(
-          providerUrls: embedSources.map((s) => s.url).toList(),
+          servers: embedSources
+              .map(
+                (s) => EmbedServer(
+                  s.url,
+                  s.quality.isNotEmpty ? s.quality : 'Server',
+                ),
+              )
+              .toList(),
           backendExtract: () =>
               ref.read(animeApiProvider).extractStream(embedSources.first.url),
         );
@@ -137,12 +144,14 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
         switch (embedResult) {
           case ResolvedDirectSource(:final source):
             pushPlayer(source, skipTimes: skipTimes);
-          case EmbedVideasyFallback(:final url):
+          case EmbedVideasyFallback(:final url, :final alternates):
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => VideasyPlayerScreen(
                   videasyUrl: url,
                   title: episode.title ?? 'Episode ${episode.number}',
+                  skipTimes: skipTimes,
+                  alternates: alternates,
                   progressTarget: AnimeProgressTarget(
                     anilistId: widget.id,
                     episodeNumber: episode.number,
@@ -152,17 +161,12 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
                 ),
               ),
             );
-          case EmbedWebViewFallback():
+          case EmbedWebViewFallback(:final servers):
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => EmbedWebViewScreen(
-                  sources: embedSources
-                      .map(
-                        (s) => EmbedSource(
-                          url: s.url,
-                          label: s.quality.isNotEmpty ? s.quality : 'Server',
-                        ),
-                      )
+                  sources: servers
+                      .map((s) => EmbedSource(url: s.url, label: s.label))
                       .toList(),
                   title: episode.title ?? 'Episode ${episode.number}',
                 ),

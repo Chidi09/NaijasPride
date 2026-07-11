@@ -85,12 +85,13 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
               ),
             ),
           );
-        case EmbedVideasyFallback(:final url):
+        case EmbedVideasyFallback(:final url, :final alternates):
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => VideasyPlayerScreen(
                 videasyUrl: url,
                 title: episode.title,
+                alternates: alternates,
                 progressTarget: TvProgressTarget(
                   showId: show.id,
                   episodeId: episode.id,
@@ -100,11 +101,13 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
               ),
             ),
           );
-        case EmbedWebViewFallback(:final url):
+        case EmbedWebViewFallback(:final servers):
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => EmbedWebViewScreen(
-                sources: [EmbedSource(url: url, label: 'Server 1')],
+                sources: servers
+                    .map((s) => EmbedSource(url: s.url, label: s.label))
+                    .toList(),
                 title: episode.title,
               ),
             ),

@@ -1,25 +1,50 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'embed_stream_extractor.dart' show embedOrigin, wrapperHtmlFor;
+import 'embed_playback_resolver.dart' show EmbedServer;
+import 'embed_stream_extractor.dart'
+    show
+        adBlockerRules,
+        desktopUserAgent,
+        embedOrigin,
+        wrapperHtmlFor,
+        mediaSnifferJs,
+        isLikelyMediaStreamUrl;
+import 'embed_webview_screen.dart';
 import 'playback_source.dart';
-import 'watch_progress_api.dart';
+import 'unified_video_player_screen.dart';
+import '../../features/content/anime/data/anime_models.dart';
 
+/// Handles a Videasy hosted-player URL WITHOUT ever showing Videasy's own
+/// (ad-laden, effectively unwatchable) UI. It loads the page hidden behind an
+/// opaque overlay and applies the "BrowseHere" stream-sniffing technique used
+/// for other providers — hooking fetch/XHR/media `src` and intercepting network
+/// requests — to catch the underlying HLS/MP4 stream, then hands that direct URL
+/// to the native [UnifiedVideoPlayerScreen] for ad-free playback.
+///
+/// If no stream can be sniffed within [_sniffTimeout] (or the user opts out),
+/// it switches to the [alternates] providers in an ad-blocked
+/// [EmbedWebViewScreen] rather than falling back to the Videasy iframe.
 class VideasyPlayerScreen extends ConsumerStatefulWidget {
   final String videasyUrl;
   final String title;
   final ProgressTarget? progressTarget;
+  final AnimeSkipTimes? skipTimes;
+
+  /// Non-Videasy providers to switch to if the Videasy stream can't be sniffed.
+  final List<EmbedServer> alternates;
 
   const VideasyPlayerScreen({
     super.key,
     required this.videasyUrl,
     required this.title,
     this.progressTarget,
+    this.skipTimes,
+    this.alternates = const [],
   });
 
   @override
@@ -27,141 +52,205 @@ class VideasyPlayerScreen extends ConsumerStatefulWidget {
       _VideasyPlayerScreenState();
 }
 
-const String _videasyProgressBridgeJs = r'''
+/// Programmatically dismisses ad overlays and clicks the play button so the
+/// underlying player begins loading its stream while hidden behind our overlay
+/// (many players defer the stream request until a user gesture).
+const String _videasyPlayKickJs = r'''
 (function() {
-  if (window.__nsProgressBridge) return;
-  window.__nsProgressBridge = true;
-  window.addEventListener('message', function(event) {
+  if (window.__vsPlayKick) return;
+  window.__vsPlayKick = true;
+  let attempts = 0;
+  const interval = setInterval(() => {
+    attempts++;
+    if (attempts > 40) { clearInterval(interval); return; }
     try {
-      var payload = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
-      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-        window.flutter_inappwebview.callHandler('nsProgress', payload);
+      const selectors = [
+        '.jw-icon-display', '.jw-icon-play', '.vjs-big-play-button',
+        '.play', '#player', 'button[aria-label="Play"]',
+        '.plyr__control--overlaid', '[class*="play"]'
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) { try { el.click(); } catch (e) {} }
       }
-    } catch (e) {}
-  });
+      document.querySelectorAll('video').forEach(v => {
+        v.muted = true; v.play().catch(()=>{});
+      });
+    } catch(e) {}
+  }, 400);
 })();
 ''';
 
-class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen>
-    with WidgetsBindingObserver {
-  int _lastPositionSeconds = 0;
-  int _lastDurationSeconds = 0;
-  DateTime? _lastSavedAt;
-  bool _dirty = false;
+class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
+  static const Duration _sniffTimeout = Duration(seconds: 15);
+
+  Timer? _timeoutTimer;
+  bool _handled = false;
+  String _status = 'Preparing ad-free playback…';
+
+  late final String _referer;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    final uri = Uri.tryParse(widget.videasyUrl);
+    _referer = uri != null
+        ? '${uri.scheme}://${uri.host}/'
+        : 'https://player.videasy.net/';
+    _timeoutTimer = Timer(_sniffTimeout, _switchToAlternates);
   }
 
-  void _onProgressMessage(String raw) {
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return;
-      final ts = (decoded['timestamp'] as num?)?.toInt();
-      final dur = (decoded['duration'] as num?)?.toInt();
-      if (ts == null || dur == null || dur <= 0) return;
-      _lastPositionSeconds = ts;
-      _lastDurationSeconds = dur;
-      _dirty = true;
-      final now = DateTime.now();
-      if (_lastSavedAt == null ||
-          now.difference(_lastSavedAt!).inSeconds >= 15) {
-        _lastSavedAt = now;
-        _persistProgress();
-      }
-    } catch (_) {}
+  void _onMediaCandidate(String url) {
+    if (_handled || !mounted) return;
+    if (!isLikelyMediaStreamUrl(url)) return;
+    _handled = true;
+    _timeoutTimer?.cancel();
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => UnifiedVideoPlayerScreen(
+          source: DirectPlaybackSource(
+            url,
+            headers: {
+              'Referer': _referer,
+              'Origin': _referer.replaceAll(RegExp(r'/$'), ''),
+              'User-Agent': desktopUserAgent,
+            },
+          ),
+          title: widget.title,
+          progressTarget: widget.progressTarget,
+          skipTimes: widget.skipTimes,
+        ),
+      ),
+    );
   }
 
-  Future<void> _persistProgress() async {
-    final target = widget.progressTarget;
-    if (target == null || !_dirty) return;
-    _dirty = false;
-    final api = ref.read(watchProgressApiProvider);
-    if (target is MovieProgressTarget) {
-      await api.saveMovieProgress(
-        target.movieId,
-        _lastPositionSeconds,
-        _lastDurationSeconds,
+  void _switchToAlternates() {
+    if (_handled || !mounted) return;
+    _handled = true;
+    _timeoutTimer?.cancel();
+
+    if (widget.alternates.isEmpty) {
+      setState(() => _status = 'No watchable source found.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No watchable source found.')),
       );
-    } else if (target is AnimeProgressTarget) {
-      await api.saveAnimeProgress(
-        anilistId: target.anilistId,
-        episodeNumber: target.episodeNumber,
-        title: target.title,
-        imageUrl: target.imageUrl,
-        progressSeconds: _lastPositionSeconds,
-        durationSeconds: _lastDurationSeconds,
-      );
-    } else if (target is TvProgressTarget) {
-      await api.saveTvProgress(
-        showId: target.showId,
-        episodeId: target.episodeId,
-        seasonNumber: target.seasonNumber,
-        episodeNumber: target.episodeNumber,
-        progressSeconds: _lastPositionSeconds,
-        durationSeconds: _lastDurationSeconds,
-      );
+      Navigator.of(context).pop();
+      return;
     }
-  }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      _persistProgress();
-    }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => EmbedWebViewScreen(
+          sources: widget.alternates
+              .map((s) => EmbedSource(url: s.url, label: s.label))
+              .toList(),
+          title: widget.title,
+        ),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _persistProgress();
+    _timeoutTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) _persistProgress();
-      },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          title: Text(widget.title),
-        ),
-        body: InAppWebView(
-          initialData: InAppWebViewInitialData(
-            data: wrapperHtmlFor(widget.videasyUrl),
-            baseUrl: WebUri(embedOrigin),
-          ),
-          initialSettings: InAppWebViewSettings(
-            javaScriptEnabled: true,
-            mediaPlaybackRequiresUserGesture: false,
-            mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-            thirdPartyCookiesEnabled: true,
-          ),
-          initialUserScripts: UnmodifiableListView<UserScript>([
-            UserScript(
-              source: _videasyProgressBridgeJs,
-              injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-              forMainFrameOnly: true,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: Text(widget.title),
+      ),
+      body: Stack(
+        children: [
+          // Hidden sniffing WebView (behind the overlay).
+          InAppWebView(
+            initialData: InAppWebViewInitialData(
+              data: wrapperHtmlFor(widget.videasyUrl),
+              baseUrl: WebUri(embedOrigin),
             ),
-          ]),
-          onWebViewCreated: (controller) {
-            controller.addJavaScriptHandler(
-              handlerName: 'nsProgress',
-              callback: (args) {
-                if (args.isNotEmpty && args.first is String) {
-                  _onProgressMessage(args.first as String);
-                }
-              },
-            );
-          },
-        ),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              useShouldInterceptRequest: true,
+              mediaPlaybackRequiresUserGesture: false,
+              userAgent: desktopUserAgent,
+              mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+              thirdPartyCookiesEnabled: true,
+              supportMultipleWindows: false,
+              javaScriptCanOpenWindowsAutomatically: false,
+              contentBlockers: adBlockerRules,
+            ),
+            initialUserScripts: UnmodifiableListView<UserScript>([
+              UserScript(
+                source: mediaSnifferJs,
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                forMainFrameOnly: false,
+              ),
+              UserScript(
+                source: _videasyPlayKickJs,
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+                forMainFrameOnly: false,
+              ),
+            ]),
+            onWebViewCreated: (controller) {
+              controller.addJavaScriptHandler(
+                handlerName: 'nsMedia',
+                callback: (args) {
+                  if (args.isNotEmpty && args.first is String) {
+                    _onMediaCandidate(args.first as String);
+                  }
+                },
+              );
+            },
+            shouldInterceptRequest: (controller, request) async {
+              final url = request.url.toString();
+              if (isLikelyMediaStreamUrl(url)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _onMediaCandidate(url);
+                });
+              }
+              return null;
+            },
+          ),
+          Positioned.fill(
+            child: ColoredBox(
+              color: Colors.black,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: Colors.white),
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        _status,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if (widget.alternates.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      TextButton(
+                        onPressed: _switchToAlternates,
+                        child: const Text(
+                          'Use another server',
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

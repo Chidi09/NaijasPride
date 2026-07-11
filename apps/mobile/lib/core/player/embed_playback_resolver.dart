@@ -6,19 +6,34 @@ import '../../features/content/tv_shows/data/tv_shows_api.dart';
 
 sealed class EmbedResolutionResult {}
 
+/// A single embed provider option (its playable page URL + a human label),
+/// used to populate the server-switch menu on the WebView fallback path.
+class EmbedServer {
+  final String url;
+  final String label;
+  EmbedServer(this.url, this.label);
+}
+
 class ResolvedDirectSource extends EmbedResolutionResult {
   final PlaybackSource source;
   ResolvedDirectSource(this.source);
 }
 
 class EmbedWebViewFallback extends EmbedResolutionResult {
-  final String url;
-  EmbedWebViewFallback(this.url);
+  /// All available providers, so the WebView screen can offer server switching.
+  final List<EmbedServer> servers;
+  EmbedWebViewFallback(this.servers);
 }
 
 class EmbedVideasyFallback extends EmbedResolutionResult {
+  /// The Videasy hosted-player URL to sniff a direct stream from.
   final String url;
-  EmbedVideasyFallback(this.url);
+
+  /// Non-Videasy providers to fall back to (with ad blocking) if the Videasy
+  /// stream can't be sniffed — Videasy's own iframe is never surfaced because
+  /// its ads make it unwatchable.
+  final List<EmbedServer> alternates;
+  EmbedVideasyFallback(this.url, this.alternates);
 }
 
 class EmbedResolutionFailed extends EmbedResolutionResult {
@@ -37,9 +52,16 @@ Future<EmbedResolutionResult> resolveTvEpisodePlayback({
     return EmbedResolutionFailed('No embed providers available');
   }
 
+  final allServers = providers
+      .map((p) => EmbedServer(p.url, p.name))
+      .toList();
+  final nonVideasy = allServers
+      .where((s) => !s.url.contains('videasy.net'))
+      .toList();
+
   final firstUrl = providers.first.url;
   if (firstUrl.contains('videasy.net')) {
-    return EmbedVideasyFallback(firstUrl);
+    return EmbedVideasyFallback(firstUrl, nonVideasy);
   }
 
   final clientFuture = extractStreamFromEmbed(
@@ -104,7 +126,9 @@ Future<EmbedResolutionResult> resolveTvEpisodePlayback({
   final result = await completer.future;
   if (result != null) return result;
 
-  return EmbedWebViewFallback(firstUrl);
+  // Never surface Videasy's iframe (unwatchable ads) — only non-Videasy
+  // providers are offered as switchable, ad-blocked servers.
+  return EmbedWebViewFallback(nonVideasy.isNotEmpty ? nonVideasy : allServers);
 }
 
 Map<String, String>? _buildServerHeaders(String? referer) {
@@ -128,17 +152,21 @@ String? _originFromReferer(String referer) {
 }
 
 Future<EmbedResolutionResult> resolveEmbedOnlyPlayback({
-  required List<String> providerUrls,
+  required List<EmbedServer> servers,
   Future<({String streamUrl, String kind, String? referer})?> Function()?
   backendExtract,
 }) async {
-  if (providerUrls.isEmpty) {
+  if (servers.isEmpty) {
     return EmbedResolutionFailed('No embed providers available');
   }
 
-  final firstUrl = providerUrls.first;
+  final nonVideasy = servers
+      .where((s) => !s.url.contains('videasy.net'))
+      .toList();
+
+  final firstUrl = servers.first.url;
   if (firstUrl.contains('videasy.net')) {
-    return EmbedVideasyFallback(firstUrl);
+    return EmbedVideasyFallback(firstUrl, nonVideasy);
   }
 
   final clientFuture = extractStreamFromEmbed(
@@ -198,5 +226,7 @@ Future<EmbedResolutionResult> resolveEmbedOnlyPlayback({
   final result = await completer.future;
   if (result != null) return result;
 
-  return EmbedWebViewFallback(firstUrl);
+  // Never surface Videasy's iframe (unwatchable ads) — only non-Videasy
+  // providers are offered as switchable, ad-blocked servers.
+  return EmbedWebViewFallback(nonVideasy.isNotEmpty ? nonVideasy : servers);
 }

@@ -41,6 +41,205 @@ String wrapperHtmlFor(String embedUrl) {
 ''';
 }
 
+/// Ad/tracker/pop-under hosts that piracy embed providers load. Blocking these
+/// at the network layer (plus the cosmetic selectors below and pop-up
+/// suppression in the WebView settings) is what makes the fallback
+/// embed pages actually watchable — a "Brave-level" content blocker built from
+/// flutter_inappwebview's native [ContentBlocker] rules rather than a plugin.
+const List<String> _adBlockHosts = [
+  'doubleclick.net',
+  'googlesyndication.com',
+  'googleadservices.com',
+  'google-analytics.com',
+  'googletagmanager.com',
+  'googletagservices.com',
+  'adservice.google.com',
+  'amazon-adsystem.com',
+  'adnxs.com',
+  'adsystem.com',
+  'scorecardresearch.com',
+  'popads.net',
+  'popcash.net',
+  'popmyads.com',
+  'poptm.com',
+  'propellerads.com',
+  'propu.sh',
+  'propellerpops.com',
+  'onclickalgo.com',
+  'onclickmax.com',
+  'onclickmega.com',
+  'onclckds.com',
+  'clickadu.com',
+  'exoclick.com',
+  'exosrv.com',
+  'juicyads.com',
+  'trafficjunky.com',
+  'trafficjunky.net',
+  'adsterra.com',
+  'hilltopads.net',
+  'hilltopads.com',
+  'a-ads.com',
+  'mgid.com',
+  'adskeeper.com',
+  'revcontent.com',
+  'taboola.com',
+  'outbrain.com',
+  'bidgear.com',
+  'bidvertiser.com',
+  'adcash.com',
+  'coinzilla.com',
+  'mc.yandex.ru',
+  'histats.com',
+  'quantserve.com',
+  'zedo.com',
+  'servedbyadbutler.com',
+  'luckyforbet.com',
+  'pushncode.com',
+  'vidstat.net',
+  'stream-ads.com',
+  // Additional pop-under / redirect / smartlink networks common to piracy embeds
+  'popunder.net',
+  'popundertotal.com',
+  'popcash.com',
+  'clickaine.com',
+  'adnium.com',
+  'ad-maven.com',
+  'admaven.com',
+  'go.ad-maven.com',
+  'admedia.com',
+  'admixer.net',
+  'adplxmd.com',
+  'adsterra.net',
+  'ad-delivery.net',
+  'adservetx.media.net',
+  'media.net',
+  'smartadserver.com',
+  'smartlink.click',
+  'yllix.com',
+  'clickad.click',
+  'clickadilla.com',
+  'monetag.com',
+  'galaksion.com',
+  'adexchangeprestige.com',
+  'trafficstars.com',
+  'tsyndicate.com',
+  'chaturbate.com',
+  'creativecdn.com',
+  'servedby-buysellads.com',
+  'buysellads.com',
+  'popimg.com',
+  'poplink.com',
+  'clksite.com',
+  'clkmon.com',
+  'clickfuse.com',
+  'go2affise.com',
+  'affise.com',
+  'ero-advertising.com',
+  'eroadvertising.com',
+  'plugrush.com',
+  'trafficforce.com',
+  'trafficshop.com',
+  'reporo.net',
+  'adxpansion.com',
+  'sedotmp.com',
+  'onclicksuper.com',
+  'onclicka.net',
+  'onedmp.com',
+  'onclick.pro',
+  'partners.tremorhub.com',
+  'push-house.com',
+  'pushwhy.com',
+  'push-ad.com',
+  'pushpad.xyz',
+  'notifysrv.com',
+  'cdn.notifio.com',
+  'sub2tech.com',
+  'push.services.mozilla.com',
+  'webpushs.com',
+  'notix.io',
+  'richpush.co',
+  'roller-ads.com',
+  'rollerads.com',
+  'datu.ovh',
+  'tags.crwdcntrl.net',
+  'crwdcntrl.net',
+  'moatads.com',
+  'imasdk.googleapis.com',
+  'pagead2.googlesyndication.com',
+  'securepubads.g.doubleclick.net',
+  'adservice.google.co',
+  'cointraffic.io',
+  'coinhive.com',
+  'coin-hive.com',
+  'cryptaloot.pro',
+  'crypto-loot.com',
+  'coinimp.com',
+  'webminepool.com',
+  'jsecoin.com',
+  'minero.cc',
+  'browsermine.com',
+  'bmst.pw',
+  'deloton.com',
+  'luckypushh.com',
+  'luckypush.com',
+  'highperformanceformat.com',
+  'displaycontentnetwork.com',
+  'effectivecpmgate.com',
+  'cpmterra.com',
+  'cpmrocket.com',
+  'revenuehits.com',
+  'runative-syndicate.com',
+  'adsyndicate.com',
+  'syndication.exdynsrv.com',
+  'exdynsrv.com',
+  'exoticads.com',
+  'waframedia5.com',
+  'wafflemedia.com',
+  'realsrv.com',
+  'magsrv.com',
+];
+
+/// CSS selectors for common ad containers/overlays injected by these embeds.
+const List<String> _adBlockCosmeticSelectors = [
+  'ins.adsbygoogle',
+  'div[id^="ad-"]',
+  'div[class*="popup"]',
+  'div[class*="ad-overlay"]',
+  'div[id*="preroll"]',
+  'a[href*="//ads."]',
+];
+
+UnmodifiableListView<ContentBlocker>? _adBlockerRules;
+
+/// A reusable "Brave-level" ad/pop-up content-blocker list for embed WebViews.
+/// Combines network blocking of [_adBlockHosts] with cosmetic hiding of
+/// [_adBlockCosmeticSelectors]. Pass into `InAppWebViewSettings.contentBlockers`.
+UnmodifiableListView<ContentBlocker> get adBlockerRules {
+  final cached = _adBlockerRules;
+  if (cached != null) return cached;
+
+  final rules = <ContentBlocker>[
+    for (final host in _adBlockHosts)
+      ContentBlocker(
+        trigger: ContentBlockerTrigger(
+          urlFilter: '.*${RegExp.escape(host)}.*',
+        ),
+        action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
+      ),
+    ContentBlocker(
+      trigger: ContentBlockerTrigger(urlFilter: '.*'),
+      action: ContentBlockerAction(
+        type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+        selector: _adBlockCosmeticSelectors.join(', '),
+      ),
+    ),
+  ];
+
+  final built = UnmodifiableListView(rules);
+  _adBlockerRules = built;
+  return built;
+}
+
 final RegExp _mediaUrlPattern = RegExp(
   r'\.(m3u8|mpd|mp4|m4s)([?#/]|$)|/manifest\b|/master[./]|/playlist[./]|[?&](type|format)=(m3u8|hls|dash)|mime=video',
   caseSensitive: false,
@@ -65,8 +264,17 @@ bool isLikelyMediaStreamUrl(String url) {
   final path = Uri.tryParse(url)?.path ?? url;
   if (_adAssetPattern.hasMatch(path)) return false;
   if (_segmentPattern.hasMatch(url)) return false;
+  // A media indicator can appear on non-video resources (e.g. 2embed's
+  // `.../playlist.json`, tracker `.js`, subtitle `.vtt`). Reject anything whose
+  // path ends in a clearly non-playable extension before trusting the pattern.
+  if (_nonMediaExtensionPattern.hasMatch(path)) return false;
   return _mediaUrlPattern.hasMatch(url);
 }
+
+final RegExp _nonMediaExtensionPattern = RegExp(
+  r'\.(json|js|css|vtt|srt|ass|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|html?|php)$',
+  caseSensitive: false,
+);
 
 class _Candidate {
   final String url;
@@ -136,30 +344,51 @@ const String mediaSnifferJs = r'''
   if (window.__nsSniff) return;
   window.__nsSniff = true;
   var re = /\.(m3u8|mpd|mp4|m4s)([?#/]|$)|\/manifest\b|\/master[.\/]|\/playlist[.\/]|[?&](type|format)=(m3u8|hls|dash)|mime=video/i;
-  function report(u) {
+  var seen = {};
+  function abs(u) {
     try {
-      if (!u || typeof u !== 'string') return;
-      if (u.indexOf('blob:') === 0 || u.indexOf('data:') === 0) return;
-      if (u.indexOf('//') === 0) u = location.protocol + u;
-      if (u.indexOf('/') === 0) u = location.origin + u;
-      if (u.indexOf('http') !== 0) return;
+      if (!u || typeof u !== 'string') return null;
+      if (u.indexOf('blob:') === 0 || u.indexOf('data:') === 0) return null;
+      if (u.indexOf('//') === 0) return location.protocol + u;
+      if (u.indexOf('http') === 0) return u;
+      return new URL(u, location.href).href;
+    } catch (e) { return null; }
+  }
+  function report(raw) {
+    try {
+      var u = abs(raw);
+      if (!u || u.indexOf('http') !== 0) return;
       if (!re.test(u)) return;
+      if (seen[u]) return;
+      seen[u] = 1;
       if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
         window.flutter_inappwebview.callHandler('nsMedia', u);
       }
     } catch (e) {}
   }
+  // --- Network hooks -------------------------------------------------------
   try {
     var _f = window.fetch;
     if (_f) window.fetch = function(a, b) {
-      try { var u = (typeof a === 'string') ? a : (a && a.url); report(u); } catch (e) {}
-      return _f.apply(this, arguments);
+      try { report((typeof a === 'string') ? a : (a && a.url)); } catch (e) {}
+      var p = _f.apply(this, arguments);
+      try { if (p && p.then) p.then(function(res){ try { report(res && res.url); } catch (e) {} }, function(){}); } catch (e) {}
+      return p;
     };
   } catch (e) {}
   try {
     var _o = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(m, u) { try { report(u); } catch (e) {} return _o.apply(this, arguments); };
+    XMLHttpRequest.prototype.open = function(m, u) {
+      try {
+        report(u);
+        this.addEventListener('readystatechange', function() {
+          try { if (this.responseURL) report(this.responseURL); } catch (e) {}
+        });
+      } catch (e) {}
+      return _o.apply(this, arguments);
+    };
   } catch (e) {}
+  // --- Element src hooks (property + attribute) ----------------------------
   function hookSrc(proto) {
     try {
       var d = Object.getOwnPropertyDescriptor(proto, 'src');
@@ -173,13 +402,93 @@ const String mediaSnifferJs = r'''
   }
   try { hookSrc(HTMLMediaElement.prototype); } catch (e) {}
   try { hookSrc(HTMLSourceElement.prototype); } catch (e) {}
-  setInterval(function() {
+  try {
+    var _sa = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function(name, value) {
+      try { if (name && /^(src|data-src|data-hls|data-url|data-file)$/i.test(name)) report(value); } catch (e) {}
+      return _sa.apply(this, arguments);
+    };
+  } catch (e) {}
+  // --- Player-library hooks (MSE/blob players expose the manifest here) -----
+  function scanConfig(cfg, depth) {
     try {
-      document.querySelectorAll('video, source').forEach(function(el) {
-        report(el.currentSrc || el.src);
-      });
+      if (!cfg || depth > 4) return;
+      if (typeof cfg === 'string') { report(cfg); return; }
+      if (typeof cfg !== 'object') return;
+      var keys = ['file', 'src', 'url', 'source', 'sources', 'playlist', 'hls', 'dash', 'manifest'];
+      for (var i = 0; i < keys.length; i++) {
+        var v = cfg[keys[i]];
+        if (v == null) continue;
+        if (typeof v === 'string') report(v);
+        else if (Array.isArray(v)) { for (var j = 0; j < v.length; j++) scanConfig(v[j], depth + 1); }
+        else if (typeof v === 'object') scanConfig(v, depth + 1);
+      }
     } catch (e) {}
-  }, 1000);
+  }
+  function hookPlayers() {
+    try {
+      if (window.Hls && window.Hls.prototype && !window.Hls.prototype.__ns) {
+        window.Hls.prototype.__ns = 1;
+        var _ls = window.Hls.prototype.loadSource;
+        if (_ls) window.Hls.prototype.loadSource = function(u) { try { report(u); } catch (e) {} return _ls.apply(this, arguments); };
+      }
+    } catch (e) {}
+    try {
+      if (window.dashjs && window.dashjs.MediaPlayer && !window.__nsDash) {
+        window.__nsDash = 1;
+        var mp = window.dashjs.MediaPlayer();
+        var _create = mp.create;
+        mp.create = function() {
+          var inst = _create.apply(this, arguments);
+          try {
+            var _at = inst.attachSource;
+            if (_at) inst.attachSource = function(u) { try { report(u); } catch (e) {} return _at.apply(this, arguments); };
+          } catch (e) {}
+          return inst;
+        };
+      }
+    } catch (e) {}
+    try {
+      if (window.jwplayer && !window.jwplayer.__ns) {
+        var _jw = window.jwplayer;
+        var wrapped = function() {
+          var inst = _jw.apply(this, arguments);
+          try {
+            if (inst && inst.setup && !inst.__ns) {
+              inst.__ns = 1;
+              var _s = inst.setup;
+              inst.setup = function(cfg) { try { scanConfig(cfg, 0); } catch (e) {} return _s.apply(this, arguments); };
+            }
+          } catch (e) {}
+          return inst;
+        };
+        for (var k in _jw) { try { wrapped[k] = _jw[k]; } catch (e) {} }
+        wrapped.__ns = 1;
+        window.jwplayer = wrapped;
+      }
+    } catch (e) {}
+  }
+  // --- Periodic DOM + inline-script regex scan -----------------------------
+  var scanRe = /https?:\/\/[^\s"'<>()\\]+?\.(?:m3u8|mpd)(?:[?#][^\s"'<>()\\]*)?/ig;
+  function scanDom() {
+    try {
+      document.querySelectorAll('video, source').forEach(function(el) { report(el.currentSrc || el.src); });
+    } catch (e) {}
+    try {
+      var html = document.documentElement ? document.documentElement.innerHTML : '';
+      scanRe.lastIndex = 0;
+      var m, c = 0;
+      while ((m = scanRe.exec(html)) !== null && c < 25) { report(m[0]); c++; }
+    } catch (e) {}
+  }
+  hookPlayers();
+  var ticks = 0;
+  var iv = setInterval(function() {
+    ticks++;
+    hookPlayers();
+    scanDom();
+    if (ticks > 60) clearInterval(iv);
+  }, 700);
 })();
 ''';
 
@@ -219,8 +528,12 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
     int score = 0;
     if (url.contains('.m3u8')) {
       score += 100;
+    } else if (url.contains('.mpd')) {
+      score += 90;
     } else if (url.contains('.mp4')) {
       score += 50;
+    } else if (url.contains('manifest')) {
+      score += 60;
     }
     if (url.contains('master')) score += 40;
     if (url.contains('index') || url.contains('playlist')) score += 15;
@@ -264,6 +577,9 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       transparentBackground: true,
       mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
       thirdPartyCookiesEnabled: true,
+      supportMultipleWindows: false,
+      javaScriptCanOpenWindowsAutomatically: false,
+      contentBlockers: adBlockerRules,
     ),
     onWebViewCreated: (controller) async {
       controller.addJavaScriptHandler(
