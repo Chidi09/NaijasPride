@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 import '../../../core/downloads/download_manager.dart';
 import '../../../core/player/playback_source.dart';
 import '../../../core/player/unified_video_player_screen.dart';
@@ -43,9 +45,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Downloads'),
         backgroundColor: Colors.transparent,
@@ -61,13 +66,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                   Icon(
                     Icons.file_download_off,
                     size: 96,
-                    color: Colors.white.withAlpha(20),
+                    color: colors.text.withAlpha(20),
                   ),
                   const SizedBox(height: 24),
                   Text(
                     'No downloads yet',
                     style: theme.textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
+                      color: colors.textStrong,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -76,7 +81,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     'Start downloading your favorite\nmovies and shows',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withAlpha(100),
+                      color: colors.text.withAlpha(100),
                       height: 1.5,
                     ),
                   ),
@@ -134,6 +139,10 @@ class _DownloadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
     final isDownloading = record.status == DownloadStatus.downloading;
     final isCompleted = record.status == DownloadStatus.completed;
 
@@ -156,7 +165,7 @@ class _DownloadTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withAlpha(10),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: InkWell(
@@ -194,8 +203,8 @@ class _DownloadTile extends StatelessWidget {
                       record.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colors.textStrong,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -206,7 +215,7 @@ class _DownloadTile extends StatelessWidget {
                           ? '${(record.progress * 100).toInt()}%'
                           : statusLabel,
                       style: TextStyle(
-                        color: Colors.white.withAlpha(120),
+                        color: colors.text.withAlpha(120),
                         fontSize: 13,
                       ),
                     ),
@@ -217,7 +226,7 @@ class _DownloadTile extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: record.progress,
                           minHeight: 6,
-                          backgroundColor: Colors.white.withAlpha(15),
+                          backgroundColor: colors.surface,
                           valueColor: AlwaysStoppedAnimation(
                             Theme.of(context).colorScheme.primary,
                           ),
@@ -229,13 +238,13 @@ class _DownloadTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white12,
+                decoration: BoxDecoration(
+                  color: colors.surface,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),
-                  color: Colors.white.withAlpha(180),
+                  color: colors.text,
                   onPressed: onDelete,
                 ),
               ),

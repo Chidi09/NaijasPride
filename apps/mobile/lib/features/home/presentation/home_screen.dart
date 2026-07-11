@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 import '../../../core/build_flavor.dart';
 import '../../ads/presentation/ad_slot_card.dart';
 import '../../content/anime/data/anime_api.dart';
 import '../../content/anime/data/anime_models.dart';
 import '../../content/movies/data/movies_api.dart';
 import '../../content/movies/data/movie_models.dart';
+import '../../content/shared/application/watch_progress_lookup.dart';
 import '../../content/shared/presentation/content_carousel.dart';
 import '../../content/shared/presentation/poster_card.dart';
 import '../../content/tv_shows/data/tv_shows_api.dart';
@@ -75,6 +78,10 @@ class HomeScreen extends ConsumerWidget {
     final tvAsync = ref.watch(homePopularTvProvider);
     final animeAsync = ref.watch(homeTrendingAnimeProvider);
     final selectedFilter = ref.watch(continueWatchingFilterProvider);
+    final progressLookup = ref.watch(watchProgressLookupProvider).asData?.value;
+    final colors = Theme.of(context).brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
 
     return Scaffold(
       extendBodyBehindAppBar: !isTvBuild,
@@ -159,9 +166,9 @@ class HomeScreen extends ConsumerWidget {
                                 labelStyle: TextStyle(
                                   color: selectedFilter == null
                                       ? Colors.white
-                                      : Colors.white70,
+                                      : colors.text,
                                 ),
-                                backgroundColor: Colors.white.withAlpha(15),
+                                backgroundColor: colors.surface,
                                 selectedColor: Theme.of(
                                   context,
                                 ).colorScheme.primary,
@@ -183,9 +190,9 @@ class HomeScreen extends ConsumerWidget {
                                   labelStyle: TextStyle(
                                     color: selectedFilter == s
                                         ? Colors.white
-                                        : Colors.white70,
+                                        : colors.text,
                                   ),
-                                  backgroundColor: Colors.white.withAlpha(15),
+                                  backgroundColor: colors.surface,
                                   selectedColor: Theme.of(
                                     context,
                                   ).colorScheme.primary,
@@ -272,6 +279,14 @@ class HomeScreen extends ConsumerWidget {
                                 onTap: () => context.push(
                                   '/movies/${movie.slug ?? movie.id}',
                                 ),
+                                progressFraction: progressLookup?.movie(
+                                  movie.id,
+                                  movie.slug,
+                                ),
+                                ratingLabel:
+                                    movie.rating != null && movie.rating! > 0
+                                    ? movie.rating!.toStringAsFixed(1)
+                                    : null,
                               ),
                             )
                             .toList(),
@@ -298,6 +313,14 @@ class HomeScreen extends ConsumerWidget {
                                 onTap: () => context.push(
                                   '/movies/${movie.slug ?? movie.id}',
                                 ),
+                                progressFraction: progressLookup?.movie(
+                                  movie.id,
+                                  movie.slug,
+                                ),
+                                ratingLabel:
+                                    movie.rating != null && movie.rating! > 0
+                                    ? movie.rating!.toStringAsFixed(1)
+                                    : null,
                               ),
                             )
                             .toList(),
@@ -329,6 +352,10 @@ class HomeScreen extends ConsumerWidget {
                                   show.posterUrl ?? show.thumbnailUrl ?? '',
                               title: show.title,
                               onTap: () => context.push('/tv/${show.slug}'),
+                              progressFraction: progressLookup?.tv(
+                                show.id,
+                                show.slug,
+                              ),
                             ),
                           )
                           .toList(),
@@ -355,6 +382,16 @@ class HomeScreen extends ConsumerWidget {
                                   entry.title.native ??
                                   'Untitled',
                               onTap: () => context.push('/anime/${entry.id}'),
+                              progressFraction: progressLookup?.anime(
+                                entry.id.toString(),
+                              ),
+                              ratingLabel:
+                                  entry.averageScore != null &&
+                                      entry.averageScore! > 0
+                                  ? (entry.averageScore! / 10).toStringAsFixed(
+                                      1,
+                                    )
+                                  : null,
                             ),
                           )
                           .toList(),
@@ -406,11 +443,12 @@ class _LoadingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return SizedBox(
       width: 130,
       child: Shimmer.fromColors(
-        baseColor: Colors.grey.shade900,
-        highlightColor: Colors.grey.shade800,
+        baseColor: isDark ? Colors.grey.shade900 : Colors.grey.shade300,
+        highlightColor: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
         child: Column(
           children: [
             ClipRRect(

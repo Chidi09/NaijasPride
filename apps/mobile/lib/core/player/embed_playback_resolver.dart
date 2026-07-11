@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'playback_source.dart';
 import 'embed_stream_extractor.dart';
 import '../../features/content/tv_shows/data/tv_show_models.dart';
@@ -32,38 +33,61 @@ Future<EmbedResolutionResult> resolveTvEpisodePlayback({
   }
 
   final firstUrl = providers.first.url;
-  final clientFuture = extractStreamFromEmbed(firstUrl, timeout: const Duration(seconds: 8));
-  final backendFuture = api.extractStream(slug, season: season, episode: episode);
+  final clientFuture = extractStreamFromEmbed(
+    firstUrl,
+    timeout: const Duration(seconds: 8),
+  );
+  final backendFuture = api.extractStream(
+    slug,
+    season: season,
+    episode: episode,
+  );
 
   final completer = Completer<EmbedResolutionResult?>();
 
-  clientFuture.then((clientResult) {
-    if (clientResult != null && !completer.isCompleted) {
-      completer.complete(ResolvedDirectSource(
-        DirectPlaybackSource(clientResult.url, headers: clientResult.headers),
-      ));
-    }
-  }).catchError((_) {});
+  clientFuture
+      .then((clientResult) {
+        if (clientResult != null && !completer.isCompleted) {
+          completer.complete(
+            ResolvedDirectSource(
+              DirectPlaybackSource(
+                clientResult.url,
+                headers: clientResult.headers,
+              ),
+            ),
+          );
+        }
+      })
+      .catchError((_) {});
 
-  backendFuture.then((serverResult) {
-    if (serverResult != null) {
-      final streamUrl = (serverResult as dynamic).streamUrl as String?;
-      final referer = (serverResult as dynamic).referer as String?;
-      if (streamUrl != null && streamUrl.isNotEmpty && !completer.isCompleted) {
-        completer.complete(ResolvedDirectSource(
-          DirectPlaybackSource(streamUrl, headers: _buildServerHeaders(referer)),
-        ));
-      }
-    }
-  }).catchError((_) {});
+  backendFuture
+      .then((serverResult) {
+        if (serverResult != null) {
+          final streamUrl = serverResult.streamUrl;
+          final referer = serverResult.referer;
+          if (streamUrl.isNotEmpty && !completer.isCompleted) {
+            completer.complete(
+              ResolvedDirectSource(
+                DirectPlaybackSource(
+                  streamUrl,
+                  headers: _buildServerHeaders(referer),
+                ),
+              ),
+            );
+          }
+        }
+      })
+      .catchError((_) {});
 
   // Wait for both to fail, or max 30 seconds
-  Future.wait([clientFuture, backendFuture]).then((_) {
-    if (!completer.isCompleted) completer.complete(null);
-  }).catchError((_) {
-    if (!completer.isCompleted) completer.complete(null);
-  });
-  
+  Future.wait([clientFuture, backendFuture])
+      .then((_) {
+        if (!completer.isCompleted) completer.complete(null);
+      })
+      .catchError((_) {
+        if (!completer.isCompleted) completer.complete(null);
+      });
+
   Future.delayed(const Duration(seconds: 30), () {
     if (!completer.isCompleted) completer.complete(null);
   });
@@ -96,39 +120,63 @@ String? _originFromReferer(String referer) {
 
 Future<EmbedResolutionResult> resolveEmbedOnlyPlayback({
   required List<String> providerUrls,
-  Future<({String streamUrl, String kind, String? referer})?> Function()? backendExtract,
+  Future<({String streamUrl, String kind, String? referer})?> Function()?
+  backendExtract,
 }) async {
   if (providerUrls.isEmpty) {
     return EmbedResolutionFailed('No embed providers available');
   }
 
   final firstUrl = providerUrls.first;
-  final clientFuture = extractStreamFromEmbed(firstUrl, timeout: const Duration(seconds: 8));
-  final backendFuture = backendExtract != null ? backendExtract() : Future.value(null);
+  final clientFuture = extractStreamFromEmbed(
+    firstUrl,
+    timeout: const Duration(seconds: 8),
+  );
+  final backendFuture = backendExtract != null
+      ? backendExtract()
+      : Future.value(null);
 
   final completer = Completer<EmbedResolutionResult?>();
 
-  clientFuture.then((clientResult) {
-    if (clientResult != null && !completer.isCompleted) {
-      completer.complete(ResolvedDirectSource(
-        DirectPlaybackSource(clientResult.url, headers: clientResult.headers),
-      ));
-    }
-  }).catchError((_) {});
+  clientFuture
+      .then((clientResult) {
+        if (clientResult != null && !completer.isCompleted) {
+          completer.complete(
+            ResolvedDirectSource(
+              DirectPlaybackSource(
+                clientResult.url,
+                headers: clientResult.headers,
+              ),
+            ),
+          );
+        }
+      })
+      .catchError((_) {});
 
-  backendFuture.then((serverResult) {
-    if (serverResult != null && serverResult.streamUrl.isNotEmpty && !completer.isCompleted) {
-      completer.complete(ResolvedDirectSource(
-        DirectPlaybackSource(serverResult.streamUrl, headers: _buildServerHeaders(serverResult.referer)),
-      ));
-    }
-  }).catchError((_) {});
+  backendFuture
+      .then((serverResult) {
+        if (serverResult != null &&
+            serverResult.streamUrl.isNotEmpty &&
+            !completer.isCompleted) {
+          completer.complete(
+            ResolvedDirectSource(
+              DirectPlaybackSource(
+                serverResult.streamUrl,
+                headers: _buildServerHeaders(serverResult.referer),
+              ),
+            ),
+          );
+        }
+      })
+      .catchError((_) {});
 
-  Future.wait([clientFuture, backendFuture]).then((_) {
-    if (!completer.isCompleted) completer.complete(null);
-  }).catchError((_) {
-    if (!completer.isCompleted) completer.complete(null);
-  });
+  Future.wait([clientFuture, backendFuture])
+      .then((_) {
+        if (!completer.isCompleted) completer.complete(null);
+      })
+      .catchError((_) {
+        if (!completer.isCompleted) completer.complete(null);
+      });
 
   Future.delayed(const Duration(seconds: 30), () {
     if (!completer.isCompleted) completer.complete(null);

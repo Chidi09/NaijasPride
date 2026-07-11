@@ -7,10 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
+import '../../../core/theme/app_colors.dart';
+
 import '../../content/anime/data/anime_api.dart';
 import '../../content/anime/data/anime_models.dart';
 import '../../content/movies/data/movie_models.dart';
 import '../../content/movies/data/movies_api.dart';
+import '../../content/shared/application/watch_progress_lookup.dart';
 import '../../content/shared/presentation/content_carousel.dart';
 import '../../content/shared/presentation/poster_card.dart';
 import '../../content/tv_shows/data/tv_show_models.dart';
@@ -194,8 +197,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
+    final progressLookup = ref.watch(watchProgressLookupProvider).asData?.value;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0F),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -204,13 +211,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: TextField(
                 controller: _searchController,
                 focusNode: _searchFocusNode,
-                style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: colors.textStrong,
+                ),
                 decoration: InputDecoration(
                   hintText: 'Search movies, TV shows, and anime',
                   hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withAlpha(80),
+                    color: colors.text.withAlpha(80),
                   ),
-                  prefixIcon: Icon(Icons.search, color: Colors.white70),
+                  prefixIcon: Icon(Icons.search, color: colors.text),
                   suffixIcon:
                       _speechAvailable || _searchController.text.isNotEmpty
                       ? Row(
@@ -218,14 +227,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           children: [
                             if (_searchController.text.isNotEmpty)
                               IconButton(
-                                icon: Icon(Icons.clear, color: Colors.white70),
+                                icon: Icon(Icons.clear, color: colors.text),
                                 onPressed: () => _searchController.clear(),
                               ),
                             if (_speechAvailable)
                               IconButton(
                                 icon: Icon(
                                   _isListening ? Icons.mic_off : Icons.mic,
-                                  color: Colors.white70,
+                                  color: colors.text,
                                 ),
                                 onPressed: _toggleListening,
                               ),
@@ -233,7 +242,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         )
                       : null,
                   filled: true,
-                  fillColor: Colors.white.withAlpha(15),
+                  fillColor: colors.surface,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -265,7 +274,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onTap: () => _searchFocusNode.unfocus(),
-                child: _buildBody(theme),
+                child: _buildBody(theme, progressLookup),
               ),
             ),
           ],
@@ -277,6 +286,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _buildSuggestionsDropdown(ThemeData theme) {
     final suggestions = _suggestions;
     if (suggestions.isEmpty) return const SizedBox.shrink();
+    final colors = theme.brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -285,9 +297,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white.withAlpha(15),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withAlpha(20)),
+            border: Border.all(color: colors.border),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -301,6 +313,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildSuggestionRow(_Suggestion s, ThemeData theme) {
+    final colors = theme.brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
     return InkWell(
       onTap: () {
         _searchFocusNode.unfocus();
@@ -317,16 +332,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 width: 40,
                 height: 60,
                 fit: BoxFit.cover,
-                errorWidget: (_, _, _) => Container(
-                  width: 40,
-                  height: 60,
-                  color: Colors.white.withAlpha(10),
-                ),
-                placeholder: (_, _) => Container(
-                  width: 40,
-                  height: 60,
-                  color: Colors.white.withAlpha(10),
-                ),
+                errorWidget: (_, _, _) =>
+                    Container(width: 40, height: 60, color: colors.surface),
+                placeholder: (_, _) =>
+                    Container(width: 40, height: 60, color: colors.surface),
               ),
             ),
             const SizedBox(width: 14),
@@ -334,7 +343,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: Text(
                 s.title,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white,
+                  color: colors.textStrong,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,
@@ -345,13 +354,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: Colors.white.withAlpha(20),
+                color: colors.surface,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 s.type,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.white70,
+                  color: colors.text,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -362,18 +371,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildBody(ThemeData theme) {
+  Widget _buildBody(ThemeData theme, WatchProgressLookup? progressLookup) {
+    final colors = theme.brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
     if (_query.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search, size: 80, color: Colors.white.withAlpha(10)),
+            Icon(Icons.search, size: 80, color: colors.text.withAlpha(10)),
             const SizedBox(height: 16),
             Text(
               'Search movies, TV shows, and anime',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.white.withAlpha(80),
+                color: colors.text.withAlpha(80),
               ),
             ),
           ],
@@ -383,7 +395,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     if (_loading) {
       return Center(
-        child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 3),
+        child: CircularProgressIndicator(color: colors.text, strokeWidth: 3),
       );
     }
 
@@ -396,19 +408,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search_off, size: 80, color: Colors.white.withAlpha(10)),
+            Icon(Icons.search_off, size: 80, color: colors.text.withAlpha(10)),
             const SizedBox(height: 16),
             Text(
               'No results found',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.white.withAlpha(80),
+                color: colors.text.withAlpha(80),
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Try a different search term',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.white.withAlpha(40),
+                color: colors.text.withAlpha(40),
               ),
             ),
           ],
@@ -433,6 +445,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 isRectangular: m.youtubeId != null,
                 title: m.title,
                 onTap: () => context.push('/movies/${m.slug ?? m.id}'),
+                progressFraction: progressLookup?.movie(m.id, m.slug),
+                ratingLabel: m.rating != null && m.rating! > 0
+                    ? m.rating!.toStringAsFixed(1)
+                    : null,
               );
             }).toList(),
           ),
@@ -444,6 +460,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 imageUrl: t.posterUrl ?? t.thumbnailUrl ?? '',
                 title: t.title,
                 onTap: () => context.push('/tv/${t.slug}'),
+                progressFraction: progressLookup?.tv(t.id, t.slug),
               );
             }).toList(),
           ),
@@ -456,6 +473,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 title:
                     a.title.english ?? a.title.romaji ?? a.title.native ?? '',
                 onTap: () => context.push('/anime/${a.id}'),
+                progressFraction: progressLookup?.anime(a.id.toString()),
+                ratingLabel: a.averageScore != null && a.averageScore! > 0
+                    ? (a.averageScore! / 10).toStringAsFixed(1)
+                    : null,
               );
             }).toList(),
           ),

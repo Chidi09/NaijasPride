@@ -164,8 +164,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty)
+                            if (v == null || v.trim().isEmpty) {
                               return 'Email is required';
+                            }
                             if (!v.contains('@')) return 'Invalid email';
                             return null;
                           },
@@ -216,8 +217,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           ),
                           obscureText: true,
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Password is required';
+                            }
                             if (v.length < 6) return 'At least 6 characters';
                             return null;
                           },

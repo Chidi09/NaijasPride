@@ -8,6 +8,7 @@ import '../../../../core/build_flavor.dart';
 import '../../../ads/data/ads_api.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
+import '../../shared/application/watch_progress_lookup.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
 import '../data/tv_shows_api.dart';
@@ -133,6 +134,7 @@ class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
     final theme = Theme.of(context);
     final availableWidth = MediaQuery.of(context).size.width - 32;
     final itemWidth = (availableWidth - 8 * 2) / 3;
+    final progressLookup = ref.watch(watchProgressLookupProvider).asData?.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -169,11 +171,15 @@ class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
           ),
         ),
       ),
-      body: _buildBody(itemWidth, theme),
+      body: _buildBody(itemWidth, theme, progressLookup),
     );
   }
 
-  Widget _buildBody(double itemWidth, ThemeData theme) {
+  Widget _buildBody(
+    double itemWidth,
+    ThemeData theme,
+    WatchProgressLookup? progressLookup,
+  ) {
     if (_loading && _shows.isEmpty) {
       return const ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.53);
     }
@@ -218,6 +224,7 @@ class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
                 heroTag: 'tv-poster-${show.id}',
                 title: show.title,
                 onTap: () => context.push('/tv/${show.slug}'),
+                progressFraction: progressLookup?.tv(show.id, show.slug),
               );
             },
           ),

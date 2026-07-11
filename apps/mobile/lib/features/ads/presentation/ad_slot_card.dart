@@ -98,6 +98,8 @@ class AdBannerCard extends ConsumerWidget {
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: Colors.white,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (ad.ctaLabel != null)

@@ -114,20 +114,16 @@ class _UnifiedVideoPlayerScreenState
 
       player = Player();
 
-      await player.open(
-        Media(mediaUrl, httpHeaders: httpHeaders),
-        play: true,
-      );
+      await player.open(Media(mediaUrl, httpHeaders: httpHeaders), play: true);
 
       if (widget.subtitles != null && widget.subtitles!.isNotEmpty) {
-        for (final s in widget.subtitles!) {
+        for (final s in widget.subtitles!.reversed) {
           if (s.url != null && s.lang != null) {
             player.setSubtitleTrack(
               SubtitleTrack.uri(s.url!, title: s.lang, language: s.lang),
             );
           }
         }
-        player.setSubtitleTrack(SubtitleTrack.auto());
       }
 
       if (!mounted) {
@@ -166,18 +162,18 @@ class _UnifiedVideoPlayerScreenState
       if (result == null) return;
       final progress = result.progress;
       final duration = result.duration;
-      if (progress > 10 &&
-          (duration <= 0 || duration - progress > 15)) {
+      if (progress > 10 && (duration <= 0 || duration - progress > 15)) {
         await player.seek(Duration(seconds: progress));
       }
     } else if (target is AnimeProgressTarget) {
-      final result =
-          await api.getAnimeEpisodeProgress(target.anilistId, target.episodeNumber);
+      final result = await api.getAnimeEpisodeProgress(
+        target.anilistId,
+        target.episodeNumber,
+      );
       if (result == null) return;
       final progress = result.progress;
       final duration = result.duration;
-      if (progress > 10 &&
-          (duration <= 0 || duration - progress > 15)) {
+      if (progress > 10 && (duration <= 0 || duration - progress > 15)) {
         await player.seek(Duration(seconds: progress));
       }
     } else if (target is TvProgressTarget) {
@@ -186,8 +182,7 @@ class _UnifiedVideoPlayerScreenState
       if (result.episodeId != target.episodeId) return;
       final progress = result.progress;
       final duration = result.duration;
-      if (progress > 10 &&
-          (duration <= 0 || duration - progress > 15)) {
+      if (progress > 10 && (duration <= 0 || duration - progress > 15)) {
         await player.seek(Duration(seconds: progress));
       }
     }
@@ -216,16 +211,14 @@ class _UnifiedVideoPlayerScreenState
       });
     } else if (target is AnimeProgressTarget) {
       _periodicTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-        if (_lastKnownPosition.inSeconds - _lastSavedPosition.inSeconds >
-            10) {
+        if (_lastKnownPosition.inSeconds - _lastSavedPosition.inSeconds > 10) {
           _saveProgress(target);
         }
         _flushPendingProgress();
       });
     } else if (target is TvProgressTarget) {
       _periodicTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-        if (_lastKnownPosition.inSeconds - _lastSavedPosition.inSeconds >
-            10) {
+        if (_lastKnownPosition.inSeconds - _lastSavedPosition.inSeconds > 10) {
           _saveProgress(target);
         }
         _flushPendingProgress();
@@ -246,7 +239,8 @@ class _UnifiedVideoPlayerScreenState
     } else if (target is AnimeProgressTarget) {
       contentKey = 'anime:${target.anilistId}:${target.episodeNumber}';
     } else if (target is TvProgressTarget) {
-      contentKey = 'tv:${target.showId}:${target.episodeId}';
+      contentKey =
+          'tv:${target.showId}:${target.episodeId}:${target.seasonNumber}:${target.episodeNumber}';
     } else {
       return;
     }
@@ -257,13 +251,11 @@ class _UnifiedVideoPlayerScreenState
     _lastSavedPosition = _lastKnownPosition;
   }
 
-  Future<void> _writeLocalProgress(
-    String contentKey,
-    int pos,
-    int dur,
-  ) async {
-    final cache = await LocalProgressCache.getInstance();
-    await cache.writeLocal(contentKey, pos, dur);
+  Future<void> _writeLocalProgress(String contentKey, int pos, int dur) async {
+    try {
+      final cache = await LocalProgressCache.getInstance();
+      await cache.writeLocal(contentKey, pos, dur);
+    } catch (_) {}
   }
 
   Future<void> _syncProgressToServer(
@@ -272,32 +264,34 @@ class _UnifiedVideoPlayerScreenState
     int pos,
     int dur,
   ) async {
-    final api = ref.read(watchProgressApiProvider);
-    bool success = false;
-    if (target is MovieProgressTarget) {
-      success = await api.saveMovieProgress(target.movieId, pos, dur);
-    } else if (target is AnimeProgressTarget) {
-      success = await api.saveAnimeProgress(
-        anilistId: target.anilistId,
-        episodeNumber: target.episodeNumber,
-        title: target.title,
-        imageUrl: target.imageUrl,
-        progressSeconds: pos,
-        durationSeconds: dur,
-      );
-    } else if (target is TvProgressTarget) {
-      success = await api.saveTvProgress(
-        showId: target.showId,
-        episodeId: target.episodeId,
-        seasonNumber: target.seasonNumber,
-        episodeNumber: target.episodeNumber,
-        progressSeconds: pos,
-        durationSeconds: dur,
-      );
-    }
-    if (!success) return;
-    final cache = await LocalProgressCache.getInstance();
-    await cache.clearLocal(contentKey);
+    try {
+      final api = ref.read(watchProgressApiProvider);
+      bool success = false;
+      if (target is MovieProgressTarget) {
+        success = await api.saveMovieProgress(target.movieId, pos, dur);
+      } else if (target is AnimeProgressTarget) {
+        success = await api.saveAnimeProgress(
+          anilistId: target.anilistId,
+          episodeNumber: target.episodeNumber,
+          title: target.title,
+          imageUrl: target.imageUrl,
+          progressSeconds: pos,
+          durationSeconds: dur,
+        );
+      } else if (target is TvProgressTarget) {
+        success = await api.saveTvProgress(
+          showId: target.showId,
+          episodeId: target.episodeId,
+          seasonNumber: target.seasonNumber,
+          episodeNumber: target.episodeNumber,
+          progressSeconds: pos,
+          durationSeconds: dur,
+        );
+      }
+      if (!success) return;
+      final cache = await LocalProgressCache.getInstance();
+      await cache.clearLocal(contentKey);
+    } catch (_) {}
   }
 
   Future<void> _flushPendingProgress() async {
@@ -333,11 +327,17 @@ class _UnifiedVideoPlayerScreenState
           if (parts.length >= 3) {
             final showId = parts[1];
             final episodeId = parts[2];
+            final seasonNumber = parts.length >= 5
+                ? (int.tryParse(parts[3]) ?? 0)
+                : 0;
+            final episodeNumber = parts.length >= 5
+                ? (int.tryParse(parts[4]) ?? 0)
+                : 0;
             success = await api.saveTvProgress(
               showId: showId,
               episodeId: episodeId,
-              seasonNumber: 0,
-              episodeNumber: 0,
+              seasonNumber: seasonNumber,
+              episodeNumber: episodeNumber,
               progressSeconds: pos,
               durationSeconds: dur,
             );
@@ -357,8 +357,7 @@ class _UnifiedVideoPlayerScreenState
       return;
     }
 
-    final ratio =
-        _lastKnownPosition.inSeconds / _lastKnownDuration.inSeconds;
+    final ratio = _lastKnownPosition.inSeconds / _lastKnownDuration.inSeconds;
     if (ratio >= 0.85) {
       setState(() {
         _showNextEpisodeCountdown = true;
@@ -407,8 +406,10 @@ class _UnifiedVideoPlayerScreenState
   }
 
   void _onDoubleTap() {
+    if (!mounted) return;
     if (_player == null || _lastTapPosition == null) return;
-    final renderBox = context.findRenderObject() as RenderBox;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
     final size = renderBox.size;
     final isLeftHalf = _lastTapPosition!.dx < size.width / 2;
     final currentSeconds = _lastKnownPosition.inSeconds;
@@ -446,7 +447,9 @@ class _UnifiedVideoPlayerScreenState
   }
 
   void _onVerticalDragStart(DragStartDetails details) {
-    final renderBox = context.findRenderObject() as RenderBox;
+    if (!mounted) return;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
     final localPos = renderBox.globalToLocal(details.globalPosition);
     final size = renderBox.size;
 
@@ -478,7 +481,9 @@ class _UnifiedVideoPlayerScreenState
     final normalizedDelta = -details.delta.dy / 300;
     if (_isBrightnessAdjustment) {
       _brightnessValue = (_brightnessValue + normalizedDelta).clamp(0.0, 1.0);
-      ScreenBrightness.instance.setApplicationScreenBrightness(_brightnessValue);
+      ScreenBrightness.instance.setApplicationScreenBrightness(
+        _brightnessValue,
+      );
     } else {
       _volumeValue = (_volumeValue + normalizedDelta * 100).clamp(0.0, 100.0);
       _player?.setVolume(_volumeValue);
@@ -514,8 +519,10 @@ class _UnifiedVideoPlayerScreenState
               children: [
                 Icon(_seekIndicatorIcon, color: Colors.white, size: 28),
                 const SizedBox(width: 8),
-                const Text('10s',
-                    style: TextStyle(color: Colors.white, fontSize: 20)),
+                const Text(
+                  '10s',
+                  style: TextStyle(color: Colors.white, fontSize: 20),
+                ),
               ],
             ),
           ),
@@ -530,15 +537,18 @@ class _UnifiedVideoPlayerScreenState
       duration: const Duration(milliseconds: 200),
       child: IgnorePointer(
         child: Align(
-          alignment:
-              _isBrightnessAdjustment ? Alignment.centerLeft : Alignment.centerRight,
+          alignment: _isBrightnessAdjustment
+              ? Alignment.centerLeft
+              : Alignment.centerRight,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _isBrightnessAdjustment ? Icons.brightness_6 : Icons.volume_up,
+                  _isBrightnessAdjustment
+                      ? Icons.brightness_6
+                      : Icons.volume_up,
                   color: Colors.white,
                   size: 24,
                 ),
@@ -662,7 +672,10 @@ class _UnifiedVideoPlayerScreenState
     );
   }
 
-  Widget _buildSkipButton({required String label, required VoidCallback onTap}) {
+  Widget _buildSkipButton({
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return Positioned(
       bottom: 16,
       left: 16,
@@ -692,8 +705,10 @@ class _UnifiedVideoPlayerScreenState
         Shadow(offset: Offset(o, 0), color: Colors.black, blurRadius: 0),
       ]);
     }
-    final int bgAlpha =
-        (_subtitleBackgroundOpacity * 255).round().clamp(0, 255);
+    final int bgAlpha = (_subtitleBackgroundOpacity * 255).round().clamp(
+      0,
+      255,
+    );
     return SubtitleViewConfiguration(
       style: TextStyle(
         fontSize: _subtitleFontSize,
@@ -730,7 +745,8 @@ class _UnifiedVideoPlayerScreenState
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (embeddedTracks.isNotEmpty || externalTracks.isNotEmpty) ...[
+                  if (embeddedTracks.isNotEmpty ||
+                      externalTracks.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     const Text(
                       'Track',
@@ -743,31 +759,53 @@ class _UnifiedVideoPlayerScreenState
                         spacing: 8,
                         runSpacing: 4,
                         children: [
-                            ChoiceChip(
-                              label: const Text('Off'),
-                              selected: activeTrack == SubtitleTrack.no() || activeTrack == SubtitleTrack.auto(),
-                              onSelected: (_) {
-                                _player?.setSubtitleTrack(SubtitleTrack.no());
-                                setSheetState(() {});
-                              },
-                            ),
+                          ChoiceChip(
+                            label: const Text('Off'),
+                            selected:
+                                activeTrack == SubtitleTrack.no() ||
+                                activeTrack == SubtitleTrack.auto(),
+                            onSelected: (_) {
+                              _player?.setSubtitleTrack(SubtitleTrack.no());
+                              setSheetState(() {});
+                            },
+                          ),
                           ...externalTracks.map((sub) {
-                            final isSelected = activeTrack?.uri == sub.url || activeTrack?.title == sub.lang || activeTrack?.language == sub.lang;
+                            final isSelected =
+                                (activeTrack?.uri == true &&
+                                    activeTrack?.id == sub.url) ||
+                                activeTrack?.title == sub.lang ||
+                                activeTrack?.language == sub.lang;
                             return ChoiceChip(
                               label: Text(sub.lang ?? 'External'),
                               selected: isSelected,
                               onSelected: (_) {
                                 if (sub.url != null) {
-                                  _player?.setSubtitleTrack(SubtitleTrack.uri(sub.url!, title: sub.lang, language: sub.lang));
+                                  _player?.setSubtitleTrack(
+                                    SubtitleTrack.uri(
+                                      sub.url!,
+                                      title: sub.lang,
+                                      language: sub.lang,
+                                    ),
+                                  );
                                 }
                                 setSheetState(() {});
                               },
                             );
                           }),
                           ...embeddedTracks.map((track) {
-                            if (externalTracks.any((ext) => ext.url == track.uri || ext.lang == track.title)) return const SizedBox.shrink();
+                            if (externalTracks.any(
+                              (ext) =>
+                                  ext.url == track.id ||
+                                  ext.lang == track.title ||
+                                  ext.lang == track.language,
+                            )) {
+                              return const SizedBox.shrink();
+                            }
                             final isSelected = activeTrack == track;
-                            final label = track.language ?? track.title ?? 'Track ${track.id}';
+                            final label =
+                                track.language ??
+                                track.title ??
+                                'Track ${track.id}';
                             return ChoiceChip(
                               label: Text(label),
                               selected: isSelected,
@@ -818,8 +856,9 @@ class _UnifiedVideoPlayerScreenState
                     min: 0,
                     max: 1,
                     divisions: 20,
-                    displayValue:
-                        (_subtitleBackgroundOpacity * 100).round().toString(),
+                    displayValue: (_subtitleBackgroundOpacity * 100)
+                        .round()
+                        .toString(),
                     onChanged: (v) {
                       setSheetState(() => _subtitleBackgroundOpacity = v);
                       setState(() {});
@@ -942,8 +981,7 @@ class _UnifiedVideoPlayerScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.info_outline,
-                    color: Colors.white70, size: 48),
+                const Icon(Icons.info_outline, color: Colors.white70, size: 48),
                 const SizedBox(height: 16),
                 Text(
                   source.reason,
@@ -973,7 +1011,10 @@ class _UnifiedVideoPlayerScreenState
             onPressed: _showSubtitleSettings,
           ),
           IconButton(
-            icon: const Icon(Icons.picture_in_picture_alt, color: Colors.white70),
+            icon: const Icon(
+              Icons.picture_in_picture_alt,
+              color: Colors.white70,
+            ),
             onPressed: () => PipService.enterNow(),
             tooltip: 'Picture-in-picture',
           ),
@@ -983,13 +1024,15 @@ class _UnifiedVideoPlayerScreenState
         child: _isLoading
             ? const CircularProgressIndicator(color: Colors.white)
             : _error != null
-                ? _ErrorView(
-                    error: _error!,
-                    onRetry: _initPlayback,
-                  )
-                : _controller != null
-                    ? _buildVideoWithGestures(Video(controller: _controller!, subtitleViewConfiguration: _buildSubtitleConfig()))
-                    : const SizedBox.shrink(),
+            ? _ErrorView(error: _error!, onRetry: _initPlayback)
+            : _controller != null
+            ? _buildVideoWithGestures(
+                Video(
+                  controller: _controller!,
+                  subtitleViewConfiguration: _buildSubtitleConfig(),
+                ),
+              )
+            : const SizedBox.shrink(),
       ),
     );
   }

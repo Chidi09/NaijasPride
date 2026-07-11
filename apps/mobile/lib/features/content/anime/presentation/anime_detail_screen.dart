@@ -126,7 +126,8 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
 
         final embedResult = await resolveEmbedOnlyPlayback(
           providerUrls: embedSources.map((s) => s.url).toList(),
-          backendExtract: () => ref.read(animeApiProvider).extractStream(embedSources.first.url),
+          backendExtract: () =>
+              ref.read(animeApiProvider).extractStream(embedSources.first.url),
         );
 
         if (!mounted) return;
@@ -135,15 +136,17 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
         switch (embedResult) {
           case ResolvedDirectSource(:final source):
             pushPlayer(source, skipTimes: skipTimes);
-          case EmbedWebViewFallback(:final url):
+          case EmbedWebViewFallback():
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => EmbedWebViewScreen(
                   sources: embedSources
-                      .map((s) => EmbedSource(
-                            url: s.url,
-                            label: s.quality.isNotEmpty ? s.quality : 'Server',
-                          ))
+                      .map(
+                        (s) => EmbedSource(
+                          url: s.url,
+                          label: s.quality.isNotEmpty ? s.quality : 'Server',
+                        ),
+                      )
                       .toList(),
                   title: episode.title ?? 'Episode ${episode.number}',
                 ),
@@ -196,11 +199,13 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
 
         return Scaffold(
           body: ContentDetailScaffold(
-            heroImageUrl: detail.bannerImage ??
+            heroImageUrl:
+                detail.bannerImage ??
                 detail.coverImage.extraLarge ??
                 detail.coverImage.large ??
                 '',
-            posterUrl: detail.coverImage.extraLarge ??
+            posterUrl:
+                detail.coverImage.extraLarge ??
                 detail.coverImage.large ??
                 detail.bannerImage ??
                 '',
@@ -213,8 +218,7 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
             ),
             metadataRow: Row(
               children: [
-                if (detail.seasonYear != null)
-                  Text('${detail.seasonYear}'),
+                if (detail.seasonYear != null) Text('${detail.seasonYear}'),
                 if (detail.format != null) ...[
                   const SizedBox(width: 16),
                   Text(detail.format!),
@@ -262,8 +266,10 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
 
 class EpisodesSection extends ConsumerWidget {
   final AsyncValue<List<AnimeEpisode>> episodesAsync;
-  final Map<int, ({int progress, int duration, String? status})> episodeProgress;
-  final void Function(AnimeEpisode episode, List<AnimeEpisode> episodes) onEpisodeTap;
+  final Map<int, ({int progress, int duration, String? status})>
+  episodeProgress;
+  final void Function(AnimeEpisode episode, List<AnimeEpisode> episodes)
+  onEpisodeTap;
   final WidgetRef watchProgressApi;
   final int anilistId;
   final AnimeDetail detail;
@@ -307,18 +313,22 @@ class EpisodesSection extends ConsumerWidget {
         if (displayEpisodes.isEmpty) {
           int total = detail.episodes ?? 0;
           if (total == 0) {
-            if (detail.nextAiringEpisode != null && detail.nextAiringEpisode! > 1) {
+            if (detail.nextAiringEpisode != null &&
+                detail.nextAiringEpisode! > 1) {
               total = detail.nextAiringEpisode! - 1;
             } else if (detail.status != 'NOT_YET_RELEASED') {
               total = 1;
             }
           }
           if (total > 0) {
-            displayEpisodes = List.generate(total, (index) => AnimeEpisode(
-              id: 'meta-${index + 1}',
-              number: index + 1,
-              title: 'Episode ${index + 1}',
-            ));
+            displayEpisodes = List.generate(
+              total,
+              (index) => AnimeEpisode(
+                id: 'meta-${index + 1}',
+                number: index + 1,
+                title: 'Episode ${index + 1}',
+              ),
+            );
           }
         }
         if (displayEpisodes.isEmpty) return const SizedBox.shrink();
@@ -330,7 +340,9 @@ class EpisodesSection extends ConsumerWidget {
               children: [
                 Text('Episodes', style: theme.textTheme.titleMedium),
                 PressableScale(
-                  pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                  pressedColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withAlpha(40),
                   child: IconButton(
                     icon: const Icon(Icons.playlist_add),
                     tooltip: 'Add to list',
@@ -359,7 +371,9 @@ class EpisodesSection extends ConsumerWidget {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Marked as ${watchStatusLabel(selected)}'),
+                            content: Text(
+                              'Marked as ${watchStatusLabel(selected)}',
+                            ),
                           ),
                         );
                       }

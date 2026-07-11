@@ -190,6 +190,8 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                               Shadow(color: Colors.black, blurRadius: 10),
                             ],
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
@@ -285,6 +287,28 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (movie.rating != null && movie.rating! > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: Color(0xFFD6B87A),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            movie.rating!.toStringAsFixed(1),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   Row(
                     children: [
                       FilledButton.icon(

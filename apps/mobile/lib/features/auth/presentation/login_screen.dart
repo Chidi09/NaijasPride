@@ -209,8 +209,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty)
+                            if (v == null || v.trim().isEmpty) {
                               return 'Email is required';
+                            }
                             if (!v.contains('@')) return 'Invalid email';
                             return null;
                           },
@@ -261,8 +262,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           obscureText: true,
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Password is required';
+                            }
                             return null;
                           },
                         ),

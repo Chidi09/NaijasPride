@@ -8,6 +8,7 @@ import '../../../../core/build_flavor.dart';
 import '../../../ads/data/ads_api.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
+import '../../shared/application/watch_progress_lookup.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
 import '../data/anime_api.dart';
@@ -133,6 +134,7 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
     final theme = Theme.of(context);
     final availableWidth = MediaQuery.of(context).size.width - 32;
     final itemWidth = (availableWidth - 8 * 2) / 3;
+    final progressLookup = ref.watch(watchProgressLookupProvider).asData?.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -169,11 +171,15 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
           ),
         ),
       ),
-      body: _buildBody(itemWidth, theme),
+      body: _buildBody(itemWidth, theme, progressLookup),
     );
   }
 
-  Widget _buildBody(double itemWidth, ThemeData theme) {
+  Widget _buildBody(
+    double itemWidth,
+    ThemeData theme,
+    WatchProgressLookup? progressLookup,
+  ) {
     if (_loading && _media.isEmpty) {
       return const ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.53);
     }
@@ -223,6 +229,11 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
                     entry.title.native ??
                     'Untitled',
                 onTap: () => context.push('/anime/${entry.id}'),
+                progressFraction: progressLookup?.anime(entry.id.toString()),
+                ratingLabel:
+                    entry.averageScore != null && entry.averageScore! > 0
+                    ? (entry.averageScore! / 10).toStringAsFixed(1)
+                    : null,
               );
             },
           ),

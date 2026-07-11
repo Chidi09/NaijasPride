@@ -18,7 +18,9 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= 600;
-    final content = isWide ? _WideLayout(child: child) : _NarrowLayout(child: child);
+    final content = isWide
+        ? _WideLayout(child: child)
+        : _NarrowLayout(child: child);
 
     return Column(
       children: [
@@ -45,12 +47,18 @@ class _OfflineBannerState extends State<_OfflineBanner> {
     super.initState();
     _subscription = Connectivity().onConnectivityChanged.listen((result) {
       if (mounted) {
-        setState(() => _isOffline = result.contains(ConnectivityResult.none) || result.isEmpty);
+        setState(
+          () => _isOffline =
+              result.contains(ConnectivityResult.none) || result.isEmpty,
+        );
       }
     });
     Connectivity().checkConnectivity().then((result) {
       if (mounted) {
-        setState(() => _isOffline = result.contains(ConnectivityResult.none) || result.isEmpty);
+        setState(
+          () => _isOffline =
+              result.contains(ConnectivityResult.none) || result.isEmpty,
+        );
       }
     });
   }
@@ -148,10 +156,7 @@ class _GlassBottomNav extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface.withAlpha(140),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(
-          color: colors.border.withAlpha(50),
-          width: 1.0,
-        ),
+        border: Border.all(color: colors.border.withAlpha(50), width: 1.0),
         boxShadow: [
           BoxShadow(
             color: colors.primary.withAlpha(13),
@@ -185,15 +190,21 @@ class _GlassBottomNav extends StatelessWidget {
                     HugeIcon(
                       icon: selected ? dest.selectedIcon : dest.icon,
                       size: 22.0,
-                      color: selected ? colors.accent : colors.text.withAlpha(153),
+                      color: selected
+                          ? colors.accent
+                          : colors.text.withAlpha(153),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       dest.label,
                       style: TextStyle(
                         fontSize: 9,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        color: selected ? colors.accent : colors.text.withAlpha(153),
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: selected
+                            ? colors.accent
+                            : colors.text.withAlpha(153),
                       ),
                     ),
                   ],
@@ -264,7 +275,7 @@ class _WideLayoutState extends State<_WideLayout> {
               },
               extended: actuallyExtended,
               labelType: actuallyExtended ? NavigationRailLabelType.none : null,
-              destinations: _railDestinations(),
+              destinations: _railDestinations(context),
             ),
           ),
           const VerticalDivider(width: 1),
@@ -289,39 +300,92 @@ void _onNavigate(BuildContext context, int index) {
 
 List<_NavItem> _navDestinations() {
   return const [
-    _NavItem(icon: HugeIcons.strokeRoundedHome01, selectedIcon: HugeIcons.strokeRoundedHome01, label: 'Home'),
-    _NavItem(icon: HugeIcons.strokeRoundedFilm01, selectedIcon: HugeIcons.strokeRoundedFilm01, label: 'Movies'),
-    _NavItem(icon: HugeIcons.strokeRoundedTv01, selectedIcon: HugeIcons.strokeRoundedTv01, label: 'TV'),
-    _NavItem(icon: HugeIcons.strokeRoundedSparkles, selectedIcon: HugeIcons.strokeRoundedSparkles, label: 'Anime'),
-    _NavItem(icon: HugeIcons.strokeRoundedSearch01, selectedIcon: HugeIcons.strokeRoundedSearch01, label: 'Search'),
+    _NavItem(
+      icon: HugeIcons.strokeRoundedHome01,
+      selectedIcon: HugeIcons.strokeRoundedHome01,
+      label: 'Home',
+    ),
+    _NavItem(
+      icon: HugeIcons.strokeRoundedFilm01,
+      selectedIcon: HugeIcons.strokeRoundedFilm01,
+      label: 'Movies',
+    ),
+    _NavItem(
+      icon: HugeIcons.strokeRoundedTv01,
+      selectedIcon: HugeIcons.strokeRoundedTv01,
+      label: 'TV',
+    ),
+    _NavItem(
+      icon: HugeIcons.strokeRoundedSparkles,
+      selectedIcon: HugeIcons.strokeRoundedSparkles,
+      label: 'Anime',
+    ),
+    _NavItem(
+      icon: HugeIcons.strokeRoundedSearch01,
+      selectedIcon: HugeIcons.strokeRoundedSearch01,
+      label: 'Search',
+    ),
   ];
 }
 
-List<NavigationRailDestination> _railDestinations() {
-  return const [
+List<NavigationRailDestination> _railDestinations(BuildContext context) {
+  final colors = Theme.of(context).brightness == Brightness.light
+      ? AppColors.light
+      : AppColors.dark;
+  return [
     NavigationRailDestination(
-      icon: HugeIcon(icon: HugeIcons.strokeRoundedHome01, color: Colors.white),
-      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedHome01, color: Colors.white),
+      icon: HugeIcon(
+        icon: HugeIcons.strokeRoundedHome01,
+        color: colors.textStrong,
+      ),
+      selectedIcon: HugeIcon(
+        icon: HugeIcons.strokeRoundedHome01,
+        color: colors.textStrong,
+      ),
       label: Text('Home'),
     ),
     NavigationRailDestination(
-      icon: HugeIcon(icon: HugeIcons.strokeRoundedFilm01, color: Colors.white),
-      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedFilm01, color: Colors.white),
+      icon: HugeIcon(
+        icon: HugeIcons.strokeRoundedFilm01,
+        color: colors.textStrong,
+      ),
+      selectedIcon: HugeIcon(
+        icon: HugeIcons.strokeRoundedFilm01,
+        color: colors.textStrong,
+      ),
       label: Text('Movies'),
     ),
     NavigationRailDestination(
-      icon: HugeIcon(icon: HugeIcons.strokeRoundedTv01, color: Colors.white),
-      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedTv01, color: Colors.white),
+      icon: HugeIcon(
+        icon: HugeIcons.strokeRoundedTv01,
+        color: colors.textStrong,
+      ),
+      selectedIcon: HugeIcon(
+        icon: HugeIcons.strokeRoundedTv01,
+        color: colors.textStrong,
+      ),
       label: Text('TV'),
     ),
     NavigationRailDestination(
-      icon: HugeIcon(icon: HugeIcons.strokeRoundedSparkles, color: Colors.white),
-      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedSparkles, color: Colors.white),
+      icon: HugeIcon(
+        icon: HugeIcons.strokeRoundedSparkles,
+        color: colors.textStrong,
+      ),
+      selectedIcon: HugeIcon(
+        icon: HugeIcons.strokeRoundedSparkles,
+        color: colors.textStrong,
+      ),
       label: Text('Anime'),
     ),
     NavigationRailDestination(
-      icon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, color: Colors.white),
-      selectedIcon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, color: Colors.white),
+      icon: HugeIcon(
+        icon: HugeIcons.strokeRoundedSearch01,
+        color: colors.textStrong,
+      ),
+      selectedIcon: HugeIcon(
+        icon: HugeIcons.strokeRoundedSearch01,
+        color: colors.textStrong,
+      ),
       label: Text('Search'),
     ),
   ];

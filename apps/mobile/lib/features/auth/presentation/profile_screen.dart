@@ -10,6 +10,7 @@ import '../../../core/router/app_back_button.dart';
 
 import '../../../core/anilist/anilist_config.dart';
 import '../../../core/anilist/anilist_deep_link_service.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../content/anime/data/anime_api.dart';
 import '../application/auth_controller.dart';
@@ -98,8 +99,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final theme = Theme.of(context);
+    final colors = theme.brightness == Brightness.light
+        ? AppColors.light
+        : AppColors.dark;
     final name = authState.user?.name ?? 'User';
     final email = authState.user?.email ?? '';
+    final isLight = theme.brightness == Brightness.light;
 
     return Scaffold(
       appBar: AppBar(
@@ -110,26 +115,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         children: [
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Column(
             children: [
               CircleAvatar(
-                radius: 48,
+                radius: 40,
                 backgroundColor: theme.colorScheme.primaryContainer,
                 child: Text(
                   name.isNotEmpty ? name[0].toUpperCase() : '?',
                   style: GoogleFonts.cinzel(
-                    fontSize: 36,
+                    fontSize: 30,
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 name,
                 style: GoogleFonts.cinzel(
-                  fontSize: 28,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
                 ),
@@ -167,13 +172,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(10),
-              borderRadius: BorderRadius.circular(20),
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,30 +188,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   'Appearance',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Theme(
-                  data: theme.copyWith(
-                    colorScheme: theme.colorScheme.copyWith(
-                      primary: Colors.white,
-                    ),
-                    segmentedButtonTheme: SegmentedButtonThemeData(
-                      style: SegmentedButton.styleFrom(
-                        foregroundColor: theme.colorScheme.onSurface.withAlpha(
-                          179,
-                        ),
-                        selectedForegroundColor: Colors.white,
-                        selectedBackgroundColor: theme.colorScheme.primary
-                            .withAlpha(60),
-                        backgroundColor: Colors.white.withAlpha(8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
                   child: SegmentedButton<ThemeMode>(
+                    showSelectedIcon: false,
                     segments: const [
                       ButtonSegment(
                         value: ThemeMode.light,
@@ -229,18 +219,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           .read(themeModeProvider.notifier)
                           .setThemeMode(selected.first);
                     },
+                    style: SegmentedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: colors.text,
+                      selectedForegroundColor: Colors.white,
+                      selectedBackgroundColor: theme.colorScheme.primary,
+                      backgroundColor: Colors.transparent,
+                      side: BorderSide(color: colors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(10),
-              borderRadius: BorderRadius.circular(20),
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,9 +251,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   'AniList Sync',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 if (_loadingStatus)
                   const SizedBox(
                     height: 24,
@@ -278,14 +281,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             Icon(
                               Icons.check_circle,
                               size: 16,
-                              color: Colors.green.shade300,
+                              color: isLight
+                                  ? Colors.green.shade800
+                                  : Colors.green.shade300,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               'Linked as AniList user #$_anilistUserId',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.green.shade300,
+                                color: isLight
+                                    ? Colors.green.shade800
+                                    : Colors.green.shade300,
                               ),
                             ),
                           ],
@@ -340,29 +347,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 48,
             child: OutlinedButton(
               onPressed: () async {
                 await ref.read(authControllerProvider.notifier).logout();
                 if (context.mounted) context.go('/login');
               },
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red.shade300,
-                side: BorderSide(color: Colors.red.withAlpha(80)),
+                foregroundColor: isLight
+                    ? Colors.red.shade700
+                    : Colors.red.shade300,
+                side: BorderSide(
+                  color: (isLight ? Colors.red.shade700 : Colors.red.shade300)
+                      .withAlpha(120),
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: const Text(
                 'Logout',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
         ],
       ),
     );

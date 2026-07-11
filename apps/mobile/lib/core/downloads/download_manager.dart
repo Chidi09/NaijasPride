@@ -28,14 +28,14 @@ class LocalDownloadRecord {
   });
 
   Map<String, dynamic> toJson() => {
-        'movieId': movieId,
-        'title': title,
-        'posterUrl': posterUrl,
-        'quality': quality,
-        'localFilePath': localFilePath,
-        'status': status.name,
-        'progress': progress,
-      };
+    'movieId': movieId,
+    'title': title,
+    'posterUrl': posterUrl,
+    'quality': quality,
+    'localFilePath': localFilePath,
+    'status': status.name,
+    'progress': progress,
+  };
 
   factory LocalDownloadRecord.fromJson(Map<String, dynamic> json) {
     return LocalDownloadRecord(
@@ -79,35 +79,47 @@ class DownloadManager {
 
   StreamSubscription<TaskUpdate>? _subscription;
   final Map<String, void Function(double)?> _progressCallbacks = {};
+  Future<void> _updateChain = Future.value();
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
-  void _initUpdatesListener() {
-    _subscription = FileDownloader().updates.listen((update) async {
-      final taskId = update.task.taskId;
-      if (update is TaskStatusUpdate) {
-        if (update.status == TaskStatus.complete) {
-          final record = await getRecord(taskId);
-          if (record != null) {
-            await _writeRecord(
-                record.copyWith(status: DownloadStatus.completed, progress: 1.0));
-          }
-        } else if (update.status == TaskStatus.failed ||
-            update.status == TaskStatus.canceled) {
-          final record = await getRecord(taskId);
-          if (record != null) {
-            await _writeRecord(record.copyWith(status: DownloadStatus.failed));
-          }
-        }
-        _progressCallbacks.remove(taskId);
-      } else if (update is TaskProgressUpdate) {
-        _progressCallbacks[taskId]?.call(update.progress);
+  Future<void> _handleUpdate(TaskUpdate update) async {
+    final taskId = update.task.taskId;
+    if (update is TaskStatusUpdate) {
+      if (update.status == TaskStatus.complete) {
         final record = await getRecord(taskId);
         if (record != null) {
-          await _writeRecord(record.copyWith(
-              status: DownloadStatus.downloading, progress: update.progress));
+          await _writeRecord(
+            record.copyWith(status: DownloadStatus.completed, progress: 1.0),
+          );
+        }
+      } else if (update.status == TaskStatus.failed ||
+          update.status == TaskStatus.canceled) {
+        final record = await getRecord(taskId);
+        if (record != null) {
+          await _writeRecord(record.copyWith(status: DownloadStatus.failed));
         }
       }
+      _progressCallbacks.remove(taskId);
+    } else if (update is TaskProgressUpdate) {
+      _progressCallbacks[taskId]?.call(update.progress);
+      final record = await getRecord(taskId);
+      if (record != null) {
+        await _writeRecord(
+          record.copyWith(
+            status: DownloadStatus.downloading,
+            progress: update.progress,
+          ),
+        );
+      }
+    }
+  }
+
+  void _initUpdatesListener() {
+    _subscription = FileDownloader().updates.listen((update) {
+      _updateChain = _updateChain
+          .then((_) => _handleUpdate(update))
+          .catchError((_) {});
     });
   }
 
@@ -135,7 +147,9 @@ class DownloadManager {
   Future<void> _writeRecord(LocalDownloadRecord record) async {
     final prefs = await _prefs;
     await prefs.setString(
-        'offline_movie:${record.movieId}', jsonEncode(record.toJson()));
+      'offline_movie:${record.movieId}',
+      jsonEncode(record.toJson()),
+    );
     await _addMovieId(record.movieId);
   }
 
@@ -144,15 +158,20 @@ class DownloadManager {
     final raw = prefs.getString('offline_movie:$movieId');
     if (raw == null) return null;
     return LocalDownloadRecord.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>);
+      jsonDecode(raw) as Map<String, dynamic>,
+    );
   }
 
   Future<List<LocalDownloadRecord>> listDownloads() async {
     final ids = await _movieIds();
     final records = <LocalDownloadRecord>[];
     for (final id in ids) {
-      final record = await getRecord(id);
-      if (record != null) records.add(record);
+      try {
+        final record = await getRecord(id);
+        if (record != null) records.add(record);
+      } catch (_) {
+        continue;
+      }
     }
     return records;
   }
@@ -168,14 +187,16 @@ class DownloadManager {
     final dir = await getApplicationDocumentsDirectory();
     final fileName = '$movieId.mp4';
 
-    await _writeRecord(LocalDownloadRecord(
-      movieId: movieId,
-      title: title,
-      posterUrl: posterUrl,
-      quality: quality,
-      localFilePath: '${dir.path}/$fileName',
-      status: DownloadStatus.queued,
-    ));
+    await _writeRecord(
+      LocalDownloadRecord(
+        movieId: movieId,
+        title: title,
+        posterUrl: posterUrl,
+        quality: quality,
+        localFilePath: '${dir.path}/$fileName',
+        status: DownloadStatus.queued,
+      ),
+    );
 
     _progressCallbacks[movieId] = onProgress;
 

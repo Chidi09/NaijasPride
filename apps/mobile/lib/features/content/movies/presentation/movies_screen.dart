@@ -8,6 +8,7 @@ import '../../../../core/build_flavor.dart';
 import '../../../ads/data/ads_api.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
+import '../../shared/application/watch_progress_lookup.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
 import '../data/movie_models.dart';
@@ -136,6 +137,7 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
     final theme = Theme.of(context);
     final availableWidth = MediaQuery.of(context).size.width - 32;
     final itemWidth = (availableWidth - 8 * 2) / 3;
+    final progressLookup = ref.watch(watchProgressLookupProvider).asData?.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -172,16 +174,22 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
           ),
         ),
       ),
-      body: _buildBody(itemWidth, theme),
+      body: _buildBody(itemWidth, theme, progressLookup),
     );
   }
 
-  Widget _buildBody(double itemWidth, ThemeData theme) {
+  Widget _buildBody(
+    double itemWidth,
+    ThemeData theme,
+    WatchProgressLookup? progressLookup,
+  ) {
     if (_loading && _movies.isEmpty) {
       return Column(
         children: [
           _buildTypeToggle(),
-          const Expanded(child: ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.53)),
+          const Expanded(
+            child: ShimmerPosterGrid(crossAxisCount: 3, childAspectRatio: 0.53),
+          ),
         ],
       );
     }
@@ -237,6 +245,10 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
                 heroTag: 'movie-poster-${movie.id}',
                 title: movie.title,
                 onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
+                progressFraction: progressLookup?.movie(movie.id, movie.slug),
+                ratingLabel: movie.rating != null && movie.rating! > 0
+                    ? movie.rating!.toStringAsFixed(1)
+                    : null,
               );
             },
           ),

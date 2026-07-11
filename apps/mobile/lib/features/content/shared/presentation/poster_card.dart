@@ -18,6 +18,10 @@ class PosterCard extends StatefulWidget {
   final double? progressFraction;
   final Object? heroTag;
 
+  /// Optional rating badge like "8.5" rendered as a small star pill at
+  /// top-right of the poster image.
+  final String? ratingLabel;
+
   const PosterCard({
     super.key,
     required this.imageUrl,
@@ -27,6 +31,7 @@ class PosterCard extends StatefulWidget {
     this.isRectangular = false,
     this.progressFraction,
     this.heroTag,
+    this.ratingLabel,
   });
 
   @override
@@ -57,10 +62,9 @@ class _PosterCardState extends State<PosterCard> {
               boxShadow: _isFocused
                   ? [
                       BoxShadow(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withAlpha(120),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withAlpha(120),
                         blurRadius: 12,
                         spreadRadius: 2,
                       ),
@@ -88,8 +92,44 @@ class _PosterCardState extends State<PosterCard> {
                             right: 0,
                             bottom: 0,
                             child: _ProgressBar(
-                              fraction: widget.progressFraction!
-                                  .clamp(0.0, 1.0),
+                              fraction: widget.progressFraction!.clamp(
+                                0.0,
+                                1.0,
+                              ),
+                            ),
+                          ),
+                        if (widget.ratingLabel != null)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withAlpha(140),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.star_rounded,
+                                    size: 12,
+                                    color: Color(0xFFD6B87A),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    widget.ratingLabel!,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                       ],

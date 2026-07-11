@@ -68,6 +68,8 @@ class _ContentCarouselState extends State<ContentCarousel> {
           child: Text(
             widget.title,
             style: Theme.of(context).textTheme.titleLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         SizedBox(
@@ -95,7 +97,8 @@ class _ContentCarouselState extends State<ContentCarousel> {
                   }
                   final viewportWidth =
                       _scrollController.position.viewportDimension;
-                  final cardCenter = _paddingStart +
+                  final cardCenter =
+                      _paddingStart +
                       index * _itemExtent +
                       _cardWidth / 2 -
                       _scrollController.offset;
@@ -110,9 +113,8 @@ class _ContentCarouselState extends State<ContentCarousel> {
                     scale = 1.0;
                     opacity = 1.0;
                   } else {
-                    final falloffT =
-                        ((t - falloffStart) / (1 - falloffStart))
-                            .clamp(0.0, 1.0);
+                    final falloffT = ((t - falloffStart) / (1 - falloffStart))
+                        .clamp(0.0, 1.0);
                     scale = 1.0 - falloffT * 0.08;
                     opacity = 1.0 - falloffT * 0.4;
                   }
@@ -169,9 +171,10 @@ class _SnapScrollPhysics extends ScrollPhysics {
 
     final relativeOffset = target - paddingStart;
     final snappedIndex = (relativeOffset / itemExtent).round();
-    final snapped =
-        (paddingStart + snappedIndex * itemExtent)
-            .clamp(position.minScrollExtent, position.maxScrollExtent);
+    final snapped = (paddingStart + snappedIndex * itemExtent).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
 
     final tol = toleranceFor(position);
     if ((snapped - position.pixels).abs() < tol.distance) return null;

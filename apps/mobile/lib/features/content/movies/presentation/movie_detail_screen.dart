@@ -213,6 +213,10 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
                               backgroundImage: castMember.photoUrl != null
                                   ? NetworkImage(castMember.photoUrl!)
                                   : null,
+                              onBackgroundImageError:
+                                  castMember.photoUrl != null
+                                  ? (_, _) {}
+                                  : null,
                               child: castMember.photoUrl == null
                                   ? const Icon(Icons.person)
                                   : null,
@@ -228,7 +232,9 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
                               Text(
                                 castMember.character!,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withAlpha(153),
+                                  color: theme.colorScheme.onSurface.withAlpha(
+                                    153,
+                                  ),
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -323,7 +329,9 @@ class _MovieActionButtons extends ConsumerWidget {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Marked as ${watchStatusLabel(selected)}'),
+                        content: Text(
+                          'Marked as ${watchStatusLabel(selected)}',
+                        ),
                       ),
                     );
                   }
@@ -332,16 +340,22 @@ class _MovieActionButtons extends ConsumerWidget {
               const SizedBox(width: 8),
               if (hasResume)
                 PressableScale(
-                  pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                  pressedColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withAlpha(40),
                   child: ElevatedButton.icon(
                     onPressed: () => onPlay(true),
                     icon: const Icon(Icons.play_arrow),
-                    label: Text('Resume · ${_formatDuration(savedProgress!.progress)}'),
+                    label: Text(
+                      'Resume · ${_formatDuration(savedProgress!.progress)}',
+                    ),
                   ),
                 )
               else
                 PressableScale(
-                  pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                  pressedColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withAlpha(40),
                   child: ElevatedButton.icon(
                     onPressed: () => onPlay(true),
                     icon: const Icon(Icons.play_arrow),
@@ -365,7 +379,9 @@ class _MovieActionButtons extends ConsumerWidget {
                     (v) => v.toLowerCase().contains('.mp4'),
                   ))
                 PressableScale(
-                  pressedColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+                  pressedColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withAlpha(40),
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       final mp4Entry = movie.fileUrls.entries.firstWhere(
@@ -378,11 +394,9 @@ class _MovieActionButtons extends ConsumerWidget {
                         quality: mp4Entry.key,
                         fileUrl: mp4Entry.value,
                       );
-                      ref.read(moviesApiProvider).saveOffline(
-                        movie.id,
-                        mp4Entry.key,
-                        null,
-                      );
+                      ref
+                          .read(moviesApiProvider)
+                          .saveOffline(movie.id, mp4Entry.key, null);
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Download started')),

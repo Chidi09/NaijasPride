@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -156,7 +157,7 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
         source: _playKickJs,
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
         forMainFrameOnly: false,
-      )
+      ),
     ]),
     initialSettings: InAppWebViewSettings(
       javaScriptEnabled: true,
@@ -238,10 +239,15 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
     },
   );
 
-  await headlessWebView.run();
-  timeoutTimer = Timer(timeout, finish);
-
-  final result = await completer.future;
-  await headlessWebView.dispose();
-  return result;
+  try {
+    await headlessWebView.run();
+    timeoutTimer = Timer(timeout, finish);
+    return await completer.future;
+  } catch (_) {
+    return null;
+  } finally {
+    settleTimer?.cancel();
+    timeoutTimer?.cancel();
+    await headlessWebView.dispose();
+  }
 }
