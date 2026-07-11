@@ -367,7 +367,7 @@ interface ArchiveSection {
                     Install / See Steps
                   </button>
                   <a
-                    href="https://media.naijaspride.com/downloads/naijaspride-android-v2.apk"
+                    href="https://media.naijaspride.com/downloads/naijaspride-android-latest.apk?v=20260711"
                     download
                     class="w-full py-2 text-center bg-[#8a1c1c] text-white text-[10px] tracking-[0.18em] uppercase hover:bg-[#6f1616] transition-colors"
                   >
