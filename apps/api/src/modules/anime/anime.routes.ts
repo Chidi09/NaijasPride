@@ -1631,7 +1631,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               episodeNumber,
               type || "sub",
               id,
-              format === "MOVIE",
             );
             if (embedResult.sources.length > 0) {
               pushResolutionEvent(resolutionTrace, {
@@ -1951,7 +1950,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                 episodeNumber,
                 type || "sub",
                 id,
-                format === "MOVIE",
               );
               if (embedResult.sources.length > 0) {
                 pushResolutionEvent(resolutionTrace, {

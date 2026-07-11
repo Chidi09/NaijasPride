@@ -294,16 +294,13 @@ export async function getEmbedSources(
   episode: number,
   type: "sub" | "dub" = "sub",
   anilistId?: number,
-  isMovie?: boolean,
 ): Promise<{ sources: ProviderSource[]; tmdbId: number | null }> {
   let tmdbId: number | null = null;
   let resolvedSeason = season;
 
   const videasySource: ProviderSource | null = anilistId
     ? {
-        url: isMovie
-          ? `https://player.videasy.net/anime/${anilistId}?color=800020`
-          : `https://player.videasy.net/anime/${anilistId}/${episode}?color=800020&nextEpisode=true&episodeSelector=true`,
+        url: `https://player.videasy.net/anime/${anilistId}/${episode}?color=800020&nextEpisode=true&episodeSelector=true`,
         quality: "Videasy",
         isM3U8: false,
         isEmbed: true,
