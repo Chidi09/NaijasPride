@@ -40,6 +40,13 @@ type TvProviderTemplate = {
 /** Providers ordered by reliability / quality (best first). */
 const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
   {
+    id: "videasy",
+    name: "Videasy",
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) =>
+      tmdbId ? `https://player.videasy.net/movie/${tmdbId}?color=800020` : null,
+  },
+  {
     id: "vidking",
     name: "Vidking",
     supportsProgressEvents: true,
@@ -105,6 +112,15 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
 ];
 
 const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
+  {
+    id: "videasy",
+    name: "Videasy",
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId, season, episode) =>
+      tmdbId
+        ? `https://player.videasy.net/tv/${tmdbId}/${season}/${episode}?color=800020&nextEpisode=true&episodeSelector=true`
+        : null,
+  },
   {
     id: "vidking",
     name: "Vidking",

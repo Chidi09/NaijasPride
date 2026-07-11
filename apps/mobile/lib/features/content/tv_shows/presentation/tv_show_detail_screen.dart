@@ -5,6 +5,7 @@ import '../data/tv_shows_api.dart';
 import '../data/tv_show_models.dart';
 import '../../../../core/player/embed_playback_resolver.dart';
 import '../../../../core/player/embed_webview_screen.dart';
+import '../../../../core/player/videasy_player_screen.dart';
 import '../../../../core/player/playback_source.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
 import '../../../../core/player/watch_progress_api.dart';
@@ -74,6 +75,21 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
             MaterialPageRoute(
               builder: (_) => UnifiedVideoPlayerScreen(
                 source: source,
+                title: episode.title,
+                progressTarget: TvProgressTarget(
+                  showId: show.id,
+                  episodeId: episode.id,
+                  seasonNumber: _selectedSeason,
+                  episodeNumber: episode.episodeNumber,
+                ),
+              ),
+            ),
+          );
+        case EmbedVideasyFallback(:final url):
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => VideasyPlayerScreen(
+                videasyUrl: url,
                 title: episode.title,
                 progressTarget: TvProgressTarget(
                   showId: show.id,

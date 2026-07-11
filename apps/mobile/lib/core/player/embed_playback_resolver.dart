@@ -16,6 +16,11 @@ class EmbedWebViewFallback extends EmbedResolutionResult {
   EmbedWebViewFallback(this.url);
 }
 
+class EmbedVideasyFallback extends EmbedResolutionResult {
+  final String url;
+  EmbedVideasyFallback(this.url);
+}
+
 class EmbedResolutionFailed extends EmbedResolutionResult {
   final String reason;
   EmbedResolutionFailed(this.reason);
@@ -33,6 +38,10 @@ Future<EmbedResolutionResult> resolveTvEpisodePlayback({
   }
 
   final firstUrl = providers.first.url;
+  if (firstUrl.contains('videasy.net')) {
+    return EmbedVideasyFallback(firstUrl);
+  }
+
   final clientFuture = extractStreamFromEmbed(
     firstUrl,
     timeout: const Duration(seconds: 8),
@@ -128,6 +137,10 @@ Future<EmbedResolutionResult> resolveEmbedOnlyPlayback({
   }
 
   final firstUrl = providerUrls.first;
+  if (firstUrl.contains('videasy.net')) {
+    return EmbedVideasyFallback(firstUrl);
+  }
+
   final clientFuture = extractStreamFromEmbed(
     firstUrl,
     timeout: const Duration(seconds: 8),

@@ -207,20 +207,20 @@ export class AnimeDetailComponent {
   displayEpisodes = computed(() => {
     const fromBridge = this.episodes();
     if (fromBridge.length > 0) return fromBridge;
-    
+
     let total = Math.max(0, Number(this.anime()?.episodes || 0));
-    
+
     if (!total) {
-      const nextAiring = this.anime()?.['nextAiringEpisode'] as any;
+      const nextAiring = this.anime()?.["nextAiringEpisode"] as any;
       if (nextAiring && nextAiring.episode) {
         total = Math.max(0, Number(nextAiring.episode) - 1);
-      } else if (this.anime()?.status !== 'NOT_YET_RELEASED') {
+      } else if (this.anime()?.status !== "NOT_YET_RELEASED") {
         total = 1; // At least show Episode 1 if it has started airing
       }
     }
-    
+
     if (!total) return [];
-    
+
     return Array.from({ length: total }, (_, index) => ({
       id: `meta-${index + 1}`,
       number: index + 1,

@@ -674,18 +674,45 @@ class _UnifiedVideoPlayerScreenState
 
   Widget _buildSkipButton({
     required String label,
+    required IconData icon,
     required VoidCallback onTap,
   }) {
     return Positioned(
-      bottom: 16,
-      left: 16,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black54,
-          foregroundColor: Colors.white,
+      bottom: 88,
+      right: 16,
+      child: AnimatedOpacity(
+        opacity: 1.0,
+        duration: const Duration(milliseconds: 200),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(160),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withAlpha(60)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(icon, color: Colors.white, size: 18),
+                ],
+              ),
+            ),
+          ),
         ),
-        child: Text(label),
       ),
     );
   }
@@ -932,6 +959,7 @@ class _UnifiedVideoPlayerScreenState
         if (_showSkipIntro)
           _buildSkipButton(
             label: 'Skip Intro',
+            icon: Icons.fast_forward_rounded,
             onTap: () {
               _player?.seek(Duration(seconds: widget.skipTimes!.op!.end));
               setState(() => _showSkipIntro = false);
@@ -940,6 +968,7 @@ class _UnifiedVideoPlayerScreenState
         if (_showSkipOutro)
           _buildSkipButton(
             label: 'Skip Outro',
+            icon: Icons.fast_forward_rounded,
             onTap: () {
               _player?.seek(Duration(seconds: widget.skipTimes!.ed!.end));
               setState(() => _showSkipOutro = false);

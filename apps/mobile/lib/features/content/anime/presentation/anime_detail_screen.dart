@@ -17,6 +17,7 @@ import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/pressable_scale.dart';
 import '../../shared/presentation/status_picker.dart';
 import '../../shared/presentation/stream_preparing_overlay.dart';
+import '../../../../core/player/videasy_player_screen.dart';
 import '../../../../core/player/embed_webview_screen.dart';
 
 final animeDetailProvider = FutureProvider.family<AnimeDetail, int>((ref, id) {
@@ -136,6 +137,21 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
         switch (embedResult) {
           case ResolvedDirectSource(:final source):
             pushPlayer(source, skipTimes: skipTimes);
+          case EmbedVideasyFallback(:final url):
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => VideasyPlayerScreen(
+                  videasyUrl: url,
+                  title: episode.title ?? 'Episode ${episode.number}',
+                  progressTarget: AnimeProgressTarget(
+                    anilistId: widget.id,
+                    episodeNumber: episode.number,
+                    title: episode.title ?? 'Episode ${episode.number}',
+                    imageUrl: episode.image,
+                  ),
+                ),
+              ),
+            );
           case EmbedWebViewFallback():
             Navigator.of(context).push(
               MaterialPageRoute(

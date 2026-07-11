@@ -1,8 +1,17 @@
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'embed_stream_extractor.dart'
-    show desktopUserAgent, embedOrigin, wrapperHtmlFor;
+    show
+        desktopUserAgent,
+        embedOrigin,
+        wrapperHtmlFor,
+        mediaSnifferJs,
+        isLikelyMediaStreamUrl;
+import 'playback_source.dart';
+import 'unified_video_player_screen.dart';
 
 class EmbedSource {
   final String url;
@@ -29,6 +38,7 @@ class EmbedWebViewScreen extends StatefulWidget {
 class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
   late int _currentIndex;
   InAppWebViewController? _webViewController;
+  String? _detectedStream;
 
   @override
   void initState() {
@@ -45,7 +55,12 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
       return Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(title: Text(widget.title)),
-        body: const Center(child: Text('No sources available', style: TextStyle(color: Colors.white))),
+        body: const Center(
+          child: Text(
+            'No sources available',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
       );
     }
 
@@ -63,7 +78,10 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
               tooltip: 'Change Server',
               onSelected: (index) {
                 if (index != _currentIndex) {
-                  setState(() => _currentIndex = index);
+                  setState(() {
+                    _currentIndex = index;
+                    _detectedStream = null;
+                  });
                   _webViewController?.loadData(
                     data: wrapperHtmlFor(widget.sources[index].url),
                     baseUrl: WebUri(embedOrigin),
@@ -87,6 +105,29 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
             ),
         ],
       ),
+      floatingActionButton: _detectedStream != null
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UnifiedVideoPlayerScreen(
+                      source: DirectPlaybackSource(
+                        _detectedStream!,
+                        headers: {
+                          'Referer': widget.sources[_currentIndex].url,
+                          'User-Agent': desktopUserAgent,
+                        },
+                      ),
+                      title: widget.title,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Play in app'),
+            )
+          : null,
       body: Column(
         children: [
           Container(
@@ -104,8 +145,26 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
                 data: wrapperHtmlFor(currentSource.url),
                 baseUrl: WebUri(embedOrigin),
               ),
+              initialUserScripts: UnmodifiableListView<UserScript>([
+                UserScript(
+                  source: mediaSnifferJs,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                  forMainFrameOnly: false,
+                ),
+              ]),
               onWebViewCreated: (controller) {
                 _webViewController = controller;
+                controller.addJavaScriptHandler(
+                  handlerName: 'nsMedia',
+                  callback: (args) {
+                    if (args.isNotEmpty && args.first is String) {
+                      final u = args.first as String;
+                      if (mounted && isLikelyMediaStreamUrl(u)) {
+                        setState(() => _detectedStream ??= u);
+                      }
+                    }
+                  },
+                );
               },
               initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,

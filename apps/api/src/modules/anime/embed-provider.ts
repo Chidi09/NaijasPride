@@ -294,9 +294,21 @@ export async function getEmbedSources(
   episode: number,
   type: "sub" | "dub" = "sub",
   anilistId?: number,
+  isMovie?: boolean,
 ): Promise<{ sources: ProviderSource[]; tmdbId: number | null }> {
   let tmdbId: number | null = null;
   let resolvedSeason = season;
+
+  const videasySource: ProviderSource | null = anilistId
+    ? {
+        url: isMovie
+          ? `https://player.videasy.net/anime/${anilistId}?color=800020`
+          : `https://player.videasy.net/anime/${anilistId}/${episode}?color=800020&nextEpisode=true&episodeSelector=true`,
+        quality: "Videasy",
+        isM3U8: false,
+        isEmbed: true,
+      }
+    : null;
 
   if (anilistId) {
     // Use the full resolution chain (AniList → TMDB with season detection)
@@ -325,16 +337,19 @@ export async function getEmbedSources(
   }
 
   if (!tmdbId) {
-    return { sources: [], tmdbId: null };
+    return { sources: videasySource ? [videasySource] : [], tmdbId: null };
   }
 
   // Build all embed URLs using the resolved season
-  const sources: ProviderSource[] = EMBED_SOURCES.map((def) => ({
-    url: def.buildUrl(tmdbId!, resolvedSeason, episode, type),
-    quality: type === "dub" ? `${def.name} (Dub)` : def.name,
-    isM3U8: false,
-    isEmbed: true,
-  }));
+  const sources: ProviderSource[] = [
+    ...(videasySource ? [videasySource] : []),
+    ...EMBED_SOURCES.map((def) => ({
+      url: def.buildUrl(tmdbId!, resolvedSeason, episode, type),
+      quality: type === "dub" ? `${def.name} (Dub)` : def.name,
+      isM3U8: false,
+      isEmbed: true,
+    })),
+  ];
 
   console.log(
     `[EmbedProvider] Built ${sources.length} embed sources for TMDB ${tmdbId} S${resolvedSeason}E${episode} (${type})`,

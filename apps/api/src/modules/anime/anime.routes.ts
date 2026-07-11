@@ -151,6 +151,23 @@ const skipTimesCache = new Map<
   { payload: unknown; timestamp: number }
 >();
 
+const STREAMING_THUMBS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const streamingThumbsCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
+
+const ANIME_STREAMING_EPISODES_QUERY = `
+  query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+      streamingEpisodes {
+        title
+        thumbnail
+      }
+    }
+  }
+`;
+
 const readCachedPayload = (
   cache: Map<string, { payload: unknown; timestamp: number }>,
   key: string,
@@ -348,6 +365,7 @@ type AniListTitle = {
 type AniListMediaWithTitle = {
   title?: AniListTitle | null;
   synonyms?: string[] | null;
+  format?: string | null;
 };
 
 type BridgeInfoEpisode = {
@@ -898,13 +916,15 @@ const proxyReadableBody = (body: ReadableStream<Uint8Array>): PassThrough => {
   return stream;
 };
 
-const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
+const anilistTitlesForAnime = async (
+  id: number,
+): Promise<{ titles: string[]; format?: string }> => {
   const data = await anilistRequest<{ Media: AniListMediaWithTitle | null }>(
     ANIME_DETAIL_QUERY,
     { id },
   );
   const media = data.Media;
-  if (!media) return [];
+  if (!media) return { titles: [] };
 
   const values = [
     media.title?.english,
@@ -913,7 +933,7 @@ const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
     ...(media.synonyms || []),
   ];
 
-  return Array.from(
+  const titles = Array.from(
     new Set(
       values
         .filter((entry): entry is string => typeof entry === "string")
@@ -921,7 +941,50 @@ const anilistTitlesForAnime = async (id: number): Promise<string[]> => {
         .filter(Boolean),
     ),
   );
+  return { titles, format: media.format || undefined };
 };
+
+async function anilistEpisodeThumbnails(
+  anilistId: number,
+): Promise<Map<number, string>> {
+  const cacheKey = String(anilistId);
+  const cached = readCachedPayload(
+    streamingThumbsCache,
+    cacheKey,
+    STREAMING_THUMBS_CACHE_TTL_MS,
+  ) as Array<[number, string]> | null;
+  if (cached) return new Map(cached);
+
+  const result = new Map<number, string>();
+  try {
+    const data = await anilistRequest<{
+      Media: {
+        streamingEpisodes?: Array<{
+          title?: string | null;
+          thumbnail?: string | null;
+        }> | null;
+      } | null;
+    }>(ANIME_STREAMING_EPISODES_QUERY, { id: anilistId });
+    const entries = data.Media?.streamingEpisodes || [];
+    for (const entry of entries) {
+      if (!entry.thumbnail || !entry.title) continue;
+      const match = entry.title.match(/epis?ode\s*(\d+)/i);
+      const num = match ? Number(match[1]) : null;
+      if (num && !result.has(num)) {
+        result.set(num, entry.thumbnail);
+      }
+    }
+  } catch {
+    // best-effort — leave result empty on failure
+  }
+
+  writeCachedPayload(
+    streamingThumbsCache,
+    cacheKey,
+    Array.from(result.entries()),
+  );
+  return result;
+}
 
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -1204,7 +1267,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
 
         if (shouldTryAnimepahePrimary(provider)) {
           try {
-            const titles = await anilistTitlesForAnime(id);
+            const { titles } = await anilistTitlesForAnime(id);
             const animepahe = await resolveAnimepaheEpisodesByTitles(titles);
             if (animepahe && animepahe.episodes.length > 0) {
               pushResolutionEvent(resolutionTrace, {
@@ -1299,6 +1362,21 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
+        if (episodes.some((ep) => !ep.image)) {
+          try {
+            const thumbs = await anilistEpisodeThumbnails(Number(id));
+            if (thumbs.size > 0) {
+              episodes = episodes.map((ep) =>
+                !ep.image && thumbs.has(ep.number)
+                  ? { ...ep, image: thumbs.get(ep.number)! }
+                  : ep,
+              );
+            }
+          } catch {
+            // best-effort, ignore failures
+          }
+        }
+
         const bridgeAvailable = episodes.length > 0;
         if (!usedProvider) {
           usedProvider = bridgeAvailable
@@ -1364,10 +1442,21 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         };
         let anilistTitlesCache: string[] | null = null;
 
-        const getAnilistTitles = async (): Promise<string[]> => {
-          if (anilistTitlesCache) return anilistTitlesCache;
-          anilistTitlesCache = await anilistTitlesForAnime(id);
-          return anilistTitlesCache;
+        let anilistFormatCache: string | null = null;
+
+        const getAnilistTitles = async (): Promise<{
+          titles: string[];
+          format?: string;
+        }> => {
+          if (anilistTitlesCache)
+            return {
+              titles: anilistTitlesCache,
+              format: anilistFormatCache || undefined,
+            };
+          const data = await anilistTitlesForAnime(id);
+          anilistTitlesCache = data.titles;
+          anilistFormatCache = data.format || null;
+          return data;
         };
 
         // Try multi-provider system first (embed, gogoanime-by, etc.)
@@ -1377,7 +1466,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           provider === "aniwatch"
         ) {
           try {
-            const titles = await getAnilistTitles();
+            const { titles, format } = await getAnilistTitles();
             const result = await getSourcesMultiProvider(
               titles.slice(0, 4),
               episodeNumber,
@@ -1462,7 +1551,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
 
         if (shouldTryAnimepahePrimary(provider)) {
           try {
-            const titles = await getAnilistTitles();
+            const { titles, format } = await getAnilistTitles();
             const animepahe = await resolveAnimepaheWatchByTitles(
               titles,
               episodeNumber,
@@ -1535,13 +1624,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         // When explicitly requested OR as an additional fallback before bridge
         if (provider === "embed" && isEmbedProviderAvailable()) {
           try {
-            const titles = await getAnilistTitles();
+            const { titles, format } = await getAnilistTitles();
             const embedResult = await getEmbedSources(
               titles,
               1,
               episodeNumber,
               type || "sub",
               id,
+              format === "MOVIE",
             );
             if (embedResult.sources.length > 0) {
               pushResolutionEvent(resolutionTrace, {
@@ -1602,7 +1692,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         // ── GoGoAnime.by provider (FlareSolverr scraper) ──────────────────────
         if (provider === "gogoanime-by") {
           try {
-            const titles = await getAnilistTitles();
+            const { titles, format } = await getAnilistTitles();
             const gogoResult = await resolveGoGoAnimeByEpisode(
               titles[0] || String(id),
               episodeNumber,
@@ -1789,7 +1879,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
 
           if (fallback.sources.length === 0) {
             try {
-              const titles = await getAnilistTitles();
+              const { titles, format } = await getAnilistTitles();
               if (titles.length > 0) {
                 fallback = await hianimeEmbedFallbackByTitles(
                   titles,
@@ -1854,13 +1944,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           // Last-resort: embed provider (iframe fallback before giving up)
           if (provider !== "embed" && isEmbedProviderAvailable()) {
             try {
-              const titles = await getAnilistTitles();
+              const { titles, format } = await getAnilistTitles();
               const embedResult = await getEmbedSources(
                 titles,
                 1,
                 episodeNumber,
                 type || "sub",
                 id,
+                format === "MOVIE",
               );
               if (embedResult.sources.length > 0) {
                 pushResolutionEvent(resolutionTrace, {

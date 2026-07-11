@@ -42,7 +42,7 @@ String wrapperHtmlFor(String embedUrl) {
 }
 
 final RegExp _mediaUrlPattern = RegExp(
-  r'\.(m3u8|mp4)(\?|$|/)',
+  r'\.(m3u8|mpd|mp4|m4s)([?#/]|$)|/manifest\b|/master[./]|/playlist[./]|[?&](type|format)=(m3u8|hls|dash)|mime=video',
   caseSensitive: false,
 );
 
@@ -52,9 +52,21 @@ final RegExp _adAssetPattern = RegExp(
 );
 
 final RegExp _segmentPattern = RegExp(
-  r'seg-|segment|\.ts',
+  r'seg-|segment|\.ts(\?|$)|\.m4s(\?|$)',
   caseSensitive: false,
 );
+
+/// True if [url] looks like a real playable manifest/video rather than an
+/// ad asset or an individual HLS/DASH segment. Used to filter candidates
+/// reported by [mediaSnifferJs] before offering them for playback, since
+/// that JS only applies the loose [_mediaUrlPattern] regex on its own.
+bool isLikelyMediaStreamUrl(String url) {
+  if (_isBlockedHost(url)) return false;
+  final path = Uri.tryParse(url)?.path ?? url;
+  if (_adAssetPattern.hasMatch(path)) return false;
+  if (_segmentPattern.hasMatch(url)) return false;
+  return _mediaUrlPattern.hasMatch(url);
+}
 
 class _Candidate {
   final String url;
@@ -119,6 +131,58 @@ const String _playKickJs = r'''
 })();
 ''';
 
+const String mediaSnifferJs = r'''
+(function() {
+  if (window.__nsSniff) return;
+  window.__nsSniff = true;
+  var re = /\.(m3u8|mpd|mp4|m4s)([?#/]|$)|\/manifest\b|\/master[.\/]|\/playlist[.\/]|[?&](type|format)=(m3u8|hls|dash)|mime=video/i;
+  function report(u) {
+    try {
+      if (!u || typeof u !== 'string') return;
+      if (u.indexOf('blob:') === 0 || u.indexOf('data:') === 0) return;
+      if (u.indexOf('//') === 0) u = location.protocol + u;
+      if (u.indexOf('/') === 0) u = location.origin + u;
+      if (u.indexOf('http') !== 0) return;
+      if (!re.test(u)) return;
+      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+        window.flutter_inappwebview.callHandler('nsMedia', u);
+      }
+    } catch (e) {}
+  }
+  try {
+    var _f = window.fetch;
+    if (_f) window.fetch = function(a, b) {
+      try { var u = (typeof a === 'string') ? a : (a && a.url); report(u); } catch (e) {}
+      return _f.apply(this, arguments);
+    };
+  } catch (e) {}
+  try {
+    var _o = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(m, u) { try { report(u); } catch (e) {} return _o.apply(this, arguments); };
+  } catch (e) {}
+  function hookSrc(proto) {
+    try {
+      var d = Object.getOwnPropertyDescriptor(proto, 'src');
+      if (!d || !d.set) return;
+      Object.defineProperty(proto, 'src', {
+        get: d.get,
+        set: function(v) { try { report(v); } catch (e) {} return d.set.call(this, v); },
+        configurable: true
+      });
+    } catch (e) {}
+  }
+  try { hookSrc(HTMLMediaElement.prototype); } catch (e) {}
+  try { hookSrc(HTMLSourceElement.prototype); } catch (e) {}
+  setInterval(function() {
+    try {
+      document.querySelectorAll('video, source').forEach(function(el) {
+        report(el.currentSrc || el.src);
+      });
+    } catch (e) {}
+  }, 1000);
+})();
+''';
+
 Future<ExtractedEmbedStream?> extractStreamFromEmbed(
   String embedUrl, {
   Duration timeout = const Duration(seconds: 20),
@@ -147,6 +211,34 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
     }
   }
 
+  void considerCandidate(String url, Map<String, String> headers) {
+    if (settled) return;
+    final path = Uri.tryParse(url)?.path ?? url;
+    if (_adAssetPattern.hasMatch(path)) return;
+
+    int score = 0;
+    if (url.contains('.m3u8')) {
+      score += 100;
+    } else if (url.contains('.mp4')) {
+      score += 50;
+    }
+    if (url.contains('master')) score += 40;
+    if (url.contains('index') || url.contains('playlist')) score += 15;
+    if (url.startsWith('https')) score += 10;
+    if (_segmentPattern.hasMatch(url)) score -= 60;
+
+    if (score <= 0) return;
+
+    candidates.add(_Candidate(url: url, headers: headers, score: score));
+
+    if (settleTimer == null) {
+      final delay = score >= 140
+          ? const Duration(milliseconds: 400)
+          : const Duration(milliseconds: 2000);
+      settleTimer = Timer(delay, finish);
+    }
+  }
+
   headlessWebView = HeadlessInAppWebView(
     initialData: InAppWebViewInitialData(
       data: wrapperHtmlFor(embedUrl),
@@ -156,6 +248,11 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       UserScript(
         source: _playKickJs,
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+        forMainFrameOnly: false,
+      ),
+      UserScript(
+        source: mediaSnifferJs,
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         forMainFrameOnly: false,
       ),
     ]),
@@ -168,6 +265,23 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
       thirdPartyCookiesEnabled: true,
     ),
+    onWebViewCreated: (controller) async {
+      controller.addJavaScriptHandler(
+        handlerName: 'nsMedia',
+        callback: (args) {
+          if (settled) return;
+          if (args.isNotEmpty && args.first is String) {
+            final u = args.first as String;
+            if (_mediaUrlPattern.hasMatch(u) && !_isBlockedHost(u)) {
+              considerCandidate(u, {
+                'Referer': lastDocumentUrl,
+                'User-Agent': desktopUserAgent,
+              });
+            }
+          }
+        },
+      );
+    },
     shouldInterceptRequest: (controller, request) async {
       if (settled) return null;
       final url = request.url.toString();
@@ -185,12 +299,9 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
         }
       }
 
-      // Check media candidate
       if (!_mediaUrlPattern.hasMatch(url) || _isBlockedHost(url)) {
         return null;
       }
-      final path = Uri.tryParse(url)?.path ?? url;
-      if (_adAssetPattern.hasMatch(path)) return null;
 
       // Build headers from intercepted request
       final reqHeaders = request.headers ?? {};
@@ -208,30 +319,7 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       };
       if (origin != null) headers['Origin'] = origin;
 
-      // Score candidate
-      int score = 0;
-      if (url.contains('.m3u8')) {
-        score += 100;
-      } else if (url.contains('.mp4')) {
-        score += 50;
-      }
-      if (url.contains('master')) score += 40;
-      if (url.contains('index') || url.contains('playlist')) score += 15;
-      if (url.startsWith('https')) score += 10;
-      if (_segmentPattern.hasMatch(url)) score -= 60;
-
-      if (score <= 0) return null;
-
-      candidates.add(_Candidate(url: url, headers: headers, score: score));
-
-      // Start settle timer on first candidate only
-      if (settleTimer == null) {
-        final delay = score >= 140
-            ? const Duration(milliseconds: 400)
-            : const Duration(milliseconds: 2000);
-        settleTimer = Timer(delay, finish);
-      }
-
+      considerCandidate(url, headers);
       return null;
     },
     onLoadStop: (controller, url) async {

@@ -10,6 +10,7 @@ import '../../../../core/build_flavor.dart';
 import '../../../../core/downloads/download_manager.dart';
 import '../../../../core/player/embed_playback_resolver.dart';
 import '../../../../core/player/embed_webview_screen.dart';
+import '../../../../core/player/videasy_player_screen.dart';
 import '../../../../core/player/playback_resolver.dart';
 import '../../../../core/player/playback_source.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
@@ -110,6 +111,16 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
                 title: movie.title,
                 progressTarget: MovieProgressTarget(movie.id),
                 restoreProgress: restoreProgress,
+              ),
+            ),
+          );
+        case EmbedVideasyFallback(:final url):
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => VideasyPlayerScreen(
+                videasyUrl: url,
+                title: movie.title,
+                progressTarget: MovieProgressTarget(movie.id),
               ),
             ),
           );
