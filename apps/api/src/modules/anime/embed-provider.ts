@@ -267,13 +267,18 @@ const EMBED_SOURCES: EmbedDef[] = [
       `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1&ds_lang=en`,
   },
   {
+    // This entry was almost certainly never working: it fed the TMDB id
+    // resolved above into 2embed.cc/embedtv/, whose {id} is an IMDb id.
+    // The current endpoint takes either, and takes season/episode as path
+    // segments instead of the &s=&e= tail appended after a path.
+    name: "2Embed",
+    buildUrl: (id, s, e) =>
+      `https://www.2embed.online/embed/tv/${id}/${s}/${e}`,
+  },
+  {
     name: "VidSrc Mirror",
     buildUrl: (id, s, e) =>
       `https://vidsrc-embed.su/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1`,
-  },
-  {
-    name: "2Embed",
-    buildUrl: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
   },
   {
     name: "SmashyStream",

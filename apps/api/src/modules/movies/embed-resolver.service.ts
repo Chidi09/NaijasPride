@@ -51,6 +51,11 @@ type TvProviderTemplate = {
 //   VidSrc  https://vidsrc.tw/api/    — /embed/movie?tmdb=|imdb=,
 //           /embed/tv?tmdb=|imdb=&season=&episode=; params autoplay (1|0),
 //           autonext (1|0), ds_lang (ISO-639), sub_url, color.
+//   2Embed  https://www.2embed.online/ — /embed/movie/{id},
+//           /embed/tv/{id}/{s}/{e}, where {id} is a TMDB number or an IMDb
+//           tt-prefixed string. Supersedes the 2embed.cc URLs this used to
+//           build, which took an IMDb id only and carried season/episode as
+//           an "&s=&e=" tail appended after a path segment.
 // VidSrc's own docs list vidsrc-embed.su / vsrc.su as the current mirrors,
 // so one is carried as a separate server entry — when the primary host is
 // blocked or down the mirror usually is not.
@@ -74,6 +79,15 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
       if (imdbId)
         return `https://vidsrc.xyz/embed/movie?imdb=${imdbId}&autoplay=1&ds_lang=en`;
       return null;
+    },
+  },
+  {
+    id: "2embed",
+    name: "2Embed",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId) => {
+      const id = tmdbId ?? imdbId;
+      return id ? `https://www.2embed.online/embed/movie/${id}` : null;
     },
   },
   {
@@ -101,13 +115,6 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
         return `https://vidsrc-embed.su/embed/movie?imdb=${imdbId}&autoplay=1`;
       return null;
     },
-  },
-  {
-    id: "2embed",
-    name: "2Embed",
-    supportsProgressEvents: false,
-    buildUrl: (imdbId) =>
-      imdbId ? `https://www.2embed.cc/embed/${imdbId}` : null,
   },
   {
     id: "autoembed",
@@ -159,6 +166,17 @@ const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
     },
   },
   {
+    id: "2embed",
+    name: "2Embed",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId, season, episode) => {
+      const id = tmdbId ?? imdbId;
+      return id
+        ? `https://www.2embed.online/embed/tv/${id}/${season}/${episode}`
+        : null;
+    },
+  },
+  {
     id: "vidsrc-cc",
     name: "VidSrc Pro",
     supportsProgressEvents: true,
@@ -186,15 +204,6 @@ const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
         return `https://vidsrc-embed.su/embed/tv?imdb=${imdbId}${tail}`;
       return null;
     },
-  },
-  {
-    id: "2embed",
-    name: "2Embed",
-    supportsProgressEvents: false,
-    buildUrl: (imdbId, _tmdbId, season, episode) =>
-      imdbId
-        ? `https://www.2embed.cc/embedtv/${imdbId}&s=${season}&e=${episode}`
-        : null,
   },
   {
     id: "autoembed",
