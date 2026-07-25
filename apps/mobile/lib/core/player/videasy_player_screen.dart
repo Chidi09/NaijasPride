@@ -9,8 +9,12 @@ import 'embed_playback_resolver.dart' show EmbedServer;
 import 'embed_stream_extractor.dart'
     show
         adBlockerRules,
+        blockedAdResourceResponse,
         desktopUserAgent,
+        dynamicAdGuardJs,
         embedOrigin,
+        evaluateNavigationTarget,
+        isAdOrTrackerUrl,
         wrapperHtmlFor,
         mediaSnifferJs,
         isLikelyMediaStreamUrl;
@@ -185,6 +189,11 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
             ),
             initialUserScripts: UnmodifiableListView<UserScript>([
               UserScript(
+                source: dynamicAdGuardJs,
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                forMainFrameOnly: false,
+              ),
+              UserScript(
                 source: mediaSnifferJs,
                 injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
                 forMainFrameOnly: false,
@@ -205,8 +214,22 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
                 },
               );
             },
+            shouldOverrideUrlLoading: (controller, navigationAction) async {
+              // Videasy (and its ad partners) is the most aggressive of the
+              // embed providers about hijacking taps into ad/redirect pages
+              // while this WebView sits hidden behind the loading overlay —
+              // block anything that isn't the actual video page navigating
+              // itself.
+              final url = navigationAction.request.url?.toString();
+              if (url == null) return NavigationActionPolicy.ALLOW;
+              return evaluateNavigationTarget(url);
+            },
+            onCreateWindow: (controller, createWindowAction) async {
+              return false;
+            },
             shouldInterceptRequest: (controller, request) async {
               final url = request.url.toString();
+              if (isAdOrTrackerUrl(url)) return blockedAdResourceResponse();
               if (isLikelyMediaStreamUrl(url)) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _onMediaCandidate(url);

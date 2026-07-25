@@ -6,8 +6,12 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'embed_stream_extractor.dart'
     show
         adBlockerRules,
+        blockedAdResourceResponse,
         desktopUserAgent,
+        dynamicAdGuardJs,
         embedOrigin,
+        evaluateNavigationTarget,
+        isAdOrTrackerUrl,
         wrapperHtmlFor,
         mediaSnifferJs,
         isLikelyMediaStreamUrl;
@@ -148,6 +152,11 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
               ),
               initialUserScripts: UnmodifiableListView<UserScript>([
                 UserScript(
+                  source: dynamicAdGuardJs,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                  forMainFrameOnly: false,
+                ),
+                UserScript(
                   source: mediaSnifferJs,
                   injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
                   forMainFrameOnly: false,
@@ -167,8 +176,27 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
                   },
                 );
               },
+              shouldOverrideUrlLoading: (controller, navigationAction) async {
+                // Blocks the "tap anywhere hijacks the whole page to an ad/
+                // scam site" pattern that content blockers can't touch,
+                // since that's a navigation, not a blockable resource load.
+                final url = navigationAction.request.url?.toString();
+                if (url == null) return NavigationActionPolicy.ALLOW;
+                return evaluateNavigationTarget(url);
+              },
+              onCreateWindow: (controller, createWindowAction) async {
+                // This screen only ever needs to show the current embed —
+                // never let it spawn a popup/new tab.
+                return false;
+              },
+              shouldInterceptRequest: (controller, request) async {
+                final url = request.url.toString();
+                if (isAdOrTrackerUrl(url)) return blockedAdResourceResponse();
+                return null;
+              },
               initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,
+                useShouldInterceptRequest: true,
                 mediaPlaybackRequiresUserGesture: false,
                 userAgent: desktopUserAgent,
                 mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
