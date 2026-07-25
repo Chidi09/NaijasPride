@@ -17,6 +17,7 @@ import 'embed_stream_extractor.dart'
         isLikelyMediaStreamUrl;
 import 'playback_source.dart';
 import 'unified_video_player_screen.dart';
+import '../../features/content/anime/data/anime_models.dart';
 
 class EmbedSource {
   final String url;
@@ -28,12 +29,14 @@ class EmbedWebViewScreen extends StatefulWidget {
   final List<EmbedSource> sources;
   final int initialIndex;
   final String title;
+  final List<AnimeWatchSubtitle>? subtitles;
 
   const EmbedWebViewScreen({
     super.key,
     required this.sources,
     this.initialIndex = 0,
     required this.title,
+    this.subtitles,
   });
 
   @override
@@ -125,6 +128,7 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
                         },
                       ),
                       title: widget.title,
+                      subtitles: widget.subtitles,
                     ),
                   ),
                 );

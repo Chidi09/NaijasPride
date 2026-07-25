@@ -1,6 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/build_flavor.dart';
+import 'tv_focusable.dart';
+
 class EpisodeTile extends StatelessWidget {
   final String? thumbnailUrl;
   final int number;
@@ -26,32 +29,27 @@ class EpisodeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
+    final tile = ListTile(
       contentPadding: EdgeInsets.zero,
       leading: SizedBox(
         width: 80,
         height: 56,
         child: Stack(
+          fit: StackFit.expand,
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: CachedNetworkImage(
-                imageUrl: thumbnailUrl ?? '',
-                fit: BoxFit.cover,
-                memCacheWidth: 200,
-                errorWidget: (_, _, _) => Container(
-                  color: theme.colorScheme.surface,
-                  child: Center(
-                    child: Icon(
-                      Icons.movie_outlined,
-                      color: theme.colorScheme.onSurface.withAlpha(100),
+              child: (thumbnailUrl == null || thumbnailUrl!.isEmpty)
+                  ? _placeholder(theme)
+                  : CachedNetworkImage(
+                      imageUrl: thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 200,
+                      errorWidget: (_, _, _) => _placeholder(theme),
+                      placeholder: (_, _) => Container(
+                        color: theme.colorScheme.surface,
+                      ),
                     ),
-                  ),
-                ),
-                placeholder: (_, _) => Container(
-                  color: theme.colorScheme.surface,
-                ),
-              ),
             ),
             if (progressFraction != null &&
                 progressFraction! >= 0.05 &&
@@ -110,6 +108,19 @@ class EpisodeTile extends StatelessWidget {
           ? Text(subtitle!, style: theme.textTheme.bodySmall)
           : null,
       onTap: onTap,
+    );
+    return isTvBuild ? TvFocusable(child: tile) : tile;
+  }
+
+  Widget _placeholder(ThemeData theme) {
+    return Container(
+      color: theme.colorScheme.surface,
+      child: Center(
+        child: Icon(
+          Icons.movie_outlined,
+          color: theme.colorScheme.onSurface.withAlpha(100),
+        ),
+      ),
     );
   }
 }

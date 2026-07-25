@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../shared/application/content_rating.dart';
+import '../../shared/application/watch_progress_lookup.dart';
 import '../../shared/presentation/content_carousel.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../data/movie_models.dart';
@@ -18,8 +20,11 @@ import '../../../../core/player/watch_progress_api.dart';
 import '../../../../core/router/app_back_button.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/content_detail_scaffold.dart';
+import '../../shared/presentation/content_meta_row.dart';
+import '../../shared/presentation/detail_loading_skeleton.dart';
 import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/pressable_scale.dart';
+import '../../shared/presentation/quality_picker.dart';
 import '../../shared/presentation/status_picker.dart';
 import '../../shared/presentation/stream_preparing_overlay.dart';
 
@@ -57,10 +62,26 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
     final source = resolveMoviePlayback(movie);
 
     if (source is! UnresolvedPlaybackSource) {
+      var chosenSource = source;
+      final candidates = movieQualityCandidates(movie);
+      if (candidates.length > 1) {
+        if (!mounted) return;
+        final chosenUrl = await pickQualityOrDefault(
+          context,
+          candidates
+              .map((c) => QualityOption(label: c.label, url: c.url))
+              .toList(),
+        );
+        if (chosenUrl != null) {
+          chosenSource = DirectPlaybackSource(chosenUrl);
+        }
+      }
+
+      if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => UnifiedVideoPlayerScreen(
-            source: source,
+            source: chosenSource,
             title: movie.title,
             progressTarget: MovieProgressTarget(movie.id),
             restoreProgress: restoreProgress,
@@ -157,8 +178,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
     final movieAsync = ref.watch(movieDetailProvider(widget.slug));
 
     return movieAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: DetailLoadingSkeleton()),
       error: (error, _) => Scaffold(
         body: ErrorStateView(
           onRetry: () => ref.invalidate(movieDetailProvider(widget.slug)),
@@ -186,21 +206,18 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
-            metadataRow: Row(
-              children: [
-                Text('${movie.year}'),
-                if (movie.durationMinutes != null) ...[
-                  const SizedBox(width: 16),
-                  const Icon(Icons.access_time, size: 16),
-                  const SizedBox(width: 4),
-                  Text('${movie.durationMinutes} min'),
-                ],
-                if (movie.rating != null) ...[
-                  const SizedBox(width: 16),
-                  const Icon(Icons.star, size: 16, color: Colors.amber),
-                  const SizedBox(width: 4),
-                  Text(movie.rating!.toStringAsFixed(1)),
-                ],
+            metadataRow: ContentMetaRow(
+              ratingLabel: formatRating(
+                movie.imdbRating ?? movie.tmdbRating ?? movie.rating,
+              ),
+              items: [
+                '${movie.year}',
+                if (movie.durationMinutes != null)
+                  '${movie.durationMinutes} min',
+                if (movie.quality.isNotEmpty)
+                  movie.quality
+                      .reduce((a, b) => a.index > b.index ? a : b)
+                      .wireValue,
               ],
             ),
             genres: movie.genre.map((g) => g.wireValue).toList(),
@@ -277,7 +294,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
             sliverFooter: [
               SliverAppBar(
                 pinned: true,
-                leading: const AppBackButton(),
+                leading: const ScrimAppBackButton(),
                 automaticallyImplyLeading: false,
                 backgroundColor: Colors.transparent,
                 elevation: 0,
@@ -445,6 +462,7 @@ class _SimilarMoviesSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final similarAsync = ref.watch(similarMoviesProvider(slug));
+    final progressLookup = ref.watch(watchProgressLookupProvider).asData?.value;
 
     return similarAsync.when(
       loading: () => const Center(
@@ -459,6 +477,7 @@ class _SimilarMoviesSection extends ConsumerWidget {
         return ContentCarousel(
           title: 'Similar Movies',
           children: movies.map((m) {
+            final progress = progressLookup?.movie(m.id, m.slug);
             return PosterCard(
               imageUrl: m.youtubeId != null
                   ? (m.backdropUrl ??
@@ -470,6 +489,10 @@ class _SimilarMoviesSection extends ConsumerWidget {
               isRectangular: m.youtubeId != null,
               title: m.title,
               onTap: () => context.push('/movies/${m.slug ?? m.id}'),
+              progressFraction: progress?.fraction,
+              progressLabel: progress?.remainingLabel,
+              watched: progress?.watched ?? false,
+              ratingLabel: movieRatingLabel(m),
             );
           }).toList(),
         );

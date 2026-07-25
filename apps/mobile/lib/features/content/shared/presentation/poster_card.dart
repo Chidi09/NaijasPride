@@ -22,6 +22,14 @@ class PosterCard extends StatefulWidget {
   /// top-right of the poster image.
   final String? ratingLabel;
 
+  /// Optional remaining-time label like "23m left", shown just above the
+  /// progress bar. Ignored when [watched] is true.
+  final String? progressLabel;
+
+  /// True once the title has been finished, rendered as a check badge
+  /// instead of a progress bar/label.
+  final bool watched;
+
   const PosterCard({
     super.key,
     required this.imageUrl,
@@ -32,6 +40,8 @@ class PosterCard extends StatefulWidget {
     this.progressFraction,
     this.heroTag,
     this.ratingLabel,
+    this.progressLabel,
+    this.watched = false,
   });
 
   @override
@@ -86,6 +96,42 @@ class _PosterCardState extends State<PosterCard> {
                       fit: StackFit.expand,
                       children: [
                         _buildPosterImage(theme),
+                        if (widget.progressLabel != null && !widget.watched)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: widget.progressFraction != null ? 6 : 0,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withAlpha(160),
+                                  ],
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  6,
+                                  10,
+                                  6,
+                                  4,
+                                ),
+                                child: Text(
+                                  widget.progressLabel!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
                         if (widget.progressFraction != null)
                           Positioned(
                             left: 0,
@@ -95,6 +141,23 @@ class _PosterCardState extends State<PosterCard> {
                               fraction: widget.progressFraction!.clamp(
                                 0.0,
                                 1.0,
+                              ),
+                            ),
+                          ),
+                        if (widget.watched)
+                          Positioned(
+                            bottom: 6,
+                            right: 6,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withAlpha(140),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.check,
+                                size: 12,
+                                color: Colors.white,
                               ),
                             ),
                           ),

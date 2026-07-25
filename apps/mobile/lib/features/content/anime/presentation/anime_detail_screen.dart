@@ -11,10 +11,15 @@ import '../../../../core/player/watch_progress_api.dart';
 import '../../../../core/build_flavor.dart';
 import '../../../../core/router/app_back_button.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
+import '../../shared/application/content_rating.dart';
 import '../../shared/presentation/content_detail_scaffold.dart';
+import '../../shared/presentation/content_meta_row.dart';
+import '../../shared/presentation/detail_loading_skeleton.dart';
+import '../../shared/presentation/episode_list_controls.dart';
 import '../../shared/presentation/episode_tile.dart';
 import '../../shared/presentation/error_state_view.dart';
 import '../../shared/presentation/pressable_scale.dart';
+import '../../shared/presentation/quality_picker.dart';
 import '../../shared/presentation/status_picker.dart';
 import '../../shared/presentation/stream_preparing_overlay.dart';
 import '../../../../core/player/videasy_player_screen.dart';
@@ -152,6 +157,7 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
                   title: episode.title ?? 'Episode ${episode.number}',
                   skipTimes: skipTimes,
                   alternates: alternates,
+                  subtitles: fetchedSubtitles,
                   progressTarget: AnimeProgressTarget(
                     anilistId: widget.id,
                     episodeNumber: episode.number,
@@ -169,6 +175,7 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
                       .map((s) => EmbedSource(url: s.url, label: s.label))
                       .toList(),
                   title: episode.title ?? 'Episode ${episode.number}',
+                  subtitles: fetchedSubtitles,
                 ),
               ),
             );
@@ -182,7 +189,28 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
 
       if (!mounted) return;
       Navigator.of(context).pop();
-      pushPlayer(source, skipTimes: skipTimes);
+
+      var chosenSource = source;
+      final candidates = animeQualityCandidates(result.sources);
+      if (candidates.length > 1) {
+        if (!mounted) return;
+        final chosenUrl = await pickQualityOrDefault(
+          context,
+          candidates
+              .map((c) => QualityOption(label: c.label, url: c.url))
+              .toList(),
+        );
+        if (chosenUrl != null) {
+          final match = candidates.firstWhere((c) => c.url == chosenUrl);
+          chosenSource = DirectPlaybackSource(
+            chosenUrl,
+            headers: match.headers,
+          );
+        }
+      }
+
+      if (!mounted) return;
+      pushPlayer(chosenSource, skipTimes: skipTimes);
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -199,8 +227,7 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
     final episodesAsync = ref.watch(animeEpisodesProvider(widget.id));
 
     return detailAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: DetailLoadingSkeleton()),
       error: (error, _) => Scaffold(
         body: ErrorStateView(
           onRetry: () => ref.invalidate(animeDetailProvider(widget.id)),
@@ -236,21 +263,12 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
-            metadataRow: Row(
-              children: [
-                if (detail.seasonYear != null) Text('${detail.seasonYear}'),
-                if (detail.format != null) ...[
-                  const SizedBox(width: 16),
-                  Text(detail.format!),
-                ],
-                if (detail.episodes != null) ...[
-                  const SizedBox(width: 16),
-                  Text('${detail.episodes} eps'),
-                ],
-                if (detail.averageScore != null) ...[
-                  const SizedBox(width: 16),
-                  Text('${detail.averageScore}%'),
-                ],
+            metadataRow: ContentMetaRow(
+              ratingLabel: formatAniListScore(detail.averageScore),
+              items: [
+                if (detail.seasonYear != null) '${detail.seasonYear}',
+                if (detail.format != null) detail.format!,
+                if (detail.episodes != null) '${detail.episodes} eps',
               ],
             ),
             genres: detail.genres,
@@ -271,7 +289,7 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
             sliverFooter: [
               SliverAppBar(
                 pinned: true,
-                leading: const AppBackButton(),
+                leading: const ScrimAppBackButton(),
                 automaticallyImplyLeading: false,
                 backgroundColor: Colors.transparent,
                 elevation: 0,
@@ -284,7 +302,7 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
   }
 }
 
-class EpisodesSection extends ConsumerWidget {
+class EpisodesSection extends ConsumerStatefulWidget {
   final AsyncValue<List<AnimeEpisode>> episodesAsync;
   final Map<int, ({int progress, int duration, String? status})>
   episodeProgress;
@@ -305,8 +323,21 @@ class EpisodesSection extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EpisodesSection> createState() => _EpisodesSectionState();
+}
+
+class _EpisodesSectionState extends ConsumerState<EpisodesSection> {
+  int _selectedRangeIndex = 0;
+  String _filter = '';
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final episodesAsync = widget.episodesAsync;
+    final episodeProgress = widget.episodeProgress;
+    final onEpisodeTap = widget.onEpisodeTap;
+    final anilistId = widget.anilistId;
+    final detail = widget.detail;
     return episodesAsync.when(
       loading: () => const Center(
         child: SizedBox(
@@ -330,6 +361,9 @@ class EpisodesSection extends ConsumerWidget {
       ),
       data: (episodes) {
         List<AnimeEpisode> displayEpisodes = episodes.toList();
+        // Last-resort only: the API itself now builds an AniList-metadata
+        // episode list (with thumbnails) whenever bridge providers fail, so
+        // this only fires if the API call failed outright.
         if (displayEpisodes.isEmpty) {
           int total = detail.episodes ?? 0;
           if (total == 0) {
@@ -352,6 +386,27 @@ class EpisodesSection extends ConsumerWidget {
           }
         }
         if (displayEpisodes.isEmpty) return const SizedBox.shrink();
+
+        final ranges = episodeRanges(displayEpisodes.length);
+        final showControls = displayEpisodes.length > 50;
+
+        List<AnimeEpisode> visibleEpisodes = displayEpisodes;
+        if (_filter.trim().isNotEmpty) {
+          final q = _filter.trim().toLowerCase();
+          visibleEpisodes = displayEpisodes
+              .where(
+                (ep) =>
+                    ep.number.toString() == q ||
+                    (ep.title?.toLowerCase().contains(q) ?? false),
+              )
+              .toList();
+        } else if (showControls && ranges.isNotEmpty) {
+          final range = ranges[_selectedRangeIndex.clamp(0, ranges.length - 1)];
+          visibleEpisodes = displayEpisodes
+              .where((ep) => ep.number >= range.start && ep.number <= range.end)
+              .toList();
+        }
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -402,8 +457,34 @@ class EpisodesSection extends ConsumerWidget {
                 ),
               ],
             ),
+            if (showControls) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: EpisodeFilterField(
+                      onChanged: (value) => setState(() => _filter = value),
+                    ),
+                  ),
+                  if (_filter.trim().isEmpty && ranges.length > 1) ...[
+                    const SizedBox(width: 8),
+                    EpisodeRangeSelector(
+                      ranges: ranges,
+                      selectedIndex: _selectedRangeIndex,
+                      onChanged: (index) =>
+                          setState(() => _selectedRangeIndex = index),
+                    ),
+                  ],
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
-            ...displayEpisodes.map((ep) {
+            if (visibleEpisodes.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Text('No episodes match your filter.'),
+              ),
+            ...visibleEpisodes.map((ep) {
               final epProgress = episodeProgress[ep.number];
               double? progressFraction;
               bool watched = false;

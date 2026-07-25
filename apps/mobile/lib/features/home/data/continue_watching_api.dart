@@ -5,6 +5,8 @@ class ContinueWatchingItem {
   final String title;
   final String? imageUrl;
   final double progressFraction;
+  final int progressSeconds;
+  final int durationSeconds;
   final DateTime updatedAt;
   final String contentType;
   final String? slug;
@@ -16,6 +18,8 @@ class ContinueWatchingItem {
     required this.title,
     this.imageUrl,
     required this.progressFraction,
+    this.progressSeconds = 0,
+    this.durationSeconds = 0,
     required this.updatedAt,
     required this.contentType,
     this.slug,
@@ -47,6 +51,8 @@ Future<List<ContinueWatchingItem>> fetchMovieHistory(Dio dio) async {
         progressFraction: duration > 0
             ? (progress / duration).clamp(0.0, 1.0)
             : 0.0,
+        progressSeconds: progress.round(),
+        durationSeconds: duration.round(),
         updatedAt: DateTime.tryParse(r['updatedAt'] as String? ?? '') ??
             DateTime(2000),
         contentType: 'movie',
@@ -82,6 +88,8 @@ Future<List<ContinueWatchingItem>> fetchTvHistory(Dio dio) async {
         progressFraction: duration > 0
             ? (progress / duration).clamp(0.0, 1.0)
             : 0.0,
+        progressSeconds: progress.round(),
+        durationSeconds: duration.round(),
         updatedAt: DateTime.tryParse(r['updatedAt'] as String? ?? '') ??
             DateTime(2000),
         contentType: 'tv',
@@ -115,6 +123,8 @@ Future<List<ContinueWatchingItem>> fetchAnimeHistory(Dio dio) async {
         progressFraction: duration > 0
             ? (progress / duration).clamp(0.0, 1.0)
             : 0.0,
+        progressSeconds: progress.round(),
+        durationSeconds: duration.round(),
         updatedAt: DateTime.tryParse(r['updatedAt'] as String? ?? '') ??
             DateTime(2000),
         contentType: 'anime',

@@ -22,11 +22,14 @@ class AppShell extends StatelessWidget {
         ? _WideLayout(child: child)
         : _NarrowLayout(child: child);
 
-    return Column(
-      children: [
-        const _OfflineBanner(),
-        Expanded(child: content),
-      ],
+    return _wrapForOverscan(
+      context,
+      Column(
+        children: [
+          const _OfflineBanner(),
+          Expanded(child: content),
+        ],
+      ),
     );
   }
 }
@@ -88,13 +91,17 @@ class _OfflineBannerState extends State<_OfflineBanner> {
   }
 }
 
+/// TV screens typically overscan by a few percent, so anything flush to the
+/// edge gets clipped by the physical bezel. Wraps the *entire* shell
+/// (nav included) rather than just page content, since nav elements sit
+/// flush to the edge too.
 Widget _wrapForOverscan(BuildContext context, Widget child) {
   if (!isTvBuild) return child;
   final size = MediaQuery.sizeOf(context);
   return Padding(
     padding: EdgeInsets.symmetric(
-      horizontal: size.width * 0.05,
-      vertical: size.height * 0.05,
+      horizontal: size.width * 0.03,
+      vertical: size.height * 0.03,
     ),
     child: child,
   );
@@ -114,7 +121,7 @@ class _NarrowLayout extends StatelessWidget {
       extendBody: true,
       body: Stack(
         children: [
-          _wrapForOverscan(context, child),
+          child,
           Positioned(
             left: 0,
             right: 0,
@@ -275,11 +282,20 @@ class _WideLayoutState extends State<_WideLayout> {
               },
               extended: actuallyExtended,
               labelType: actuallyExtended ? NavigationRailLabelType.none : null,
+              // Larger targets for a remote/couch viewing distance than a
+              // mouse or thumb needs.
+              minWidth: isTvBuild ? 88 : 72,
+              selectedLabelTextStyle: isTvBuild
+                  ? const TextStyle(fontSize: 16)
+                  : null,
+              unselectedLabelTextStyle: isTvBuild
+                  ? const TextStyle(fontSize: 14)
+                  : null,
               destinations: _railDestinations(context),
             ),
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: _wrapForOverscan(context, widget.child)),
+          Expanded(child: widget.child),
         ],
       ),
     );
@@ -332,15 +348,18 @@ List<NavigationRailDestination> _railDestinations(BuildContext context) {
   final colors = Theme.of(context).brightness == Brightness.light
       ? AppColors.light
       : AppColors.dark;
+  final iconSize = isTvBuild ? 30.0 : 24.0;
   return [
     NavigationRailDestination(
       icon: HugeIcon(
         icon: HugeIcons.strokeRoundedHome01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       selectedIcon: HugeIcon(
         icon: HugeIcons.strokeRoundedHome01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       label: Text('Home'),
     ),
@@ -348,10 +367,12 @@ List<NavigationRailDestination> _railDestinations(BuildContext context) {
       icon: HugeIcon(
         icon: HugeIcons.strokeRoundedFilm01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       selectedIcon: HugeIcon(
         icon: HugeIcons.strokeRoundedFilm01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       label: Text('Movies'),
     ),
@@ -359,10 +380,12 @@ List<NavigationRailDestination> _railDestinations(BuildContext context) {
       icon: HugeIcon(
         icon: HugeIcons.strokeRoundedTv01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       selectedIcon: HugeIcon(
         icon: HugeIcons.strokeRoundedTv01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       label: Text('TV'),
     ),
@@ -370,10 +393,12 @@ List<NavigationRailDestination> _railDestinations(BuildContext context) {
       icon: HugeIcon(
         icon: HugeIcons.strokeRoundedSparkles,
         color: colors.textStrong,
+        size: iconSize,
       ),
       selectedIcon: HugeIcon(
         icon: HugeIcons.strokeRoundedSparkles,
         color: colors.textStrong,
+        size: iconSize,
       ),
       label: Text('Anime'),
     ),
@@ -381,10 +406,12 @@ List<NavigationRailDestination> _railDestinations(BuildContext context) {
       icon: HugeIcon(
         icon: HugeIcons.strokeRoundedSearch01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       selectedIcon: HugeIcon(
         icon: HugeIcons.strokeRoundedSearch01,
         color: colors.textStrong,
+        size: iconSize,
       ),
       label: Text('Search'),
     ),

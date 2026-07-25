@@ -164,22 +164,32 @@ class WatchProgressApi extends BaseApi {
     }
   }
 
-  Future<({int progress, int duration, String? episodeId, String? status})?>
+  /// Per-episode progress for a show, keyed by episodeId — mirrors
+  /// [getAnimeProgress]'s per-episode map so every episode a user watched
+  /// (not just the most recent one) can show its own progress bar.
+  Future<Map<String, ({int progress, int duration, String? status})>>
   getTvProgress(String showId) async {
     try {
       final body = await get('/api/v1/tv-shows/progress/$showId');
-      final data = body['data'] as Map<String, dynamic>?;
-      if (data == null) return null;
-      final progress = data['progress'];
-      if (progress == null || (progress as num) <= 0) return null;
-      return (
-        progress: progress.toInt(),
-        duration: ((data['duration'] as num?) ?? 0).toInt(),
-        episodeId: data['episodeId'] as String?,
-        status: data['status'] as String?,
-      );
+      final data = body['data'] as List<dynamic>?;
+      if (data == null) return {};
+      final map = <String, ({int progress, int duration, String? status})>{};
+      for (final entry in data) {
+        if (entry is Map<String, dynamic>) {
+          final episodeId = entry['episodeId'] as String?;
+          final progress = (entry['progress'] as num?)?.toInt() ?? 0;
+          if (episodeId != null && progress > 0) {
+            map[episodeId] = (
+              progress: progress,
+              duration: (entry['duration'] as num?)?.toInt() ?? 0,
+              status: entry['status'] as String?,
+            );
+          }
+        }
+      }
+      return map;
     } catch (_) {
-      return null;
+      return {};
     }
   }
 }

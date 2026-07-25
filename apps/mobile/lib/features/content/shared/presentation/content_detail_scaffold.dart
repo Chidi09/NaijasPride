@@ -2,6 +2,58 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/build_flavor.dart';
 
+/// A description clamped to [maxLines] with a "More"/"Less" toggle, so a
+/// long synopsis can't push the rest of the detail page (episode list,
+/// similar titles) far off screen.
+class ExpandableDescription extends StatefulWidget {
+  final String text;
+  final TextStyle? style;
+  final int maxLines;
+
+  const ExpandableDescription({
+    super.key,
+    required this.text,
+    this.style,
+    this.maxLines = 4,
+  });
+
+  @override
+  State<ExpandableDescription> createState() => _ExpandableDescriptionState();
+}
+
+class _ExpandableDescriptionState extends State<ExpandableDescription> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.text,
+          style: widget.style,
+          maxLines: _expanded ? null : widget.maxLines,
+          overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+        ),
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              _expanded ? 'Less' : 'More',
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class ContentDetailScaffold extends StatelessWidget {
   final String heroImageUrl;
   final String posterUrl;
@@ -79,19 +131,43 @@ class ContentDetailScaffold extends StatelessWidget {
                   left: 16,
                   right: 16,
                   bottom: 16,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      titleWidget,
-                      if (metadataRow != null) ...[
-                        const SizedBox(height: 8),
-                        metadataRow!,
-                      ],
-                      if (actionButtonsRow != null) ...[
-                        const SizedBox(height: 12),
-                        actionButtonsRow!,
-                      ],
+                      if (posterUrl.isNotEmpty)
+                        Hero(
+                          tag: heroTag,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: CachedNetworkImage(
+                              imageUrl: posterUrl,
+                              width: 72,
+                              height: 108,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 180,
+                              errorWidget: (_, _, _) =>
+                                  Container(color: theme.colorScheme.surface),
+                            ),
+                          ),
+                        ),
+                      if (posterUrl.isNotEmpty) const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            titleWidget,
+                            if (metadataRow != null) ...[
+                              const SizedBox(height: 8),
+                              metadataRow!,
+                            ],
+                            if (actionButtonsRow != null) ...[
+                              const SizedBox(height: 12),
+                              actionButtonsRow!,
+                            ],
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -119,11 +195,17 @@ class ContentDetailScaffold extends StatelessWidget {
                   ),
                 if (description != null) ...[
                   const SizedBox(height: 16),
-                  Text(description!, style: theme.textTheme.bodyLarge),
+                  ExpandableDescription(
+                    text: description!,
+                    style: theme.textTheme.bodyLarge,
+                  ),
                 ],
                 if (description2 != null) ...[
                   const SizedBox(height: 16),
-                  Text(description2!, style: theme.textTheme.bodyLarge),
+                  ExpandableDescription(
+                    text: description2!,
+                    style: theme.textTheme.bodyLarge,
+                  ),
                 ],
                 if (extraSections != null) ...[
                   const SizedBox(height: 24),
@@ -141,15 +223,43 @@ class ContentDetailScaffold extends StatelessWidget {
     );
   }
 
+  // Full-bleed backdrop with content overlaid on the left, rather than
+  // giving half the screen to a static image panel — also drops the touch
+  // back button (sliverFooter) entirely, since it would steal first D-pad
+  // focus on a screen a remote, not a finger, navigates.
   Widget _buildTvLayout(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Expanded(
-          flex: 1,
+        CachedNetworkImage(
+          imageUrl: heroImageUrl,
+          fit: BoxFit.cover,
+          memCacheWidth: 1920,
+          errorWidget: (_, _, _) => Container(color: theme.colorScheme.surface),
+          placeholder: (_, _) => Container(color: theme.colorScheme.surface),
+        ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  theme.scaffoldBackgroundColor,
+                  theme.scaffoldBackgroundColor.withAlpha(220),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.5, 0.85],
+              ),
+            ),
+          ),
+        ),
+        FractionallySizedBox(
+          alignment: Alignment.centerLeft,
+          widthFactor: 0.55,
           child: CustomScrollView(
             slivers: [
-              ...?sliverFooter,
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -167,11 +277,17 @@ class ContentDetailScaffold extends StatelessWidget {
                       ],
                       if (description != null) ...[
                         const SizedBox(height: 24),
-                        Text(description!, style: theme.textTheme.bodyLarge),
+                        ExpandableDescription(
+                          text: description!,
+                          style: theme.textTheme.bodyLarge,
+                        ),
                       ],
                       if (description2 != null) ...[
                         const SizedBox(height: 16),
-                        Text(description2!, style: theme.textTheme.bodyLarge),
+                        ExpandableDescription(
+                          text: description2!,
+                          style: theme.textTheme.bodyLarge,
+                        ),
                       ],
                       if (genres.isNotEmpty) ...[
                         const SizedBox(height: 16),
@@ -201,41 +317,6 @@ class ContentDetailScaffold extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-        Expanded(
-          flex: 1,
-          child: ClipRRect(
-            child: Stack(
-              children: [
-                CachedNetworkImage(
-                  imageUrl: heroImageUrl,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 1080,
-                  width: double.infinity,
-                  height: double.infinity,
-                  errorWidget: (_, _, _) =>
-                      Container(color: theme.colorScheme.surface),
-                  placeholder: (_, _) =>
-                      Container(color: theme.colorScheme.surface),
-                ),
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [
-                          theme.scaffoldBackgroundColor,
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 0.3],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ],

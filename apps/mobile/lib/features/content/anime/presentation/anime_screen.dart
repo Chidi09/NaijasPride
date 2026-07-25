@@ -8,6 +8,7 @@ import '../../../../core/build_flavor.dart';
 import '../../../ads/data/ads_api.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
+import '../../shared/application/content_rating.dart';
 import '../../shared/application/watch_progress_lookup.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
@@ -218,6 +219,7 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
               }
               final contentIndex = !_showAds ? index : index - index ~/ 13;
               final entry = _media[contentIndex];
+              final progress = progressLookup?.anime(entry.id.toString());
               return PosterCard(
                 width: itemWidth,
                 imageUrl:
@@ -229,11 +231,10 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
                     entry.title.native ??
                     'Untitled',
                 onTap: () => context.push('/anime/${entry.id}'),
-                progressFraction: progressLookup?.anime(entry.id.toString()),
-                ratingLabel:
-                    entry.averageScore != null && entry.averageScore! > 0
-                    ? (entry.averageScore! / 10).toStringAsFixed(1)
-                    : null,
+                progressFraction: progress?.fraction,
+                progressLabel: progress?.remainingLabel,
+                watched: progress?.watched ?? false,
+                ratingLabel: formatAniListScore(entry.averageScore),
               );
             },
           ),

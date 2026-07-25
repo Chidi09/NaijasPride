@@ -8,6 +8,7 @@ import '../../../../core/build_flavor.dart';
 import '../../../ads/data/ads_api.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
+import '../../shared/application/content_rating.dart';
 import '../../shared/application/watch_progress_lookup.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
@@ -218,13 +219,17 @@ class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
               }
               final contentIndex = !_showAds ? index : index - index ~/ 13;
               final show = _shows[contentIndex];
+              final progress = progressLookup?.tv(show.id, show.slug);
               return PosterCard(
                 width: itemWidth,
                 imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
                 heroTag: 'tv-poster-${show.id}',
                 title: show.title,
                 onTap: () => context.push('/tv/${show.slug}'),
-                progressFraction: progressLookup?.tv(show.id, show.slug),
+                progressFraction: progress?.fraction,
+                progressLabel: progress?.remainingLabel,
+                watched: progress?.watched ?? false,
+                ratingLabel: tvRatingLabel(show),
               );
             },
           ),

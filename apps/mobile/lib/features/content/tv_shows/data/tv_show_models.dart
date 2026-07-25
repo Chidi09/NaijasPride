@@ -72,6 +72,7 @@ class TvShowSummary {
   final String? backdropUrl;
   final String? imdbId;
   final int? tmdbId;
+  final double? tmdbRating;
   final bool canStream;
   final int seasonCount;
   final int episodeCount;
@@ -88,6 +89,7 @@ class TvShowSummary {
     this.backdropUrl,
     this.imdbId,
     this.tmdbId,
+    this.tmdbRating,
     this.canStream = false,
     this.seasonCount = 0,
     this.episodeCount = 0,
@@ -109,6 +111,7 @@ class TvShowSummary {
       backdropUrl: json['backdropUrl'] as String?,
       imdbId: json['imdbId'] as String?,
       tmdbId: (json['tmdbId'] as num?)?.toInt(),
+      tmdbRating: (json['tmdbRating'] as num?)?.toDouble(),
       canStream: json['canStream'] as bool? ?? false,
       seasonCount: (json['seasonCount'] as num?)?.toInt() ?? 0,
       episodeCount: (json['episodeCount'] as num?)?.toInt() ?? 0,
@@ -128,6 +131,7 @@ class TvShow {
   final String? backdropUrl;
   final String? imdbId;
   final int? tmdbId;
+  final double? tmdbRating;
   final bool canStream;
   final String? overview;
   final String? language;
@@ -145,6 +149,7 @@ class TvShow {
     this.backdropUrl,
     this.imdbId,
     this.tmdbId,
+    this.tmdbRating,
     this.canStream = false,
     this.overview,
     this.language,
@@ -167,6 +172,7 @@ class TvShow {
       backdropUrl: json['backdropUrl'] as String?,
       imdbId: json['imdbId'] as String?,
       tmdbId: (json['tmdbId'] as num?)?.toInt(),
+      tmdbRating: (json['tmdbRating'] as num?)?.toDouble(),
       canStream: json['canStream'] as bool? ?? false,
       overview: json['overview'] as String?,
       language: json['language'] as String?,
