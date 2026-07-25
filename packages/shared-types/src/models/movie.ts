@@ -72,6 +72,8 @@ export interface MovieSummary {
   genre: Genre[];
   quality: Quality[];
   rating: number | null;
+  tmdbRating: number | null;
+  imdbRating: number | null;
   thumbnailUrl: string | null;
   coverUrl?: string | null;
   posterUrl?: string | null;

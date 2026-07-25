@@ -55,10 +55,12 @@ export class MetadataService {
     movieId: string,
     movieTitle: string,
     year?: number,
+    options?: { dryRun?: boolean; allowOmdb?: boolean },
   ) {
     // Accept both TMDB_KEY and TMDB_API_KEY so either name works in .env
     const tmdbKey = process.env.TMDB_KEY || process.env.TMDB_API_KEY;
-    const omdbKey = process.env.OMDB_KEY;
+    const omdbKey =
+      options?.allowOmdb === false ? undefined : process.env.OMDB_KEY;
 
     if (!tmdbKey) {
       throw new Error(
@@ -168,6 +170,16 @@ export class MetadataService {
       null;
     const backdropUrl = this.tmdbImage(details.backdrop_path, "original");
 
+    if (options?.dryRun) {
+      return {
+        success: true,
+        title: details.title,
+        tmdbRating: details.vote_average ?? null,
+        imdbRating,
+        rottenTomatoes,
+      };
+    }
+
     await this.prisma.movie.update({
       where: { id: movieId },
       data: {
@@ -194,7 +206,13 @@ export class MetadataService {
       },
     });
 
-    return { success: true, title: details.title };
+    return {
+      success: true,
+      title: details.title,
+      tmdbRating: details.vote_average ?? null,
+      imdbRating,
+      rottenTomatoes,
+    };
   }
 
   private tmdbImage(

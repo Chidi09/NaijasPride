@@ -129,6 +129,7 @@ model Movie {
   rottenTomatoes  String?
   imdbId          String?
   tmdbId          Int?          @unique
+  metadataCheckedAt DateTime?
   thumbnailUrl    String?
   coverUrl        String?
   posterUrl       String?
@@ -160,6 +161,7 @@ model Movie {
   @@index([slug])
   @@index([year])
   @@index([status])
+  @@index([tmdbRating, metadataCheckedAt, viewCount])
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
@@ -293,6 +295,7 @@ model TvShow {
   language        String        @default("English")
   imdbId          String?
   tmdbId          Int?          @unique
+  tmdbRating      Float?
   thumbnailUrl    String?
   posterUrl       String?
   backdropUrl     String?
@@ -362,8 +365,9 @@ model TvWatchHistory {
     status      WatchStatus  @default(WATCHING)
     updatedAt   DateTime     @updatedAt
 
-    @@unique([userId, showId])
+    @@unique([userId, showId, episodeId])
   @@index([showId])
+  @@index([userId, showId])
 }
 
 // Notification Logic - "Notify me when available"

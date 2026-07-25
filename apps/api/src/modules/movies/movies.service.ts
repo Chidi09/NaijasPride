@@ -663,6 +663,8 @@ export class MoviesService {
     genre: PrismaGenre[];
     quality: PrismaQuality[];
     rating: number | null;
+    tmdbRating: number | null;
+    imdbRating: number | null;
     thumbnailUrl: string | null;
     coverUrl?: string | null;
     posterUrl?: string | null;
@@ -714,6 +716,8 @@ export class MoviesService {
         this.fromPrismaQuality(value),
       ) as MovieSummary["quality"],
       rating: raw.rating,
+      tmdbRating: raw.tmdbRating,
+      imdbRating: raw.imdbRating,
       thumbnailUrl: bestThumb,
       downloadCount: raw.downloadCount,
       viewCount: raw.viewCount,

@@ -157,6 +157,12 @@ const streamingThumbsCache = new Map<
   { payload: unknown; timestamp: number }
 >();
 
+const ANIME_DETAIL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const animeDetailCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
+
 const ANIME_STREAMING_EPISODES_QUERY = `
   query ($id: Int) {
     Media(id: $id, type: ANIME) {
@@ -362,10 +368,21 @@ type AniListTitle = {
   native?: string | null;
 };
 
+type AniListStreamingEpisode = {
+  title?: string | null;
+  thumbnail?: string | null;
+  url?: string | null;
+  site?: string | null;
+};
+
 type AniListMediaWithTitle = {
   title?: AniListTitle | null;
   synonyms?: string[] | null;
   format?: string | null;
+  status?: string | null;
+  episodes?: number | null;
+  nextAiringEpisode?: { episode?: number | null } | null;
+  streamingEpisodes?: AniListStreamingEpisode[] | null;
 };
 
 type BridgeInfoEpisode = {
@@ -916,14 +933,32 @@ const proxyReadableBody = (body: ReadableStream<Uint8Array>): PassThrough => {
   return stream;
 };
 
-const anilistTitlesForAnime = async (
+async function anilistMediaDetail(
   id: number,
-): Promise<{ titles: string[]; format?: string }> => {
+): Promise<AniListMediaWithTitle | null> {
+  const cacheKey = String(id);
+  const cached = readCachedPayload(
+    animeDetailCache,
+    cacheKey,
+    ANIME_DETAIL_CACHE_TTL_MS,
+  ) as AniListMediaWithTitle | null;
+  if (cached) return cached;
+
   const data = await anilistRequest<{ Media: AniListMediaWithTitle | null }>(
     ANIME_DETAIL_QUERY,
     { id },
   );
-  const media = data.Media;
+  const media = data.Media ?? null;
+  if (media) {
+    writeCachedPayload(animeDetailCache, cacheKey, media);
+  }
+  return media;
+}
+
+const anilistTitlesForAnime = async (
+  id: number,
+): Promise<{ titles: string[]; format?: string }> => {
+  const media = await anilistMediaDetail(id);
   if (!media) return { titles: [] };
 
   const values = [
@@ -943,6 +978,50 @@ const anilistTitlesForAnime = async (
   );
   return { titles, format: media.format || undefined };
 };
+
+/**
+ * Builds an episode list purely from AniList metadata (episode count +
+ * streamingEpisodes thumbnails), for when every bridge provider fails.
+ * Episode numbers are parsed from streamingEpisodes titles the same way
+ * anilistEpisodeThumbnails does, since AniList doesn't expose a stable
+ * per-episode number field on that connection.
+ */
+function buildMetadataEpisodes(
+  media: AniListMediaWithTitle,
+): ReturnType<typeof mapEpisodes> {
+  let total = media.episodes ?? 0;
+  if (!total) {
+    const nextAiring = media.nextAiringEpisode?.episode;
+    if (nextAiring && nextAiring > 1) {
+      total = nextAiring - 1;
+    } else if (media.status !== "NOT_YET_RELEASED") {
+      total = 1;
+    }
+  }
+  if (!total || total <= 0) return [];
+
+  const thumbsByNumber = new Map<number, string>();
+  for (const entry of media.streamingEpisodes || []) {
+    if (!entry.thumbnail || !entry.title) continue;
+    const match = entry.title.match(/epis?ode\s*(\d+)/i);
+    const num = match ? Number(match[1]) : null;
+    if (num && !thumbsByNumber.has(num)) {
+      thumbsByNumber.set(num, entry.thumbnail);
+    }
+  }
+
+  return Array.from({ length: total }).map((_, index) => {
+    const number = index + 1;
+    return {
+      id: `meta-${number}`,
+      number,
+      title: null,
+      image: thumbsByNumber.get(number) ?? null,
+      url: null,
+      isFiller: false,
+    };
+  });
+}
 
 async function anilistEpisodeThumbnails(
   anilistId: number,
@@ -1270,6 +1349,21 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             const { titles } = await anilistTitlesForAnime(id);
             const animepahe = await resolveAnimepaheEpisodesByTitles(titles);
             if (animepahe && animepahe.episodes.length > 0) {
+              let animepaheEpisodes = animepahe.episodes;
+              if (animepaheEpisodes.some((ep) => !ep.image)) {
+                try {
+                  const thumbs = await anilistEpisodeThumbnails(Number(id));
+                  if (thumbs.size > 0) {
+                    animepaheEpisodes = animepaheEpisodes.map((ep) =>
+                      !ep.image && thumbs.has(ep.number)
+                        ? { ...ep, image: thumbs.get(ep.number)! }
+                        : ep,
+                    );
+                  }
+                } catch {
+                  // best-effort, ignore failures
+                }
+              }
               pushResolutionEvent(resolutionTrace, {
                 stage: "animepahe-episodes",
                 provider: "animepahe",
@@ -1283,8 +1377,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
                   provider: "animepahe",
                   requestedProvider: provider,
                   animeTitle: animepahe.animeTitle,
-                  episodes: animepahe.episodes,
+                  episodes: animepaheEpisodes,
                   bridgeAvailable: true,
+                  episodeSource: "bridge",
                   message: null,
                   resolutionTrace,
                   resolutionSummary: summarizeResolutionTrace(resolutionTrace),
@@ -1362,7 +1457,12 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        if (episodes.some((ep) => !ep.image)) {
+        const bridgeAvailable = episodes.length > 0;
+        const episodeSource: "bridge" | "metadata" = bridgeAvailable
+          ? "bridge"
+          : "metadata";
+
+        if (bridgeAvailable && episodes.some((ep) => !ep.image)) {
           try {
             const thumbs = await anilistEpisodeThumbnails(Number(id));
             if (thumbs.size > 0) {
@@ -1377,7 +1477,20 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        const bridgeAvailable = episodes.length > 0;
+        if (!bridgeAvailable) {
+          try {
+            const media = await anilistMediaDetail(Number(id));
+            if (media) {
+              const metaEpisodes = buildMetadataEpisodes(media);
+              if (metaEpisodes.length > 0) {
+                episodes = metaEpisodes;
+              }
+            }
+          } catch {
+            // best-effort — leave episodes empty on failure
+          }
+        }
+
         if (!usedProvider) {
           usedProvider = bridgeAvailable
             ? providersForRequest(provider)[0] || "gogoanime"
@@ -1393,9 +1506,10 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             animeTitle: info?.title || null,
             episodes,
             bridgeAvailable,
+            episodeSource,
             message: bridgeAvailable
               ? null
-              : "No stream episodes resolved from bridge providers right now.",
+              : "Streams are not resolved right now. Episode list is shown from AniList metadata.",
             resolutionTrace,
             resolutionSummary: summarizeResolutionTrace(resolutionTrace),
             animepaheRuntime: getAnimepaheRuntimeStats(),
