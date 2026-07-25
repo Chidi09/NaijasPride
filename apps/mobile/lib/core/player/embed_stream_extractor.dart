@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:typed_data';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -197,6 +198,71 @@ const List<String> _adBlockHosts = [
   'wafflemedia.com',
   'realsrv.com',
   'magsrv.com',
+  // Programmatic video ad exchanges (VAST/VPAID) — these are what feed a
+  // preroll/midroll ad into the *embed provider's own* JW Player/Video.js/
+  // Plyr instance before the movie/episode starts. Blocking the tag request
+  // itself (not just the popup/redirect layer above) is what stops ads from
+  // ever reaching the in-page video player.
+  'spotxchange.com',
+  'spotx.tv',
+  'springserve.com',
+  'freewheel.tv',
+  'fwmrm.net',
+  'adsafeprotected.com',
+  'doubleverify.com',
+  'pubmatic.com',
+  'rubiconproject.com',
+  'openx.net',
+  'criteo.com',
+  'casalemedia.com',
+  'indexexchange.com',
+  'sharethrough.com',
+  'triplelift.com',
+  'adform.net',
+  'yieldmo.com',
+  'contextweb.com',
+  'undertone.com',
+  'adtelligent.com',
+  '3lift.com',
+  'improvedigital.com',
+  'vidoomy.com',
+  // Forced-view link-shortener / "wait N seconds" ad gates, used to wrap
+  // "server"/"download" links on piracy sites.
+  'adf.ly',
+  'linkvertise.com',
+  'link-to.net',
+  'exe.io',
+  'exey.io',
+  'shrinkme.io',
+  'shrinkearn.com',
+  'ouo.io',
+  'ouo.press',
+  'gplinks.in',
+  'droplink.co',
+  'adfoc.us',
+  'shorte.st',
+  'sh.st',
+  'bc.vc',
+  'clk.sh',
+  'mboost.me',
+  // Browser-notification ad spam ("Allow notifications to continue" prompts
+  // that then push endless ad popups outside the app).
+  'onesignal.com',
+  'pushengage.com',
+  'izooto.com',
+  'truepush.com',
+  'webpushr.com',
+  'pushnami.com',
+  'aimtell.com',
+  // More pop-under / redirect networks common on streaming-embed pages.
+  'zeropark.com',
+  'propellerclick.com',
+  'adk2.com',
+  'clickosmedia.com',
+  'trafficfactory.biz',
+  'bitcotraffic.com',
+  'popadscdn.net',
+  'pop.cash',
 ];
 
 /// CSS selectors for common ad containers/overlays injected by these embeds.
@@ -207,6 +273,25 @@ const List<String> _adBlockCosmeticSelectors = [
   'div[class*="ad-overlay"]',
   'div[id*="preroll"]',
   'a[href*="//ads."]',
+  'div[class*="ad-container"]',
+  'div[id*="ad-container"]',
+  'div[class*="ad-banner"]',
+  'div[id*="ad-banner"]',
+  'div[class*="video-ads"]',
+  'div[class*="vast-"]',
+  'div[class*="ima-"]',
+  'div[id*="ima-"]',
+  'div[class*="overlay-ad"]',
+  'div[class*="modal-ad"]',
+  'div[class*="notification-prompt"]',
+  'div[class*="push-notification"]',
+  'div[class*="subscribe-prompt"]',
+  'iframe[src*="ads"]',
+  'iframe[id*="ad-"]',
+  'iframe[class*="ad-"]',
+  'a[href*="popunder"]',
+  'a[href*="/click"]',
+  'div[class*="sponsor-banner"]',
 ];
 
 UnmodifiableListView<ContentBlocker>? _adBlockerRules;
@@ -260,7 +345,7 @@ final RegExp _segmentPattern = RegExp(
 /// reported by [mediaSnifferJs] before offering them for playback, since
 /// that JS only applies the loose [_mediaUrlPattern] regex on its own.
 bool isLikelyMediaStreamUrl(String url) {
-  if (_isBlockedHost(url)) return false;
+  if (isAdOrTrackerUrl(url)) return false;
   final path = Uri.tryParse(url)?.path ?? url;
   if (_adAssetPattern.hasMatch(path)) return false;
   if (_segmentPattern.hasMatch(url)) return false;
@@ -292,28 +377,72 @@ String? _headerValue(Map<String, String>? headers, String key) {
   return null;
 }
 
-bool _isBlockedHost(String url) {
-  try {
-    final host = Uri.parse(url).host.toLowerCase();
-    const blocked = [
-      'doubleclick',
-      'googlesyndication',
-      'google-analytics',
-      'googletagmanager',
-      'popads',
-      'popcash',
-      'propellerads',
-      'adnxs',
-      'amazon-adsystem',
-      'facebook',
-      'scorecardresearch',
-      '.gif',
-      'analytics',
-    ];
-    return blocked.any((b) => host.contains(b));
-  } catch (_) {
-    return false;
+/// Path/query heuristics for ad, click-tracker, redirect-gate and
+/// forced-view URLs that aren't on a known host (piracy embeds rotate
+/// throwaway ad domains faster than any static list can keep up), anchored
+/// to path segments / query keys so it doesn't false-positive on unrelated
+/// words appearing inside a legitimate path. Deliberately used only for the
+/// navigation guard below, never for resource blocking — some legitimate
+/// CDNs serve signed video URLs through a `/redirect/`-shaped path, and
+/// blocking that as a *resource fetch* would break playback outright rather
+/// than just block an ad.
+final RegExp _adRedirectPathPattern = RegExp(
+  r'/(click(out)?|redirect|redir|goto|popunder|pop-under|smartlink|adserver|advert|sponsor)(/|\.|$|\?)|[?&](click_?id|aff_?id|zone_?id|campaign_?id)=',
+  caseSensitive: false,
+);
+
+final Set<String> _adBlockHostSet = {
+  for (final h in _adBlockHosts) h.toLowerCase(),
+};
+
+/// True if [url]'s host is (or is a subdomain of) a known ad/tracker/
+/// redirector/link-shortener/notification-spam host. Used for resource
+/// blocking ([shouldInterceptRequest]) and media-candidate filtering, where
+/// a false positive would silently break playback rather than just miss an
+/// ad — so it deliberately does NOT use the looser path/query heuristics
+/// below (see [isLikelyAdNavigation] for those).
+bool isAdOrTrackerUrl(String url) {
+  final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+  if (host.isEmpty) return false;
+  return _adBlockHostSet.any((h) => host == h || host.endsWith('.$h'));
+}
+
+/// True if [url] is a known ad host OR matches the generic redirect/
+/// click-tracker path heuristic. Only safe to use for whole-page
+/// *navigation* decisions ([evaluateNavigationTarget]) — see the caveat on
+/// [_adRedirectPathPattern].
+bool isLikelyAdNavigation(String url) {
+  return isAdOrTrackerUrl(url) || _adRedirectPathPattern.hasMatch(url);
+}
+
+/// A blocked network response — returned from `shouldInterceptRequest` in
+/// place of letting an ad/tracker request reach the network. This is the
+/// Dart-side counterpart to the native [adBlockerRules] `ContentBlocker`s:
+/// content blockers alone can silently no-op on some Android WebView/OEM
+/// builds, so every embed WebView in this app also blocks at this layer as
+/// a second, independent line of defense.
+WebResourceResponse blockedAdResourceResponse() =>
+    WebResourceResponse(contentType: '', data: Uint8List(0));
+
+/// Decides whether a navigation triggered from inside an embed page (a tap
+/// anywhere on the page hijacked into a full-page ad, a fake "update your
+/// player" redirect, an attempt to open the Play Store / a messaging app to
+/// push an install) should be allowed to proceed. Content/resource blockers
+/// only stop sub-resource loads (scripts, images, XHR) — they do nothing
+/// against a page *navigating itself* to an ad/scam destination, which is
+/// exactly what makes piracy embeds feel "ad-infested" even with a strong
+/// blocklist in place. Only known-bad destinations are cancelled; anything
+/// else (including legitimate same-provider redirect chains) is left alone
+/// so real embeds keep working.
+NavigationActionPolicy evaluateNavigationTarget(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+    // Blocks intent://, market://, itms-apps://, tel:, sms:, whatsapp://,
+    // viber:// etc. — the "open an app/store to push an install" vector.
+    return NavigationActionPolicy.CANCEL;
   }
+  if (isLikelyAdNavigation(url)) return NavigationActionPolicy.CANCEL;
+  return NavigationActionPolicy.ALLOW;
 }
 
 const String _playKickJs = r'''
@@ -492,6 +621,117 @@ const String mediaSnifferJs = r'''
 })();
 ''';
 
+String? _dynamicAdGuardJsCache;
+
+/// JS-layer defense-in-depth against ads that native content blockers and
+/// [shouldInterceptRequest] can't reach: `window.open` pop-unders, legacy
+/// `document.write`-injected ad tags/iframes, and ad/overlay elements that
+/// get inserted into the DOM *after* the page finishes loading (so static
+/// CSS-hide rules never see them at parse time — a `MutationObserver`
+/// catches them the instant they're added instead). This is what makes the
+/// blocking feel "Brave-level" rather than a static blocklist: it reacts to
+/// the page the way the page is actually trying to attack it.
+String get dynamicAdGuardJs {
+  final cached = _dynamicAdGuardJsCache;
+  if (cached != null) return cached;
+
+  final hostPattern = _adBlockHosts.map((h) => RegExp.escape(h)).join('|');
+  final script =
+      '''
+(function() {
+  if (window.__nsAdGuard) return;
+  window.__nsAdGuard = true;
+  var AD_HOST_RE = /(?:^|\\.)(?:$hostPattern)\$/i;
+
+  function hostOf(u) {
+    try { return new URL(u, location.href).hostname; } catch (e) { return ''; }
+  }
+  function isAdUrl(u) {
+    if (!u || typeof u !== 'string') return false;
+    try { return AD_HOST_RE.test(hostOf(u)); } catch (e) { return false; }
+  }
+
+  // Pop-unders / "open a new tab with an ad" — neutralize outright, this
+  // app never needs the embed page to open anything itself.
+  try { window.open = function() { return null; }; } catch (e) {}
+
+  // Legacy ad tags still commonly injected via document.write(<script>/<iframe>).
+  try {
+    var _write = document.write.bind(document);
+    var _writeln = document.writeln.bind(document);
+    function guard(fn) {
+      return function(html) {
+        try {
+          if (typeof html === 'string' && /<(script|iframe)\\b[^>]*(src|href)=/i.test(html)) {
+            var m = html.match(/(?:src|href)=["']([^"']+)["']/i);
+            if (m && isAdUrl(m[1])) return;
+          }
+        } catch (e) {}
+        return fn(html);
+      };
+    }
+    document.write = guard(_write);
+    document.writeln = guard(_writeln);
+  } catch (e) {}
+
+  // Remove/hide ad elements the instant they're inserted, including
+  // full-viewport "click anywhere to continue" overlays injected well after
+  // the initial page load (skips anything that contains the real <video>).
+  function scrub(node) {
+    if (!node || node.nodeType !== 1) return;
+    try {
+      var tag = node.tagName;
+      if (tag === 'IFRAME' || tag === 'SCRIPT' || tag === 'A') {
+        var src = node.getAttribute('src') || node.getAttribute('href');
+        if (isAdUrl(src)) { node.remove(); return; }
+      }
+      if (tag === 'DIV' || tag === 'INS') {
+        var style = window.getComputedStyle(node);
+        if (style && (style.position === 'fixed' || style.position === 'absolute')) {
+          var z = parseInt(style.zIndex, 10) || 0;
+          var r = node.getBoundingClientRect();
+          var coversViewport = r.width >= window.innerWidth * 0.8 && r.height >= window.innerHeight * 0.8;
+          var hasRealPlayer = node.querySelector('video') || node.querySelector('iframe');
+          if (z >= 999 && coversViewport && !hasRealPlayer) {
+            node.style.setProperty('display', 'none', 'important');
+          }
+        }
+      }
+      if (node.querySelectorAll) {
+        node.querySelectorAll('iframe[src], script[src], a[href]').forEach(function(el) {
+          var s = el.getAttribute('src') || el.getAttribute('href');
+          if (isAdUrl(s)) el.remove();
+        });
+      }
+    } catch (e) {}
+  }
+
+  try {
+    var mo = new MutationObserver(function(mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) scrub(added[j]);
+      }
+    });
+    var target = document.documentElement || document;
+    mo.observe(target, { childList: true, subtree: true });
+  } catch (e) {}
+
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      document.querySelectorAll('iframe[src], script[src], a[href]').forEach(function(el) {
+        var s = el.getAttribute('src') || el.getAttribute('href');
+        if (isAdUrl(s)) el.remove();
+      });
+    } catch (e) {}
+  });
+})();
+''';
+
+  _dynamicAdGuardJsCache = script;
+  return script;
+}
+
 Future<ExtractedEmbedStream?> extractStreamFromEmbed(
   String embedUrl, {
   Duration timeout = const Duration(seconds: 20),
@@ -559,6 +799,11 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
     ),
     initialUserScripts: UnmodifiableListView<UserScript>([
       UserScript(
+        source: dynamicAdGuardJs,
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        forMainFrameOnly: false,
+      ),
+      UserScript(
         source: _playKickJs,
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
         forMainFrameOnly: false,
@@ -581,6 +826,21 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       javaScriptCanOpenWindowsAutomatically: false,
       contentBlockers: adBlockerRules,
     ),
+    shouldOverrideUrlLoading: (controller, navigationAction) async {
+      // The sniffer's #1 reliability problem: an embed page redirects
+      // itself (or its iframe) to an ad/scam landing page before the real
+      // player ever loads, so no stream candidate is ever found and the app
+      // falls back to the ad-laden WebView. Cancelling known-bad
+      // navigations here lets the real page (and its stream) keep loading
+      // instead.
+      final url = navigationAction.request.url?.toString();
+      if (url == null) return NavigationActionPolicy.ALLOW;
+      return evaluateNavigationTarget(url);
+    },
+    onCreateWindow: (controller, createWindowAction) async {
+      // Never let the hidden sniffing WebView spawn a popup.
+      return false;
+    },
     onWebViewCreated: (controller) async {
       controller.addJavaScriptHandler(
         handlerName: 'nsMedia',
@@ -588,7 +848,7 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
           if (settled) return;
           if (args.isNotEmpty && args.first is String) {
             final u = args.first as String;
-            if (_mediaUrlPattern.hasMatch(u) && !_isBlockedHost(u)) {
+            if (_mediaUrlPattern.hasMatch(u) && !isAdOrTrackerUrl(u)) {
               considerCandidate(u, {
                 'Referer': lastDocumentUrl,
                 'User-Agent': desktopUserAgent,
@@ -601,6 +861,14 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
     shouldInterceptRequest: (controller, request) async {
       if (settled) return null;
       final url = request.url.toString();
+
+      // Second, independent layer of ad/tracker blocking beneath the
+      // native [adBlockerRules] content blockers — belt-and-braces, since
+      // content blocker behavior can be inconsistent across Android
+      // WebView/OEM builds.
+      if (isAdOrTrackerUrl(url)) {
+        return blockedAdResourceResponse();
+      }
 
       // Track navigable document URLs for referer fallback
       if (!_mediaUrlPattern.hasMatch(url)) {
@@ -615,7 +883,7 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
         }
       }
 
-      if (!_mediaUrlPattern.hasMatch(url) || _isBlockedHost(url)) {
+      if (!_mediaUrlPattern.hasMatch(url)) {
         return null;
       }
 
