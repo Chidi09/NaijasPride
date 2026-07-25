@@ -1,6 +1,7 @@
 import { PrismaClient, Genre } from "@prisma/client";
 import { google, youtube_v3 } from "googleapis";
 import { getRedis } from "../../../shared/services/redis.service";
+import { generateMovieSlug } from "../../../shared/utils/slugify";
 
 /** Mirrors shared-utils normalizeYouTubeTitle — inlined to avoid cross-workspace import. */
 function applyTitleCase(s: string): string {
@@ -583,7 +584,7 @@ export class YouTubeChannelService {
             const year =
               new Date(video.publishedAt).getFullYear() ||
               new Date().getFullYear();
-            const baseSlug = `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
+            const baseSlug = generateMovieSlug(cleanTitle, year);
             const suffix = (video.youtubeId || "").toLowerCase().slice(0, 8);
             const slug = suffix ? `${baseSlug}-${suffix}` : baseSlug;
 

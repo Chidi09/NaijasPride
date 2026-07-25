@@ -7,6 +7,7 @@ import { CircuitBreaker } from "../books/sources/resilience/circuit-breaker";
 import { QueueService } from "../../shared/services/queue.service";
 import { MetadataService } from "./metadata.service";
 import { MoviesService } from "./movies.service";
+import { generateMovieSlug } from "../../shared/utils/slugify";
 
 const DEFAULT_SOURCE_URL = "https://www.1377x.to/popular-movies-week";
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -78,7 +79,7 @@ const buildMagnetLink = (infoHash: string, displayName: string): string => {
 };
 
 export const toMovieSlug = (title: string, year: number): string =>
-  `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
+  generateMovieSlug(title, year);
 
 const toTitleCase = (value: string): string =>
   value

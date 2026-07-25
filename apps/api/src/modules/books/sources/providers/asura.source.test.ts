@@ -17,9 +17,14 @@ const CHAPTER_ID = "chapter-129";
 test("AsuraSource extracts and coerces minimal series/chapter IDs", () => {
   const source = new AsuraSource() as unknown as AsuraTestHarness;
 
+  // Asura moved series detail pages to /comics/ (see "fix(manga): update
+  // Asura parser"). Extraction still accepts the older /series/ and /manga/
+  // shapes because stored IDs and inbound links predate the move; only the
+  // path we *build* follows the live site.
   assert.equal(source.extractSeriesId(`/series/${SERIES_ID}`), SERIES_ID);
+  assert.equal(source.extractSeriesId(`/comics/${SERIES_ID}`), SERIES_ID);
   assert.equal(source.coerceSeriesId(`/series/${SERIES_ID}`), SERIES_ID);
-  assert.equal(source.toSeriesPath(SERIES_ID), `/series/${SERIES_ID}`);
+  assert.equal(source.toSeriesPath(SERIES_ID), `/comics/${SERIES_ID}`);
 
   assert.equal(source.extractChapterId(`/chapter/${CHAPTER_ID}`), CHAPTER_ID);
   assert.equal(source.coerceChapterId(`/chapter/${CHAPTER_ID}`), CHAPTER_ID);

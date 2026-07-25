@@ -5,6 +5,7 @@ import { Genre, Quality } from "@naijaspride/types";
 import { RemoteStreamResolverService } from "./remote-stream-resolver.service";
 import { MetadataService } from "./metadata.service";
 import { MoviesService } from "./movies.service";
+import { generateMovieSlug } from "../../shared/utils/slugify";
 
 type LoggerLike = {
   info: (...a: unknown[]) => void;
@@ -32,10 +33,7 @@ export type Soap2DayCrawlerSummary = {
 };
 
 const toMovieSlug = (title: string, year: number) =>
-  `${title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")}-${year}`;
+  generateMovieSlug(title, year);
 
 const toErrorMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 

@@ -250,14 +250,30 @@ interface EmbedDef {
   ) => string;
 }
 
+// Vidking and VidSrc lead, matching the movie/TV ordering in
+// movies/embed-resolver.service.ts — see the comment there for the URL
+// shapes and where they're documented. Videasy is last for the same reason
+// it is there: its stream can't be sniffed, so it can never reach the native
+// ad-free player, and its own hosted UI is ad-unwatchable.
 const EMBED_SOURCES: EmbedDef[] = [
+  {
+    name: "Vidking",
+    buildUrl: (id, s, e) =>
+      `https://www.vidking.net/embed/tv/${id}/${s}/${e}?color=800020&autoPlay=true&nextEpisode=true&episodeSelector=true`,
+  },
+  {
+    name: "VidSrc",
+    buildUrl: (id, s, e) =>
+      `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1&ds_lang=en`,
+  },
+  {
+    name: "VidSrc Mirror",
+    buildUrl: (id, s, e) =>
+      `https://vidsrc-embed.su/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1`,
+  },
   {
     name: "2Embed",
     buildUrl: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
-  },
-  {
-    name: "Videasy",
-    buildUrl: (id, s, e) => `https://videasy.net/tv/${id}/${s}/${e}`,
   },
   {
     name: "SmashyStream",
@@ -276,6 +292,10 @@ const EMBED_SOURCES: EmbedDef[] = [
     name: "MultiEmbed",
     buildUrl: (id, s, e) =>
       `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
+  },
+  {
+    name: "Videasy",
+    buildUrl: (id, s, e) => `https://videasy.net/tv/${id}/${s}/${e}`,
   },
 ];
 
@@ -337,15 +357,22 @@ export async function getEmbedSources(
     return { sources: videasySource ? [videasySource] : [], tmdbId: null };
   }
 
-  // Build all embed URLs using the resolved season
+  // Build all embed URLs using the resolved season.
+  //
+  // The AniList-keyed Videasy player goes LAST, not first. Leading with it
+  // meant every anime episode was routed into VideasyPlayerScreen, which
+  // spends 15s clicking blindly at the page behind a loading overlay trying
+  // to sniff a stream Videasy doesn't expose — the single most ad-exposed
+  // path in the app — before falling back to these providers anyway. It is
+  // still kept as a last resort for the case where nothing else resolved.
   const sources: ProviderSource[] = [
-    ...(videasySource ? [videasySource] : []),
     ...EMBED_SOURCES.map((def) => ({
       url: def.buildUrl(tmdbId!, resolvedSeason, episode, type),
       quality: type === "dub" ? `${def.name} (Dub)` : def.name,
       isM3U8: false,
       isEmbed: true,
     })),
+    ...(videasySource ? [videasySource] : []),
   ];
 
   console.log(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
@@ -12,11 +13,15 @@ import 'embed_stream_extractor.dart'
         embedOrigin,
         evaluateNavigationTarget,
         isAdOrTrackerUrl,
+        isBlockedEmbedDocumentRequest,
+        isSameSiteUrl,
         wrapperHtmlFor,
         mediaSnifferJs,
         isLikelyMediaStreamUrl;
 import 'playback_source.dart';
 import 'unified_video_player_screen.dart';
+import '../build_flavor.dart';
+import '../../features/content/shared/presentation/tv_focusable.dart';
 import '../../features/content/anime/data/anime_models.dart';
 
 class EmbedSource {
@@ -24,6 +29,23 @@ class EmbedSource {
   final String label;
   const EmbedSource({required this.url, required this.label});
 }
+
+/// Network failures that mean the provider's host is genuinely unreachable
+/// (dead domain, geo-block, TLS failure) rather than one of the many
+/// transient per-resource errors a busy embed page throws while working
+/// perfectly well. Only these auto-advance to the next server — treating
+/// every error as fatal would skip past servers that are playing fine.
+final Set<WebResourceErrorType> _fatalNetworkErrors = {
+  WebResourceErrorType.HOST_LOOKUP,
+  WebResourceErrorType.CANNOT_CONNECT_TO_HOST,
+  WebResourceErrorType.SERVER_UNREACHABLE,
+  WebResourceErrorType.TIMEOUT,
+  WebResourceErrorType.FAILED_SSL_HANDSHAKE,
+  WebResourceErrorType.SECURE_CONNECTION_FAILED,
+  WebResourceErrorType.TOO_MANY_REDIRECTS,
+  WebResourceErrorType.REDIRECT_FAILED,
+  WebResourceErrorType.UNSAFE_RESOURCE,
+};
 
 class EmbedWebViewScreen extends StatefulWidget {
   final List<EmbedSource> sources;
@@ -44,9 +66,29 @@ class EmbedWebViewScreen extends StatefulWidget {
 }
 
 class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
+  /// How long to wait before offering a one-tap way out. Deliberately a
+  /// *hint*, not an auto-advance: plenty of embeds play fine in the WebView
+  /// without ever exposing a sniffable stream, so silence here is not proof
+  /// of failure. It exists because the previous version gave no signal at
+  /// all — a server that quietly rendered nothing left a black rectangle and
+  /// a switcher hidden behind an unlabelled icon.
+  static const Duration _switchHintDelay = Duration(seconds: 9);
+
   late int _currentIndex;
   InAppWebViewController? _webViewController;
   String? _detectedStream;
+
+  Timer? _hintTimer;
+  bool _showSwitchHint = false;
+
+  /// Set when a server fails outright and there is nothing left to advance
+  /// to, so the whole screen becomes a picker instead of a black rectangle.
+  bool _allServersFailed = false;
+  String? _failureReason;
+
+  /// Servers already written off, so auto-advance walks the list once
+  /// instead of ping-ponging between two dead ones.
+  final Set<int> _deadServers = <int>{};
 
   @override
   void initState() {
@@ -54,6 +96,127 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
     _currentIndex = widget.initialIndex;
     if (_currentIndex < 0 || _currentIndex >= widget.sources.length) {
       _currentIndex = 0;
+    }
+    _armHintTimer();
+  }
+
+  @override
+  void dispose() {
+    _hintTimer?.cancel();
+    super.dispose();
+  }
+
+  EmbedSource get _currentSource => widget.sources[_currentIndex];
+
+  void _armHintTimer() {
+    _hintTimer?.cancel();
+    if (widget.sources.length < 2) return;
+    _hintTimer = Timer(_switchHintDelay, () {
+      if (!mounted || _detectedStream != null || _allServersFailed) return;
+      setState(() => _showSwitchHint = true);
+    });
+  }
+
+  /// Called when a server is proven dead (unreachable host, or an HTTP error
+  /// status on its own document).
+  void _markServerFailed(String reason) {
+    if (!mounted || _allServersFailed) return;
+    _deadServers.add(_currentIndex);
+
+    final next = _nextUntriedServer();
+    if (next != null) {
+      // Move on without being asked: the whole point of carrying several
+      // servers is that the user shouldn't have to discover a switcher to
+      // get past a dead one.
+      _switchTo(next);
+      return;
+    }
+    _hintTimer?.cancel();
+    setState(() {
+      _allServersFailed = true;
+      _failureReason = reason;
+    });
+  }
+
+  int? _nextUntriedServer() {
+    for (var i = 0; i < widget.sources.length; i++) {
+      if (!_deadServers.contains(i)) return i;
+    }
+    return null;
+  }
+
+  void _switchTo(int index) {
+    if (index < 0 || index >= widget.sources.length) return;
+    setState(() {
+      _currentIndex = index;
+      _detectedStream = null;
+      _showSwitchHint = false;
+      _allServersFailed = false;
+      _failureReason = null;
+    });
+    _webViewController?.loadData(
+      data: wrapperHtmlFor(widget.sources[index].url),
+      baseUrl: WebUri(embedOrigin),
+    );
+    _armHintTimer();
+  }
+
+  void _tryServer(int index) {
+    _deadServers.remove(index);
+    _switchTo(index);
+  }
+
+  /// True when [url] is the current server failing, rather than some
+  /// unrelated third-party resource on the page (an ad host we blocked, an
+  /// analytics beacon) that has no bearing on whether the video will play.
+  bool _isCurrentServer(WebUri? url, bool? isForMainFrame) {
+    if (isForMainFrame == true) return true;
+    if (url == null) return false;
+    return isSameSiteUrl(url.toString(), _currentSource.url);
+  }
+
+  Future<void> _playInApp() async {
+    final stream = _detectedStream;
+    if (stream == null) return;
+
+    // Suspend the embed before leaving. Without this the WebView keeps
+    // running behind the pushed route and its audio plays over the native
+    // player.
+    await _setEmbedSuspended(true);
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UnifiedVideoPlayerScreen(
+          source: DirectPlaybackSource(
+            stream,
+            headers: {
+              'Referer': _currentSource.url,
+              'User-Agent': desktopUserAgent,
+            },
+          ),
+          title: widget.title,
+          subtitles: widget.subtitles,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _setEmbedSuspended(false);
+  }
+
+  Future<void> _setEmbedSuspended(bool suspended) async {
+    final controller = _webViewController;
+    if (controller == null) return;
+    try {
+      if (suspended) {
+        await controller.pause();
+        await controller.pauseTimers();
+      } else {
+        await controller.resumeTimers();
+        await controller.resume();
+      }
+    } catch (_) {
+      // Android-only APIs; nothing to do where the platform lacks them.
     }
   }
 
@@ -72,146 +235,270 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
       );
     }
 
-    final currentSource = widget.sources[_currentIndex];
-
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: Text(widget.title),
-        actions: [
-          if (widget.sources.length > 1)
-            PopupMenuButton<int>(
-              icon: const Icon(Icons.dns_outlined),
-              tooltip: 'Change Server',
-              onSelected: (index) {
-                if (index != _currentIndex) {
-                  setState(() {
-                    _currentIndex = index;
-                    _detectedStream = null;
-                  });
-                  _webViewController?.loadData(
-                    data: wrapperHtmlFor(widget.sources[index].url),
-                    baseUrl: WebUri(embedOrigin),
-                  );
-                }
-              },
-              itemBuilder: (context) {
-                return List.generate(widget.sources.length, (i) {
-                  return PopupMenuItem<int>(
-                    value: i,
-                    child: Text(
-                      widget.sources[i].label,
-                      style: TextStyle(
-                        color: i == _currentIndex ? Colors.blue : null,
-                        fontWeight: i == _currentIndex ? FontWeight.bold : null,
-                      ),
-                    ),
-                  );
-                });
-              },
-            ),
-        ],
+        actions: [if (widget.sources.length > 1) _serverMenu()],
       ),
       floatingActionButton: _detectedStream != null
           ? FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => UnifiedVideoPlayerScreen(
-                      source: DirectPlaybackSource(
-                        _detectedStream!,
-                        headers: {
-                          'Referer': widget.sources[_currentIndex].url,
-                          'User-Agent': desktopUserAgent,
-                        },
-                      ),
-                      title: widget.title,
-                      subtitles: widget.subtitles,
-                    ),
-                  ),
-                );
-              },
+              onPressed: _playInApp,
               icon: const Icon(Icons.play_arrow),
               label: const Text('Play in app'),
             )
           : null,
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            color: Colors.orange.withAlpha(40),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: const Text(
-              'Playing in compatibility mode — some features like resume progress and remote-control support are unavailable.',
-              style: TextStyle(color: Colors.orangeAccent, fontSize: 12),
-            ),
-          ),
+          _statusBar(),
+          if (_showSwitchHint && !_allServersFailed) _switchHintBar(),
           Expanded(
-            child: InAppWebView(
-              initialData: InAppWebViewInitialData(
-                data: wrapperHtmlFor(currentSource.url),
-                baseUrl: WebUri(embedOrigin),
-              ),
-              initialUserScripts: UnmodifiableListView<UserScript>([
-                UserScript(
-                  source: dynamicAdGuardJs,
-                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                  forMainFrameOnly: false,
-                ),
-                UserScript(
-                  source: mediaSnifferJs,
-                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                  forMainFrameOnly: false,
-                ),
-              ]),
-              onWebViewCreated: (controller) {
-                _webViewController = controller;
-                controller.addJavaScriptHandler(
-                  handlerName: 'nsMedia',
-                  callback: (args) {
-                    if (args.isNotEmpty && args.first is String) {
-                      final u = args.first as String;
-                      if (mounted && isLikelyMediaStreamUrl(u)) {
-                        setState(() => _detectedStream ??= u);
-                      }
-                    }
-                  },
-                );
-              },
-              shouldOverrideUrlLoading: (controller, navigationAction) async {
-                // Blocks the "tap anywhere hijacks the whole page to an ad/
-                // scam site" pattern that content blockers can't touch,
-                // since that's a navigation, not a blockable resource load.
-                final url = navigationAction.request.url?.toString();
-                if (url == null) return NavigationActionPolicy.ALLOW;
-                return evaluateNavigationTarget(url);
-              },
-              onCreateWindow: (controller, createWindowAction) async {
-                // This screen only ever needs to show the current embed —
-                // never let it spawn a popup/new tab.
-                return false;
-              },
-              shouldInterceptRequest: (controller, request) async {
-                final url = request.url.toString();
-                if (isAdOrTrackerUrl(url)) return blockedAdResourceResponse();
-                return null;
-              },
-              initialSettings: InAppWebViewSettings(
-                javaScriptEnabled: true,
-                useShouldInterceptRequest: true,
-                mediaPlaybackRequiresUserGesture: false,
-                userAgent: desktopUserAgent,
-                mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-                thirdPartyCookiesEnabled: true,
-                supportMultipleWindows: false,
-                javaScriptCanOpenWindowsAutomatically: false,
-                contentBlockers: adBlockerRules,
-              ),
+            child: Stack(
+              children: [
+                Positioned.fill(child: _webView()),
+                if (_allServersFailed) Positioned.fill(child: _failurePanel()),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _serverMenu() {
+    final menu = PopupMenuButton<int>(
+      icon: const Icon(Icons.dns_outlined),
+      tooltip: 'Change server',
+      onSelected: _tryServer,
+      itemBuilder: (context) {
+        return List.generate(widget.sources.length, (i) {
+          final isCurrent = i == _currentIndex;
+          final isDead = _deadServers.contains(i) && !isCurrent;
+          return PopupMenuItem<int>(
+            value: i,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.sources[i].label,
+                    style: TextStyle(
+                      color: isCurrent
+                          ? Colors.blue
+                          : isDead
+                          ? Colors.grey
+                          : null,
+                      fontWeight: isCurrent ? FontWeight.bold : null,
+                    ),
+                  ),
+                ),
+                if (isDead)
+                  const Icon(Icons.error_outline, size: 16, color: Colors.grey),
+              ],
+            ),
+          );
+        });
+      },
+    );
+    return isTvBuild ? TvFocusable(child: menu) : menu;
+  }
+
+  Widget _statusBar() {
+    return Container(
+      width: double.infinity,
+      color: Colors.orange.withAlpha(40),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Text(
+        'Server ${_currentIndex + 1} of ${widget.sources.length} · '
+        '${_currentSource.label} — compatibility mode, so resume progress and '
+        'remote-control support are unavailable.',
+        style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
+      ),
+    );
+  }
+
+  Widget _switchHintBar() {
+    final next = _nextServerAfterCurrent();
+    return Container(
+      width: double.infinity,
+      color: Colors.white10,
+      padding: const EdgeInsets.only(left: 16, right: 8, top: 4, bottom: 4),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Nothing playing?',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+          _maybeFocusable(
+            TextButton(
+              onPressed: () => _tryServer(next),
+              child: Text('Try ${widget.sources[next].label}'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _nextServerAfterCurrent() => (_currentIndex + 1) % widget.sources.length;
+
+  Widget _failurePanel() {
+    final reason = _failureReason ?? 'This server didn’t load.';
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off, color: Colors.white38, size: 44),
+              const SizedBox(height: 16),
+              Text(
+                reason,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Every server has been tried. Pick one to try again — these '
+                'providers come and go, so one that just failed often works a '
+                'moment later.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < widget.sources.length; i++)
+                    _serverChip(i),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _serverChip(int index) {
+    return _maybeFocusable(
+      ActionChip(
+        label: Text(widget.sources[index].label),
+        avatar: Icon(
+          index == _currentIndex ? Icons.refresh : Icons.play_arrow,
+          size: 16,
+        ),
+        onPressed: () => _tryServer(index),
+      ),
+      borderRadius: const BorderRadius.all(Radius.circular(20)),
+    );
+  }
+
+  Widget _maybeFocusable(
+    Widget child, {
+    BorderRadius borderRadius = const BorderRadius.all(Radius.circular(8)),
+  }) {
+    if (!isTvBuild) return child;
+    return TvFocusable(borderRadius: borderRadius, child: child);
+  }
+
+  Widget _webView() {
+    return InAppWebView(
+      initialData: InAppWebViewInitialData(
+        data: wrapperHtmlFor(_currentSource.url),
+        baseUrl: WebUri(embedOrigin),
+      ),
+      initialUserScripts: UnmodifiableListView<UserScript>([
+        UserScript(
+          source: dynamicAdGuardJs,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          forMainFrameOnly: false,
+        ),
+        UserScript(
+          source: mediaSnifferJs,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          forMainFrameOnly: false,
+        ),
+      ]),
+      onWebViewCreated: (controller) {
+        _webViewController = controller;
+        controller.addJavaScriptHandler(
+          handlerName: 'nsMedia',
+          callback: (args) {
+            if (args.isNotEmpty && args.first is String) {
+              final u = args.first as String;
+              if (mounted && isLikelyMediaStreamUrl(u)) {
+                _hintTimer?.cancel();
+                setState(() {
+                  _detectedStream ??= u;
+                  _showSwitchHint = false;
+                });
+              }
+            }
+          },
+        );
+      },
+      shouldOverrideUrlLoading: (controller, navigationAction) async {
+        // Blocks the "tap anywhere hijacks the whole page to an ad/
+        // scam site" pattern that content blockers can't touch,
+        // since that's a navigation, not a blockable resource load.
+        final url = navigationAction.request.url?.toString();
+        if (url == null) return NavigationActionPolicy.ALLOW;
+        return evaluateNavigationTarget(url, embedUrl: _currentSource.url);
+      },
+      onCreateWindow: (controller, createWindowAction) async {
+        // This screen only ever needs to show the current embed —
+        // never let it spawn a popup/new tab.
+        return false;
+      },
+      shouldInterceptRequest: (controller, request) async {
+        final url = request.url.toString();
+        if (isAdOrTrackerUrl(url)) return blockedAdResourceResponse();
+        if (isBlockedEmbedDocumentRequest(
+          url,
+          isForMainFrame: request.isForMainFrame == true,
+        )) {
+          return blockedAdResourceResponse();
+        }
+        return null;
+      },
+      onReceivedError: (controller, request, error) {
+        // The embed runs inside an iframe, so a dead provider surfaces as a
+        // *sub-frame* error against its own host, never a main-frame one.
+        if (!mounted) return;
+        if (!_fatalNetworkErrors.contains(error.type)) return;
+        if (!_isCurrentServer(request.url, request.isForMainFrame)) return;
+        _markServerFailed(
+          '“${_currentSource.label}” couldn’t be reached '
+          '(${error.description}).',
+        );
+      },
+      onReceivedHttpError: (controller, request, response) {
+        if (!mounted) return;
+        final status = response.statusCode ?? 0;
+        if (status < 400) return;
+        if (!_isCurrentServer(request.url, request.isForMainFrame)) return;
+        _markServerFailed(
+          '“${_currentSource.label}” returned an error ($status).',
+        );
+      },
+      initialSettings: InAppWebViewSettings(
+        javaScriptEnabled: true,
+        useShouldInterceptRequest: true,
+        useShouldOverrideUrlLoading: true,
+        mediaPlaybackRequiresUserGesture: false,
+        userAgent: desktopUserAgent,
+        mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+        thirdPartyCookiesEnabled: true,
+        supportMultipleWindows: false,
+        javaScriptCanOpenWindowsAutomatically: false,
+        contentBlockers: adBlockerRules,
       ),
     );
   }

@@ -38,6 +38,13 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: cd apps/mobile && flutter packages pub get
+      - name: Analyze and test
+        script: |
+          # Runs before the build so a lint regression or a broken test
+          # fails here rather than shipping in an APK. `flutter build` only
+          # reports errors that stop compilation - it says nothing about
+          # analyzer warnings or test failures.
+          cd apps/mobile && flutter analyze && flutter test
       - name: Build Android App Bundle (release)
         script: |
           # --build-number is explicit and derived from a Unix timestamp
@@ -210,6 +217,13 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: cd apps/mobile && flutter packages pub get
+      - name: Analyze and test
+        script: |
+          # Runs before the build so a lint regression or a broken test
+          # fails here rather than shipping in an APK. `flutter build` only
+          # reports errors that stop compilation - it says nothing about
+          # analyzer warnings or test failures.
+          cd apps/mobile && flutter analyze && flutter test
       - name: Build Android TV APK (release)
         script: |
           # IS_TV_BUILD=true switches the app to its leanback/D-pad layout

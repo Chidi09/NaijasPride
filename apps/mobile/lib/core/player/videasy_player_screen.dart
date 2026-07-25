@@ -15,6 +15,7 @@ import 'embed_stream_extractor.dart'
         embedOrigin,
         evaluateNavigationTarget,
         isAdOrTrackerUrl,
+        isBlockedEmbedDocumentRequest,
         wrapperHtmlFor,
         mediaSnifferJs,
         isLikelyMediaStreamUrl;
@@ -183,6 +184,7 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               useShouldInterceptRequest: true,
+              useShouldOverrideUrlLoading: true,
               mediaPlaybackRequiresUserGesture: false,
               userAgent: desktopUserAgent,
               mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
@@ -226,7 +228,7 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
               // itself.
               final url = navigationAction.request.url?.toString();
               if (url == null) return NavigationActionPolicy.ALLOW;
-              return evaluateNavigationTarget(url);
+              return evaluateNavigationTarget(url, embedUrl: widget.videasyUrl);
             },
             onCreateWindow: (controller, createWindowAction) async {
               return false;
@@ -234,6 +236,12 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
             shouldInterceptRequest: (controller, request) async {
               final url = request.url.toString();
               if (isAdOrTrackerUrl(url)) return blockedAdResourceResponse();
+              if (isBlockedEmbedDocumentRequest(
+                url,
+                isForMainFrame: request.isForMainFrame == true,
+              )) {
+                return blockedAdResourceResponse();
+              }
               if (isLikelyMediaStreamUrl(url)) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _onMediaCandidate(url);

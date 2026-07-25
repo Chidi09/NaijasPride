@@ -18,6 +18,7 @@ import { emailService } from "../../shared/services/email.service";
 import { getPushService } from "../../shared/services/push-notification.service";
 import { MetadataService } from "./metadata.service";
 import { getRedis } from "../../shared/services/redis.service";
+import { generateMovieSlug } from "../../shared/utils/slugify";
 
 export class MoviesService {
   private readonly metadataService: MetadataService;
@@ -522,7 +523,14 @@ export class MoviesService {
   }
 
   private generateSlug(title: string, year: number): string {
-    return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
+    // Delegates to the shared slugifier rather than inlining the regex. The
+    // inline version left the trailing hyphen that any title ending in
+    // punctuation produces ("Another Movie!?" -> "another-movie-"), so the
+    // year was appended onto it: "another-movie--2023". admin.routes and the
+    // soap2day crawler already trimmed, so the same film ingested by two
+    // paths got two different slugs — a duplicate row, and a slug that never
+    // matches the one a lookup builds.
+    return generateMovieSlug(title, year);
   }
 
   private normalizeLegacySlug(slug: string): string {

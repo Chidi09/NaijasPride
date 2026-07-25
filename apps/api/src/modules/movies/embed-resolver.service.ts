@@ -37,34 +37,24 @@ type TvProviderTemplate = {
   ) => string | null;
 };
 
-// Providers ordered so the client's stream-sniffer hits a directly-playable
-// (native, ad-free) stream fastest. Order validated by a headless Playwright
-// sniff benchmark (2026-07-11): VidLink returned a direct .mp4 in ~1.1s and
-// 2Embed responded in ~1.8s, while Videasy's stream was NOT sniffable at all
-// (gated/MSE) and its hosted UI is ad-unwatchable — so Videasy is demoted to
-// last (only ever surfaced, ad-blocked, as a final server option).
+// Provider order. Videasy used to lead on the anime path and its player is
+// the inconsistent one — its stream is not sniffable at all (gated/MSE), so
+// it can never reach the native ad-free player, and its own hosted UI is
+// ad-unwatchable. It is last everywhere now: only ever surfaced, ad-blocked,
+// as a final server option.
+//
+// Vidking and VidSrc lead instead. Both are plain TMDB-keyed iframe
+// templates with documented, stable URL shapes:
+//   Vidking https://www.vidking.net/  — /embed/movie/{tmdb},
+//           /embed/tv/{tmdb}/{s}/{e}; params color (hex, no #), autoPlay,
+//           nextEpisode, episodeSelector, progress (start seconds).
+//   VidSrc  https://vidsrc.tw/api/    — /embed/movie?tmdb=|imdb=,
+//           /embed/tv?tmdb=|imdb=&season=&episode=; params autoplay (1|0),
+//           autonext (1|0), ds_lang (ISO-639), sub_url, color.
+// VidSrc's own docs list vidsrc-embed.su / vsrc.su as the current mirrors,
+// so one is carried as a separate server entry — when the primary host is
+// blocked or down the mirror usually is not.
 const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
-  {
-    id: "vidlink",
-    name: "VidLink",
-    supportsProgressEvents: true,
-    buildUrl: (_imdbId, tmdbId) =>
-      tmdbId ? `https://vidlink.pro/movie/${tmdbId}` : null,
-  },
-  {
-    id: "2embed",
-    name: "2Embed",
-    supportsProgressEvents: false,
-    buildUrl: (imdbId) =>
-      imdbId ? `https://www.2embed.cc/embed/${imdbId}` : null,
-  },
-  {
-    id: "vidsrc-cc",
-    name: "VidSrc Pro",
-    supportsProgressEvents: true,
-    buildUrl: (_imdbId, tmdbId) =>
-      tmdbId ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}` : null,
-  },
   {
     id: "vidking",
     name: "Vidking",
@@ -75,18 +65,49 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
         : null,
   },
   {
-    id: "vidsrc-me",
+    id: "vidsrc-xyz",
     name: "VidSrc",
     supportsProgressEvents: false,
-    buildUrl: (imdbId) =>
-      imdbId ? `https://vidsrc.me/embed/movie?imdb=${imdbId}` : null,
+    buildUrl: (imdbId, tmdbId) => {
+      if (tmdbId)
+        return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}&autoplay=1&ds_lang=en`;
+      if (imdbId)
+        return `https://vidsrc.xyz/embed/movie?imdb=${imdbId}&autoplay=1&ds_lang=en`;
+      return null;
+    },
   },
   {
-    id: "vidsrc-xyz",
-    name: "VidSrc 2",
+    id: "vidsrc-cc",
+    name: "VidSrc Pro",
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) =>
+      tmdbId ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}` : null,
+  },
+  {
+    id: "vidlink",
+    name: "VidLink",
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) =>
+      tmdbId ? `https://vidlink.pro/movie/${tmdbId}` : null,
+  },
+  {
+    id: "vidsrc-su",
+    name: "VidSrc Mirror",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId) => {
+      if (tmdbId)
+        return `https://vidsrc-embed.su/embed/movie?tmdb=${tmdbId}&autoplay=1`;
+      if (imdbId)
+        return `https://vidsrc-embed.su/embed/movie?imdb=${imdbId}&autoplay=1`;
+      return null;
+    },
+  },
+  {
+    id: "2embed",
+    name: "2Embed",
     supportsProgressEvents: false,
     buildUrl: (imdbId) =>
-      imdbId ? `https://vidsrc.xyz/embed/movie/${imdbId}` : null,
+      imdbId ? `https://www.2embed.cc/embed/${imdbId}` : null,
   },
   {
     id: "autoembed",
@@ -118,20 +139,24 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
 
 const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
   {
-    id: "vidlink",
-    name: "VidLink",
+    id: "vidking",
+    name: "Vidking",
     supportsProgressEvents: true,
     buildUrl: (_imdbId, tmdbId, season, episode) =>
-      tmdbId ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}` : null,
+      tmdbId
+        ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}?color=800020&autoPlay=true&nextEpisode=true&episodeSelector=true`
+        : null,
   },
   {
-    id: "2embed",
-    name: "2Embed",
+    id: "vidsrc-xyz",
+    name: "VidSrc",
     supportsProgressEvents: false,
-    buildUrl: (imdbId, _tmdbId, season, episode) =>
-      imdbId
-        ? `https://www.2embed.cc/embedtv/${imdbId}&s=${season}&e=${episode}`
-        : null,
+    buildUrl: (imdbId, tmdbId, season, episode) => {
+      const tail = `&season=${season}&episode=${episode}&autoplay=1&autonext=1&ds_lang=en`;
+      if (tmdbId) return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}${tail}`;
+      if (imdbId) return `https://vidsrc.xyz/embed/tv?imdb=${imdbId}${tail}`;
+      return null;
+    },
   },
   {
     id: "vidsrc-cc",
@@ -143,30 +168,32 @@ const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
         : null,
   },
   {
-    id: "vidking",
-    name: "Vidking",
+    id: "vidlink",
+    name: "VidLink",
     supportsProgressEvents: true,
     buildUrl: (_imdbId, tmdbId, season, episode) =>
-      tmdbId
-        ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}?color=800020&autoPlay=true`
-        : null,
+      tmdbId ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}` : null,
   },
   {
-    id: "vidsrc-me",
-    name: "VidSrc",
+    id: "vidsrc-su",
+    name: "VidSrc Mirror",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId, season, episode) => {
+      const tail = `&season=${season}&episode=${episode}&autoplay=1&autonext=1`;
+      if (tmdbId)
+        return `https://vidsrc-embed.su/embed/tv?tmdb=${tmdbId}${tail}`;
+      if (imdbId)
+        return `https://vidsrc-embed.su/embed/tv?imdb=${imdbId}${tail}`;
+      return null;
+    },
+  },
+  {
+    id: "2embed",
+    name: "2Embed",
     supportsProgressEvents: false,
     buildUrl: (imdbId, _tmdbId, season, episode) =>
       imdbId
-        ? `https://vidsrc.me/embed/tv?imdb=${imdbId}&season=${season}&episode=${episode}`
-        : null,
-  },
-  {
-    id: "vidsrc-xyz",
-    name: "VidSrc 2",
-    supportsProgressEvents: false,
-    buildUrl: (imdbId, _tmdbId, season, episode) =>
-      imdbId
-        ? `https://vidsrc.xyz/embed/tv/${imdbId}/${season}-${episode}`
+        ? `https://www.2embed.cc/embedtv/${imdbId}&s=${season}&e=${episode}`
         : null,
   },
   {

@@ -103,16 +103,19 @@ describe("QueueService", () => {
         return "success";
       };
 
-      // Simulate retries
-      while (attempts < maxRetries) {
+      // Simulate retries. The loop's own final call is the one that
+      // succeeds, so capture its result — calling attemptJob() again
+      // afterwards burned a fourth attempt and made the assertion below
+      // compare 4 against maxRetries.
+      let result: string | undefined;
+      while (result === undefined && attempts < maxRetries) {
         try {
-          attemptJob();
+          result = attemptJob();
         } catch {
           // Retry
         }
       }
 
-      const result = attemptJob();
       assert.strictEqual(result, "success");
       assert.strictEqual(attempts, maxRetries);
     });
