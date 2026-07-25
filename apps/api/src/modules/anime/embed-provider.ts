@@ -250,14 +250,43 @@ interface EmbedDef {
   ) => string;
 }
 
+// Ordered to match movies/embed-resolver.service.ts, which ranks providers
+// by measured reachability from Nigerian carrier ASNs rather than by how
+// good their documentation is — see the comment there for the challenge
+// rates and the VidSrc mirror reasoning. Vidking leads, VidSrc trails
+// (its .ru/.su hosts are throttled by West African transit), and Videasy is
+// last because its stream can't be sniffed at all.
+//
+// Anime rides the TV endpoint shape on every one of these, since the
+// AniList id was already resolved to a TMDB series + season above.
 const EMBED_SOURCES: EmbedDef[] = [
   {
-    name: "2Embed",
-    buildUrl: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+    name: "Vidking",
+    buildUrl: (id, s, e) =>
+      `https://www.vidking.net/embed/tv/${id}/${s}/${e}?color=800020&autoPlay=true&nextEpisode=true&episodeSelector=true`,
   },
   {
-    name: "Videasy",
-    buildUrl: (id, s, e) => `https://videasy.net/tv/${id}/${s}/${e}`,
+    // This entry was almost certainly never working: it fed the TMDB id
+    // resolved above into 2embed.cc/embedtv/, whose {id} is an IMDb id.
+    // The current endpoint takes either, and takes season/episode as path
+    // segments instead of the &s=&e= tail appended after a path.
+    name: "2Embed",
+    buildUrl: (id, s, e) =>
+      `https://www.2embed.online/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: "VidLink",
+    buildUrl: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: "VidSrc",
+    buildUrl: (id, s, e) =>
+      `https://vidsrc-embed.su/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1&ds_lang=en`,
+  },
+  {
+    name: "VidSrc Mirror",
+    buildUrl: (id, s, e) =>
+      `https://vidsrc-embed.ru/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1`,
   },
   {
     name: "SmashyStream",
@@ -276,6 +305,10 @@ const EMBED_SOURCES: EmbedDef[] = [
     name: "MultiEmbed",
     buildUrl: (id, s, e) =>
       `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
+  },
+  {
+    name: "Videasy",
+    buildUrl: (id, s, e) => `https://videasy.net/tv/${id}/${s}/${e}`,
   },
 ];
 
@@ -337,15 +370,22 @@ export async function getEmbedSources(
     return { sources: videasySource ? [videasySource] : [], tmdbId: null };
   }
 
-  // Build all embed URLs using the resolved season
+  // Build all embed URLs using the resolved season.
+  //
+  // The AniList-keyed Videasy player goes LAST, not first. Leading with it
+  // meant every anime episode was routed into VideasyPlayerScreen, which
+  // spends 15s clicking blindly at the page behind a loading overlay trying
+  // to sniff a stream Videasy doesn't expose — the single most ad-exposed
+  // path in the app — before falling back to these providers anyway. It is
+  // still kept as a last resort for the case where nothing else resolved.
   const sources: ProviderSource[] = [
-    ...(videasySource ? [videasySource] : []),
     ...EMBED_SOURCES.map((def) => ({
       url: def.buildUrl(tmdbId!, resolvedSeason, episode, type),
       quality: type === "dub" ? `${def.name} (Dub)` : def.name,
       isM3U8: false,
       isEmbed: true,
     })),
+    ...(videasySource ? [videasySource] : []),
   ];
 
   console.log(

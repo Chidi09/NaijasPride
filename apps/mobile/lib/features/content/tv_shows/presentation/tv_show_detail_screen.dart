@@ -113,6 +113,12 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
                     .map((s) => EmbedSource(url: s.url, label: s.label))
                     .toList(),
                 title: episode.title,
+                progressTarget: TvProgressTarget(
+                  showId: show.id,
+                  episodeId: episode.id,
+                  seasonNumber: _selectedSeason,
+                  episodeNumber: episode.episodeNumber,
+                ),
               ),
             ),
           );

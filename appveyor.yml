@@ -18,8 +18,27 @@ install:
 
 build: off
 
-
-
+# Until now this file ran `npm ci` and nothing else, so a green AppVeyor check
+# meant only "the dependencies installed". Type errors and failing tests
+# reached main unchallenged and first surfaced on the server, inside
+# deploy.sh, after the merge had already triggered the deploy. These two
+# steps are what the green check is supposed to stand for.
+#
+# `npm run typecheck` is turbo-driven, so it builds the shared packages first
+# and then typechecks every workspace that defines the task. apps/api's own
+# typecheck regenerates the Prisma client before running tsc — the client is
+# generated code, and a stale one reports errors for schema fields that do
+# exist. The api test task compiles to dist/ and runs node:test over it, so
+# it also proves the real build succeeds.
+#
+# That task expands the test file list with find/xargs rather than handing
+# node --test a glob: glob support landed after the Node 20 pinned above, so
+# a glob is taken literally here and fails with "Could not find". Passing
+# the directory instead doesn't work on any version — node treats it as a
+# module to load.
+test_script:
+  - npm run typecheck
+  - npm run test --workspace=api
 
 deploy_script:
   - sh: |

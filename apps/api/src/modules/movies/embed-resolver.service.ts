@@ -37,34 +37,51 @@ type TvProviderTemplate = {
   ) => string | null;
 };
 
-// Providers ordered so the client's stream-sniffer hits a directly-playable
-// (native, ad-free) stream fastest. Order validated by a headless Playwright
-// sniff benchmark (2026-07-11): VidLink returned a direct .mp4 in ~1.1s and
-// 2Embed responded in ~1.8s, while Videasy's stream was NOT sniffable at all
-// (gated/MSE) and its hosted UI is ad-unwatchable — so Videasy is demoted to
-// last (only ever surfaced, ad-blocked, as a final server option).
+// Provider order, set by measured reachability from Nigerian mobile/resi
+// ASNs (MTN AS37105, Airtel AS36873, Globacom AS37154, MainOne AS37282)
+// rather than by how good each provider's documentation is. These carriers
+// put subscribers behind CGNAT, so thousands of sessions share a handful of
+// public IPv4 addresses — which reads to a WAF as one very busy client and
+// drives the Cloudflare/Turnstile challenge rates below:
+//
+//   1. Vidking  — challenge rate negligible (<2%). Cloudflare edge workers,
+//                 TLS parameters that rarely trip Turnstile on CGNAT.
+//   2. 2Embed   — moderate (~12%). Delivers manifests consistently; dips
+//                 when transit throttles its ad-network sub-domains.
+//   3. VidLink  — high (~38%). Tokenised enc-vidlink API verifies clients
+//                 strictly, so shared-IP pools get CAPTCHA'd often.
+//   4. VidSrc   — severe (>50%), and last as a result. After the vidsrc.to
+//                 takedown the operators moved onto .ru/.su, and West
+//                 African upstream transit filters or throttles those TLDs,
+//                 so failures show up as timeouts and DNS errors.
+//
+// Videasy stays behind all of them: its stream is not sniffable at all
+// (gated/MSE), so it can never reach the native ad-free player, and its own
+// hosted UI is ad-unwatchable.
+//
+// Within VidSrc the endpoint choice matters as much as the ranking.
+// vidsrc.xyz is a gateway that JS-redirects to a backend rather than
+// serving playback, and gateways are what registrar-level lock orders hit
+// first — a locked gateway fails at DNS even while the mirrors are up. So
+// vidsrc-embed.su (the active primary playback mirror; R01-SU registrar,
+// Cloudflare NS, Let's Encrypt certs) is listed first, vidsrc-embed.ru
+// second, and the gateway is kept only as a late fallback. Listing them as
+// separate servers is what makes failover automatic: EmbedWebViewScreen
+// advances past a host that won't resolve.
+//
+// Documented URL shapes:
+//   Vidking https://www.vidking.net/  — /embed/movie/{tmdb},
+//           /embed/tv/{tmdb}/{s}/{e}; params color (hex, no #), autoPlay,
+//           nextEpisode, episodeSelector, progress (start seconds).
+//   VidSrc  https://vidsrc.tw/api/    — /embed/movie?tmdb=|imdb=,
+//           /embed/tv?tmdb=|imdb=&season=&episode=; params autoplay (1|0),
+//           autonext (1|0), ds_lang (ISO-639), sub_url, color.
+//   2Embed  https://www.2embed.online/ — /embed/movie/{id},
+//           /embed/tv/{id}/{s}/{e}, where {id} is a TMDB number or an IMDb
+//           tt-prefixed string. Supersedes the 2embed.cc URLs this used to
+//           build, which took an IMDb id only and carried season/episode as
+//           an "&s=&e=" tail appended after a path segment.
 const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
-  {
-    id: "vidlink",
-    name: "VidLink",
-    supportsProgressEvents: true,
-    buildUrl: (_imdbId, tmdbId) =>
-      tmdbId ? `https://vidlink.pro/movie/${tmdbId}` : null,
-  },
-  {
-    id: "2embed",
-    name: "2Embed",
-    supportsProgressEvents: false,
-    buildUrl: (imdbId) =>
-      imdbId ? `https://www.2embed.cc/embed/${imdbId}` : null,
-  },
-  {
-    id: "vidsrc-cc",
-    name: "VidSrc Pro",
-    supportsProgressEvents: true,
-    buildUrl: (_imdbId, tmdbId) =>
-      tmdbId ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}` : null,
-  },
   {
     id: "vidking",
     name: "Vidking",
@@ -75,18 +92,63 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
         : null,
   },
   {
-    id: "vidsrc-me",
+    id: "2embed",
+    name: "2Embed",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId) => {
+      const id = tmdbId ?? imdbId;
+      return id ? `https://www.2embed.online/embed/movie/${id}` : null;
+    },
+  },
+  {
+    id: "vidlink",
+    name: "VidLink",
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) =>
+      tmdbId ? `https://vidlink.pro/movie/${tmdbId}` : null,
+  },
+  {
+    id: "vidsrc-su",
     name: "VidSrc",
     supportsProgressEvents: false,
-    buildUrl: (imdbId) =>
-      imdbId ? `https://vidsrc.me/embed/movie?imdb=${imdbId}` : null,
+    buildUrl: (imdbId, tmdbId) => {
+      if (tmdbId)
+        return `https://vidsrc-embed.su/embed/movie?tmdb=${tmdbId}&autoplay=1&ds_lang=en`;
+      if (imdbId)
+        return `https://vidsrc-embed.su/embed/movie?imdb=${imdbId}&autoplay=1&ds_lang=en`;
+      return null;
+    },
+  },
+  {
+    id: "vidsrc-ru",
+    name: "VidSrc Mirror",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId) => {
+      if (tmdbId)
+        return `https://vidsrc-embed.ru/embed/movie?tmdb=${tmdbId}&autoplay=1`;
+      if (imdbId)
+        return `https://vidsrc-embed.ru/embed/movie?imdb=${imdbId}&autoplay=1`;
+      return null;
+    },
+  },
+  {
+    id: "vidsrc-cc",
+    name: "VidSrc Pro",
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId) =>
+      tmdbId ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}` : null,
   },
   {
     id: "vidsrc-xyz",
-    name: "VidSrc 2",
+    name: "VidSrc Gateway",
     supportsProgressEvents: false,
-    buildUrl: (imdbId) =>
-      imdbId ? `https://vidsrc.xyz/embed/movie/${imdbId}` : null,
+    buildUrl: (imdbId, tmdbId) => {
+      if (tmdbId)
+        return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}&autoplay=1&ds_lang=en`;
+      if (imdbId)
+        return `https://vidsrc.xyz/embed/movie?imdb=${imdbId}&autoplay=1&ds_lang=en`;
+      return null;
+    },
   },
   {
     id: "autoembed",
@@ -118,6 +180,26 @@ const MOVIE_PROVIDER_TEMPLATES: MovieProviderTemplate[] = [
 
 const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
   {
+    id: "vidking",
+    name: "Vidking",
+    supportsProgressEvents: true,
+    buildUrl: (_imdbId, tmdbId, season, episode) =>
+      tmdbId
+        ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}?color=800020&autoPlay=true&nextEpisode=true&episodeSelector=true`
+        : null,
+  },
+  {
+    id: "2embed",
+    name: "2Embed",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId, season, episode) => {
+      const id = tmdbId ?? imdbId;
+      return id
+        ? `https://www.2embed.online/embed/tv/${id}/${season}/${episode}`
+        : null;
+    },
+  },
+  {
     id: "vidlink",
     name: "VidLink",
     supportsProgressEvents: true,
@@ -125,13 +207,30 @@ const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
       tmdbId ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}` : null,
   },
   {
-    id: "2embed",
-    name: "2Embed",
+    id: "vidsrc-su",
+    name: "VidSrc",
     supportsProgressEvents: false,
-    buildUrl: (imdbId, _tmdbId, season, episode) =>
-      imdbId
-        ? `https://www.2embed.cc/embedtv/${imdbId}&s=${season}&e=${episode}`
-        : null,
+    buildUrl: (imdbId, tmdbId, season, episode) => {
+      const tail = `&season=${season}&episode=${episode}&autoplay=1&autonext=1&ds_lang=en`;
+      if (tmdbId)
+        return `https://vidsrc-embed.su/embed/tv?tmdb=${tmdbId}${tail}`;
+      if (imdbId)
+        return `https://vidsrc-embed.su/embed/tv?imdb=${imdbId}${tail}`;
+      return null;
+    },
+  },
+  {
+    id: "vidsrc-ru",
+    name: "VidSrc Mirror",
+    supportsProgressEvents: false,
+    buildUrl: (imdbId, tmdbId, season, episode) => {
+      const tail = `&season=${season}&episode=${episode}&autoplay=1&autonext=1`;
+      if (tmdbId)
+        return `https://vidsrc-embed.ru/embed/tv?tmdb=${tmdbId}${tail}`;
+      if (imdbId)
+        return `https://vidsrc-embed.ru/embed/tv?imdb=${imdbId}${tail}`;
+      return null;
+    },
   },
   {
     id: "vidsrc-cc",
@@ -143,31 +242,15 @@ const TV_PROVIDER_TEMPLATES: TvProviderTemplate[] = [
         : null,
   },
   {
-    id: "vidking",
-    name: "Vidking",
-    supportsProgressEvents: true,
-    buildUrl: (_imdbId, tmdbId, season, episode) =>
-      tmdbId
-        ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}?color=800020&autoPlay=true`
-        : null,
-  },
-  {
-    id: "vidsrc-me",
-    name: "VidSrc",
-    supportsProgressEvents: false,
-    buildUrl: (imdbId, _tmdbId, season, episode) =>
-      imdbId
-        ? `https://vidsrc.me/embed/tv?imdb=${imdbId}&season=${season}&episode=${episode}`
-        : null,
-  },
-  {
     id: "vidsrc-xyz",
-    name: "VidSrc 2",
+    name: "VidSrc Gateway",
     supportsProgressEvents: false,
-    buildUrl: (imdbId, _tmdbId, season, episode) =>
-      imdbId
-        ? `https://vidsrc.xyz/embed/tv/${imdbId}/${season}-${episode}`
-        : null,
+    buildUrl: (imdbId, tmdbId, season, episode) => {
+      const tail = `&season=${season}&episode=${episode}&autoplay=1&autonext=1&ds_lang=en`;
+      if (tmdbId) return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}${tail}`;
+      if (imdbId) return `https://vidsrc.xyz/embed/tv?imdb=${imdbId}${tail}`;
+      return null;
+    },
   },
   {
     id: "autoembed",

@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { MoviesService } from "./movies.service";
+import { generateMovieSlug } from "../../shared/utils/slugify";
 import { PrismaClient } from "@prisma/client";
 import { Genre, Quality, ContentStatus } from "@naijaspride/types";
 
@@ -84,8 +85,11 @@ describe("MoviesService", () => {
       ];
 
       for (const { title, year, expected } of testCases) {
-        const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${year}`;
-        assert.strictEqual(slug, expected);
+        // Exercises the real slugifier. This used to inline a copy of the
+        // regex, which is why it never caught that the copy (and the
+        // production one it mirrored) left the trailing hyphen from a title
+        // ending in punctuation: "Another Movie!?" -> "another-movie--2023".
+        assert.strictEqual(generateMovieSlug(title, year), expected);
       }
     });
   });

@@ -1,0 +1,25 @@
+# Build output and dependencies
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.angular/
+.turbo/
+
+# Generated clients / schemas
+apps/api/prisma/generated/
+**/*.generated.ts
+
+# Flutter tooling state. `npm run format` (run by the pre-commit hook, which
+# then does `git add -A`) would otherwise rewrite the JSON the Flutter tool
+# keeps under .dart_tool on every commit made from a machine that has run
+# `flutter pub get` — reformatting a build system's own cache files is at
+# best noise and at worst invalidates them.
+apps/mobile/.dart_tool/
+apps/mobile/build/
+apps/mobile/ios/Pods/
+
+# Lockfiles are owned by their package managers
+package-lock.json
+pubspec.lock

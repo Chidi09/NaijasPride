@@ -28,6 +28,31 @@ const String desktopUserAgent =
 // of guessing at a new one.
 const String embedOrigin = 'https://www.naijaspride.com/';
 
+/// Sandbox flags for the provider iframe. What's *omitted* is the point:
+/// without `allow-top-navigation`, `allow-top-navigation-by-user-activation`,
+/// `allow-popups` and `allow-popups-to-escape-sandbox`, the embed physically
+/// cannot drive the WebView to an ad/scam page or spawn a pop-under — the
+/// browser refuses the navigation itself, before any Dart callback would run.
+///
+/// This is the layer that actually stops the "tap the video, land on a scam
+/// page" hijack on Android. [evaluateNavigationTarget] cannot: every embed in
+/// this app runs *inside this iframe*, and flutter_inappwebview's Android
+/// `WebViewClient.shouldOverrideUrlLoading` returns `request.isForMainFrame()`
+/// — a sub-frame navigation is reported to Dart but always allowed, because
+/// Android offers no way to load a URL into a non-main frame. So a
+/// `NavigationActionPolicy.CANCEL` for anything happening in here was, and
+/// would remain, a no-op without this attribute.
+///
+/// `allow-same-origin` has to stay: dropping it puts the frame in an opaque
+/// origin, which breaks the providers' own storage/cookies and the
+/// `flutter_inappwebview` JS bridge the media sniffer reports through. It is
+/// safe to combine with `allow-scripts` here only because the frame is
+/// cross-origin to the wrapper document, so it cannot reach out and remove
+/// its own sandbox attribute.
+const String _embedIframeSandbox =
+    'allow-scripts allow-same-origin allow-forms allow-presentation '
+    'allow-orientation-lock';
+
 String wrapperHtmlFor(String embedUrl) {
   final escaped = embedUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
   return '''
@@ -35,12 +60,91 @@ String wrapperHtmlFor(String embedUrl) {
 <html>
 <head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#000;overflow:hidden;">
-<iframe src="$escaped" allow="autoplay; fullscreen; encrypted-media" allowfullscreen
+<iframe src="$escaped" allow="autoplay; fullscreen; encrypted-media"
+  sandbox="$_embedIframeSandbox" allowfullscreen
   style="position:fixed;top:0;left:0;width:100%;height:100%;border:0;"></iframe>
 </body>
 </html>
 ''';
 }
+
+/// Appends Vidking's documented `progress` parameter (start position, in
+/// whole seconds) so a resumed episode opens where it was left rather than at
+/// zero. Only Vidking specifies it; every other provider is returned
+/// untouched, since an unknown query parameter on a strict player is a way to
+/// break a working embed for no gain.
+String withResumeProgress(String embedUrl, int seconds) {
+  if (seconds <= 0) return embedUrl;
+  final host = Uri.tryParse(embedUrl)?.host.toLowerCase() ?? '';
+  if (!_isSameSite(host, 'vidking.net')) return embedUrl;
+  final separator = embedUrl.contains('?') ? '&' : '?';
+  return '$embedUrl${separator}progress=$seconds';
+}
+
+/// Relays the embed player's own playback telemetry out to Dart, so the
+/// WebView fallback can save resume progress the way the native player does.
+///
+/// Runs in the *wrapper* document, listening for the `postMessage` ticks the
+/// provider posts up from inside the iframe. That crossing works because the
+/// sandbox keeps `allow-scripts` and `allow-same-origin`; dropping the latter
+/// would still deliver the message but with `event.origin` reported as the
+/// literal string `"null"`.
+const String embedProgressBridgeJs = r'''
+(function() {
+  if (window.__nsProgressBridge) return;
+  window.__nsProgressBridge = true;
+
+  var lastSentAt = 0;
+
+  function num(v) {
+    var n = (typeof v === 'string') ? parseFloat(v) : v;
+    return (typeof n === 'number' && isFinite(n) && n >= 0) ? n : null;
+  }
+
+  // Vidking documents a nested { type: 'PLAYER_EVENT', data: {...} } envelope
+  // and also emits flatter ticks; other players differ again. Read whichever
+  // shape arrives instead of betting the feature on one of them.
+  function extract(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    var d = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
+    var currentTime = num(d.currentTime);
+    var duration = num(d.duration);
+    if (currentTime === null || duration === null || duration <= 0) return null;
+    if (currentTime > duration) return null;
+    return {
+      currentTime: currentTime,
+      duration: duration,
+      event: String(d.event || d.type || '')
+    };
+  }
+
+  window.addEventListener('message', function(ev) {
+    try {
+      var payload = ev.data;
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload); } catch (e) { return; }
+      }
+      var tick = extract(payload);
+      if (!tick) return;
+
+      // Deliberately not gated on ev.origin. A frame sandboxed without
+      // allow-same-origin reports its origin as "null", so an origin equality
+      // check silently discards every legitimate tick. The structural check
+      // above stands in for it, and the only thing ever loaded in this
+      // wrapper is the embed the app chose.
+      var now = Date.now();
+      var isFinal = tick.event === 'ended' || tick.event === 'pause';
+      if (!isFinal && now - lastSentAt < 5000) return;
+      lastSentAt = now;
+
+      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+        window.flutter_inappwebview.callHandler(
+          'nsProgress', tick.currentTime, tick.duration, tick.event);
+      }
+    } catch (e) {}
+  }, false);
+})();
+''';
 
 /// Ad/tracker/pop-under hosts that piracy embed providers load. Blocking these
 /// at the network layer (plus the cosmetic selectors below and pop-up
@@ -306,9 +410,7 @@ UnmodifiableListView<ContentBlocker> get adBlockerRules {
   final rules = <ContentBlocker>[
     for (final host in _adBlockHosts)
       ContentBlocker(
-        trigger: ContentBlockerTrigger(
-          urlFilter: '.*${RegExp.escape(host)}.*',
-        ),
+        trigger: ContentBlockerTrigger(urlFilter: '.*${RegExp.escape(host)}.*'),
         action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
       ),
     ContentBlocker(
@@ -424,25 +526,108 @@ bool isLikelyAdNavigation(String url) {
 WebResourceResponse blockedAdResourceResponse() =>
     WebResourceResponse(contentType: '', data: Uint8List(0));
 
-/// Decides whether a navigation triggered from inside an embed page (a tap
+/// The registrable domain of [host] ("player.videasy.net" → "videasy.net"),
+/// with the handful of two-label public suffixes these providers actually
+/// turn up on (`.co.uk`, `.com.br`, `.co.in`, …) accounted for. Used to keep
+/// a provider's own CDN/redirect chain on the allowlist without dragging in
+/// the entire TLD.
+String _registrableDomain(String host) {
+  final parts = host.split('.');
+  if (parts.length <= 2) return host;
+  const twoLabelSuffixHeads = {'co', 'com', 'net', 'org', 'gov', 'edu', 'ac'};
+  if (parts[parts.length - 1].length == 2 &&
+      twoLabelSuffixHeads.contains(parts[parts.length - 2])) {
+    return parts.sublist(parts.length - 3).join('.');
+  }
+  return parts.sublist(parts.length - 2).join('.');
+}
+
+bool _isSameSite(String host, String other) {
+  if (host.isEmpty || other.isEmpty) return false;
+  if (host == other) return true;
+  if (host.endsWith('.$other') || other.endsWith('.$host')) return true;
+  return _registrableDomain(host) == _registrableDomain(other);
+}
+
+/// True if [url] belongs to the same site as [other] — i.e. it is the embed
+/// provider talking to itself (its own CDN, its own resolver host) rather
+/// than a third party. Lets a WebView tell "this server is alive and
+/// serving" from "some unrelated host made a request".
+bool isSameSiteUrl(String url, String other) {
+  final a = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+  final b = Uri.tryParse(other)?.host.toLowerCase() ?? '';
+  return _isSameSite(a, b);
+}
+
+final String _wrapperHost = Uri.parse(embedOrigin).host.toLowerCase();
+
+/// Decides whether a *top-level* navigation out of the embed wrapper (a tap
 /// anywhere on the page hijacked into a full-page ad, a fake "update your
 /// player" redirect, an attempt to open the Play Store / a messaging app to
 /// push an install) should be allowed to proceed. Content/resource blockers
 /// only stop sub-resource loads (scripts, images, XHR) — they do nothing
 /// against a page *navigating itself* to an ad/scam destination, which is
 /// exactly what makes piracy embeds feel "ad-infested" even with a strong
-/// blocklist in place. Only known-bad destinations are cancelled; anything
-/// else (including legitimate same-provider redirect chains) is left alone
-/// so real embeds keep working.
-NavigationActionPolicy evaluateNavigationTarget(String url) {
+/// blocklist in place.
+///
+/// Pass [embedUrl] (the provider page currently loaded in the wrapper) to get
+/// **allowlist** behaviour: the wrapper's own origin and the provider's own
+/// site may drive a top-level navigation, and nothing else may. A blocklist
+/// cannot win here — these networks rotate throwaway domains far faster than
+/// any static list is updated, so "not on the list" has to mean "blocked",
+/// not "allowed". Legitimate cases are narrow enough for this to be safe:
+/// the wrapper never needs to leave itself, and a provider redirecting
+/// across its own CDN hosts stays same-site.
+///
+/// Without [embedUrl] it degrades to the old known-bad-destinations-only
+/// check, which is strictly weaker but never breaks a working embed.
+NavigationActionPolicy evaluateNavigationTarget(
+  String url, {
+  String? embedUrl,
+}) {
   final uri = Uri.tryParse(url);
-  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+  if (uri == null) return NavigationActionPolicy.CANCEL;
+
+  final scheme = uri.scheme.toLowerCase();
+  // about:blank / about:srcdoc is how the WebView reports the wrapper
+  // document it was handed via loadData, so it has to stay allowed.
+  if (scheme == 'about') return NavigationActionPolicy.ALLOW;
+  if (scheme != 'http' && scheme != 'https') {
     // Blocks intent://, market://, itms-apps://, tel:, sms:, whatsapp://,
     // viber:// etc. — the "open an app/store to push an install" vector.
     return NavigationActionPolicy.CANCEL;
   }
   if (isLikelyAdNavigation(url)) return NavigationActionPolicy.CANCEL;
-  return NavigationActionPolicy.ALLOW;
+
+  final host = uri.host.toLowerCase();
+  if (host.isEmpty) return NavigationActionPolicy.CANCEL;
+  if (_isSameSite(host, _wrapperHost)) return NavigationActionPolicy.ALLOW;
+
+  if (embedUrl == null) return NavigationActionPolicy.ALLOW;
+  final embedHost = Uri.tryParse(embedUrl)?.host.toLowerCase() ?? '';
+  return _isSameSite(host, embedHost)
+      ? NavigationActionPolicy.ALLOW
+      : NavigationActionPolicy.CANCEL;
+}
+
+/// True if a request the WebView is about to make is an ad/scam *page* being
+/// pulled into the embed iframe itself — the in-frame counterpart of the
+/// hijack [evaluateNavigationTarget] blocks at the top level.
+///
+/// The iframe sandbox stops the embed navigating the *top* frame, and
+/// [isAdOrTrackerUrl] stops known ad hosts, but neither stops an embed
+/// replacing its own document with a page on a domain nobody has listed yet.
+/// `shouldInterceptRequest` does see sub-frame document loads on Android, so
+/// this is the one place that hijack can still be caught.
+///
+/// Deliberately narrower than the top-level allowlist: it only fires on the
+/// generic ad/click-gate URL shapes, never on "cross-site" alone. Real
+/// providers routinely nest a *different* company's player (vidsrc → its
+/// resolver host, 2embed → its player host), and blocking cross-site
+/// documents outright would break playback everywhere.
+bool isBlockedEmbedDocumentRequest(String url, {required bool isForMainFrame}) {
+  if (isForMainFrame) return false;
+  return isLikelyAdNavigation(url);
 }
 
 const String _playKickJs = r'''
@@ -577,6 +762,40 @@ const String mediaSnifferJs = r'''
         };
       }
     } catch (e) {}
+    // Playerjs is the house player of most of these piracy embeds, and it
+    // takes its manifest as a constructor option rather than through any
+    // network call the fetch/XHR hooks above can see.
+    try {
+      if (window.Playerjs && !window.Playerjs.__ns) {
+        var _pjs = window.Playerjs;
+        var wrappedPjs = function(cfg) {
+          try { scanConfig(cfg, 0); } catch (e) {}
+          return new _pjs(cfg);
+        };
+        for (var pk in _pjs) { try { wrappedPjs[pk] = _pjs[pk]; } catch (e) {} }
+        wrappedPjs.__ns = 1;
+        window.Playerjs = wrappedPjs;
+      }
+    } catch (e) {}
+    try {
+      if (window.videojs && !window.videojs.__ns) {
+        var _vjs = window.videojs;
+        var wrappedVjs = function() {
+          var player = _vjs.apply(this, arguments);
+          try {
+            if (player && player.src && !player.__ns) {
+              player.__ns = 1;
+              var _src = player.src;
+              player.src = function(s) { try { scanConfig(s, 0); } catch (e) {} return _src.apply(this, arguments); };
+            }
+          } catch (e) {}
+          return player;
+        };
+        for (var vk in _vjs) { try { wrappedVjs[vk] = _vjs[vk]; } catch (e) {} }
+        wrappedVjs.__ns = 1;
+        window.videojs = wrappedVjs;
+      }
+    } catch (e) {}
     try {
       if (window.jwplayer && !window.jwplayer.__ns) {
         var _jw = window.jwplayer;
@@ -655,6 +874,45 @@ String get dynamicAdGuardJs {
   // app never needs the embed page to open anything itself.
   try { window.open = function() { return null; }; } catch (e) {}
 
+  function sameSite(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    var x = a.split('.').slice(-2).join('.');
+    var y = b.split('.').slice(-2).join('.');
+    return x === y;
+  }
+
+  // A tap that leaves the provider's own site is never something the embed
+  // needs and always the hijack: an invisible full-viewport <a> laid over
+  // the player, so "press play" is really "open the ad". The iframe sandbox
+  // already blocks top-frame navigation and pop-ups, but an anchor without
+  // a target navigates the frame in place, which the sandbox permits and
+  // Location's unforgeable href/assign/replace can't be hooked to stop —
+  // so it has to be cancelled at the click.
+  function isHijackNav(u) {
+    if (!u) return false;
+    var s = String(u).trim();
+    if (!s || s.charAt(0) === '#') return false;
+    if (/^(javascript|blob|data|mailto):/i.test(s)) return false;
+    if (isAdUrl(s)) return true;
+    var h = hostOf(s);
+    if (!h) return false;
+    return !sameSite(h, location.hostname);
+  }
+  try {
+    document.addEventListener('click', function(ev) {
+      try {
+        var t = ev.target;
+        var a = (t && t.closest) ? t.closest('a[href]') : null;
+        if (!a) return;
+        if (isHijackNav(a.getAttribute('href'))) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      } catch (e) {}
+    }, true);
+  } catch (e) {}
+
   // Legacy ad tags still commonly injected via document.write(<script>/<iframe>).
   try {
     var _write = document.write.bind(document);
@@ -685,15 +943,20 @@ String get dynamicAdGuardJs {
         var src = node.getAttribute('src') || node.getAttribute('href');
         if (isAdUrl(src)) { node.remove(); return; }
       }
-      if (tag === 'DIV' || tag === 'INS') {
+      // Full-viewport click-catchers. <A> counts too — the most common
+      // shape is a transparent anchor stretched over the player — and the
+      // z-index bar is 100 rather than 999 because plenty of these ship
+      // with a modest z-index and still sit on top of everything.
+      if (tag === 'DIV' || tag === 'INS' || tag === 'A') {
         var style = window.getComputedStyle(node);
         if (style && (style.position === 'fixed' || style.position === 'absolute')) {
           var z = parseInt(style.zIndex, 10) || 0;
           var r = node.getBoundingClientRect();
           var coversViewport = r.width >= window.innerWidth * 0.8 && r.height >= window.innerHeight * 0.8;
           var hasRealPlayer = node.querySelector('video') || node.querySelector('iframe');
-          if (z >= 999 && coversViewport && !hasRealPlayer) {
+          if (z >= 100 && coversViewport && !hasRealPlayer) {
             node.style.setProperty('display', 'none', 'important');
+            node.style.setProperty('pointer-events', 'none', 'important');
           }
         }
       }
@@ -817,6 +1080,7 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
     initialSettings: InAppWebViewSettings(
       javaScriptEnabled: true,
       useShouldInterceptRequest: true,
+      useShouldOverrideUrlLoading: true,
       mediaPlaybackRequiresUserGesture: false,
       userAgent: desktopUserAgent,
       transparentBackground: true,
@@ -835,7 +1099,7 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       // instead.
       final url = navigationAction.request.url?.toString();
       if (url == null) return NavigationActionPolicy.ALLOW;
-      return evaluateNavigationTarget(url);
+      return evaluateNavigationTarget(url, embedUrl: embedUrl);
     },
     onCreateWindow: (controller, createWindowAction) async {
       // Never let the hidden sniffing WebView spawn a popup.
@@ -867,6 +1131,12 @@ Future<ExtractedEmbedStream?> extractStreamFromEmbed(
       // content blocker behavior can be inconsistent across Android
       // WebView/OEM builds.
       if (isAdOrTrackerUrl(url)) {
+        return blockedAdResourceResponse();
+      }
+      if (isBlockedEmbedDocumentRequest(
+        url,
+        isForMainFrame: request.isForMainFrame == true,
+      )) {
         return blockedAdResourceResponse();
       }
 

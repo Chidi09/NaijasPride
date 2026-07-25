@@ -6,6 +6,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
     "prebuild": "prisma generate",
     "build": "tsc && tsc-alias",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "test": "npm run build && find dist -name '*.test.js' -print0 | xargs -0 -r node --test",
     "start": "node dist/app.js",
     "worker:book-import": "npm run build && node dist/workers/book-import.worker.js",
     "worker:book-cover": "npm run build && node dist/workers/book-cover.worker.js",
