@@ -30,6 +30,12 @@ build: off
 # generated code, and a stale one reports errors for schema fields that do
 # exist. The api test task compiles to dist/ and runs node:test over it, so
 # it also proves the real build succeeds.
+#
+# That task expands the test file list with find/xargs rather than handing
+# node --test a glob: glob support landed after the Node 20 pinned above, so
+# a glob is taken literally here and fails with "Could not find". Passing
+# the directory instead doesn't work on any version — node treats it as a
+# module to load.
 test_script:
   - npm run typecheck
   - npm run test --workspace=api
