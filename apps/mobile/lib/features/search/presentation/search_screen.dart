@@ -13,6 +13,7 @@ import '../../content/anime/data/anime_api.dart';
 import '../../content/anime/data/anime_models.dart';
 import '../../content/movies/data/movie_models.dart';
 import '../../content/movies/data/movies_api.dart';
+import '../../content/shared/application/content_rating.dart';
 import '../../content/shared/application/watch_progress_lookup.dart';
 import '../../content/shared/presentation/content_carousel.dart';
 import '../../content/shared/presentation/poster_card.dart';
@@ -434,6 +435,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ContentCarousel(
             title: 'Movies',
             children: _movies.map((m) {
+              final progress = progressLookup?.movie(m.id, m.slug);
               return PosterCard(
                 imageUrl: m.youtubeId != null
                     ? (m.backdropUrl ??
@@ -445,10 +447,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 isRectangular: m.youtubeId != null,
                 title: m.title,
                 onTap: () => context.push('/movies/${m.slug ?? m.id}'),
-                progressFraction: progressLookup?.movie(m.id, m.slug),
-                ratingLabel: m.rating != null && m.rating! > 0
-                    ? m.rating!.toStringAsFixed(1)
-                    : null,
+                progressFraction: progress?.fraction,
+                progressLabel: progress?.remainingLabel,
+                watched: progress?.watched ?? false,
+                ratingLabel: movieRatingLabel(m),
               );
             }).toList(),
           ),
@@ -456,11 +458,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ContentCarousel(
             title: 'TV Shows',
             children: _tvShows.map((t) {
+              final progress = progressLookup?.tv(t.id, t.slug);
               return PosterCard(
                 imageUrl: t.posterUrl ?? t.thumbnailUrl ?? '',
                 title: t.title,
                 onTap: () => context.push('/tv/${t.slug}'),
-                progressFraction: progressLookup?.tv(t.id, t.slug),
+                progressFraction: progress?.fraction,
+                progressLabel: progress?.remainingLabel,
+                watched: progress?.watched ?? false,
+                ratingLabel: tvRatingLabel(t),
               );
             }).toList(),
           ),
@@ -468,15 +474,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ContentCarousel(
             title: 'Anime',
             children: _anime.map((a) {
+              final progress = progressLookup?.anime(a.id.toString());
               return PosterCard(
                 imageUrl: a.coverImage.extraLarge ?? a.coverImage.large ?? '',
                 title:
                     a.title.english ?? a.title.romaji ?? a.title.native ?? '',
                 onTap: () => context.push('/anime/${a.id}'),
-                progressFraction: progressLookup?.anime(a.id.toString()),
-                ratingLabel: a.averageScore != null && a.averageScore! > 0
-                    ? (a.averageScore! / 10).toStringAsFixed(1)
-                    : null,
+                progressFraction: progress?.fraction,
+                progressLabel: progress?.remainingLabel,
+                watched: progress?.watched ?? false,
+                ratingLabel: formatAniListScore(a.averageScore),
               );
             }).toList(),
           ),

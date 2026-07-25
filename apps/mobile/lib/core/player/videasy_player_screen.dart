@@ -38,6 +38,7 @@ class VideasyPlayerScreen extends ConsumerStatefulWidget {
   final String title;
   final ProgressTarget? progressTarget;
   final AnimeSkipTimes? skipTimes;
+  final List<AnimeWatchSubtitle>? subtitles;
 
   /// Non-Videasy providers to switch to if the Videasy stream can't be sniffed.
   final List<EmbedServer> alternates;
@@ -48,6 +49,7 @@ class VideasyPlayerScreen extends ConsumerStatefulWidget {
     required this.title,
     this.progressTarget,
     this.skipTimes,
+    this.subtitles,
     this.alternates = const [],
   });
 
@@ -123,6 +125,7 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
           title: widget.title,
           progressTarget: widget.progressTarget,
           skipTimes: widget.skipTimes,
+          subtitles: widget.subtitles,
         ),
       ),
     );
@@ -149,6 +152,7 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
               .map((s) => EmbedSource(url: s.url, label: s.label))
               .toList(),
           title: widget.title,
+          subtitles: widget.subtitles,
         ),
       ),
     );

@@ -11,6 +11,7 @@ import '../../content/anime/data/anime_api.dart';
 import '../../content/anime/data/anime_models.dart';
 import '../../content/movies/data/movies_api.dart';
 import '../../content/movies/data/movie_models.dart';
+import '../../content/shared/application/content_rating.dart';
 import '../../content/shared/application/watch_progress_lookup.dart';
 import '../../content/shared/presentation/content_carousel.dart';
 import '../../content/shared/presentation/poster_card.dart';
@@ -217,10 +218,18 @@ class HomeScreen extends ConsumerWidget {
                       ContentCarousel(
                         title: 'Continue Watching',
                         children: filteredItems.map((item) {
+                          final watched = item.progressFraction >= 0.95;
                           return PosterCard(
                             imageUrl: item.imageUrl ?? '',
                             title: item.title,
                             progressFraction: item.progressFraction,
+                            progressLabel: watched
+                                ? null
+                                : formatRemaining(
+                                    item.durationSeconds -
+                                        item.progressSeconds,
+                                  ),
+                            watched: watched,
                             onTap: () {
                               switch (item.contentType) {
                                 case 'movie':
@@ -267,8 +276,12 @@ class HomeScreen extends ConsumerWidget {
                       ContentCarousel(
                         title: s.$1,
                         children: stdMovies
-                            .map(
-                              (movie) => PosterCard(
+                            .map((movie) {
+                              final progress = progressLookup?.movie(
+                                movie.id,
+                                movie.slug,
+                              );
+                              return PosterCard(
                                 imageUrl:
                                     movie.posterUrl ??
                                     movie.thumbnailUrl ??
@@ -279,16 +292,12 @@ class HomeScreen extends ConsumerWidget {
                                 onTap: () => context.push(
                                   '/movies/${movie.slug ?? movie.id}',
                                 ),
-                                progressFraction: progressLookup?.movie(
-                                  movie.id,
-                                  movie.slug,
-                                ),
-                                ratingLabel:
-                                    movie.rating != null && movie.rating! > 0
-                                    ? movie.rating!.toStringAsFixed(1)
-                                    : null,
-                              ),
-                            )
+                                progressFraction: progress?.fraction,
+                                progressLabel: progress?.remainingLabel,
+                                watched: progress?.watched ?? false,
+                                ratingLabel: movieRatingLabel(movie),
+                              );
+                            })
                             .toList(),
                       ),
                     );
@@ -300,8 +309,12 @@ class HomeScreen extends ConsumerWidget {
                         title: '${s.$1} (Nollywood/Free)',
                         height: 160,
                         children: ytMovies
-                            .map(
-                              (movie) => PosterCard(
+                            .map((movie) {
+                              final progress = progressLookup?.movie(
+                                movie.id,
+                                movie.slug,
+                              );
+                              return PosterCard(
                                 imageUrl:
                                     movie.backdropUrl ??
                                     movie.thumbnailUrl ??
@@ -313,16 +326,12 @@ class HomeScreen extends ConsumerWidget {
                                 onTap: () => context.push(
                                   '/movies/${movie.slug ?? movie.id}',
                                 ),
-                                progressFraction: progressLookup?.movie(
-                                  movie.id,
-                                  movie.slug,
-                                ),
-                                ratingLabel:
-                                    movie.rating != null && movie.rating! > 0
-                                    ? movie.rating!.toStringAsFixed(1)
-                                    : null,
-                              ),
-                            )
+                                progressFraction: progress?.fraction,
+                                progressLabel: progress?.remainingLabel,
+                                watched: progress?.watched ?? false,
+                                ratingLabel: movieRatingLabel(movie),
+                              );
+                            })
                             .toList(),
                       ),
                     );
@@ -346,18 +355,22 @@ class HomeScreen extends ConsumerWidget {
                   ? ContentCarousel(
                       title: 'Popular TV Shows',
                       children: tv.data
-                          .map(
-                            (show) => PosterCard(
+                          .map((show) {
+                            final progress = progressLookup?.tv(
+                              show.id,
+                              show.slug,
+                            );
+                            return PosterCard(
                               imageUrl:
                                   show.posterUrl ?? show.thumbnailUrl ?? '',
                               title: show.title,
                               onTap: () => context.push('/tv/${show.slug}'),
-                              progressFraction: progressLookup?.tv(
-                                show.id,
-                                show.slug,
-                              ),
-                            ),
-                          )
+                              progressFraction: progress?.fraction,
+                              progressLabel: progress?.remainingLabel,
+                              watched: progress?.watched ?? false,
+                              ratingLabel: tvRatingLabel(show),
+                            );
+                          })
                           .toList(),
                     )
                   : const SizedBox.shrink(),
@@ -370,8 +383,11 @@ class HomeScreen extends ConsumerWidget {
                   ? ContentCarousel(
                       title: 'Trending Anime',
                       children: anime.media
-                          .map(
-                            (entry) => PosterCard(
+                          .map((entry) {
+                            final progress = progressLookup?.anime(
+                              entry.id.toString(),
+                            );
+                            return PosterCard(
                               imageUrl:
                                   entry.coverImage.large ??
                                   entry.coverImage.medium ??
@@ -382,18 +398,14 @@ class HomeScreen extends ConsumerWidget {
                                   entry.title.native ??
                                   'Untitled',
                               onTap: () => context.push('/anime/${entry.id}'),
-                              progressFraction: progressLookup?.anime(
-                                entry.id.toString(),
+                              progressFraction: progress?.fraction,
+                              progressLabel: progress?.remainingLabel,
+                              watched: progress?.watched ?? false,
+                              ratingLabel: formatAniListScore(
+                                entry.averageScore,
                               ),
-                              ratingLabel:
-                                  entry.averageScore != null &&
-                                      entry.averageScore! > 0
-                                  ? (entry.averageScore! / 10).toStringAsFixed(
-                                      1,
-                                    )
-                                  : null,
-                            ),
-                          )
+                            );
+                          })
                           .toList(),
                     )
                   : const SizedBox.shrink(),

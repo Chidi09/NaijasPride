@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math' show min, max;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 
+import '../build_flavor.dart';
 import 'local_progress_cache.dart';
 import 'pip_service.dart';
 import 'playback_source.dart';
@@ -177,9 +179,9 @@ class _UnifiedVideoPlayerScreenState
         await player.seek(Duration(seconds: progress));
       }
     } else if (target is TvProgressTarget) {
-      final result = await api.getTvProgress(target.showId);
+      final progressByEpisode = await api.getTvProgress(target.showId);
+      final result = progressByEpisode[target.episodeId];
       if (result == null) return;
-      if (result.episodeId != target.episodeId) return;
       final progress = result.progress;
       final duration = result.duration;
       if (progress > 10 && (duration <= 0 || duration - progress > 15)) {
@@ -429,6 +431,33 @@ class _UnifiedVideoPlayerScreenState
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) setState(() => _seekIndicatorOpacity = 0.0);
     });
+  }
+
+  // --- D-pad / remote handlers (Android TV) ---
+  // There is no on-screen play/pause or a directional way to seek without a
+  // touchscreen — the gesture handlers above (double-tap, drag) all assume
+  // a pointer. These give a remote the same seek/play-pause control.
+
+  void _seekBy(int deltaSeconds) {
+    if (_player == null) return;
+    final currentSeconds = _lastKnownPosition.inSeconds;
+    final durationSeconds = _lastKnownDuration.inSeconds;
+    var newSeconds = max(0, currentSeconds + deltaSeconds);
+    if (durationSeconds > 0) newSeconds = min(durationSeconds, newSeconds);
+    _player!.seek(Duration(seconds: newSeconds));
+    setState(() {
+      _seekIndicatorIcon = deltaSeconds < 0
+          ? Icons.replay_10
+          : Icons.forward_10;
+      _seekIndicatorOpacity = 1.0;
+    });
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _seekIndicatorOpacity = 0.0);
+    });
+  }
+
+  void _togglePlayPause() {
+    _player?.playOrPause();
   }
 
   void _onLongPressStart(LongPressStartDetails details) {
@@ -1049,22 +1078,68 @@ class _UnifiedVideoPlayerScreenState
           ),
         ],
       ),
-      body: Center(
-        child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.white)
-            : _error != null
-            ? _ErrorView(error: _error!, onRetry: _initPlayback)
-            : _controller != null
-            ? _buildVideoWithGestures(
-                Video(
-                  controller: _controller!,
-                  subtitleViewConfiguration: _buildSubtitleConfig(),
-                ),
-              )
-            : const SizedBox.shrink(),
+      body: _wrapForRemoteControl(
+        Center(
+          child: _isLoading
+              ? const CircularProgressIndicator(color: Colors.white)
+              : _error != null
+              ? _ErrorView(error: _error!, onRetry: _initPlayback)
+              : _controller != null
+              ? _buildVideoWithGestures(
+                  Video(
+                    controller: _controller!,
+                    subtitleViewConfiguration: _buildSubtitleConfig(),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
       ),
     );
   }
+
+  /// D-pad seek (left/right) and play/pause (OK/select/space), for Android
+  /// TV where the gesture handlers in [_buildVideoWithGestures] (all
+  /// pointer-based: double-tap, drag) are unreachable with a remote.
+  Widget _wrapForRemoteControl(Widget child) {
+    if (!isTvBuild) return child;
+    return Shortcuts(
+      shortcuts: <LogicalKeySet, Intent>{
+        LogicalKeySet(LogicalKeyboardKey.arrowLeft): const _SeekIntent(-10),
+        LogicalKeySet(LogicalKeyboardKey.arrowRight): const _SeekIntent(10),
+        LogicalKeySet(LogicalKeyboardKey.select): const _PlayPauseIntent(),
+        LogicalKeySet(LogicalKeyboardKey.enter): const _PlayPauseIntent(),
+        LogicalKeySet(LogicalKeyboardKey.space): const _PlayPauseIntent(),
+        LogicalKeySet(LogicalKeyboardKey.mediaPlayPause):
+            const _PlayPauseIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _SeekIntent: CallbackAction<_SeekIntent>(
+            onInvoke: (intent) {
+              _seekBy(intent.deltaSeconds);
+              return null;
+            },
+          ),
+          _PlayPauseIntent: CallbackAction<_PlayPauseIntent>(
+            onInvoke: (_) {
+              _togglePlayPause();
+              return null;
+            },
+          ),
+        },
+        child: Focus(autofocus: true, child: child),
+      ),
+    );
+  }
+}
+
+class _SeekIntent extends Intent {
+  final int deltaSeconds;
+  const _SeekIntent(this.deltaSeconds);
+}
+
+class _PlayPauseIntent extends Intent {
+  const _PlayPauseIntent();
 }
 
 class _ErrorView extends StatelessWidget {

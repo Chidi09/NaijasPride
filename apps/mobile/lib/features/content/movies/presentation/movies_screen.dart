@@ -8,6 +8,7 @@ import '../../../../core/build_flavor.dart';
 import '../../../ads/data/ads_api.dart';
 import '../../../ads/presentation/ad_slot_card.dart';
 import '../../shared/presentation/error_state_view.dart';
+import '../../shared/application/content_rating.dart';
 import '../../shared/application/watch_progress_lookup.dart';
 import '../../shared/presentation/poster_card.dart';
 import '../../shared/presentation/shimmer_poster_grid.dart';
@@ -229,6 +230,7 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
               }
               final contentIndex = !_showAds ? index : index - index ~/ 13;
               final movie = _movies[contentIndex];
+              final progress = progressLookup?.movie(movie.id, movie.slug);
               return PosterCard(
                 width: itemWidth,
                 imageUrl: movie.youtubeId != null
@@ -245,10 +247,10 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
                 heroTag: 'movie-poster-${movie.id}',
                 title: movie.title,
                 onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
-                progressFraction: progressLookup?.movie(movie.id, movie.slug),
-                ratingLabel: movie.rating != null && movie.rating! > 0
-                    ? movie.rating!.toStringAsFixed(1)
-                    : null,
+                progressFraction: progress?.fraction,
+                progressLabel: progress?.remainingLabel,
+                watched: progress?.watched ?? false,
+                ratingLabel: movieRatingLabel(movie),
               );
             },
           ),

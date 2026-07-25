@@ -8,6 +8,8 @@ class MovieSummary {
   final List<Genre> genre;
   final List<Quality> quality;
   final double? rating;
+  final double? tmdbRating;
+  final double? imdbRating;
   final String? thumbnailUrl;
   final String? coverUrl;
   final String? posterUrl;
@@ -28,6 +30,8 @@ class MovieSummary {
     required this.genre,
     required this.quality,
     this.rating,
+    this.tmdbRating,
+    this.imdbRating,
     this.thumbnailUrl,
     this.coverUrl,
     this.posterUrl,
@@ -56,6 +60,8 @@ class MovieSummary {
               .toList() ??
           [],
       rating: (json['rating'] as num?)?.toDouble(),
+      tmdbRating: (json['tmdbRating'] as num?)?.toDouble(),
+      imdbRating: (json['imdbRating'] as num?)?.toDouble(),
       thumbnailUrl: json['thumbnailUrl'] as String?,
       coverUrl: json['coverUrl'] as String?,
       posterUrl: json['posterUrl'] as String?,
