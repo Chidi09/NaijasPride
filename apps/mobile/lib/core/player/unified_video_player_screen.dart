@@ -12,6 +12,7 @@ import '../build_flavor.dart';
 import 'local_progress_cache.dart';
 import 'pip_service.dart';
 import 'playback_source.dart';
+import 'progress_recorder.dart';
 import 'watch_progress_api.dart';
 import 'youtube_resolver.dart';
 import '../../features/content/anime/data/anime_models.dart';
@@ -231,69 +232,20 @@ class _UnifiedVideoPlayerScreenState
   void _saveProgress(ProgressTarget target) {
     final player = _player;
     if (player == null) return;
+    if (progressContentKey(target) == null) return;
 
-    final pos = _lastKnownPosition.inSeconds;
-    final dur = _lastKnownDuration.inSeconds;
-
-    String contentKey;
-    if (target is MovieProgressTarget) {
-      contentKey = 'movie:${target.movieId}';
-    } else if (target is AnimeProgressTarget) {
-      contentKey = 'anime:${target.anilistId}:${target.episodeNumber}';
-    } else if (target is TvProgressTarget) {
-      contentKey =
-          'tv:${target.showId}:${target.episodeId}:${target.seasonNumber}:${target.episodeNumber}';
-    } else {
-      return;
-    }
-
-    _writeLocalProgress(contentKey, pos, dur);
-    _syncProgressToServer(target, contentKey, pos, dur);
+    // Delegates to the shared recorder, which the WebView fallback also
+    // uses. Both players write resume progress for the same episode, so a
+    // second copy of the cache-key format here would eventually drift and
+    // leave one player unable to see the other's saved position.
+    recordProgress(
+      api: ref.read(watchProgressApiProvider),
+      target: target,
+      positionSeconds: _lastKnownPosition.inSeconds,
+      durationSeconds: _lastKnownDuration.inSeconds,
+    );
 
     _lastSavedPosition = _lastKnownPosition;
-  }
-
-  Future<void> _writeLocalProgress(String contentKey, int pos, int dur) async {
-    try {
-      final cache = await LocalProgressCache.getInstance();
-      await cache.writeLocal(contentKey, pos, dur);
-    } catch (_) {}
-  }
-
-  Future<void> _syncProgressToServer(
-    ProgressTarget target,
-    String contentKey,
-    int pos,
-    int dur,
-  ) async {
-    try {
-      final api = ref.read(watchProgressApiProvider);
-      bool success = false;
-      if (target is MovieProgressTarget) {
-        success = await api.saveMovieProgress(target.movieId, pos, dur);
-      } else if (target is AnimeProgressTarget) {
-        success = await api.saveAnimeProgress(
-          anilistId: target.anilistId,
-          episodeNumber: target.episodeNumber,
-          title: target.title,
-          imageUrl: target.imageUrl,
-          progressSeconds: pos,
-          durationSeconds: dur,
-        );
-      } else if (target is TvProgressTarget) {
-        success = await api.saveTvProgress(
-          showId: target.showId,
-          episodeId: target.episodeId,
-          seasonNumber: target.seasonNumber,
-          episodeNumber: target.episodeNumber,
-          progressSeconds: pos,
-          durationSeconds: dur,
-        );
-      }
-      if (!success) return;
-      final cache = await LocalProgressCache.getInstance();
-      await cache.clearLocal(contentKey);
-    } catch (_) {}
   }
 
   Future<void> _flushPendingProgress() async {

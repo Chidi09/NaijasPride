@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'embed_stream_extractor.dart'
     show
@@ -11,15 +12,19 @@ import 'embed_stream_extractor.dart'
         desktopUserAgent,
         dynamicAdGuardJs,
         embedOrigin,
+        embedProgressBridgeJs,
         evaluateNavigationTarget,
         isAdOrTrackerUrl,
         isBlockedEmbedDocumentRequest,
         isSameSiteUrl,
+        withResumeProgress,
         wrapperHtmlFor,
         mediaSnifferJs,
         isLikelyMediaStreamUrl;
 import 'playback_source.dart';
+import 'progress_recorder.dart';
 import 'unified_video_player_screen.dart';
+import 'watch_progress_api.dart';
 import '../build_flavor.dart';
 import '../../features/content/shared/presentation/tv_focusable.dart';
 import '../../features/content/anime/data/anime_models.dart';
@@ -47,11 +52,16 @@ final Set<WebResourceErrorType> _fatalNetworkErrors = {
   WebResourceErrorType.UNSAFE_RESOURCE,
 };
 
-class EmbedWebViewScreen extends StatefulWidget {
+class EmbedWebViewScreen extends ConsumerStatefulWidget {
   final List<EmbedSource> sources;
   final int initialIndex;
   final String title;
   final List<AnimeWatchSubtitle>? subtitles;
+
+  /// What to record playback position against. When set, the screen relays
+  /// the embed player's own `postMessage` telemetry into the same watch
+  /// history the native player writes, and resumes where it left off.
+  final ProgressTarget? progressTarget;
 
   const EmbedWebViewScreen({
     super.key,
@@ -59,13 +69,14 @@ class EmbedWebViewScreen extends StatefulWidget {
     this.initialIndex = 0,
     required this.title,
     this.subtitles,
+    this.progressTarget,
   });
 
   @override
-  State<EmbedWebViewScreen> createState() => _EmbedWebViewScreenState();
+  ConsumerState<EmbedWebViewScreen> createState() => _EmbedWebViewScreenState();
 }
 
-class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
+class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
   /// How long to wait before offering a one-tap way out. Deliberately a
   /// *hint*, not an auto-advance: plenty of embeds play fine in the WebView
   /// without ever exposing a sniffable stream, so silence here is not proof
@@ -90,6 +101,14 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
   /// instead of ping-ponging between two dead ones.
   final Set<int> _deadServers = <int>{};
 
+  /// Resolved before the first load so the resume position can be baked into
+  /// the provider URL — the player seeks on init from a query parameter, and
+  /// there is no way to drive it afterwards across the frame boundary.
+  int _resumeSeconds = 0;
+  bool _resumeResolved = false;
+
+  int _lastRecordedSeconds = -1;
+
   @override
   void initState() {
     super.initState();
@@ -97,7 +116,7 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
     if (_currentIndex < 0 || _currentIndex >= widget.sources.length) {
       _currentIndex = 0;
     }
-    _armHintTimer();
+    _resolveResumePoint();
   }
 
   @override
@@ -106,7 +125,27 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
     super.dispose();
   }
 
+  bool get _tracksProgress => widget.progressTarget != null;
+
   EmbedSource get _currentSource => widget.sources[_currentIndex];
+
+  /// The URL actually handed to the WebView, resume position included.
+  String get _currentLoadUrl =>
+      withResumeProgress(_currentSource.url, _resumeSeconds);
+
+  Future<void> _resolveResumePoint() async {
+    final target = widget.progressTarget;
+    if (target != null) {
+      final seconds = await resumePositionSeconds(
+        api: ref.read(watchProgressApiProvider),
+        target: target,
+      );
+      if (seconds != null) _resumeSeconds = seconds;
+    }
+    if (!mounted) return;
+    setState(() => _resumeResolved = true);
+    _armHintTimer();
+  }
 
   void _armHintTimer() {
     _hintTimer?.cancel();
@@ -115,6 +154,22 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
       if (!mounted || _detectedStream != null || _allServersFailed) return;
       setState(() => _showSwitchHint = true);
     });
+  }
+
+  void _onProgressTick(double position, double duration, String event) {
+    final target = widget.progressTarget;
+    if (target == null) return;
+    final pos = position.floor();
+    final dur = duration.floor();
+    if (dur <= 0 || pos < 0 || pos > dur) return;
+    if (pos == _lastRecordedSeconds) return;
+    _lastRecordedSeconds = pos;
+    recordProgress(
+      api: ref.read(watchProgressApiProvider),
+      target: target,
+      positionSeconds: pos,
+      durationSeconds: dur,
+    );
   }
 
   /// Called when a server is proven dead (unreachable host, or an HTTP error
@@ -154,8 +209,11 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
       _allServersFailed = false;
       _failureReason = null;
     });
+    // Carries the resume position across a server switch: the new provider
+    // starts where the dead one left off rather than back at zero.
+    if (_lastRecordedSeconds > 0) _resumeSeconds = _lastRecordedSeconds;
     _webViewController?.loadData(
-      data: wrapperHtmlFor(widget.sources[index].url),
+      data: wrapperHtmlFor(_currentLoadUrl),
       baseUrl: WebUri(embedOrigin),
     );
     _armHintTimer();
@@ -197,6 +255,7 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
           ),
           title: widget.title,
           subtitles: widget.subtitles,
+          progressTarget: widget.progressTarget,
         ),
       ),
     );
@@ -256,7 +315,18 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
           Expanded(
             child: Stack(
               children: [
-                Positioned.fill(child: _webView()),
+                Positioned.fill(
+                  child: _resumeResolved
+                      ? _webView()
+                      : const ColoredBox(
+                          color: Colors.black,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                ),
                 if (_allServersFailed) Positioned.fill(child: _failurePanel()),
               ],
             ),
@@ -304,17 +374,40 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
   }
 
   Widget _statusBar() {
+    final buffer = StringBuffer(
+      'Server ${_currentIndex + 1} of ${widget.sources.length} · '
+      '${_currentSource.label} — compatibility mode',
+    );
+    if (_tracksProgress) {
+      buffer.write(', so remote-control support is unavailable');
+      if (_resumeSeconds > 0) {
+        buffer.write('. Resuming from ${_formatDuration(_resumeSeconds)}');
+      }
+      buffer.write('.');
+    } else {
+      buffer.write(
+        ', so resume progress and remote-control support are unavailable.',
+      );
+    }
+
     return Container(
       width: double.infinity,
       color: Colors.orange.withAlpha(40),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Text(
-        'Server ${_currentIndex + 1} of ${widget.sources.length} · '
-        '${_currentSource.label} — compatibility mode, so resume progress and '
-        'remote-control support are unavailable.',
+        buffer.toString(),
         style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
       ),
     );
+  }
+
+  static String _formatDuration(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    final mm = m.toString().padLeft(2, '0');
+    final ss = s.toString().padLeft(2, '0');
+    return h > 0 ? '$h:$mm:$ss' : '$m:$ss';
   }
 
   Widget _switchHintBar() {
@@ -411,7 +504,7 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
   Widget _webView() {
     return InAppWebView(
       initialData: InAppWebViewInitialData(
-        data: wrapperHtmlFor(_currentSource.url),
+        data: wrapperHtmlFor(_currentLoadUrl),
         baseUrl: WebUri(embedOrigin),
       ),
       initialUserScripts: UnmodifiableListView<UserScript>([
@@ -424,6 +517,13 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
           source: mediaSnifferJs,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
           forMainFrameOnly: false,
+        ),
+        // Main frame only: this one listens for the messages the provider
+        // posts *up* from inside the iframe, so it belongs in the wrapper.
+        UserScript(
+          source: embedProgressBridgeJs,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          forMainFrameOnly: true,
         ),
       ]),
       onWebViewCreated: (controller) {
@@ -441,6 +541,17 @@ class _EmbedWebViewScreenState extends State<EmbedWebViewScreen> {
                 });
               }
             }
+          },
+        );
+        controller.addJavaScriptHandler(
+          handlerName: 'nsProgress',
+          callback: (args) {
+            if (!mounted || args.length < 2) return;
+            final position = (args[0] as num?)?.toDouble();
+            final duration = (args[1] as num?)?.toDouble();
+            if (position == null || duration == null) return;
+            final event = args.length > 2 ? '${args[2]}' : '';
+            _onProgressTick(position, duration, event);
           },
         );
       },

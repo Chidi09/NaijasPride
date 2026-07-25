@@ -250,21 +250,20 @@ interface EmbedDef {
   ) => string;
 }
 
-// Vidking and VidSrc lead, matching the movie/TV ordering in
-// movies/embed-resolver.service.ts — see the comment there for the URL
-// shapes and where they're documented. Videasy is last for the same reason
-// it is there: its stream can't be sniffed, so it can never reach the native
-// ad-free player, and its own hosted UI is ad-unwatchable.
+// Ordered to match movies/embed-resolver.service.ts, which ranks providers
+// by measured reachability from Nigerian carrier ASNs rather than by how
+// good their documentation is — see the comment there for the challenge
+// rates and the VidSrc mirror reasoning. Vidking leads, VidSrc trails
+// (its .ru/.su hosts are throttled by West African transit), and Videasy is
+// last because its stream can't be sniffed at all.
+//
+// Anime rides the TV endpoint shape on every one of these, since the
+// AniList id was already resolved to a TMDB series + season above.
 const EMBED_SOURCES: EmbedDef[] = [
   {
     name: "Vidking",
     buildUrl: (id, s, e) =>
       `https://www.vidking.net/embed/tv/${id}/${s}/${e}?color=800020&autoPlay=true&nextEpisode=true&episodeSelector=true`,
-  },
-  {
-    name: "VidSrc",
-    buildUrl: (id, s, e) =>
-      `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1&ds_lang=en`,
   },
   {
     // This entry was almost certainly never working: it fed the TMDB id
@@ -276,9 +275,18 @@ const EMBED_SOURCES: EmbedDef[] = [
       `https://www.2embed.online/embed/tv/${id}/${s}/${e}`,
   },
   {
+    name: "VidLink",
+    buildUrl: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: "VidSrc",
+    buildUrl: (id, s, e) =>
+      `https://vidsrc-embed.su/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1&ds_lang=en`,
+  },
+  {
     name: "VidSrc Mirror",
     buildUrl: (id, s, e) =>
-      `https://vidsrc-embed.su/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1`,
+      `https://vidsrc-embed.ru/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=1&autonext=1`,
   },
   {
     name: "SmashyStream",

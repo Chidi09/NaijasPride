@@ -176,6 +176,33 @@ void main() {
     });
   });
 
+  group('withResumeProgress', () {
+    test('appends Vidking\'s documented progress parameter', () {
+      expect(withResumeProgress(_embed, 942), '$_embed&progress=942');
+      expect(
+        withResumeProgress('https://www.vidking.net/embed/movie/1078605', 60),
+        'https://www.vidking.net/embed/movie/1078605?progress=60',
+      );
+    });
+
+    test('leaves other providers untouched', () {
+      // An unrecognised query parameter on a strict player is a way to break
+      // a working embed for nothing — only Vidking documents this one.
+      const vidsrc =
+          'https://vidsrc-embed.su/embed/tv?tmdb=1399&season=1&episode=1';
+      expect(withResumeProgress(vidsrc, 942), vidsrc);
+      expect(
+        withResumeProgress('https://www.2embed.online/embed/tv/1399/1/1', 942),
+        'https://www.2embed.online/embed/tv/1399/1/1',
+      );
+    });
+
+    test('is a no-op without a resume point', () {
+      expect(withResumeProgress(_embed, 0), _embed);
+      expect(withResumeProgress(_embed, -5), _embed);
+    });
+  });
+
   group('isLikelyMediaStreamUrl', () {
     test('accepts real manifests', () {
       expect(isLikelyMediaStreamUrl('https://cdn.x.com/master.m3u8'), isTrue);

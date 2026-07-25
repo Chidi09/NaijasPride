@@ -68,6 +68,84 @@ String wrapperHtmlFor(String embedUrl) {
 ''';
 }
 
+/// Appends Vidking's documented `progress` parameter (start position, in
+/// whole seconds) so a resumed episode opens where it was left rather than at
+/// zero. Only Vidking specifies it; every other provider is returned
+/// untouched, since an unknown query parameter on a strict player is a way to
+/// break a working embed for no gain.
+String withResumeProgress(String embedUrl, int seconds) {
+  if (seconds <= 0) return embedUrl;
+  final host = Uri.tryParse(embedUrl)?.host.toLowerCase() ?? '';
+  if (!_isSameSite(host, 'vidking.net')) return embedUrl;
+  final separator = embedUrl.contains('?') ? '&' : '?';
+  return '$embedUrl${separator}progress=$seconds';
+}
+
+/// Relays the embed player's own playback telemetry out to Dart, so the
+/// WebView fallback can save resume progress the way the native player does.
+///
+/// Runs in the *wrapper* document, listening for the `postMessage` ticks the
+/// provider posts up from inside the iframe. That crossing works because the
+/// sandbox keeps `allow-scripts` and `allow-same-origin`; dropping the latter
+/// would still deliver the message but with `event.origin` reported as the
+/// literal string `"null"`.
+const String embedProgressBridgeJs = r'''
+(function() {
+  if (window.__nsProgressBridge) return;
+  window.__nsProgressBridge = true;
+
+  var lastSentAt = 0;
+
+  function num(v) {
+    var n = (typeof v === 'string') ? parseFloat(v) : v;
+    return (typeof n === 'number' && isFinite(n) && n >= 0) ? n : null;
+  }
+
+  // Vidking documents a nested { type: 'PLAYER_EVENT', data: {...} } envelope
+  // and also emits flatter ticks; other players differ again. Read whichever
+  // shape arrives instead of betting the feature on one of them.
+  function extract(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    var d = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
+    var currentTime = num(d.currentTime);
+    var duration = num(d.duration);
+    if (currentTime === null || duration === null || duration <= 0) return null;
+    if (currentTime > duration) return null;
+    return {
+      currentTime: currentTime,
+      duration: duration,
+      event: String(d.event || d.type || '')
+    };
+  }
+
+  window.addEventListener('message', function(ev) {
+    try {
+      var payload = ev.data;
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload); } catch (e) { return; }
+      }
+      var tick = extract(payload);
+      if (!tick) return;
+
+      // Deliberately not gated on ev.origin. A frame sandboxed without
+      // allow-same-origin reports its origin as "null", so an origin equality
+      // check silently discards every legitimate tick. The structural check
+      // above stands in for it, and the only thing ever loaded in this
+      // wrapper is the embed the app chose.
+      var now = Date.now();
+      var isFinal = tick.event === 'ended' || tick.event === 'pause';
+      if (!isFinal && now - lastSentAt < 5000) return;
+      lastSentAt = now;
+
+      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+        window.flutter_inappwebview.callHandler(
+          'nsProgress', tick.currentTime, tick.duration, tick.event);
+      }
+    } catch (e) {}
+  }, false);
+})();
+''';
+
 /// Ad/tracker/pop-under hosts that piracy embed providers load. Blocking these
 /// at the network layer (plus the cosmetic selectors below and pop-up
 /// suppression in the WebView settings) is what makes the fallback

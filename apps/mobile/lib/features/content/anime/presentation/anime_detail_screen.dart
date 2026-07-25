@@ -176,6 +176,12 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
                       .toList(),
                   title: episode.title ?? 'Episode ${episode.number}',
                   subtitles: fetchedSubtitles,
+                  progressTarget: AnimeProgressTarget(
+                    anilistId: widget.id,
+                    episodeNumber: episode.number,
+                    title: episode.title ?? 'Episode ${episode.number}',
+                    imageUrl: episode.image,
+                  ),
                 ),
               ),
             );

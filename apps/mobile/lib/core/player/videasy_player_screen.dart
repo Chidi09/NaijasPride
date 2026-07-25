@@ -154,6 +154,7 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
               .toList(),
           title: widget.title,
           subtitles: widget.subtitles,
+          progressTarget: widget.progressTarget,
         ),
       ),
     );

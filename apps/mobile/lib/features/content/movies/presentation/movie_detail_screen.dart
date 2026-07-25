@@ -154,6 +154,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
                     .map((s) => EmbedSource(url: s.url, label: s.label))
                     .toList(),
                 title: movie.title,
+                progressTarget: MovieProgressTarget(movie.id),
               ),
             ),
           );
