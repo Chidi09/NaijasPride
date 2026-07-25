@@ -28,6 +28,7 @@ export interface TvShow {
   language: string;
   imdbId: string | null;
   tmdbId: number | null;
+  tmdbRating: number | null;
   thumbnailUrl: string | null;
   posterUrl: string | null;
   backdropUrl: string | null;
@@ -50,6 +51,7 @@ export interface TvShowSummary {
   backdropUrl: string | null;
   imdbId: string | null;
   tmdbId: number | null;
+  tmdbRating: number | null;
   canStream: boolean;
   seasonCount: number;
   episodeCount: number;

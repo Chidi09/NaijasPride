@@ -30,6 +30,7 @@ type TmdbShowDetails = {
   original_language?: string;
   poster_path?: string | null;
   backdrop_path?: string | null;
+  vote_average?: number | null;
   external_ids?: {
     imdb_id?: string | null;
   };
@@ -172,6 +173,7 @@ export class TvTmdbSyncService {
           ? details.original_language.toUpperCase()
           : "EN",
         imdbId: details.external_ids?.imdb_id ?? null,
+        tmdbRating: details.vote_average ?? null,
         thumbnailUrl: this.tmdbImage(details.poster_path, "w500"),
         posterUrl: this.tmdbImage(details.poster_path, "w500"),
         backdropUrl: this.tmdbImage(details.backdrop_path, "original"),
@@ -191,6 +193,7 @@ export class TvTmdbSyncService {
           : "EN",
         imdbId: details.external_ids?.imdb_id ?? null,
         tmdbId,
+        tmdbRating: details.vote_average ?? null,
         thumbnailUrl: this.tmdbImage(details.poster_path, "w500"),
         posterUrl: this.tmdbImage(details.poster_path, "w500"),
         backdropUrl: this.tmdbImage(details.backdrop_path, "original"),

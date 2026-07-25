@@ -181,13 +181,13 @@ export class TvShowsService {
 
     await this.prisma.tvWatchHistory.upsert({
       where: {
-        userId_showId: {
+        userId_showId_episodeId: {
           userId,
           showId: payload.showId,
+          episodeId: payload.episodeId,
         },
       },
       update: {
-        episodeId: payload.episodeId,
         progress: payload.progress,
         duration: payload.duration,
         updatedAt: new Date(),
@@ -204,15 +204,21 @@ export class TvShowsService {
     });
   }
 
+  /** All per-episode progress rows for a show, newest first. */
   async getProgress(userId: string, showId: string) {
-    return this.prisma.tvWatchHistory.findUnique({
-      where: { userId_showId: { userId, showId } },
+    return this.prisma.tvWatchHistory.findMany({
+      where: { userId, showId },
+      orderBy: { updatedAt: "desc" },
     });
   }
 
   async getHistory(userId: string, limit = 10) {
     const rows = await this.prisma.tvWatchHistory.findMany({
       where: { userId },
+      // One row per show (its most recently watched episode) — otherwise a
+      // show with progress on several episodes would crowd out other shows
+      // in the continue-watching list.
+      distinct: ["showId"],
       orderBy: { updatedAt: "desc" },
       take: limit,
       include: {
@@ -295,6 +301,7 @@ export class TvShowsService {
       backdropUrl: row.backdropUrl,
       imdbId: row.imdbId,
       tmdbId: row.tmdbId,
+      tmdbRating: row.tmdbRating,
       canStream: !!row.imdbId || !!row.tmdbId,
       seasonCount,
       episodeCount,
@@ -313,6 +320,7 @@ export class TvShowsService {
       language: row.language,
       imdbId: row.imdbId,
       tmdbId: row.tmdbId,
+      tmdbRating: row.tmdbRating,
       thumbnailUrl: row.thumbnailUrl,
       posterUrl: row.posterUrl,
       backdropUrl: row.backdropUrl,
