@@ -351,24 +351,61 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                     ),
                   Row(
                     children: [
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
-                          shape: const StadiumBorder(),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF800020), Color(0xFFA31535)],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x66800020),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        onPressed: () =>
-                            context.push('/movies/${movie.slug ?? movie.id}'),
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Play'),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(24),
+                            onTap: () =>
+                                context.push('/movies/${movie.slug ?? movie.id}'),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Play',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white.withAlpha(40),
+                          backgroundColor: Colors.black.withAlpha(80),
                           foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withAlpha(80)),
+                          side: BorderSide(color: Colors.white.withAlpha(90)),
                           shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
                         ),
                         onPressed: () async {
                           final api = ref.read(watchProgressApiProvider);
@@ -395,8 +432,8 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
                             );
                           }
                         },
-                        icon: const Icon(Icons.add),
-                        label: const Text('My List'),
+                        icon: const Icon(Icons.add, size: 20),
+                        label: const Text('My List', style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -411,17 +448,31 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: List.generate(movies.length, (i) {
-                  return Container(
+                  final isActive = i == _currentIndex;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
                     margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: 8,
-                    height: 8,
+                    width: isActive ? 22 : 7,
+                    height: 7,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i == _currentIndex
+                      borderRadius: BorderRadius.circular(4),
+                      color: isActive
                           ? (theme.brightness == Brightness.dark
                                 ? AppColors.dark.accent
                                 : AppColors.light.accent)
                           : Colors.white.withAlpha(100),
+                      boxShadow: isActive
+                          ? [
+                              BoxShadow(
+                                color: (theme.brightness == Brightness.dark
+                                        ? AppColors.dark.accent
+                                        : AppColors.light.accent)
+                                    .withAlpha(140),
+                                blurRadius: 6,
+                              ),
+                            ]
+                          : null,
                     ),
                   );
                 }),
