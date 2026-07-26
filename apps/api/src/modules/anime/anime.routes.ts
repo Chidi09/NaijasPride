@@ -1190,13 +1190,13 @@ type KitsuEpisodeMeta = { image: string | null; title: string | null };
  * Resolves an AniList id to a Kitsu anime id through Kitsu's own mapping
  * table, rather than by searching titles.
  *
- * This is what makes the fallback safe. Anime numbering is a minefield —
- * databases disagree constantly about whether a second cour is a new entry
- * restarting at episode 1 or a continuation of an absolute count — so a
- * title-matched fallback can attach a confidently wrong image to every
- * episode. Because Kitsu records the AniList id explicitly, the entry
- * returned here is by construction the same run AniList is describing, and
- * its `number` field is directly comparable.
+ * Kept as a fallback rather than the primary route. It is an id-to-id lookup,
+ * which is what makes it safe — anime numbering is a minefield, databases
+ * disagree constantly about whether a second cour is a new entry restarting
+ * at episode 1 or a continuation of an absolute count, and a title-matched
+ * mapping attaches a confidently wrong image to every episode. But in
+ * production this endpoint answers HTTP 200 with no match for entries that
+ * are demonstrably mapped, so nothing should depend on it alone.
  */
 async function kitsuAnimeIdForAnilist(
   anilistId: number,
@@ -1258,6 +1258,7 @@ function collectKitsuEpisodes(
  */
 async function kitsuEpisodeMetadata(
   anilistId: number,
+  knownKitsuId?: number | null,
 ): Promise<MetadataSourceResult<KitsuEpisodeMeta>> {
   const cacheKey = String(anilistId);
   const cached = readCachedPayload(
@@ -1281,16 +1282,27 @@ async function kitsuEpisodeMetadata(
   const result = new Map<number, KitsuEpisodeMeta>();
   let detail: string | undefined;
   try {
-    const mapping = await kitsuAnimeIdForAnilist(anilistId);
-    if (!mapping.id) {
-      writeCachedPayload(kitsuEpisodeThumbsCache, cacheKey, []);
-      return { entries: result, outcome: "miss", detail: mapping.detail };
+    // ani.zip's mapping table already carries the Kitsu id, and the caller has
+    // usually just fetched it. Preferring it removes the one call in this
+    // whole path that was actually failing: in production Kitsu's own
+    // /mappings endpoint answers HTTP 200 with an empty match for entries it
+    // demonstrably has — Bleach resolves to Kitsu 244 from anywhere else —
+    // and that single miss was enough to cost all 366 thumbnails, because
+    // every episode request downstream of it needs the id.
+    let kitsuId = knownKitsuId ? String(knownKitsuId) : null;
+    if (!kitsuId) {
+      const mapping = await kitsuAnimeIdForAnilist(anilistId);
+      kitsuId = mapping.id;
+      if (!kitsuId) {
+        writeCachedPayload(kitsuEpisodeThumbsCache, cacheKey, []);
+        return { entries: result, outcome: "miss", detail: mapping.detail };
+      }
     }
 
     // The first page doubles as the count probe — `meta.count` is what says
     // how many more pages there are to ask for.
     const first = await kitsuJson<KitsuEpisodesResponse>(
-      kitsuEpisodesPath(mapping.id, 0),
+      kitsuEpisodesPath(kitsuId, 0),
     );
     detail = first.detail;
     collectKitsuEpisodes(first.data, result);
@@ -1309,9 +1321,7 @@ async function kitsuEpisodeMetadata(
       const batch = offsets.slice(i, i + KITSU_PAGE_CONCURRENCY);
       const pages = await Promise.all(
         batch.map((offset) =>
-          kitsuJson<KitsuEpisodesResponse>(
-            kitsuEpisodesPath(mapping.id!, offset),
-          ),
+          kitsuJson<KitsuEpisodesResponse>(kitsuEpisodesPath(kitsuId, offset)),
         ),
       );
       for (const page of pages) collectKitsuEpisodes(page.data, result);
@@ -1334,6 +1344,29 @@ async function kitsuEpisodeMetadata(
 
 /** Jikan asks for no more than a few requests a second. */
 const JIKAN_MAX_PAGES = 30;
+
+/** Comfortably under Jikan's published three-requests-a-second limit. */
+const JIKAN_PAGE_DELAY_MS = 400;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How much of a paginated episode walk actually completed.
+ *
+ * Split out because getting it wrong is silent. A walk that read page one of
+ * four and stopped returns a perfectly well-formed set of filler episodes; it
+ * is simply missing three quarters of them, and reporting that as success
+ * meant the answer was both trusted and cached for a day. "Read nothing" and
+ * "read some" are different failures and neither is a success.
+ */
+export function paginationOutcome(
+  pagesRead: number,
+  pagesExpected: number | null,
+): "complete" | "partial" | "none" {
+  if (pagesRead <= 0) return "none";
+  if (pagesExpected !== null && pagesRead < pagesExpected) return "partial";
+  return "complete";
+}
 
 type JikanEpisodesResponse = {
   data?: Array<{ mal_id?: number; filler?: boolean }>;
@@ -1361,24 +1394,26 @@ async function jikanFillerEpisodes(
     jikanFillerCache,
     cacheKey,
     JIKAN_FILLER_CACHE_TTL_MS,
-  ) as { episodes: number[]; answered: boolean } | null;
+  ) as { episodes: number[] } | null;
   if (cached) {
-    return {
-      filler: new Set(cached.episodes),
-      outcome: cached.answered ? "success" : "miss",
-    };
+    return { filler: new Set(cached.episodes), outcome: "success" };
   }
 
   const filler = new Set<number>();
-  // A series with no filler at all is a perfectly normal answer, so an empty
-  // set is not evidence of a problem — whether Jikan answered at all is.
-  // Without this distinction a failing request cached "no filler" for a day.
-  let answered = false;
+  let pagesRead = 0;
+  // What the first page says the run should be, so a walk that stops early is
+  // recognisable as incomplete rather than passed off as the whole answer.
+  let pagesExpected: number | null = null;
   let detail: string | undefined;
   try {
     // Sequential on purpose: Jikan rate-limits aggressively, and this runs
     // at most once a day per series.
     for (let page = 1; page <= JIKAN_MAX_PAGES; page += 1) {
+      // Paced under Jikan's published limit of three requests a second. The
+      // walk is a handful of pages once a day, so the wait costs nothing and
+      // a 429 partway through costs the filler flags for every later episode.
+      if (page > 1) await sleep(JIKAN_PAGE_DELAY_MS);
+
       const { data, detail: pageDetail } =
         await metadataJson<JikanEpisodesResponse>(
           `https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`,
@@ -1388,7 +1423,10 @@ async function jikanFillerEpisodes(
         detail = pageDetail;
         break;
       }
-      answered = true;
+      pagesRead += 1;
+      if (pagesExpected === null) {
+        pagesExpected = data.pagination?.last_visible_page ?? null;
+      }
       for (const episode of data.data || []) {
         if (episode.filler && typeof episode.mal_id === "number") {
           filler.add(episode.mal_id);
@@ -1400,18 +1438,34 @@ async function jikanFillerEpisodes(
     detail = error instanceof Error ? error.message : "jikan request failed";
   }
 
-  if (answered) {
+  // A series with no filler at all is a perfectly normal answer, so an empty
+  // set is not on its own evidence of a problem. Reading only part of the run
+  // is: Bleach carries 39 filler episodes on page one alone, and a walk that
+  // stopped after that page previously reported plain success, which read as
+  // "this series has no filler" and was then cached as such for a day.
+  const walk = paginationOutcome(pagesRead, pagesExpected);
+
+  // Only a complete walk earns the day-long cache. A partial one is retried on
+  // the next request rather than frozen in for 24 hours.
+  if (walk === "complete") {
     writeCachedPayload(jikanFillerCache, cacheKey, {
       episodes: Array.from(filler),
-      answered,
     });
+    return { filler, outcome: "success" };
   }
 
-  return {
-    filler,
-    outcome: answered ? "success" : "error",
-    detail: answered ? undefined : detail,
-  };
+  // Partial results are still applied — some filler badges beat none — they
+  // are just reported as partial and not cached.
+  if (walk === "partial") {
+    return {
+      filler,
+      outcome: "miss",
+      detail: `partial: ${pagesRead} of ${pagesExpected} pages${
+        detail ? ` (${detail})` : ""
+      }`,
+    };
+  }
+  return { filler, outcome: "error", detail: detail || "no jikan response" };
 }
 
 type EpisodeWithMeta = {
@@ -1492,20 +1546,29 @@ async function fillEpisodeMetadata<T extends EpisodeWithMeta>(
   // AniList only carries the episodes streaming sites have been linked
   // against an entry, which for a long run is a small prefix of it — Bleach
   // exposes 20 of 366 — so the gap is the normal case, not the exception.
+  //
+  // ani.zip is resolved before Kitsu rather than after, because it supplies
+  // the Kitsu id. Kitsu's own mapping endpoint answers HTTP 200 with an empty
+  // match in production, and that miss cost every Kitsu thumbnail behind it;
+  // taking the id from a lookup that does succeed removes the dependency.
+  // It is cached, so the ordering costs no extra request.
+  let mapping: Awaited<ReturnType<typeof animeIdMappings>> | null = null;
   if (needsImage(filled) || needsTitle(filled)) {
-    const kitsu = await kitsuEpisodeMetadata(anilistId);
+    mapping = await animeIdMappings(anilistId);
+    note("anizip", mapping.outcome, mapping.detail);
+  }
+
+  if (needsImage(filled) || needsTitle(filled)) {
+    const kitsu = await kitsuEpisodeMetadata(anilistId, mapping?.ids.kitsuId);
     note("kitsu", kitsu.outcome, kitsu.detail);
     if (kitsu.entries.size > 0) filled = merge(filled, kitsu.entries);
   }
 
-  // A second source on a different host, so one of them being unreachable
-  // does not leave the list bare. It costs a single request for a whole
-  // series and carries titles for the full run even where its images are
-  // sparse, which is worth having on its own.
-  if (needsImage(filled) || needsTitle(filled)) {
-    const mapping = await animeIdMappings(anilistId);
-    note("anizip", mapping.outcome, mapping.detail);
-    if (mapping.episodes.size > 0) filled = merge(filled, mapping.episodes);
+  // ani.zip's own episode data is applied after Kitsu's, filling whatever is
+  // still bare: it carries titles for a full run but images for only a
+  // fraction of one, where Kitsu has a thumbnail for every episode.
+  if (mapping && mapping.episodes.size > 0) {
+    filled = merge(filled, mapping.episodes);
   }
 
   // Only ever sets the flag, never clears it: where a bridge supplied its own
