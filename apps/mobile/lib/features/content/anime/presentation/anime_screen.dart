@@ -236,49 +236,50 @@ class _AnimeScreenState extends ConsumerState<AnimeScreen> {
             color: theme.colorScheme.primary,
             backgroundColor: theme.colorScheme.surface,
             onRefresh: () async {
-              setState(() {
-                _currentPage = 1;
-                _media = [];
-              });
-              await _fetchAnime();
+              // Not cleared first: see the note in movies_screen.dart —
+              // emptying the list swaps the grid for the loading skeleton
+              // while the refresh spinner is still showing.
+              _currentPage = 1;
+              await _fetchMedia();
             },
             child: GridView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.53,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 0.53,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: !_showAds
+                  ? _media.length
+                  : _media.length + (_media.length ~/ 12),
+              itemBuilder: (context, index) {
+                if (_showAds && (index + 1) % 13 == 0) {
+                  return AdPosterCard(index: index ~/ 13);
+                }
+                final contentIndex = !_showAds ? index : index - index ~/ 13;
+                final entry = _media[contentIndex];
+                final progress = progressLookup?.anime(entry.id.toString());
+                return PosterCard(
+                  width: itemWidth,
+                  imageUrl:
+                      entry.coverImage.large ?? entry.coverImage.medium ?? '',
+                  heroTag: 'anime-poster-${entry.id}',
+                  title:
+                      entry.title.english ??
+                      entry.title.romaji ??
+                      entry.title.native ??
+                      'Untitled',
+                  onTap: () => context.push('/anime/${entry.id}'),
+                  progressFraction: progress?.fraction,
+                  progressLabel: progress?.remainingLabel,
+                  watched: progress?.watched ?? false,
+                  ratingLabel: formatAniListScore(entry.averageScore),
+                );
+              },
             ),
-            itemCount: !_showAds
-                ? _media.length
-                : _media.length + (_media.length ~/ 12),
-            itemBuilder: (context, index) {
-              if (_showAds && (index + 1) % 13 == 0) {
-                return AdPosterCard(index: index ~/ 13);
-              }
-              final contentIndex = !_showAds ? index : index - index ~/ 13;
-              final entry = _media[contentIndex];
-              final progress = progressLookup?.anime(entry.id.toString());
-              return PosterCard(
-                width: itemWidth,
-                imageUrl:
-                    entry.coverImage.large ?? entry.coverImage.medium ?? '',
-                heroTag: 'anime-poster-${entry.id}',
-                title:
-                    entry.title.english ??
-                    entry.title.romaji ??
-                    entry.title.native ??
-                    'Untitled',
-                onTap: () => context.push('/anime/${entry.id}'),
-                progressFraction: progress?.fraction,
-                progressLabel: progress?.remainingLabel,
-                watched: progress?.watched ?? false,
-                ratingLabel: formatAniListScore(entry.averageScore),
-              );
-            },
           ),
         ),
         if (_loadingMore)

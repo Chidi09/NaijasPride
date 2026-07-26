@@ -28,16 +28,15 @@ class ScrimAppBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 4 rather than 6: an IconButton is 48px, and AppBar gives its leading
+    // widget 56px unless told otherwise, so 6 a side overflows by 4.
     return Padding(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.all(4),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.black.withAlpha(160),
           shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withAlpha(40),
-            width: 0.8,
-          ),
+          border: Border.all(color: Colors.white.withAlpha(40), width: 0.8),
         ),
         child: const AppBackButton(color: Colors.white),
       ),

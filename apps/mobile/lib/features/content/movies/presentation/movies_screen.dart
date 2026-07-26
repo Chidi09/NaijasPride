@@ -248,54 +248,59 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
             color: theme.colorScheme.primary,
             backgroundColor: theme.colorScheme.surface,
             onRefresh: () async {
-              setState(() {
-                _currentPage = 1;
-                _movies = [];
-              });
+              // The list is deliberately not cleared first. _fetchMovies
+              // replaces it wholesale on success, and emptying it here makes
+              // `_loading && _movies.isEmpty` true, which swaps the grid for
+              // the loading skeleton underneath the refresh spinner — the
+              // content vanishing is the opposite of what pull-to-refresh is
+              // supposed to feel like.
+              _currentPage = 1;
               await _fetchMovies();
             },
             child: GridView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: _youtubeOnly ? 1.05 : 0.53,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+              padding: const EdgeInsets.all(16),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: _youtubeOnly ? 1.05 : 0.53,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: !_showAds
+                  ? _movies.length
+                  : _movies.length + (_movies.length ~/ 12),
+              itemBuilder: (context, index) {
+                if (_showAds && (index + 1) % 13 == 0) {
+                  return AdPosterCard(index: index ~/ 13);
+                }
+                final contentIndex = !_showAds ? index : index - index ~/ 13;
+                final movie = _movies[contentIndex];
+                final progress = progressLookup?.movie(movie.id, movie.slug);
+                return PosterCard(
+                  width: itemWidth,
+                  imageUrl: movie.youtubeId != null
+                      ? (movie.backdropUrl ??
+                            movie.thumbnailUrl ??
+                            movie.posterUrl ??
+                            movie.coverUrl ??
+                            '')
+                      : (movie.posterUrl ??
+                            movie.thumbnailUrl ??
+                            movie.coverUrl ??
+                            ''),
+                  isRectangular: movie.youtubeId != null,
+                  heroTag: 'movie-poster-${movie.id}',
+                  title: movie.title,
+                  onTap: () =>
+                      context.push('/movies/${movie.slug ?? movie.id}'),
+                  progressFraction: progress?.fraction,
+                  progressLabel: progress?.remainingLabel,
+                  watched: progress?.watched ?? false,
+                  ratingLabel: movieRatingLabel(movie),
+                );
+              },
             ),
-            itemCount: !_showAds
-                ? _movies.length
-                : _movies.length + (_movies.length ~/ 12),
-            itemBuilder: (context, index) {
-              if (_showAds && (index + 1) % 13 == 0) {
-                return AdPosterCard(index: index ~/ 13);
-              }
-              final contentIndex = !_showAds ? index : index - index ~/ 13;
-              final movie = _movies[contentIndex];
-              final progress = progressLookup?.movie(movie.id, movie.slug);
-              return PosterCard(
-                width: itemWidth,
-                imageUrl: movie.youtubeId != null
-                    ? (movie.backdropUrl ??
-                          movie.thumbnailUrl ??
-                          movie.posterUrl ??
-                          movie.coverUrl ??
-                          '')
-                    : (movie.posterUrl ??
-                          movie.thumbnailUrl ??
-                          movie.coverUrl ??
-                          ''),
-                isRectangular: movie.youtubeId != null,
-                heroTag: 'movie-poster-${movie.id}',
-                title: movie.title,
-                onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
-                progressFraction: progress?.fraction,
-                progressLabel: progress?.remainingLabel,
-                watched: progress?.watched ?? false,
-                ratingLabel: movieRatingLabel(movie),
-              );
-            },
           ),
         ),
         if (_loadingMore)
