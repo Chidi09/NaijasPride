@@ -1371,7 +1371,35 @@ export function paginationOutcome(
 type JikanEpisodesResponse = {
   data?: Array<{ mal_id?: number; filler?: boolean }>;
   pagination?: { has_next_page?: boolean; last_visible_page?: number };
+  // Jikan reports its own upstream failures inside the body, with HTTP 200:
+  // {"status":500,"type":"UpstreamException","message":"Request to
+  // MyAnimeList.net timed out (10 seconds)..."}. Nothing about the response
+  // envelope distinguishes it from a successful one.
+  status?: number;
+  type?: string;
+  message?: string;
 };
+
+/** What a single Jikan page turned out to be. */
+export type JikanPageKind = "episodes" | "upstream-error" | "empty";
+
+/**
+ * Classifies a Jikan page body.
+ *
+ * Worth naming, because the failure it catches is invisible: Jikan answers
+ * HTTP 200 for its own upstream errors and puts the real status in the body,
+ * so `response.ok` is true and `JSON.parse` succeeds. Read as data, that body
+ * has no episodes and no pagination — which looked exactly like a series with
+ * no filler whose run fitted in one page, and was cached as such for a day.
+ * The result was a Bleach episode list with none of its 162 filler episodes
+ * marked, while the source reported success.
+ */
+export function classifyJikanPage(body: JikanEpisodesResponse): JikanPageKind {
+  if (typeof body.status === "number" && body.status >= 400) {
+    return "upstream-error";
+  }
+  return (body.data?.length ?? 0) > 0 ? "episodes" : "empty";
+}
 
 /**
  * Episode numbers marked as filler, from Jikan (the MyAnimeList API).
@@ -1423,6 +1451,20 @@ async function jikanFillerEpisodes(
         detail = pageDetail;
         break;
       }
+
+      const kind = classifyJikanPage(data);
+      if (kind !== "episodes") {
+        // Deliberately not counted as a page read, so the walk comes back as
+        // an error rather than a complete run that happened to find nothing.
+        detail =
+          kind === "upstream-error"
+            ? `jikan ${data.type || "error"} ${data.status}: ${
+                data.message || "upstream failure"
+              }`
+            : "jikan returned a page with no episodes";
+        break;
+      }
+
       pagesRead += 1;
       if (pagesExpected === null) {
         pagesExpected = data.pagination?.last_visible_page ?? null;

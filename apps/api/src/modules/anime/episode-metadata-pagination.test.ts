@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { paginationOutcome } from "./anime.routes";
+import { classifyJikanPage, paginationOutcome } from "./anime.routes";
 
 describe("paginationOutcome", () => {
   it("treats a walk that stopped early as partial, not success", () => {
@@ -31,5 +31,44 @@ describe("paginationOutcome", () => {
 
   it("does not report partial when more pages were read than announced", () => {
     assert.equal(paginationOutcome(5, 4), "complete");
+  });
+});
+
+describe("classifyJikanPage", () => {
+  it("recognises Jikan's HTTP 200 upstream error as a failure", () => {
+    // The real body that caused this: MyAnimeList timed out, Jikan wrapped it
+    // in a 200 with the true status in the payload. response.ok was true and
+    // JSON.parse succeeded, so it was read as data — an episode list with no
+    // episodes and no pagination, indistinguishable from a one-page series
+    // with no filler, and cached as that for 24 hours.
+    assert.equal(
+      classifyJikanPage({
+        status: 500,
+        type: "UpstreamException",
+        message: "Request to MyAnimeList.net timed out (10 seconds).",
+      }),
+      "upstream-error",
+    );
+  });
+
+  it("treats a page with no episodes as empty rather than as data", () => {
+    assert.equal(classifyJikanPage({ pagination: {} }), "empty");
+  });
+
+  it("accepts a page that actually carries episodes", () => {
+    assert.equal(
+      classifyJikanPage({
+        data: [{ mal_id: 97, filler: true }],
+        pagination: { has_next_page: true, last_visible_page: 4 },
+      }),
+      "episodes",
+    );
+  });
+
+  it("does not mistake a rate-limit status for episode data", () => {
+    assert.equal(
+      classifyJikanPage({ status: 429, type: "RateLimit" }),
+      "upstream-error",
+    );
   });
 });
