@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:screen_brightness/screen_brightness.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../build_flavor.dart';
 import 'local_progress_cache.dart';
@@ -16,6 +17,9 @@ import 'progress_recorder.dart';
 import 'watch_progress_api.dart';
 import 'youtube_resolver.dart';
 import '../../features/content/anime/data/anime_models.dart';
+
+/// Preference key for automatic opening/ending skipping.
+const String _autoSkipPrefKey = 'player_auto_skip_op_ed';
 
 class UnifiedVideoPlayerScreen extends ConsumerStatefulWidget {
   final PlaybackSource source;
@@ -80,6 +84,18 @@ class _UnifiedVideoPlayerScreenState
   bool _showSkipIntro = false;
   bool _showSkipOutro = false;
 
+  /// Skip the opening/ending automatically instead of only offering a button.
+  /// Persisted, and on by default — the timestamps come from AniSkip, which
+  /// only has an entry when someone has submitted one, so this does nothing
+  /// at all on a series without community data and can't run away with an
+  /// episode it has no times for.
+  bool _autoSkip = true;
+
+  /// One auto-skip per range per episode. Without this, seeking back into the
+  /// opening on purpose would be undone the moment playback resumed.
+  bool _autoSkippedOp = false;
+  bool _autoSkippedEd = false;
+
   // Subtitle styling state
   double _subtitleFontSize = 32.0;
   double _subtitleOutlineWidth = 1.0;
@@ -88,12 +104,46 @@ class _UnifiedVideoPlayerScreenState
   @override
   void initState() {
     super.initState();
+    _loadAutoSkipPreference();
     _initPlayback();
+  }
+
+  Future<void> _loadAutoSkipPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getBool(_autoSkipPrefKey) ?? true;
+      if (!mounted || value == _autoSkip) return;
+      setState(() => _autoSkip = value);
+    } catch (_) {
+      // Keep the default.
+    }
+  }
+
+  Future<void> _setAutoSkip(bool value) async {
+    setState(() => _autoSkip = value);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_autoSkipPrefKey, value);
+    } catch (_) {
+      // A failed write only costs the preference not sticking.
+    }
   }
 
   Future<void> _initPlayback() async {
     final source = widget.source;
     if (source is UnresolvedPlaybackSource) return;
+
+    // Retrying after an error runs this a second time. Without tearing the
+    // previous instance down first it would be overwritten while still
+    // holding the audio device, leaving two players decoding at once.
+    final existing = _player;
+    if (existing != null) {
+      _player = null;
+      _controller = null;
+      unawaited(
+        existing.stop().catchError((_) {}).whenComplete(existing.dispose),
+      );
+    }
 
     setState(() {
       _isLoading = true;
@@ -341,16 +391,53 @@ class _UnifiedVideoPlayerScreenState
     final posSec = _lastKnownPosition.inSeconds;
 
     final op = skip.op;
-    final showIntro = op != null && posSec >= op.start && posSec < op.end;
+    final inIntro = op != null && posSec >= op.start && posSec < op.end;
     final ed = skip.ed;
-    final showOutro = ed != null && posSec >= ed.start && posSec < ed.end;
+    final inOutro = ed != null && posSec >= ed.start && posSec < ed.end;
 
+    if (_autoSkip) {
+      if (inIntro && !_autoSkippedOp) {
+        _autoSkippedOp = true;
+        _autoSkipTo(op.end, 'Skipped intro');
+        return;
+      }
+      if (inOutro && !_autoSkippedEd) {
+        _autoSkippedEd = true;
+        _autoSkipTo(ed.end, 'Skipped ending');
+        return;
+      }
+    }
+
+    // Still offer the button whenever auto-skip didn't take the range —
+    // switched off, or already used once for this episode.
+    final showIntro = inIntro;
+    final showOutro = inOutro;
     if (showIntro != _showSkipIntro || showOutro != _showSkipOutro) {
       setState(() {
         _showSkipIntro = showIntro;
         _showSkipOutro = showOutro;
       });
     }
+  }
+
+  void _autoSkipTo(int seconds, String message) {
+    _player?.seek(Duration(seconds: seconds));
+    if (!mounted) return;
+    setState(() {
+      _showSkipIntro = false;
+      _showSkipOutro = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Turn off',
+          onPressed: () => _setAutoSkip(false),
+        ),
+      ),
+    );
   }
 
   // --- Gesture handlers ---
@@ -971,7 +1058,16 @@ class _UnifiedVideoPlayerScreenState
     _durationSub?.cancel();
     _levelIndicatorTimer?.cancel();
     _countdownTimer?.cancel();
-    _player?.dispose();
+    // Stop before disposing. Player.dispose() is asynchronous, so on the
+    // "back out of one episode and immediately open another" path the old
+    // player could still be decoding — and audible — while the new one
+    // started. stop() takes effect immediately.
+    final player = _player;
+    _player = null;
+    _controller = null;
+    if (player != null) {
+      unawaited(player.stop().catchError((_) {}).whenComplete(player.dispose));
+    }
     super.dispose();
   }
 
@@ -1016,6 +1112,33 @@ class _UnifiedVideoPlayerScreenState
         backgroundColor: Colors.transparent,
         title: Text(widget.title),
         actions: [
+          // Always reachable, rather than only inside the end-of-episode
+          // countdown: that overlay appears at 85% and is dismissable, so
+          // until now there was no way to move on mid-episode without
+          // backing all the way out to the episode list.
+          if (widget.onNextEpisode != null)
+            IconButton(
+              icon: const Icon(Icons.skip_next, color: Colors.white70),
+              tooltip: widget.nextEpisodeLabel == null
+                  ? 'Next episode'
+                  : 'Next: ${widget.nextEpisodeLabel}',
+              onPressed: () {
+                _countdownTimer?.cancel();
+                _countdownTimer = null;
+                widget.onNextEpisode!();
+              },
+            ),
+          if (widget.skipTimes?.op != null || widget.skipTimes?.ed != null)
+            IconButton(
+              icon: Icon(
+                _autoSkip ? Icons.fast_forward : Icons.fast_forward_outlined,
+                color: _autoSkip ? Colors.lightBlueAccent : Colors.white70,
+              ),
+              tooltip: _autoSkip
+                  ? 'Auto-skip intro/ending on'
+                  : 'Auto-skip intro/ending off',
+              onPressed: () => _setAutoSkip(!_autoSkip),
+            ),
           IconButton(
             icon: const Icon(Icons.subtitles, color: Colors.white70),
             onPressed: _showSubtitleSettings,

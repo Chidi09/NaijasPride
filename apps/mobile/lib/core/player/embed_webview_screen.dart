@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'embed_stream_extractor.dart'
     show
@@ -16,7 +17,9 @@ import 'embed_stream_extractor.dart'
         evaluateNavigationTarget,
         isAdOrTrackerUrl,
         isBlockedEmbedDocumentRequest,
+        isLikelySubtitleUrl,
         isSameSiteUrl,
+        subtitleLabelFor,
         withResumeProgress,
         wrapperHtmlFor,
         mediaSnifferJs,
@@ -34,6 +37,11 @@ class EmbedSource {
   final String label;
   const EmbedSource({required this.url, required this.label});
 }
+
+/// Preference key for the strict-ad-blocking (iframe sandbox) opt-in. Off by
+/// default — see [wrapperHtmlFor] for why turning it on stops most movie and
+/// TV providers from playing at all.
+const String _strictAdBlockingPrefKey = 'embed_strict_ad_blocking';
 
 /// Network failures that mean the provider's host is genuinely unreachable
 /// (dead domain, geo-block, TLS failure) rather than one of the many
@@ -109,6 +117,15 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
 
   int _lastRecordedSeconds = -1;
 
+  /// Opt-in iframe sandbox. Off by default because most movie/TV providers
+  /// refuse to play inside a sandboxed frame at all.
+  bool _strictAdBlocking = false;
+
+  /// Subtitle tracks seen going past on the wire. A sniffed stream arrives
+  /// with no track list, so without this the native player has no subtitles
+  /// whenever the embed fallback is what produced the stream.
+  final Map<String, AnimeWatchSubtitle> _sniffedSubtitles = {};
+
   @override
   void initState() {
     super.initState();
@@ -122,7 +139,37 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
   @override
   void dispose() {
     _hintTimer?.cancel();
+    // Android keeps a detached WebView's media playing until the instance is
+    // actually collected, so backing out of a running embed leaves its audio
+    // over whatever is opened next. Tearing the page down first is what
+    // actually stops the sound.
+    final controller = _webViewController;
+    _webViewController = null;
+    if (controller != null) {
+      unawaited(_teardownWebView(controller));
+    }
     super.dispose();
+  }
+
+  static Future<void> _teardownWebView(
+    InAppWebViewController controller,
+  ) async {
+    try {
+      await controller.stopLoading();
+      await controller.loadData(data: '<html><body></body></html>');
+      await controller.pause();
+    } catch (_) {
+      // Best effort: the platform view may already be gone.
+    }
+  }
+
+  /// Bridge tracks win when there are any — they arrive labelled with a real
+  /// language — and sniffed ones fill in when there are none.
+  List<AnimeWatchSubtitle>? get _effectiveSubtitles {
+    final provided = widget.subtitles;
+    if (provided != null && provided.isNotEmpty) return provided;
+    if (_sniffedSubtitles.isEmpty) return provided;
+    return _sniffedSubtitles.values.toList();
   }
 
   bool get _tracksProgress => widget.progressTarget != null;
@@ -133,6 +180,9 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
   String get _currentLoadUrl =>
       withResumeProgress(_currentSource.url, _resumeSeconds);
 
+  /// Resolved before the first load, alongside the resume point, so the very
+  /// first document already has the right sandbox state — toggling it later
+  /// costs a reload.
   Future<void> _resolveResumePoint() async {
     final target = widget.progressTarget;
     if (target != null) {
@@ -142,8 +192,50 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
       );
       if (seconds != null) _resumeSeconds = seconds;
     }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _strictAdBlocking = prefs.getBool(_strictAdBlockingPrefKey) ?? false;
+    } catch (_) {
+      _strictAdBlocking = false;
+    }
     if (!mounted) return;
     setState(() => _resumeResolved = true);
+    _armHintTimer();
+  }
+
+  Future<void> _setStrictAdBlocking(bool value) async {
+    if (value == _strictAdBlocking) return;
+    setState(() => _strictAdBlocking = value);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_strictAdBlockingPrefKey, value);
+    } catch (_) {
+      // A failed write only costs the preference not sticking.
+    }
+    _reloadCurrent();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value
+              ? 'Strict ad blocking on. Some providers refuse to play with it '
+                    'enabled — switch server or turn it back off if nothing '
+                    'loads.'
+              : 'Strict ad blocking off.',
+        ),
+      ),
+    );
+  }
+
+  void _reloadCurrent() {
+    _sniffedSubtitles.clear();
+    _webViewController?.loadData(
+      data: wrapperHtmlFor(
+        _currentLoadUrl,
+        strictAdBlocking: _strictAdBlocking,
+      ),
+      baseUrl: WebUri(embedOrigin),
+    );
     _armHintTimer();
   }
 
@@ -212,11 +304,7 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
     // Carries the resume position across a server switch: the new provider
     // starts where the dead one left off rather than back at zero.
     if (_lastRecordedSeconds > 0) _resumeSeconds = _lastRecordedSeconds;
-    _webViewController?.loadData(
-      data: wrapperHtmlFor(_currentLoadUrl),
-      baseUrl: WebUri(embedOrigin),
-    );
-    _armHintTimer();
+    _reloadCurrent();
   }
 
   void _tryServer(int index) {
@@ -254,7 +342,7 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
             },
           ),
           title: widget.title,
-          subtitles: widget.subtitles,
+          subtitles: _effectiveSubtitles,
           progressTarget: widget.progressTarget,
         ),
       ),
@@ -299,7 +387,10 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: Text(widget.title),
-        actions: [if (widget.sources.length > 1) _serverMenu()],
+        actions: [
+          _strictAdBlockingToggle(),
+          if (widget.sources.length > 1) _serverMenu(),
+        ],
       ),
       floatingActionButton: _detectedStream != null
           ? FloatingActionButton.extended(
@@ -334,6 +425,24 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
         ],
       ),
     );
+  }
+
+  /// Exposed rather than forced on, because the trade-off genuinely has two
+  /// sides: the sandbox is the only thing that can stop an embed navigating
+  /// itself to an ad, and it is also the reason a provider will show its
+  /// "remove the sandbox attribute" page instead of a video.
+  Widget _strictAdBlockingToggle() {
+    final button = IconButton(
+      icon: Icon(
+        _strictAdBlocking ? Icons.shield : Icons.shield_outlined,
+        color: _strictAdBlocking ? Colors.lightBlueAccent : null,
+      ),
+      tooltip: _strictAdBlocking
+          ? 'Strict ad blocking on — tap to turn off if nothing plays'
+          : 'Strict ad blocking off — tap if you are seeing ads',
+      onPressed: () => _setStrictAdBlocking(!_strictAdBlocking),
+    );
+    return _maybeFocusable(button);
   }
 
   Widget _serverMenu() {
@@ -504,7 +613,10 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
   Widget _webView() {
     return InAppWebView(
       initialData: InAppWebViewInitialData(
-        data: wrapperHtmlFor(_currentLoadUrl),
+        data: wrapperHtmlFor(
+          _currentLoadUrl,
+          strictAdBlocking: _strictAdBlocking,
+        ),
         baseUrl: WebUri(embedOrigin),
       ),
       initialUserScripts: UnmodifiableListView<UserScript>([
@@ -541,6 +653,21 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
                 });
               }
             }
+          },
+        );
+        controller.addJavaScriptHandler(
+          handlerName: 'nsSubtitle',
+          callback: (args) {
+            if (!mounted || args.isEmpty || args.first is! String) return;
+            final url = args.first as String;
+            if (!isLikelySubtitleUrl(url)) return;
+            if (_sniffedSubtitles.containsKey(url)) return;
+            setState(() {
+              _sniffedSubtitles[url] = AnimeWatchSubtitle(
+                url: url,
+                lang: subtitleLabelFor(url),
+              );
+            });
           },
         );
         controller.addJavaScriptHandler(

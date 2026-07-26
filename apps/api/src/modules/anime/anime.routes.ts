@@ -163,6 +163,23 @@ const animeDetailCache = new Map<
   { payload: unknown; timestamp: number }
 >();
 
+// A day, because this is the most expensive lookup in the module — Kitsu caps
+// a page at 20 episodes, so a long-running series costs a mapping request plus
+// one request per 20 episodes — and the answer is essentially static.
+const KITSU_EPISODE_THUMBS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const kitsuEpisodeThumbsCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
+
+// Same reasoning as Kitsu: paged, and filler classifications essentially
+// never change once a series has aired.
+const JIKAN_FILLER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const jikanFillerCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
+
 const ANIME_STREAMING_EPISODES_QUERY = `
   query ($id: Int) {
     Media(id: $id, type: ANIME) {
@@ -376,11 +393,13 @@ type AniListStreamingEpisode = {
 };
 
 type AniListMediaWithTitle = {
+  idMal?: number | null;
   title?: AniListTitle | null;
   synonyms?: string[] | null;
   format?: string | null;
   status?: string | null;
   episodes?: number | null;
+  seasonYear?: number | null;
   nextAiringEpisode?: { episode?: number | null } | null;
   streamingEpisodes?: AniListStreamingEpisode[] | null;
 };
@@ -1065,6 +1084,309 @@ async function anilistEpisodeThumbnails(
   return result;
 }
 
+const KITSU_API_BASE = "https://kitsu.io/api/edge";
+
+/** Kitsu rejects anything above this with "Limit exceeds maximum page size". */
+const KITSU_PAGE_SIZE = 20;
+
+/** Guards a runaway paginate on an implausible episode count. */
+const KITSU_MAX_EPISODES = 2000;
+
+/** Pages in flight at once, to stay a polite client of a free, unkeyed API. */
+const KITSU_PAGE_CONCURRENCY = 5;
+
+async function kitsuJson<T>(path: string): Promise<T | null> {
+  const response = await fetch(`${KITSU_API_BASE}${path}`, {
+    headers: { Accept: "application/vnd.api+json" },
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as T;
+}
+
+type KitsuMappingResponse = {
+  data?: Array<{
+    relationships?: { item?: { data?: { id?: string; type?: string } } };
+  }>;
+};
+
+type KitsuEpisodesResponse = {
+  data?: Array<{
+    attributes?: {
+      number?: number | null;
+      canonicalTitle?: string | null;
+      thumbnail?: { original?: string | null } | null;
+    };
+  }>;
+  meta?: { count?: number };
+};
+
+type KitsuEpisodeMeta = { image: string | null; title: string | null };
+
+/**
+ * Resolves an AniList id to a Kitsu anime id through Kitsu's own mapping
+ * table, rather than by searching titles.
+ *
+ * This is what makes the fallback safe. Anime numbering is a minefield —
+ * databases disagree constantly about whether a second cour is a new entry
+ * restarting at episode 1 or a continuation of an absolute count — so a
+ * title-matched fallback can attach a confidently wrong image to every
+ * episode. Because Kitsu records the AniList id explicitly, the entry
+ * returned here is by construction the same run AniList is describing, and
+ * its `number` field is directly comparable.
+ */
+async function kitsuAnimeIdForAnilist(
+  anilistId: number,
+): Promise<string | null> {
+  const params = new URLSearchParams({
+    "filter[externalSite]": "anilist/anime",
+    "filter[externalId]": String(anilistId),
+  });
+  const data = await kitsuJson<KitsuMappingResponse>(`/mappings?${params}`);
+  const item = data?.data?.[0]?.relationships?.item?.data;
+  if (!item || item.type !== "anime" || !item.id) return null;
+  return item.id;
+}
+
+function kitsuEpisodesPath(kitsuId: string, offset: number): string {
+  // A sparse fieldset: without it every episode carries its full synopsis and
+  // localised title set, which over ~19 pages is a lot of payload for three
+  // fields.
+  const params = new URLSearchParams({
+    "page[limit]": String(KITSU_PAGE_SIZE),
+    "page[offset]": String(offset),
+    "fields[episodes]": "number,canonicalTitle,thumbnail",
+  });
+  return `/anime/${kitsuId}/episodes?${params}`;
+}
+
+function collectKitsuEpisodes(
+  response: KitsuEpisodesResponse | null,
+  into: Map<number, KitsuEpisodeMeta>,
+): void {
+  for (const entry of response?.data || []) {
+    const number = entry.attributes?.number;
+    if (typeof number !== "number" || number <= 0) continue;
+    if (into.has(number)) continue;
+    const image = entry.attributes?.thumbnail?.original || null;
+    const title = entry.attributes?.canonicalTitle?.trim() || null;
+    if (!image && !title) continue;
+    into.set(number, { image, title });
+  }
+}
+
+/**
+ * Per-episode thumbnails and titles from Kitsu, keyed by episode number.
+ *
+ * AniList is the primary source but only carries whatever streaming sites
+ * have been linked against the entry, which for a long-running series is a
+ * small prefix of the run: Bleach exposes 20 `streamingEpisodes` against an
+ * episode count of 366, so everything from 21 on had no image at all. Kitsu
+ * carries the full run — all 366 in that case, every one with a thumbnail —
+ * needs no API key, and numbers episodes the way the app already does.
+ *
+ * Titles come along for free in the same request, and are worth taking:
+ * AniList labels even the episodes it does cover "Episode 20 - Untitled",
+ * where Kitsu has the real one.
+ */
+async function kitsuEpisodeMetadata(
+  anilistId: number,
+): Promise<Map<number, KitsuEpisodeMeta>> {
+  const cacheKey = String(anilistId);
+  const cached = readCachedPayload(
+    kitsuEpisodeThumbsCache,
+    cacheKey,
+    KITSU_EPISODE_THUMBS_CACHE_TTL_MS,
+  ) as Array<[number, KitsuEpisodeMeta]> | null;
+  if (cached) return new Map(cached);
+
+  const result = new Map<number, KitsuEpisodeMeta>();
+  try {
+    const kitsuId = await kitsuAnimeIdForAnilist(anilistId);
+    if (!kitsuId) {
+      // Cached as empty too: an unmapped series would otherwise re-run the
+      // mapping lookup on every episode-list request.
+      writeCachedPayload(kitsuEpisodeThumbsCache, cacheKey, []);
+      return result;
+    }
+
+    // The first page doubles as the count probe — `meta.count` is what says
+    // how many more pages there are to ask for.
+    const first = await kitsuJson<KitsuEpisodesResponse>(
+      kitsuEpisodesPath(kitsuId, 0),
+    );
+    collectKitsuEpisodes(first, result);
+
+    const total = Math.min(first?.meta?.count ?? 0, KITSU_MAX_EPISODES);
+    const offsets: number[] = [];
+    for (
+      let offset = KITSU_PAGE_SIZE;
+      offset < total;
+      offset += KITSU_PAGE_SIZE
+    ) {
+      offsets.push(offset);
+    }
+
+    for (let i = 0; i < offsets.length; i += KITSU_PAGE_CONCURRENCY) {
+      const batch = offsets.slice(i, i + KITSU_PAGE_CONCURRENCY);
+      const pages = await Promise.all(
+        batch.map((offset) =>
+          kitsuJson<KitsuEpisodesResponse>(
+            kitsuEpisodesPath(kitsuId, offset),
+          ).catch(() => null),
+        ),
+      );
+      for (const page of pages) collectKitsuEpisodes(page, result);
+    }
+  } catch {
+    // best-effort — an empty map just means no gap filling
+  }
+
+  writeCachedPayload(
+    kitsuEpisodeThumbsCache,
+    cacheKey,
+    Array.from(result.entries()),
+  );
+  return result;
+}
+
+/** Jikan asks for no more than a few requests a second. */
+const JIKAN_MAX_PAGES = 30;
+
+type JikanEpisodesResponse = {
+  data?: Array<{ mal_id?: number; filler?: boolean }>;
+  pagination?: { has_next_page?: boolean; last_visible_page?: number };
+};
+
+/**
+ * Episode numbers marked as filler, from Jikan (the MyAnimeList API).
+ *
+ * The app has rendered a "Filler" badge on episode tiles all along, but the
+ * flag behind it only ever came from the streaming bridges — so the moment
+ * every bridge was down, which is also when the episode list falls back to
+ * metadata, every episode claimed to be canon. Jikan carries the same
+ * classification keyed by MAL id, which is already resolved here for AniSkip.
+ *
+ * The community AnimeFillerList wrapper usually recommended for this
+ * (anime-filler-list-api.vercel.app) is dead — its deployment returns 404 —
+ * so this reads MyAnimeList's own data instead.
+ */
+async function jikanFillerEpisodes(malId: number): Promise<Set<number>> {
+  const cacheKey = String(malId);
+  const cached = readCachedPayload(
+    jikanFillerCache,
+    cacheKey,
+    JIKAN_FILLER_CACHE_TTL_MS,
+  ) as number[] | null;
+  if (cached) return new Set(cached);
+
+  const filler = new Set<number>();
+  try {
+    // Sequential on purpose: Jikan rate-limits aggressively, and this runs
+    // at most once a day per series.
+    for (let page = 1; page <= JIKAN_MAX_PAGES; page += 1) {
+      const response = await fetch(
+        `https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`,
+      );
+      if (!response.ok) break;
+      const json = (await response.json()) as JikanEpisodesResponse;
+      for (const episode of json.data || []) {
+        if (episode.filler && typeof episode.mal_id === "number") {
+          filler.add(episode.mal_id);
+        }
+      }
+      if (!json.pagination?.has_next_page) break;
+    }
+  } catch {
+    // best-effort — no filler badges is the status quo, not a regression
+  }
+
+  writeCachedPayload(jikanFillerCache, cacheKey, Array.from(filler));
+  return filler;
+}
+
+type EpisodeWithMeta = {
+  number: number;
+  image: string | null;
+  title?: string | null;
+  isFiller?: boolean;
+};
+
+const isBlank = (value: string | null | undefined): boolean =>
+  !value || value.trim().length === 0;
+
+/**
+ * Fills in any episode still missing an image or a title — AniList first,
+ * then Kitsu — and marks filler episodes from Jikan. Shared by every path
+ * that returns an episode list so they cannot drift apart on which sources
+ * they consult.
+ */
+async function fillEpisodeMetadata<T extends EpisodeWithMeta>(
+  anilistId: number,
+  episodes: T[],
+): Promise<T[]> {
+  if (episodes.length === 0) return episodes;
+
+  const needsImage = (list: T[]) => list.some((ep) => !ep.image);
+  const needsTitle = (list: T[]) => list.some((ep) => isBlank(ep.title));
+
+  let filled = episodes;
+  if (needsImage(filled)) {
+    try {
+      const thumbs = await anilistEpisodeThumbnails(anilistId);
+      if (thumbs.size > 0) {
+        filled = filled.map((ep) =>
+          !ep.image && thumbs.has(ep.number)
+            ? { ...ep, image: thumbs.get(ep.number)! }
+            : ep,
+        );
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
+  if (needsImage(filled) || needsTitle(filled)) {
+    try {
+      const kitsu = await kitsuEpisodeMetadata(anilistId);
+      if (kitsu.size > 0) {
+        filled = filled.map((ep) => {
+          const meta = kitsu.get(ep.number);
+          if (!meta) return ep;
+          const image = ep.image || meta.image;
+          const title = isBlank(ep.title) ? meta.title : ep.title;
+          if (image === ep.image && title === ep.title) return ep;
+          return { ...ep, image, title };
+        });
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
+  // Only ever sets the flag, never clears it: where a bridge supplied its own
+  // classification that stands, and this just covers what it didn't mark.
+  if (filled.some((ep) => !ep.isFiller)) {
+    try {
+      const media = await anilistMediaDetail(anilistId);
+      const malId = media?.idMal;
+      if (malId) {
+        const filler = await jikanFillerEpisodes(malId);
+        if (filler.size > 0) {
+          filled = filled.map((ep) =>
+            !ep.isFiller && filler.has(ep.number)
+              ? { ...ep, isFiller: true }
+              : ep,
+          );
+        }
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
+  return filled;
+}
+
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
   const remoteResolver = new RemoteStreamResolverService();
@@ -1349,21 +1671,10 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             const { titles } = await anilistTitlesForAnime(id);
             const animepahe = await resolveAnimepaheEpisodesByTitles(titles);
             if (animepahe && animepahe.episodes.length > 0) {
-              let animepaheEpisodes = animepahe.episodes;
-              if (animepaheEpisodes.some((ep) => !ep.image)) {
-                try {
-                  const thumbs = await anilistEpisodeThumbnails(Number(id));
-                  if (thumbs.size > 0) {
-                    animepaheEpisodes = animepaheEpisodes.map((ep) =>
-                      !ep.image && thumbs.has(ep.number)
-                        ? { ...ep, image: thumbs.get(ep.number)! }
-                        : ep,
-                    );
-                  }
-                } catch {
-                  // best-effort, ignore failures
-                }
-              }
+              const animepaheEpisodes = await fillEpisodeMetadata(
+                Number(id),
+                animepahe.episodes,
+              );
               pushResolutionEvent(resolutionTrace, {
                 stage: "animepahe-episodes",
                 provider: "animepahe",
@@ -1462,21 +1773,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           ? "bridge"
           : "metadata";
 
-        if (bridgeAvailable && episodes.some((ep) => !ep.image)) {
-          try {
-            const thumbs = await anilistEpisodeThumbnails(Number(id));
-            if (thumbs.size > 0) {
-              episodes = episodes.map((ep) =>
-                !ep.image && thumbs.has(ep.number)
-                  ? { ...ep, image: thumbs.get(ep.number)! }
-                  : ep,
-              );
-            }
-          } catch {
-            // best-effort, ignore failures
-          }
-        }
-
         if (!bridgeAvailable) {
           try {
             const media = await anilistMediaDetail(Number(id));
@@ -1490,6 +1786,8 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
             // best-effort — leave episodes empty on failure
           }
         }
+
+        episodes = await fillEpisodeMetadata(Number(id), episodes);
 
         if (!usedProvider) {
           usedProvider = bridgeAvailable
