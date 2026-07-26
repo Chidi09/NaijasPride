@@ -28,20 +28,12 @@ const String desktopUserAgent =
 // of guessing at a new one.
 const String embedOrigin = 'https://www.naijaspride.com/';
 
-/// Sandbox flags for the provider iframe. What's *omitted* is the point:
-/// without `allow-top-navigation`, `allow-top-navigation-by-user-activation`,
+/// Sandbox flags for the provider iframe, applied only in strict mode (see
+/// [wrapperHtmlFor]). What's *omitted* is the point: without
+/// `allow-top-navigation`, `allow-top-navigation-by-user-activation`,
 /// `allow-popups` and `allow-popups-to-escape-sandbox`, the embed physically
 /// cannot drive the WebView to an ad/scam page or spawn a pop-under — the
 /// browser refuses the navigation itself, before any Dart callback would run.
-///
-/// This is the layer that actually stops the "tap the video, land on a scam
-/// page" hijack on Android. [evaluateNavigationTarget] cannot: every embed in
-/// this app runs *inside this iframe*, and flutter_inappwebview's Android
-/// `WebViewClient.shouldOverrideUrlLoading` returns `request.isForMainFrame()`
-/// — a sub-frame navigation is reported to Dart but always allowed, because
-/// Android offers no way to load a URL into a non-main frame. So a
-/// `NavigationActionPolicy.CANCEL` for anything happening in here was, and
-/// would remain, a no-op without this attribute.
 ///
 /// `allow-same-origin` has to stay: dropping it puts the frame in an opaque
 /// origin, which breaks the providers' own storage/cookies and the
@@ -53,15 +45,52 @@ const String _embedIframeSandbox =
     'allow-scripts allow-same-origin allow-forms allow-presentation '
     'allow-orientation-lock';
 
-String wrapperHtmlFor(String embedUrl) {
+/// Wraps [embedUrl] in the local iframe page every embed screen loads.
+///
+/// [strictAdBlocking] adds the [_embedIframeSandbox] attribute. It defaults to
+/// **off**, which is a deliberate reversal of how this shipped: on-device
+/// testing found *every* movie and TV provider refusing to play inside a
+/// sandboxed frame, showing their own "remove the sandbox attribute from the
+/// iframe tag" page instead of a player. That refusal is intentional on their
+/// part — the sandbox is exactly what kills the pop-under revenue they run on
+/// — and it is not something a different token set can talk its way out of,
+/// because the attribute is visible to their script no matter which
+/// permissions it grants. The same message is a long-standing, unresolved
+/// complaint against other embedded browsers, so it is a property of the
+/// providers rather than of this app.
+///
+/// Losing the sandbox costs less than it appears, because it was never the
+/// only thing standing between a tap and a scam page. Four layers remain, and
+/// none of them announce themselves to the page the way an attribute does:
+///
+///  * [evaluateNavigationTarget] cancels off-site *main-frame* navigations.
+///    A hijack that drives the top frame — the one that actually replaces the
+///    app's screen — is a main-frame navigation, and Android does honour
+///    `NavigationActionPolicy.CANCEL` for those.
+///  * `onCreateWindow` returning false, plus
+///    `javaScriptCanOpenWindowsAutomatically: false`, kills pop-unders; the
+///    ad guard additionally stubs `window.open` to return null.
+///  * [adBlockerRules] and [isAdOrTrackerUrl] block the ad hosts outright,
+///    and [isBlockedEmbedDocumentRequest] blocks ad-shaped sub-frame
+///    documents.
+///  * [dynamicAdGuardJs] cancels hijacking clicks in the capture phase and
+///    strips full-viewport click-catchers as they're inserted.
+///
+/// What the sandbox uniquely covered is the iframe navigating *itself*
+/// off-site, which Dart cannot cancel: flutter_inappwebview's Android
+/// `WebViewClient.shouldOverrideUrlLoading` returns `request.isForMainFrame()`,
+/// so a sub-frame navigation is reported but always allowed. That is the
+/// residual gap strict mode closes, for users who would rather have a
+/// provider refuse to load than see an ad.
+String wrapperHtmlFor(String embedUrl, {bool strictAdBlocking = false}) {
   final escaped = embedUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+  final sandbox = strictAdBlocking ? ' sandbox="$_embedIframeSandbox"' : '';
   return '''
 <!DOCTYPE html>
 <html>
 <head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#000;overflow:hidden;">
-<iframe src="$escaped" allow="autoplay; fullscreen; encrypted-media"
-  sandbox="$_embedIframeSandbox" allowfullscreen
+<iframe src="$escaped" allow="autoplay; fullscreen; encrypted-media"$sandbox allowfullscreen
   style="position:fixed;top:0;left:0;width:100%;height:100%;border:0;"></iframe>
 </body>
 </html>
@@ -463,6 +492,66 @@ final RegExp _nonMediaExtensionPattern = RegExp(
   caseSensitive: false,
 );
 
+final RegExp _subtitleUrlPattern = RegExp(
+  r'\.(vtt|srt|ass|ssa)([?#]|$)',
+  caseSensitive: false,
+);
+
+/// True if [url] looks like a subtitle track.
+///
+/// The bridge providers hand us subtitles as structured metadata, but when
+/// every bridge is down the app falls back to an embed and sniffs the stream
+/// out of it — and a sniffed stream arrives with no tracks attached at all,
+/// which is why episodes played that way came up with no subtitles even
+/// though the same episode had them when a bridge was up. The provider's own
+/// player does fetch its tracks, so they can be picked up the same way the
+/// manifest is.
+bool isLikelySubtitleUrl(String url) {
+  if (isAdOrTrackerUrl(url)) return false;
+  final path = Uri.tryParse(url)?.path ?? url;
+  return _subtitleUrlPattern.hasMatch(path);
+}
+
+/// Best-effort language label for a sniffed subtitle URL, since a bare track
+/// URL carries no metadata. Falls back to the file's own name so two tracks
+/// are at least distinguishable in the picker.
+String subtitleLabelFor(String url) {
+  final path = Uri.tryParse(url)?.path ?? url;
+  final file = path.split('/').last;
+  final stem = file.replaceAll(_subtitleUrlPattern, '');
+
+  const named = <String, String>{
+    'english': 'English',
+    'eng': 'English',
+    'en': 'English',
+    'french': 'French',
+    'fre': 'French',
+    'fra': 'French',
+    'spanish': 'Spanish',
+    'spa': 'Spanish',
+    'esp': 'Spanish',
+    'portuguese': 'Portuguese',
+    'por': 'Portuguese',
+    'german': 'German',
+    'ger': 'German',
+    'deu': 'German',
+    'arabic': 'Arabic',
+    'ara': 'Arabic',
+    'italian': 'Italian',
+    'ita': 'Italian',
+    'russian': 'Russian',
+    'rus': 'Russian',
+    'japanese': 'Japanese',
+    'jpn': 'Japanese',
+  };
+
+  for (final token in stem.toLowerCase().split(RegExp(r'[^a-z]+'))) {
+    final match = named[token];
+    if (match != null) return match;
+  }
+  return stem.isEmpty ? 'Subtitles' : stem;
+}
+
 class _Candidate {
   final String url;
   final Map<String, String> headers;
@@ -658,6 +747,10 @@ const String mediaSnifferJs = r'''
   if (window.__nsSniff) return;
   window.__nsSniff = true;
   var re = /\.(m3u8|mpd|mp4|m4s)([?#/]|$)|\/manifest\b|\/master[.\/]|\/playlist[.\/]|[?&](type|format)=(m3u8|hls|dash)|mime=video/i;
+  // Subtitle tracks the provider's own player fetches. A sniffed stream
+  // carries no track list of its own, so these are the only way the native
+  // player gets subtitles on the embed fallback path.
+  var subRe = /\.(vtt|srt|ass|ssa)([?#]|$)/i;
   var seen = {};
   function abs(u) {
     try {
@@ -668,16 +761,22 @@ const String mediaSnifferJs = r'''
       return new URL(u, location.href).href;
     } catch (e) { return null; }
   }
+  function send(name, u) {
+    try {
+      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+        window.flutter_inappwebview.callHandler(name, u);
+      }
+    } catch (e) {}
+  }
   function report(raw) {
     try {
       var u = abs(raw);
       if (!u || u.indexOf('http') !== 0) return;
-      if (!re.test(u)) return;
+      var isSub = subRe.test(u.split('?')[0]);
+      if (!isSub && !re.test(u)) return;
       if (seen[u]) return;
       seen[u] = 1;
-      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-        window.flutter_inappwebview.callHandler('nsMedia', u);
-      }
+      send(isSub ? 'nsSubtitle' : 'nsMedia', u);
     } catch (e) {}
   }
   // --- Network hooks -------------------------------------------------------
@@ -884,11 +983,11 @@ String get dynamicAdGuardJs {
 
   // A tap that leaves the provider's own site is never something the embed
   // needs and always the hijack: an invisible full-viewport <a> laid over
-  // the player, so "press play" is really "open the ad". The iframe sandbox
-  // already blocks top-frame navigation and pop-ups, but an anchor without
-  // a target navigates the frame in place, which the sandbox permits and
-  // Location's unforgeable href/assign/replace can't be hooked to stop —
-  // so it has to be cancelled at the click.
+  // the player, so "press play" is really "open the ad". Cancelling at the
+  // click is the only place this can be stopped from inside the frame:
+  // Location's href/assign/replace are [LegacyUnforgeable] and so cannot be
+  // hooked, and an anchor without a target navigates the frame in place,
+  // which Dart's shouldOverrideUrlLoading cannot cancel for a sub-frame.
   function isHijackNav(u) {
     if (!u) return false;
     var s = String(u).trim();

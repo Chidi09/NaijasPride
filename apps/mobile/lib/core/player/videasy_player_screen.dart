@@ -16,6 +16,8 @@ import 'embed_stream_extractor.dart'
         evaluateNavigationTarget,
         isAdOrTrackerUrl,
         isBlockedEmbedDocumentRequest,
+        isLikelySubtitleUrl,
+        subtitleLabelFor,
         wrapperHtmlFor,
         mediaSnifferJs,
         isLikelyMediaStreamUrl;
@@ -97,6 +99,20 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
 
   late final String _referer;
 
+  InAppWebViewController? _webViewController;
+
+  /// Subtitle tracks seen going past while sniffing. The sniffed stream URL
+  /// carries none of its own, so these are all the native player will get
+  /// whenever the bridge providers didn't supply any.
+  final Map<String, AnimeWatchSubtitle> _sniffedSubtitles = {};
+
+  List<AnimeWatchSubtitle>? get _effectiveSubtitles {
+    final provided = widget.subtitles;
+    if (provided != null && provided.isNotEmpty) return provided;
+    if (_sniffedSubtitles.isEmpty) return provided;
+    return _sniffedSubtitles.values.toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -112,6 +128,10 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
     if (!isLikelyMediaStreamUrl(url)) return;
     _handled = true;
     _timeoutTimer?.cancel();
+    // pushReplacement tears this route down, but Android keeps a detached
+    // WebView's media running until collection — without this the sniffing
+    // page keeps playing underneath the native player.
+    unawaited(_teardownWebView());
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => UnifiedVideoPlayerScreen(
@@ -126,16 +146,30 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
           title: widget.title,
           progressTarget: widget.progressTarget,
           skipTimes: widget.skipTimes,
-          subtitles: widget.subtitles,
+          subtitles: _effectiveSubtitles,
         ),
       ),
     );
+  }
+
+  Future<void> _teardownWebView() async {
+    final controller = _webViewController;
+    _webViewController = null;
+    if (controller == null) return;
+    try {
+      await controller.stopLoading();
+      await controller.loadData(data: '<html><body></body></html>');
+      await controller.pause();
+    } catch (_) {
+      // Best effort: the platform view may already be gone.
+    }
   }
 
   void _switchToAlternates() {
     if (_handled || !mounted) return;
     _handled = true;
     _timeoutTimer?.cancel();
+    unawaited(_teardownWebView());
 
     if (widget.alternates.isEmpty) {
       setState(() => _status = 'No watchable source found.');
@@ -153,7 +187,7 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
               .map((s) => EmbedSource(url: s.url, label: s.label))
               .toList(),
           title: widget.title,
-          subtitles: widget.subtitles,
+          subtitles: _effectiveSubtitles,
           progressTarget: widget.progressTarget,
         ),
       ),
@@ -163,6 +197,7 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
   @override
   void dispose() {
     _timeoutTimer?.cancel();
+    unawaited(_teardownWebView());
     super.dispose();
   }
 
@@ -212,12 +247,28 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
               ),
             ]),
             onWebViewCreated: (controller) {
+              _webViewController = controller;
               controller.addJavaScriptHandler(
                 handlerName: 'nsMedia',
                 callback: (args) {
                   if (args.isNotEmpty && args.first is String) {
                     _onMediaCandidate(args.first as String);
                   }
+                },
+              );
+              controller.addJavaScriptHandler(
+                handlerName: 'nsSubtitle',
+                callback: (args) {
+                  if (args.isEmpty || args.first is! String) return;
+                  final url = args.first as String;
+                  if (!isLikelySubtitleUrl(url)) return;
+                  _sniffedSubtitles.putIfAbsent(
+                    url,
+                    () => AnimeWatchSubtitle(
+                      url: url,
+                      lang: subtitleLabelFor(url),
+                    ),
+                  );
                 },
               );
             },

@@ -226,8 +226,7 @@ class HomeScreen extends ConsumerWidget {
                             progressLabel: watched
                                 ? null
                                 : formatRemaining(
-                                    item.durationSeconds -
-                                        item.progressSeconds,
+                                    item.durationSeconds - item.progressSeconds,
                                   ),
                             watched: watched,
                             onTap: () {
@@ -264,6 +263,17 @@ class HomeScreen extends ConsumerWidget {
                   final list = featured[s.$2];
                   if (list == null || list.isEmpty) continue;
 
+                  // Most Watched is YouTube-sourced end to end now — those
+                  // are the only titles whose plays are counted — so it is
+                  // shown as one landscape row rather than being split into
+                  // a portrait row and a "(Nollywood/Free)" one.
+                  if (s.$2 == 'mostWatched') {
+                    carousels.add(
+                      _youtubeCarousel(context, s.$1, list, progressLookup),
+                    );
+                    continue;
+                  }
+
                   final stdMovies = list
                       .where((m) => m.youtubeId == null)
                       .toList();
@@ -275,30 +285,28 @@ class HomeScreen extends ConsumerWidget {
                     carousels.add(
                       ContentCarousel(
                         title: s.$1,
-                        children: stdMovies
-                            .map((movie) {
-                              final progress = progressLookup?.movie(
-                                movie.id,
-                                movie.slug,
-                              );
-                              return PosterCard(
-                                imageUrl:
-                                    movie.posterUrl ??
-                                    movie.thumbnailUrl ??
-                                    movie.coverUrl ??
-                                    '',
-                                isRectangular: false,
-                                title: movie.title,
-                                onTap: () => context.push(
-                                  '/movies/${movie.slug ?? movie.id}',
-                                ),
-                                progressFraction: progress?.fraction,
-                                progressLabel: progress?.remainingLabel,
-                                watched: progress?.watched ?? false,
-                                ratingLabel: movieRatingLabel(movie),
-                              );
-                            })
-                            .toList(),
+                        children: stdMovies.map((movie) {
+                          final progress = progressLookup?.movie(
+                            movie.id,
+                            movie.slug,
+                          );
+                          return PosterCard(
+                            imageUrl:
+                                movie.posterUrl ??
+                                movie.thumbnailUrl ??
+                                movie.coverUrl ??
+                                '',
+                            isRectangular: false,
+                            title: movie.title,
+                            onTap: () => context.push(
+                              '/movies/${movie.slug ?? movie.id}',
+                            ),
+                            progressFraction: progress?.fraction,
+                            progressLabel: progress?.remainingLabel,
+                            watched: progress?.watched ?? false,
+                            ratingLabel: movieRatingLabel(movie),
+                          );
+                        }).toList(),
                       ),
                     );
                   }
@@ -308,31 +316,29 @@ class HomeScreen extends ConsumerWidget {
                       ContentCarousel(
                         title: '${s.$1} (Nollywood/Free)',
                         height: 160,
-                        children: ytMovies
-                            .map((movie) {
-                              final progress = progressLookup?.movie(
-                                movie.id,
-                                movie.slug,
-                              );
-                              return PosterCard(
-                                imageUrl:
-                                    movie.backdropUrl ??
-                                    movie.thumbnailUrl ??
-                                    movie.posterUrl ??
-                                    movie.coverUrl ??
-                                    '',
-                                isRectangular: true,
-                                title: movie.title,
-                                onTap: () => context.push(
-                                  '/movies/${movie.slug ?? movie.id}',
-                                ),
-                                progressFraction: progress?.fraction,
-                                progressLabel: progress?.remainingLabel,
-                                watched: progress?.watched ?? false,
-                                ratingLabel: movieRatingLabel(movie),
-                              );
-                            })
-                            .toList(),
+                        children: ytMovies.map((movie) {
+                          final progress = progressLookup?.movie(
+                            movie.id,
+                            movie.slug,
+                          );
+                          return PosterCard(
+                            imageUrl:
+                                movie.backdropUrl ??
+                                movie.thumbnailUrl ??
+                                movie.posterUrl ??
+                                movie.coverUrl ??
+                                '',
+                            isRectangular: true,
+                            title: movie.title,
+                            onTap: () => context.push(
+                              '/movies/${movie.slug ?? movie.id}',
+                            ),
+                            progressFraction: progress?.fraction,
+                            progressLabel: progress?.remainingLabel,
+                            watched: progress?.watched ?? false,
+                            ratingLabel: movieRatingLabel(movie),
+                          );
+                        }).toList(),
                       ),
                     );
                   }
@@ -354,24 +360,18 @@ class HomeScreen extends ConsumerWidget {
               data: (tv) => tv.data.isNotEmpty
                   ? ContentCarousel(
                       title: 'Popular TV Shows',
-                      children: tv.data
-                          .map((show) {
-                            final progress = progressLookup?.tv(
-                              show.id,
-                              show.slug,
-                            );
-                            return PosterCard(
-                              imageUrl:
-                                  show.posterUrl ?? show.thumbnailUrl ?? '',
-                              title: show.title,
-                              onTap: () => context.push('/tv/${show.slug}'),
-                              progressFraction: progress?.fraction,
-                              progressLabel: progress?.remainingLabel,
-                              watched: progress?.watched ?? false,
-                              ratingLabel: tvRatingLabel(show),
-                            );
-                          })
-                          .toList(),
+                      children: tv.data.map((show) {
+                        final progress = progressLookup?.tv(show.id, show.slug);
+                        return PosterCard(
+                          imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
+                          title: show.title,
+                          onTap: () => context.push('/tv/${show.slug}'),
+                          progressFraction: progress?.fraction,
+                          progressLabel: progress?.remainingLabel,
+                          watched: progress?.watched ?? false,
+                          ratingLabel: tvRatingLabel(show),
+                        );
+                      }).toList(),
                     )
                   : const SizedBox.shrink(),
               loading: () => _loadingRow,
@@ -382,31 +382,27 @@ class HomeScreen extends ConsumerWidget {
               data: (anime) => anime.media.isNotEmpty
                   ? ContentCarousel(
                       title: 'Trending Anime',
-                      children: anime.media
-                          .map((entry) {
-                            final progress = progressLookup?.anime(
-                              entry.id.toString(),
-                            );
-                            return PosterCard(
-                              imageUrl:
-                                  entry.coverImage.large ??
-                                  entry.coverImage.medium ??
-                                  '',
-                              title:
-                                  entry.title.english ??
-                                  entry.title.romaji ??
-                                  entry.title.native ??
-                                  'Untitled',
-                              onTap: () => context.push('/anime/${entry.id}'),
-                              progressFraction: progress?.fraction,
-                              progressLabel: progress?.remainingLabel,
-                              watched: progress?.watched ?? false,
-                              ratingLabel: formatAniListScore(
-                                entry.averageScore,
-                              ),
-                            );
-                          })
-                          .toList(),
+                      children: anime.media.map((entry) {
+                        final progress = progressLookup?.anime(
+                          entry.id.toString(),
+                        );
+                        return PosterCard(
+                          imageUrl:
+                              entry.coverImage.large ??
+                              entry.coverImage.medium ??
+                              '',
+                          title:
+                              entry.title.english ??
+                              entry.title.romaji ??
+                              entry.title.native ??
+                              'Untitled',
+                          onTap: () => context.push('/anime/${entry.id}'),
+                          progressFraction: progress?.fraction,
+                          progressLabel: progress?.remainingLabel,
+                          watched: progress?.watched ?? false,
+                          ratingLabel: formatAniListScore(entry.averageScore),
+                        );
+                      }).toList(),
                     )
                   : const SizedBox.shrink(),
               loading: () => _loadingRow,
@@ -416,6 +412,41 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// A landscape row for YouTube-sourced titles.
+  ///
+  /// Their artwork is a 16:9 video thumbnail rather than a portrait poster,
+  /// so the rectangular card is the shape that actually matches the image
+  /// instead of cropping it to fit a poster frame.
+  Widget _youtubeCarousel(
+    BuildContext context,
+    String title,
+    List<MovieSummary> movies,
+    WatchProgressLookup? progressLookup,
+  ) {
+    return ContentCarousel(
+      title: title,
+      height: 160,
+      children: movies.map((movie) {
+        final progress = progressLookup?.movie(movie.id, movie.slug);
+        return PosterCard(
+          imageUrl:
+              movie.backdropUrl ??
+              movie.thumbnailUrl ??
+              movie.posterUrl ??
+              movie.coverUrl ??
+              '',
+          isRectangular: true,
+          title: movie.title,
+          onTap: () => context.push('/movies/${movie.slug ?? movie.id}'),
+          progressFraction: progress?.fraction,
+          progressLabel: progress?.remainingLabel,
+          watched: progress?.watched ?? false,
+          ratingLabel: movieRatingLabel(movie),
+        );
+      }).toList(),
     );
   }
 

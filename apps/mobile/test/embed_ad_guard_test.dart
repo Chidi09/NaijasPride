@@ -9,28 +9,42 @@ const _embed =
 void main() {
   group('wrapperHtmlFor sandbox', () {
     final html = wrapperHtmlFor(_embed);
+    final strict = wrapperHtmlFor(_embed, strictAdBlocking: true);
 
-    test('sandboxes the provider iframe', () {
-      expect(html, contains('sandbox="'));
+    test('does not sandbox the provider iframe by default', () {
+      // On-device this was the difference between every movie and TV
+      // provider playing and every one of them refusing with its own
+      // "remove the sandbox attribute from the iframe tag" page. The
+      // providers detect the attribute deliberately — it is what stops the
+      // pop-unders they monetise — so no choice of tokens buys past it.
+      expect(html, isNot(contains('sandbox=')));
     });
 
-    test('withholds the capabilities an ad hijack needs', () {
-      // These are the whole point of the attribute. flutter_inappwebview's
-      // Android shouldOverrideUrlLoading only cancels main-frame
-      // navigations, so nothing on the Dart side can stop the embed — which
-      // runs in this iframe — from navigating the top frame or popping under.
-      expect(html, isNot(contains('allow-top-navigation')));
-      expect(html, isNot(contains('allow-popups')));
-      expect(html, isNot(contains('allow-modals')));
-      expect(html, isNot(contains('allow-downloads')));
+    test('sandboxes when strict ad blocking is opted into', () {
+      expect(strict, contains('sandbox="'));
     });
 
-    test('keeps what the provider needs to play', () {
+    test('strict mode withholds the capabilities an ad hijack needs', () {
+      // flutter_inappwebview's Android shouldOverrideUrlLoading only cancels
+      // main-frame navigations, so nothing on the Dart side can stop the
+      // embed — which runs in this iframe — navigating itself off-site.
+      // Closing that last gap is the whole reason strict mode exists.
+      expect(strict, isNot(contains('allow-top-navigation')));
+      expect(strict, isNot(contains('allow-popups')));
+      expect(strict, isNot(contains('allow-modals')));
+      expect(strict, isNot(contains('allow-downloads')));
+    });
+
+    test('strict mode keeps what the provider needs to play', () {
       // Without allow-same-origin the frame lands in an opaque origin, which
       // breaks provider storage and the JS bridge the sniffer reports over.
-      expect(html, contains('allow-same-origin'));
-      expect(html, contains('allow-scripts'));
+      expect(strict, contains('allow-same-origin'));
+      expect(strict, contains('allow-scripts'));
+    });
+
+    test('always allows fullscreen', () {
       expect(html, contains('allowfullscreen'));
+      expect(strict, contains('allowfullscreen'));
     });
 
     test('escapes the embed URL into the src attribute', () {
@@ -41,6 +55,44 @@ void main() {
         wrapperHtmlFor('https://x.test/e?a="onload=alert(1)'),
         contains('a=&quot;onload=alert(1)'),
       );
+      expect(
+        wrapperHtmlFor(
+          'https://x.test/e?a="onload=alert(1)',
+          strictAdBlocking: true,
+        ),
+        contains('a=&quot;onload=alert(1)'),
+      );
+    });
+  });
+
+  group('subtitle sniffing', () {
+    test('recognises the track formats embed players fetch', () {
+      for (final url in const [
+        'https://cdn.x.com/subs/english.vtt',
+        'https://cdn.x.com/subs/eng.srt?token=1',
+        'https://cdn.x.com/subs/full.ass',
+      ]) {
+        expect(isLikelySubtitleUrl(url), isTrue, reason: url);
+      }
+    });
+
+    test('rejects media and ad assets', () {
+      expect(isLikelySubtitleUrl('https://cdn.x.com/master.m3u8'), isFalse);
+      expect(isLikelySubtitleUrl('https://popads.net/a.vtt'), isFalse);
+    });
+
+    test('never mistakes a subtitle for a playable stream', () {
+      // Both predicates run over the same sniffed URLs, so an overlap would
+      // hand a .vtt to the video player as if it were the episode.
+      expect(isLikelyMediaStreamUrl('https://cdn.x.com/subs/en.vtt'), isFalse);
+    });
+
+    test('labels tracks from the language in the file name', () {
+      expect(subtitleLabelFor('https://cdn.x.com/s/english-2.vtt'), 'English');
+      expect(subtitleLabelFor('https://cdn.x.com/s/spa.srt'), 'Spanish');
+      // No recognisable language: fall back to something that at least
+      // distinguishes two tracks in the picker.
+      expect(subtitleLabelFor('https://cdn.x.com/s/track1.vtt'), 'track1');
     });
   });
 

@@ -37,8 +37,14 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
   bool _loading = false;
   bool _loadingMore = false;
   String? _error;
+  String _loadMoreError = '';
   String _query = '';
   bool _youtubeOnly = false;
+
+  /// Bumped whenever the query or filter changes. A response carrying a stale
+  /// id is discarded: without it, a page-2 request already in flight when the
+  /// search box changed would append its results onto the new, unrelated list.
+  int _requestId = 0;
 
   @override
   void initState() {
@@ -65,15 +71,24 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
     final pos = _scrollController.position;
     if (pos.pixels > pos.maxScrollExtent - 400 &&
         !_loadingMore &&
+        // Not while the first page is still arriving — _meta would be from
+        // the previous query, so this would page off the wrong result set.
+        !_loading &&
+        // A failed page stops the loop until the user retries, rather than
+        // re-firing on every scroll frame against a server that is down.
+        _loadMoreError.isEmpty &&
         _meta['hasNext'] == true) {
       _loadMore();
     }
   }
 
   Future<void> _fetchMovies() async {
+    final requestId = ++_requestId;
     setState(() {
       _loading = true;
       _error = null;
+      _loadMoreError = '';
+      _loadingMore = false;
     });
     try {
       final api = ref.read(moviesApiProvider);
@@ -82,14 +97,14 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
         youtubeOnly: _youtubeOnly,
         page: _currentPage,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
       setState(() {
         _movies = result.data;
         _meta = result.meta;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -98,25 +113,42 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
   }
 
   Future<void> _loadMore() async {
-    setState(() => _loadingMore = true);
+    final requestId = _requestId;
+    final nextPage = _currentPage + 1;
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = '';
+    });
     try {
       final api = ref.read(moviesApiProvider);
       final result = await api.search(
         q: _query.isNotEmpty ? _query : null,
         youtubeOnly: _youtubeOnly,
-        page: _currentPage + 1,
+        page: nextPage,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
       setState(() {
-        _movies.addAll(result.data);
+        // Ranking shifts between requests as view counts change, so the same
+        // title can legitimately arrive on two pages. Appending blind showed
+        // it twice in the grid.
+        final seen = _movies.map((m) => m.id).toSet();
+        _movies.addAll(result.data.where((m) => seen.add(m.id)));
         _meta = result.meta;
-        _currentPage++;
+        _currentPage = nextPage;
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _loadingMore = false);
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _loadingMore = false;
+        _loadMoreError = e.toString();
+      });
     }
+  }
+
+  void _retryLoadMore() {
+    setState(() => _loadMoreError = '');
+    _loadMore();
   }
 
   void _retry() {
@@ -262,6 +294,24 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
               height: 24,
               width: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        // Previously a failed page just stopped loading with no explanation,
+        // so the grid looked like it had simply ended.
+        else if (_loadMoreError.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                Text(
+                  'Couldn’t load more.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                TextButton(
+                  onPressed: _retryLoadMore,
+                  child: const Text('Try again'),
+                ),
+              ],
             ),
           ),
       ],

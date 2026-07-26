@@ -114,6 +114,20 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
           .read(animeApiProvider)
           .watch(widget.id, episode.number);
       fetchedSubtitles = result.subtitles;
+
+      // The bridges are the best source when they are up, because their
+      // tracks are timed against the very stream being played. When they
+      // supply nothing, fall back to the external providers — a lot of anime
+      // is served with no subtitle track anywhere in the stream, so sniffing
+      // the embed cannot help either.
+      if (fetchedSubtitles.isEmpty) {
+        fetchedSubtitles = await ref
+            .read(animeApiProvider)
+            .externalSubtitles(
+              anilistId: widget.id,
+              episodeNumber: episode.number,
+            );
+      }
       final skipTimes = await ref
           .read(animeApiProvider)
           .skipTimes(widget.id, episode.number);
