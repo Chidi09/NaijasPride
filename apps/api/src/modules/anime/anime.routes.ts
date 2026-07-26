@@ -7,6 +7,7 @@ import {
   BadRequestError,
 } from "../../shared/errors/app-error";
 import { PassThrough } from "node:stream";
+import { get as httpsGet } from "node:https";
 import {
   getAnimepaheRuntimeStats,
   resolveAnimepaheEpisodesByTitles,
@@ -177,6 +178,14 @@ const kitsuEpisodeThumbsCache = new Map<
 // never change once a series has aired.
 const JIKAN_FILLER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const jikanFillerCache = new Map<
+  string,
+  { payload: unknown; timestamp: number }
+>();
+
+/** Last failure detail per series, so a sustained outage isn't re-probed on
+ * every request. Deliberately separate from the answer cache: this holds a
+ * reason to back off, never a result to serve. */
+const jikanFailureCache = new Map<
   string,
   { payload: unknown; timestamp: number }
 >();
@@ -1159,6 +1168,74 @@ async function metadataJson<T>(
   }
 }
 
+/**
+ * The same JSON GET, over `node:https` instead of `fetch`.
+ *
+ * Not a style preference. Against api.jikan.moe, Node's global fetch fails
+ * every single time while `node:https` succeeds every single time — same
+ * process, same address, same headers, same moment; curl succeeds too, direct
+ * or proxied, on HTTP/1.1 or HTTP/2. Jikan's edge takes the undici request
+ * down a path that goes live to MyAnimeList and times out, and answers HTTP
+ * 200 with an UpstreamException body, so from the caller's side it looks like
+ * a service that is simply always failing.
+ *
+ * That is why a curl run inside the API container returns full episode data
+ * while the API three feet away in the same container gets nothing. Kitsu and
+ * ani.zip are unaffected and stay on fetch.
+ */
+function metadataJsonViaHttps<T>(
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<{ data: T | null; detail?: string }> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: { data: T | null; detail?: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    const request = httpsGet(
+      url,
+      {
+        headers: { "User-Agent": "Mozilla/5.0", ...headers },
+        timeout: EPISODE_METADATA_TIMEOUT_MS,
+      },
+      (response) => {
+        const status = response.statusCode ?? 0;
+        if (status < 200 || status >= 300) {
+          response.resume();
+          finish({ data: null, detail: `HTTP ${status}` });
+          return;
+        }
+        response.setEncoding("utf8");
+        let body = "";
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+        response.on("end", () => {
+          try {
+            finish({ data: JSON.parse(body) as T });
+          } catch {
+            finish({ data: null, detail: "unparseable JSON" });
+          }
+        });
+        response.on("error", (error) =>
+          finish({ data: null, detail: error.message }),
+        );
+      },
+    );
+
+    request.on("timeout", () => {
+      request.destroy();
+      finish({ data: null, detail: "request timed out" });
+    });
+    request.on("error", (error) =>
+      finish({ data: null, detail: error.message }),
+    );
+  });
+}
+
 async function kitsuJson<T>(
   path: string,
 ): Promise<{ data: T | null; detail?: string }> {
@@ -1427,6 +1504,19 @@ async function jikanFillerEpisodes(
     return { filler: new Set(cached.episodes), outcome: "success" };
   }
 
+  // A recent failure is remembered for minutes, not hours. Failures are not
+  // cached as answers — that was the bug in the first place — but retrying on
+  // literally every request means each one pays a live call and its timeout
+  // while the source is down, which is what a sustained outage looks like.
+  const recentFailure = readCachedPayload(
+    jikanFailureCache,
+    cacheKey,
+    METADATA_FAILURE_CACHE_TTL_MS,
+  ) as string | null;
+  if (recentFailure) {
+    return { filler: new Set(), outcome: "error", detail: recentFailure };
+  }
+
   const filler = new Set<number>();
   let pagesRead = 0;
   // What the first page says the run should be, so a walk that stops early is
@@ -1443,7 +1533,7 @@ async function jikanFillerEpisodes(
       if (page > 1) await sleep(JIKAN_PAGE_DELAY_MS);
 
       const { data, detail: pageDetail } =
-        await metadataJson<JikanEpisodesResponse>(
+        await metadataJsonViaHttps<JikanEpisodesResponse>(
           `https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`,
           { Accept: "application/json" },
         );
@@ -1497,17 +1587,20 @@ async function jikanFillerEpisodes(
   }
 
   // Partial results are still applied — some filler badges beat none — they
-  // are just reported as partial and not cached.
+  // are just reported as partial and not cached as the answer. The back-off is
+  // still recorded, so a source failing halfway through every time is not
+  // re-walked on every request.
   if (walk === "partial") {
-    return {
-      filler,
-      outcome: "miss",
-      detail: `partial: ${pagesRead} of ${pagesExpected} pages${
-        detail ? ` (${detail})` : ""
-      }`,
-    };
+    const partialDetail = `partial: ${pagesRead} of ${pagesExpected} pages${
+      detail ? ` (${detail})` : ""
+    }`;
+    writeCachedPayload(jikanFailureCache, cacheKey, partialDetail);
+    return { filler, outcome: "miss", detail: partialDetail };
   }
-  return { filler, outcome: "error", detail: detail || "no jikan response" };
+
+  const failureDetail = detail || "no jikan response";
+  writeCachedPayload(jikanFailureCache, cacheKey, failureDetail);
+  return { filler, outcome: "error", detail: failureDetail };
 }
 
 type EpisodeWithMeta = {
