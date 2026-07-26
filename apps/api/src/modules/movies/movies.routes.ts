@@ -208,9 +208,14 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
 
     const [mostWatched, comingSoon, latestUploads, newReleases] =
       await Promise.all([
-        // Top 12 most-watched active movies
+        // Top 12 most-watched, restricted to YouTube-sourced titles.
+        //
+        // viewCount is only actually accumulated for those: they are the
+        // ones whose plays this app counts. Ranking the whole catalogue by
+        // it therefore produced a "Most Watched" row largely made of titles
+        // sitting at zero, ordered arbitrarily among themselves.
         fastify.prisma.movie.findMany({
-          where: playableWhere,
+          where: { ...playableWhere, youtubeId: { not: null } },
           orderBy: { viewCount: "desc" },
           take: 12,
           select: {
@@ -226,6 +231,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
             viewCount: true,
             isStreamOnly: true,
             quality: true,
+            youtubeId: true,
           },
         }),
         // Movies people are waiting for — pending/processing, sorted by notification count
@@ -245,6 +251,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
             genre: true,
             isStreamOnly: true,
             quality: true,
+            youtubeId: true,
             _count: { select: { notifications: true } },
           },
         }),
@@ -270,6 +277,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
             viewCount: true,
             isStreamOnly: true,
             quality: true,
+            youtubeId: true,
           },
         }),
         // Recent years focus row (2025-2026)
@@ -295,6 +303,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
             viewCount: true,
             isStreamOnly: true,
             quality: true,
+            youtubeId: true,
           },
         }),
       ]);
@@ -330,6 +339,7 @@ export const movieRoutes: FastifyPluginAsync = async (fastify) => {
           viewCount: true,
           isStreamOnly: true,
           quality: true,
+          youtubeId: true,
         },
       });
 

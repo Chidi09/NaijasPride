@@ -192,45 +192,59 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: SegmentedButton<ThemeMode>(
-                    showSelectedIcon: false,
-                    segments: const [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Icon plus label needs roughly 110px a segment before
+                    // the text starts wrapping mid-word or clipping. Below
+                    // that, drop to icons alone rather than shipping a
+                    // broken-looking label — the icons carry the meaning,
+                    // and each keeps a tooltip.
+                    final showLabels = constraints.maxWidth >= 330;
+                    final segments = <ButtonSegment<ThemeMode>>[
                       ButtonSegment(
                         value: ThemeMode.light,
-                        icon: Icon(Icons.light_mode),
-                        label: Text('Light'),
+                        icon: const Icon(Icons.light_mode),
+                        label: showLabels ? const Text('Light') : null,
+                        tooltip: 'Light',
                       ),
                       ButtonSegment(
                         value: ThemeMode.dark,
-                        icon: Icon(Icons.dark_mode),
-                        label: Text('Dark'),
+                        icon: const Icon(Icons.dark_mode),
+                        label: showLabels ? const Text('Dark') : null,
+                        tooltip: 'Dark',
                       ),
                       ButtonSegment(
                         value: ThemeMode.system,
-                        icon: Icon(Icons.brightness_auto),
-                        label: Text('System'),
+                        icon: const Icon(Icons.brightness_auto),
+                        label: showLabels ? const Text('System') : null,
+                        tooltip: 'Match device',
                       ),
-                    ],
-                    selected: {ref.watch(themeModeProvider)},
-                    onSelectionChanged: (selected) {
-                      ref
-                          .read(themeModeProvider.notifier)
-                          .setThemeMode(selected.first);
-                    },
-                    style: SegmentedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      foregroundColor: colors.text,
-                      selectedForegroundColor: Colors.white,
-                      selectedBackgroundColor: theme.colorScheme.primary,
-                      backgroundColor: Colors.transparent,
-                      side: BorderSide(color: colors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    ];
+                    return SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<ThemeMode>(
+                        showSelectedIcon: false,
+                        segments: segments,
+                        selected: {ref.watch(themeModeProvider)},
+                        onSelectionChanged: (selected) {
+                          ref
+                              .read(themeModeProvider.notifier)
+                              .setThemeMode(selected.first);
+                        },
+                        style: SegmentedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          foregroundColor: colors.text,
+                          selectedForegroundColor: Colors.white,
+                          selectedBackgroundColor: theme.colorScheme.primary,
+                          backgroundColor: Colors.transparent,
+                          side: BorderSide(color: colors.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ],
             ),

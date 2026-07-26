@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import '../../../core/player/watch_progress_api.dart';
 import '../../content/shared/presentation/status_picker.dart';
 import '../../../core/build_flavor.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/image_sizing.dart';
 
 final RegExp _youtubeIdPattern = RegExp(
   r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})',
@@ -230,24 +232,62 @@ class _HeroBannerState extends ConsumerState<HeroBanner> {
     }
 
     final movies = widget.featuredMovies ?? [widget.movie];
+    final media = MediaQuery.of(context);
+
+    // Sized from the artwork rather than from the viewport. At 55% of screen
+    // height this box was around 0.85:1 on a tall phone, and cover-fitting a
+    // 16:9 backdrop into that threw away nearly half the frame — the crop is
+    // what made the hero look off, not the height. 16:9 with a floor keeps
+    // the whole backdrop visible, and the cap stops it dominating the page on
+    // a tablet.
+    final backdrop = movie.backdropUrl;
+    final poster = movie.posterUrl;
+    final imageUrl = backdrop ?? poster ?? '';
+    final isPortraitArt = backdrop == null && poster != null;
+
+    final width = media.size.width;
+    final heroHeight = (width * 9 / 16).clamp(200.0, media.size.height * 0.5);
+    final decodeWidth = decodeWidthFor(width, media.devicePixelRatio);
 
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.55,
+      height: heroHeight,
       width: double.infinity,
       child: Stack(
         fit: StackFit.expand,
         children: [
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 800),
-            child: CachedNetworkImage(
+            child: SizedBox.expand(
               key: ValueKey(_currentIndex),
-              imageUrl: movie.backdropUrl ?? movie.posterUrl ?? '',
-              fit: BoxFit.cover,
-              memCacheWidth: 1080,
-              errorWidget: (_, _, _) =>
-                  Container(color: theme.colorScheme.surface),
-              placeholder: (_, _) =>
-                  Container(color: theme.colorScheme.surface),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Only reached when a title has no backdrop. Cropping a 2:3
+                  // poster into a 16:9 box loses most of it, so the poster is
+                  // shown whole over a blurred copy of itself instead of
+                  // being chopped.
+                  if (isPortraitArt)
+                    ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: CachedNetworkImage(
+                        imageUrl: sizedImageUrl(imageUrl, 300),
+                        fit: BoxFit.cover,
+                        memCacheWidth: 300,
+                        errorWidget: (_, _, _) => const SizedBox.shrink(),
+                        placeholder: (_, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  CachedNetworkImage(
+                    imageUrl: sizedImageUrl(imageUrl, decodeWidth),
+                    fit: isPortraitArt ? BoxFit.contain : BoxFit.cover,
+                    memCacheWidth: decodeWidth,
+                    errorWidget: (_, _, _) =>
+                        Container(color: theme.colorScheme.surface),
+                    placeholder: (_, _) =>
+                        Container(color: theme.colorScheme.surface),
+                  ),
+                ],
+              ),
             ),
           ),
           Positioned(
