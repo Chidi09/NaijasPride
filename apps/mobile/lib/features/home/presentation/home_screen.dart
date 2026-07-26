@@ -130,93 +130,93 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            featuredAsync.when(
-              data: (featured) {
-                final heroMovie =
-                    (featured['trending'] ?? featured['mostWatched'] ?? [])
-                        .cast<MovieSummary>()
-                        .firstOrNull;
-                if (heroMovie == null) return const SizedBox.shrink();
-                if (isTvBuild) {
-                  return HeroBanner(movie: heroMovie);
-                }
-                final heroMovies = [
-                  if (featured['trending'] != null) ...featured['trending']!,
-                  if (featured['mostWatched'] != null)
-                    ...featured['mostWatched']!,
-                  if (featured['latestUploads'] != null)
-                    ...featured['latestUploads']!,
-                  if (featured['newReleases'] != null)
-                    ...featured['newReleases']!,
-                  if (featured['comingSoon'] != null)
-                    ...featured['comingSoon']!,
-                ].take(5).toList();
-                return HeroBanner(movie: heroMovie, featuredMovies: heroMovies);
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => _inlineError(
-                () => ref.invalidate(homeFeaturedMoviesProvider),
+      body: RefreshIndicator(
+        color: colors.primary,
+        backgroundColor: colors.surface,
+        onRefresh: () async {
+          ref.invalidate(homeFeaturedMoviesProvider);
+          ref.invalidate(homePopularTvProvider);
+          ref.invalidate(homeTrendingAnimeProvider);
+          ref.invalidate(continueWatchingProvider);
+          await Future.wait([
+            ref.read(homeFeaturedMoviesProvider.future),
+            ref.read(homePopularTvProvider.future),
+            ref.read(homeTrendingAnimeProvider.future),
+            ref.read(continueWatchingProvider.future),
+            // Swallowed on purpose: the refresh indicator's job is to finish
+            // spinning. Each row renders its own error state from the provider
+            // it watches, so a failed refetch is already visible where it
+            // happened. The element type has to match what Future.wait
+            // returns, or the handler is not a valid recovery for it.
+          ]).catchError((_) => <Object>[]);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              featuredAsync.when(
+                data: (featured) {
+                  final heroMovie =
+                      (featured['trending'] ?? featured['mostWatched'] ?? [])
+                          .cast<MovieSummary>()
+                          .firstOrNull;
+                  if (heroMovie == null) return const SizedBox.shrink();
+                  if (isTvBuild) {
+                    return HeroBanner(movie: heroMovie);
+                  }
+                  final heroMovies = [
+                    if (featured['trending'] != null) ...featured['trending']!,
+                    if (featured['mostWatched'] != null)
+                      ...featured['mostWatched']!,
+                    if (featured['latestUploads'] != null)
+                      ...featured['latestUploads']!,
+                    if (featured['newReleases'] != null)
+                      ...featured['newReleases']!,
+                    if (featured['comingSoon'] != null)
+                      ...featured['comingSoon']!,
+                  ].take(5).toList();
+                  return HeroBanner(
+                    movie: heroMovie,
+                    featuredMovies: heroMovies,
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => _inlineError(
+                  () => ref.invalidate(homeFeaturedMoviesProvider),
+                ),
               ),
-            ),
-            continueAsync.when(
-              data: (items) {
-                if (items.isEmpty) return const SizedBox.shrink();
-                final filteredItems = selectedFilter == null
-                    ? items
-                    : items.where((i) => i.status == selectedFilter).toList();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 4,
-                      ),
-                      child: SizedBox(
-                        height: 36,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: const Text('All'),
-                                selected: selectedFilter == null,
-                                onSelected: (_) => ref
-                                    .read(
-                                      continueWatchingFilterProvider.notifier,
-                                    )
-                                    .setFilter(null),
-                                labelStyle: TextStyle(
-                                  color: selectedFilter == null
-                                      ? Colors.white
-                                      : colors.text,
-                                ),
-                                backgroundColor: colors.surface,
-                                selectedColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
-                                side: BorderSide.none,
-                                shape: const StadiumBorder(),
-                              ),
-                            ),
-                            ...kWatchStatuses.map((s) {
-                              return Padding(
+              continueAsync.when(
+                data: (items) {
+                  if (items.isEmpty) return const SizedBox.shrink();
+                  final filteredItems = selectedFilter == null
+                      ? items
+                      : items.where((i) => i.status == selectedFilter).toList();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 4,
+                        ),
+                        child: SizedBox(
+                          height: 36,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: ChoiceChip(
-                                  label: Text(watchStatusLabel(s)),
-                                  selected: selectedFilter == s,
+                                  label: const Text('All'),
+                                  selected: selectedFilter == null,
                                   onSelected: (_) => ref
                                       .read(
                                         continueWatchingFilterProvider.notifier,
                                       )
-                                      .setFilter(s),
+                                      .setFilter(null),
                                   labelStyle: TextStyle(
-                                    color: selectedFilter == s
+                                    color: selectedFilter == null
                                         ? Colors.white
                                         : colors.text,
                                   ),
@@ -227,216 +227,249 @@ class HomeScreen extends ConsumerWidget {
                                   side: BorderSide.none,
                                   shape: const StadiumBorder(),
                                 ),
-                              );
-                            }),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (filteredItems.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 8,
-                        ),
-                        child: Text('No items with this status'),
-                      )
-                    else
-                      ContentCarousel(
-                        title: 'Continue Watching',
-                        children: filteredItems.map((item) {
-                          final watched = item.progressFraction >= 0.95;
-                          return PosterCard(
-                            imageUrl: item.imageUrl ?? '',
-                            title: item.title,
-                            progressFraction: item.progressFraction,
-                            progressLabel: watched
-                                ? null
-                                : formatRemaining(
-                                    item.durationSeconds - item.progressSeconds,
+                              ),
+                              ...kWatchStatuses.map((s) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text(watchStatusLabel(s)),
+                                    selected: selectedFilter == s,
+                                    onSelected: (_) => ref
+                                        .read(
+                                          continueWatchingFilterProvider
+                                              .notifier,
+                                        )
+                                        .setFilter(s),
+                                    labelStyle: TextStyle(
+                                      color: selectedFilter == s
+                                          ? Colors.white
+                                          : colors.text,
+                                    ),
+                                    backgroundColor: colors.surface,
+                                    selectedColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    side: BorderSide.none,
+                                    shape: const StadiumBorder(),
                                   ),
-                            watched: watched,
-                            onTap: () {
-                              switch (item.contentType) {
-                                case 'movie':
-                                  context.push('/movies/${item.slug}');
-                                case 'tv':
-                                  context.push('/tv/${item.slug}');
-                                case 'anime':
-                                  context.push('/anime/${item.anilistId}');
-                              }
-                            },
-                          );
-                        }).toList(),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
                       ),
-                  ],
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) =>
-                  _inlineError(() => ref.invalidate(continueWatchingProvider)),
-            ),
-            featuredAsync.when(
-              data: (featured) {
-                const sections = [
-                  ('Most Watched', 'mostWatched'),
-                  ('Trending', 'trending'),
-                  ('Latest Uploads', 'latestUploads'),
-                  ('New Releases', 'newReleases'),
-                  ('Coming Soon', 'comingSoon'),
-                ];
-                final carousels = <Widget>[];
-                for (final s in sections) {
-                  final list = featured[s.$2];
-                  if (list == null || list.isEmpty) continue;
-
-                  // Most Watched is YouTube-sourced end to end now — those
-                  // are the only titles whose plays are counted — so it is
-                  // shown as one landscape row rather than being split into
-                  // a portrait row and a "(Nollywood/Free)" one.
-                  if (s.$2 == 'mostWatched') {
-                    carousels.add(
-                      _youtubeCarousel(context, s.$1, list, progressLookup),
-                    );
-                    continue;
-                  }
-
-                  final stdMovies = list
-                      .where((m) => m.youtubeId == null)
-                      .toList();
-                  final ytMovies = list
-                      .where((m) => m.youtubeId != null)
-                      .toList();
-
-                  if (stdMovies.isNotEmpty) {
-                    carousels.add(
-                      ContentCarousel(
-                        title: s.$1,
-                        children: stdMovies.map((movie) {
-                          final progress = progressLookup?.movie(
-                            movie.id,
-                            movie.slug,
-                          );
-                          return PosterCard(
-                            imageUrl:
-                                movie.posterUrl ??
-                                movie.thumbnailUrl ??
-                                movie.coverUrl ??
-                                '',
-                            isRectangular: false,
-                            title: movie.title,
-                            onTap: () => context.push(
-                              '/movies/${movie.slug ?? movie.id}',
-                            ),
-                            progressFraction: progress?.fraction,
-                            progressLabel: progress?.remainingLabel,
-                            watched: progress?.watched ?? false,
-                            ratingLabel: movieRatingLabel(movie),
-                          );
-                        }).toList(),
-                      ),
-                    );
-                  }
-
-                  if (ytMovies.isNotEmpty) {
-                    carousels.add(
-                      ContentCarousel(
-                        title: '${s.$1} (Nollywood/Free)',
-                        height: 160,
-                        children: ytMovies.map((movie) {
-                          final progress = progressLookup?.movie(
-                            movie.id,
-                            movie.slug,
-                          );
-                          return PosterCard(
-                            imageUrl:
-                                movie.backdropUrl ??
-                                movie.thumbnailUrl ??
-                                movie.posterUrl ??
-                                movie.coverUrl ??
-                                '',
-                            isRectangular: true,
-                            title: movie.title,
-                            onTap: () => context.push(
-                              '/movies/${movie.slug ?? movie.id}',
-                            ),
-                            progressFraction: progress?.fraction,
-                            progressLabel: progress?.remainingLabel,
-                            watched: progress?.watched ?? false,
-                            ratingLabel: movieRatingLabel(movie),
-                          );
-                        }).toList(),
-                      ),
-                    );
-                  }
-                }
-                return Column(
-                  children: [
-                    ...carousels.take(2),
-                    if (!isTvBuild) const AdBannerCard(placement: 'HOME_FEED'),
-                    ...carousels.skip(2),
-                  ],
-                );
-              },
-              loading: () => _loadingRow,
-              error: (_, _) => _inlineError(
-                () => ref.invalidate(homeFeaturedMoviesProvider),
+                      if (filteredItems.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 8,
+                          ),
+                          child: Text('No items with this status'),
+                        )
+                      else
+                        ContentCarousel(
+                          title: 'Continue Watching',
+                          children: filteredItems.map((item) {
+                            final watched = item.progressFraction >= 0.95;
+                            return PosterCard(
+                              imageUrl: item.imageUrl ?? '',
+                              title: item.title,
+                              progressFraction: item.progressFraction,
+                              progressLabel: watched
+                                  ? null
+                                  : formatRemaining(
+                                      item.durationSeconds -
+                                          item.progressSeconds,
+                                    ),
+                              watched: watched,
+                              onTap: () {
+                                switch (item.contentType) {
+                                  case 'movie':
+                                    context.push('/movies/${item.slug}');
+                                  case 'tv':
+                                    context.push('/tv/${item.slug}');
+                                  case 'anime':
+                                    context.push('/anime/${item.anilistId}');
+                                }
+                              },
+                            );
+                          }).toList(),
+                        ),
+                    ],
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => _inlineError(
+                  () => ref.invalidate(continueWatchingProvider),
+                ),
               ),
-            ),
-            tvAsync.when(
-              data: (tv) => tv.data.isNotEmpty
-                  ? ContentCarousel(
-                      title: 'Popular TV Shows',
-                      children: tv.data.map((show) {
-                        final progress = progressLookup?.tv(show.id, show.slug);
-                        return PosterCard(
-                          imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
-                          title: show.title,
-                          onTap: () => context.push('/tv/${show.slug}'),
-                          progressFraction: progress?.fraction,
-                          progressLabel: progress?.remainingLabel,
-                          watched: progress?.watched ?? false,
-                          ratingLabel: tvRatingLabel(show),
-                        );
-                      }).toList(),
-                    )
-                  : const SizedBox.shrink(),
-              loading: () => _loadingRow,
-              error: (_, _) =>
-                  _inlineError(() => ref.invalidate(homePopularTvProvider)),
-            ),
-            animeAsync.when(
-              data: (anime) => anime.media.isNotEmpty
-                  ? ContentCarousel(
-                      title: 'Trending Anime',
-                      children: anime.media.map((entry) {
-                        final progress = progressLookup?.anime(
-                          entry.id.toString(),
-                        );
-                        return PosterCard(
-                          imageUrl:
-                              entry.coverImage.large ??
-                              entry.coverImage.medium ??
-                              '',
-                          title:
-                              entry.title.english ??
-                              entry.title.romaji ??
-                              entry.title.native ??
-                              'Untitled',
-                          onTap: () => context.push('/anime/${entry.id}'),
-                          progressFraction: progress?.fraction,
-                          progressLabel: progress?.remainingLabel,
-                          watched: progress?.watched ?? false,
-                          ratingLabel: formatAniListScore(entry.averageScore),
-                        );
-                      }).toList(),
-                    )
-                  : const SizedBox.shrink(),
-              loading: () => _loadingRow,
-              error: (_, _) =>
-                  _inlineError(() => ref.invalidate(homeTrendingAnimeProvider)),
-            ),
-          ],
+              featuredAsync.when(
+                data: (featured) {
+                  const sections = [
+                    ('Most Watched', 'mostWatched'),
+                    ('Trending', 'trending'),
+                    ('Latest Uploads', 'latestUploads'),
+                    ('New Releases', 'newReleases'),
+                    ('Coming Soon', 'comingSoon'),
+                  ];
+                  final carousels = <Widget>[];
+                  for (final s in sections) {
+                    final list = featured[s.$2];
+                    if (list == null || list.isEmpty) continue;
+
+                    // Most Watched is YouTube-sourced end to end now — those
+                    // are the only titles whose plays are counted — so it is
+                    // shown as one landscape row rather than being split into
+                    // a portrait row and a "(Nollywood/Free)" one.
+                    if (s.$2 == 'mostWatched') {
+                      carousels.add(
+                        _youtubeCarousel(context, s.$1, list, progressLookup),
+                      );
+                      continue;
+                    }
+
+                    final stdMovies = list
+                        .where((m) => m.youtubeId == null)
+                        .toList();
+                    final ytMovies = list
+                        .where((m) => m.youtubeId != null)
+                        .toList();
+
+                    if (stdMovies.isNotEmpty) {
+                      carousels.add(
+                        ContentCarousel(
+                          title: s.$1,
+                          children: stdMovies.map((movie) {
+                            final progress = progressLookup?.movie(
+                              movie.id,
+                              movie.slug,
+                            );
+                            return PosterCard(
+                              imageUrl:
+                                  movie.posterUrl ??
+                                  movie.thumbnailUrl ??
+                                  movie.coverUrl ??
+                                  '',
+                              isRectangular: false,
+                              title: movie.title,
+                              onTap: () => context.push(
+                                '/movies/${movie.slug ?? movie.id}',
+                              ),
+                              progressFraction: progress?.fraction,
+                              progressLabel: progress?.remainingLabel,
+                              watched: progress?.watched ?? false,
+                              ratingLabel: movieRatingLabel(movie),
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    }
+
+                    if (ytMovies.isNotEmpty) {
+                      carousels.add(
+                        ContentCarousel(
+                          title: '${s.$1} (Nollywood/Free)',
+                          height: 160,
+                          children: ytMovies.map((movie) {
+                            final progress = progressLookup?.movie(
+                              movie.id,
+                              movie.slug,
+                            );
+                            return PosterCard(
+                              imageUrl:
+                                  movie.backdropUrl ??
+                                  movie.thumbnailUrl ??
+                                  movie.posterUrl ??
+                                  movie.coverUrl ??
+                                  '',
+                              isRectangular: true,
+                              title: movie.title,
+                              onTap: () => context.push(
+                                '/movies/${movie.slug ?? movie.id}',
+                              ),
+                              progressFraction: progress?.fraction,
+                              progressLabel: progress?.remainingLabel,
+                              watched: progress?.watched ?? false,
+                              ratingLabel: movieRatingLabel(movie),
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    }
+                  }
+                  return Column(
+                    children: [
+                      ...carousels.take(2),
+                      if (!isTvBuild)
+                        const AdBannerCard(placement: 'HOME_FEED'),
+                      ...carousels.skip(2),
+                    ],
+                  );
+                },
+                loading: () => _loadingRow,
+                error: (_, _) => _inlineError(
+                  () => ref.invalidate(homeFeaturedMoviesProvider),
+                ),
+              ),
+              tvAsync.when(
+                data: (tv) => tv.data.isNotEmpty
+                    ? ContentCarousel(
+                        title: 'Popular TV Shows',
+                        children: tv.data.map((show) {
+                          final progress = progressLookup?.tv(
+                            show.id,
+                            show.slug,
+                          );
+                          return PosterCard(
+                            imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
+                            title: show.title,
+                            onTap: () => context.push('/tv/${show.slug}'),
+                            progressFraction: progress?.fraction,
+                            progressLabel: progress?.remainingLabel,
+                            watched: progress?.watched ?? false,
+                            ratingLabel: tvRatingLabel(show),
+                          );
+                        }).toList(),
+                      )
+                    : const SizedBox.shrink(),
+                loading: () => _loadingRow,
+                error: (_, _) =>
+                    _inlineError(() => ref.invalidate(homePopularTvProvider)),
+              ),
+              animeAsync.when(
+                data: (anime) => anime.media.isNotEmpty
+                    ? ContentCarousel(
+                        title: 'Trending Anime',
+                        children: anime.media.map((entry) {
+                          final progress = progressLookup?.anime(
+                            entry.id.toString(),
+                          );
+                          return PosterCard(
+                            imageUrl:
+                                entry.coverImage.large ??
+                                entry.coverImage.medium ??
+                                '',
+                            title:
+                                entry.title.english ??
+                                entry.title.romaji ??
+                                entry.title.native ??
+                                'Untitled',
+                            onTap: () => context.push('/anime/${entry.id}'),
+                            progressFraction: progress?.fraction,
+                            progressLabel: progress?.remainingLabel,
+                            watched: progress?.watched ?? false,
+                            ratingLabel: formatAniListScore(entry.averageScore),
+                          );
+                        }).toList(),
+                      )
+                    : const SizedBox.shrink(),
+                loading: () => _loadingRow,
+                error: (_, _) => _inlineError(
+                  () => ref.invalidate(homeTrendingAnimeProvider),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

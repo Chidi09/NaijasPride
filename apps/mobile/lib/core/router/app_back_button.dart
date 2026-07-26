@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class AppBackButton extends StatelessWidget {
-  const AppBackButton({super.key});
+  final Color? color;
+
+  const AppBackButton({super.key, this.color});
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.arrow_back),
+      icon: Icon(Icons.arrow_back, color: color),
       onPressed: () {
         if (context.canPop()) {
           context.pop();
@@ -19,22 +21,24 @@ class AppBackButton extends StatelessWidget {
   }
 }
 
-/// [AppBackButton] with a dark scrim behind it, for use on a transparent
-/// [SliverAppBar] pinned over hero art — without it the arrow can vanish
-/// against light backgrounds.
+/// [AppBackButton] with a dark glass scrim behind it, for use on a transparent
+/// [SliverAppBar] pinned over hero art.
 class ScrimAppBackButton extends StatelessWidget {
   const ScrimAppBackButton({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // 4 rather than 6: an IconButton is 48px, and AppBar gives its leading
+    // widget 56px unless told otherwise, so 6 a side overflows by 4.
     return Padding(
       padding: const EdgeInsets.all(4),
-      child: DecoratedBox(
+      child: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withAlpha(90),
+          color: Colors.black.withAlpha(160),
           shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withAlpha(40), width: 0.8),
         ),
-        child: const AppBackButton(),
+        child: const AppBackButton(color: Colors.white),
       ),
     );
   }

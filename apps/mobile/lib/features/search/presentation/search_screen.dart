@@ -430,6 +430,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         if (hasMovies)
           ContentCarousel(

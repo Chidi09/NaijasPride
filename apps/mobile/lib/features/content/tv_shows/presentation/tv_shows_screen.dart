@@ -232,37 +232,49 @@ class _TvShowsScreenState extends ConsumerState<TvShowsScreen> {
     return Column(
       children: [
         Expanded(
-          child: GridView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.53,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: !_showAds
-                ? _shows.length
-                : _shows.length + (_shows.length ~/ 12),
-            itemBuilder: (context, index) {
-              if (_showAds && (index + 1) % 13 == 0) {
-                return AdPosterCard(index: index ~/ 13);
-              }
-              final contentIndex = !_showAds ? index : index - index ~/ 13;
-              final show = _shows[contentIndex];
-              final progress = progressLookup?.tv(show.id, show.slug);
-              return PosterCard(
-                width: itemWidth,
-                imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
-                heroTag: 'tv-poster-${show.id}',
-                title: show.title,
-                onTap: () => context.push('/tv/${show.slug}'),
-                progressFraction: progress?.fraction,
-                progressLabel: progress?.remainingLabel,
-                watched: progress?.watched ?? false,
-                ratingLabel: tvRatingLabel(show),
-              );
+          child: RefreshIndicator(
+            color: theme.colorScheme.primary,
+            backgroundColor: theme.colorScheme.surface,
+            onRefresh: () async {
+              // Not cleared first: see the note in movies_screen.dart —
+              // emptying the list swaps the grid for the loading skeleton
+              // while the refresh spinner is still showing.
+              _currentPage = 1;
+              await _fetchShows();
             },
+            child: GridView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 0.53,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: !_showAds
+                  ? _shows.length
+                  : _shows.length + (_shows.length ~/ 12),
+              itemBuilder: (context, index) {
+                if (_showAds && (index + 1) % 13 == 0) {
+                  return AdPosterCard(index: index ~/ 13);
+                }
+                final contentIndex = !_showAds ? index : index - index ~/ 13;
+                final show = _shows[contentIndex];
+                final progress = progressLookup?.tv(show.id, show.slug);
+                return PosterCard(
+                  width: itemWidth,
+                  imageUrl: show.posterUrl ?? show.thumbnailUrl ?? '',
+                  heroTag: 'tv-poster-${show.id}',
+                  title: show.title,
+                  onTap: () => context.push('/tv/${show.slug}'),
+                  progressFraction: progress?.fraction,
+                  progressLabel: progress?.remainingLabel,
+                  watched: progress?.watched ?? false,
+                  ratingLabel: tvRatingLabel(show),
+                );
+              },
+            ),
           ),
         ),
         if (_loadingMore)
