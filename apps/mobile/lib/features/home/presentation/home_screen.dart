@@ -130,8 +130,24 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-      body: SingleChildScrollView(
-        child: Column(
+      body: RefreshIndicator(
+        color: colors.primary,
+        backgroundColor: colors.surface,
+        onRefresh: () async {
+          ref.invalidate(homeFeaturedMoviesProvider);
+          ref.invalidate(homePopularTvProvider);
+          ref.invalidate(homeTrendingAnimeProvider);
+          ref.invalidate(continueWatchingProvider);
+          await Future.wait([
+            ref.read(homeFeaturedMoviesProvider.future),
+            ref.read(homePopularTvProvider.future),
+            ref.read(homeTrendingAnimeProvider.future),
+            ref.read(continueWatchingProvider.future),
+          ]).catchError((_) => <dynamic>[]);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             featuredAsync.when(

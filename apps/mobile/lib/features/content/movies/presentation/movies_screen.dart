@@ -244,8 +244,19 @@ class _MoviesScreenState extends ConsumerState<MoviesScreen> {
       children: [
         _buildTypeToggle(),
         Expanded(
-          child: GridView.builder(
-            controller: _scrollController,
+          child: RefreshIndicator(
+            color: theme.colorScheme.primary,
+            backgroundColor: theme.colorScheme.surface,
+            onRefresh: () async {
+              setState(() {
+                _currentPage = 1;
+                _movies = [];
+              });
+              await _fetchMovies();
+            },
+            child: GridView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              controller: _scrollController,
             padding: const EdgeInsets.all(16),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
