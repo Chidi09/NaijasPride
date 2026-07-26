@@ -15,6 +15,7 @@ import '../../../../core/player/embed_webview_screen.dart';
 import '../../../../core/player/videasy_player_screen.dart';
 import '../../../../core/player/playback_resolver.dart';
 import '../../../../core/player/playback_source.dart';
+import '../../../../core/player/subtitles_api.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
 import '../../../../core/player/watch_progress_api.dart';
 import '../../../../core/router/app_back_button.dart';
@@ -61,6 +62,19 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
     if (!mounted) return;
     final source = resolveMoviePlayback(movie);
 
+    // Started here rather than awaited, so a subtitle lookup never delays the
+    // video starting. Movies asked the server for subtitles nowhere at all
+    // before this — only anime did — so a film whose stream carried no
+    // subtitle track simply had none.
+    final subtitlesFuture = ref
+        .read(subtitlesApiProvider)
+        .search(
+          imdbId: movie.imdbId,
+          tmdbId: movie.tmdbId,
+          title: movie.title,
+          year: movie.year,
+        );
+
     if (source is! UnresolvedPlaybackSource) {
       var chosenSource = source;
       final candidates = movieQualityCandidates(movie);
@@ -77,6 +91,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
         }
       }
 
+      final subtitles = await subtitlesFuture;
       if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -85,6 +100,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
             title: movie.title,
             progressTarget: MovieProgressTarget(movie.id),
             restoreProgress: restoreProgress,
+            subtitles: subtitles,
           ),
         ),
       );
@@ -119,6 +135,8 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
         backendExtract: () => moviesApi.extractStream(slug),
       );
 
+      final subtitles = await subtitlesFuture;
+
       if (!mounted) return;
       Navigator.of(context).pop();
 
@@ -132,6 +150,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
                 title: movie.title,
                 progressTarget: MovieProgressTarget(movie.id),
                 restoreProgress: restoreProgress,
+                subtitles: subtitles,
               ),
             ),
           );
@@ -143,6 +162,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
                 title: movie.title,
                 alternates: alternates,
                 progressTarget: MovieProgressTarget(movie.id),
+                subtitles: subtitles,
               ),
             ),
           );
@@ -155,6 +175,7 @@ class _MovieDetailScreenState extends ConsumerState<MovieDetailScreen> {
                     .toList(),
                 title: movie.title,
                 progressTarget: MovieProgressTarget(movie.id),
+                subtitles: subtitles,
               ),
             ),
           );

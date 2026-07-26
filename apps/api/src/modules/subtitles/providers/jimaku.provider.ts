@@ -27,13 +27,16 @@ type JimakuFile = {
  * constantly between databases, and a mismatched subtitle file is worse than
  * none.
  *
- * The catalogue is predominantly Japanese, so this is a supplement to the
- * general providers rather than a replacement — the resolver ranks by the
- * caller's requested languages, which puts these behind an English track
- * when one exists and surfaces them when nothing else does.
+ * The catalogue is Japanese, which is declared below so the resolver skips
+ * this provider entirely for a request that asked for another language. That
+ * matters more than it sounds: this is the only provider that accepts an
+ * AniList id, so before it declared itself it was the sole answer to every
+ * anime subtitle request, and English requests came back Japanese.
  */
 export class JimakuProvider implements SubtitleProvider {
   readonly name = "jimaku";
+
+  readonly languages = ["ja"] as const;
 
   private readonly apiKey = process.env.JIMAKU_API_KEY || "";
 

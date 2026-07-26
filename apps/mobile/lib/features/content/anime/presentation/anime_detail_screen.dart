@@ -6,6 +6,7 @@ import '../data/anime_models.dart';
 import '../../../../core/player/embed_playback_resolver.dart';
 import '../../../../core/player/playback_resolver.dart';
 import '../../../../core/player/playback_source.dart';
+import '../../../../core/player/subtitles_api.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
 import '../../../../core/player/watch_progress_api.dart';
 import '../../../../core/build_flavor.dart';
@@ -122,11 +123,8 @@ class _AnimeDetailScreenState extends ConsumerState<AnimeDetailScreen> {
       // the embed cannot help either.
       if (fetchedSubtitles.isEmpty) {
         fetchedSubtitles = await ref
-            .read(animeApiProvider)
-            .externalSubtitles(
-              anilistId: widget.id,
-              episodeNumber: episode.number,
-            );
+            .read(subtitlesApiProvider)
+            .search(anilistId: widget.id, episode: episode.number);
       }
       final skipTimes = await ref
           .read(animeApiProvider)

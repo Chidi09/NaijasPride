@@ -46,6 +46,13 @@ class VideasyPlayerScreen extends ConsumerStatefulWidget {
   /// Non-Videasy providers to switch to if the Videasy stream can't be sniffed.
   final List<EmbedServer> alternates;
 
+  /// Shown on the next-episode control. Null for a title with no next episode.
+  final String? nextEpisodeLabel;
+
+  /// Advancing to the next episode, forwarded to whichever player this screen
+  /// ends up handing off to.
+  final VoidCallback? onNextEpisode;
+
   const VideasyPlayerScreen({
     super.key,
     required this.videasyUrl,
@@ -54,6 +61,8 @@ class VideasyPlayerScreen extends ConsumerStatefulWidget {
     this.skipTimes,
     this.subtitles,
     this.alternates = const [],
+    this.nextEpisodeLabel,
+    this.onNextEpisode,
   });
 
   @override
@@ -147,6 +156,8 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
           progressTarget: widget.progressTarget,
           skipTimes: widget.skipTimes,
           subtitles: _effectiveSubtitles,
+          nextEpisodeLabel: widget.nextEpisodeLabel,
+          onNextEpisode: widget.onNextEpisode,
         ),
       ),
     );
@@ -189,6 +200,8 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
           title: widget.title,
           subtitles: _effectiveSubtitles,
           progressTarget: widget.progressTarget,
+          nextEpisodeLabel: widget.nextEpisodeLabel,
+          onNextEpisode: widget.onNextEpisode,
         ),
       ),
     );
@@ -208,6 +221,14 @@ class _VideasyPlayerScreenState extends ConsumerState<VideasyPlayerScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: Text(widget.title),
+        actions: [
+          if (widget.onNextEpisode != null)
+            IconButton(
+              icon: const Icon(Icons.skip_next),
+              tooltip: widget.nextEpisodeLabel ?? 'Next episode',
+              onPressed: widget.onNextEpisode,
+            ),
+        ],
       ),
       body: Stack(
         children: [

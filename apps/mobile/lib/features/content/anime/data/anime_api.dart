@@ -151,45 +151,6 @@ class AnimeApi extends BaseApi {
     return (sources: sources, subtitles: subtitles);
   }
 
-  /// External subtitle tracks for an episode, from whichever of the server's
-  /// configured subtitle providers can answer.
-  ///
-  /// Only worth calling when the streaming bridges supplied none and none
-  /// could be sniffed out of the embed — plenty of anime is served with no
-  /// subtitle track anywhere in the stream, and this is the last resort for
-  /// those. Returns empty rather than throwing: missing subtitles must never
-  /// stop an episode from playing.
-  Future<List<AnimeWatchSubtitle>> externalSubtitles({
-    required int anilistId,
-    required int episodeNumber,
-    String languages = 'en',
-  }) async {
-    try {
-      final body = await get(
-        '/api/v1/subtitles',
-        queryParameters: {
-          'anilistId': anilistId,
-          'episode': episodeNumber,
-          'languages': languages,
-        },
-      );
-      final data = body['data'] as Map<String, dynamic>?;
-      final list = data?['subtitles'] as List<dynamic>? ?? const [];
-      return list
-          .whereType<Map<String, dynamic>>()
-          .map(
-            (e) => AnimeWatchSubtitle(
-              url: e['url'] as String?,
-              lang: (e['label'] as String?) ?? (e['language'] as String?),
-            ),
-          )
-          .where((s) => s.url != null && s.url!.isNotEmpty)
-          .toList();
-    } catch (_) {
-      return const [];
-    }
-  }
-
   Future<AnimeSkipTimes> skipTimes(int id, int episodeNumber) async {
     try {
       final body = await get('/api/v1/anime/$id/skip-times/$episodeNumber');

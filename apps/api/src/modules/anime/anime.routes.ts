@@ -20,6 +20,7 @@ import {
   summarizeResolutionTrace,
   type ResolutionTraceEvent,
 } from "./anime-resolution-observability";
+import { animeIdMappings } from "./anime-id-mappings";
 import {
   searchAniWatch,
   getAniWatchEpisodes,
@@ -179,6 +180,23 @@ const jikanFillerCache = new Map<
   string,
   { payload: unknown; timestamp: number }
 >();
+
+/**
+ * How long an empty answer from a metadata source stands before it is asked
+ * again. Deliberately far shorter than the success TTL: "found nothing" is
+ * usually transient — a rate limit, an unreachable host — and caching it for
+ * a day makes a momentary failure indistinguishable from a broken feature for
+ * the rest of that day.
+ */
+const METADATA_FAILURE_CACHE_TTL_MS = 10 * 60 * 1000;
+
+type TraceOutcome = "success" | "miss" | "error";
+
+type MetadataSourceResult<T> = {
+  entries: Map<number, T>;
+  outcome: TraceOutcome;
+  detail?: string;
+};
 
 const ANIME_STREAMING_EPISODES_QUERY = `
   query ($id: Int) {
@@ -1095,12 +1113,58 @@ const KITSU_MAX_EPISODES = 2000;
 /** Pages in flight at once, to stay a polite client of a free, unkeyed API. */
 const KITSU_PAGE_CONCURRENCY = 5;
 
-async function kitsuJson<T>(path: string): Promise<T | null> {
-  const response = await fetch(`${KITSU_API_BASE}${path}`, {
-    headers: { Accept: "application/vnd.api+json" },
+/**
+ * Per-request budget for the metadata sources. They are enrichment: an
+ * episode list is still useful without a thumbnail, and is not worth making
+ * the caller wait on a source that has stopped answering.
+ */
+const EPISODE_METADATA_TIMEOUT_MS = 8000;
+
+/**
+ * A JSON GET against an external metadata API.
+ *
+ * The User-Agent is not decoration. Every other outbound call in this module
+ * sends one, and the two that did not — Kitsu and Jikan — were the two
+ * returning nothing in production while the rest worked: both sit behind
+ * edges that treat an unidentified client from a datacentre address as
+ * something to refuse. The timeout is here for the same reason the failure is
+ * now reported rather than swallowed: a source that hangs used to add its full
+ * wait to every episode-list request with nothing to show for it.
+ */
+async function metadataJson<T>(
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<{ data: T | null; detail?: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    EPISODE_METADATA_TIMEOUT_MS,
+  );
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", ...headers },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return { data: null, detail: `HTTP ${response.status}` };
+    }
+    return { data: (await response.json()) as T };
+  } catch (error) {
+    return {
+      data: null,
+      detail: error instanceof Error ? error.message : "request failed",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function kitsuJson<T>(
+  path: string,
+): Promise<{ data: T | null; detail?: string }> {
+  return metadataJson<T>(`${KITSU_API_BASE}${path}`, {
+    Accept: "application/vnd.api+json",
   });
-  if (!response.ok) return null;
-  return (await response.json()) as T;
 }
 
 type KitsuMappingResponse = {
@@ -1136,15 +1200,19 @@ type KitsuEpisodeMeta = { image: string | null; title: string | null };
  */
 async function kitsuAnimeIdForAnilist(
   anilistId: number,
-): Promise<string | null> {
+): Promise<{ id: string | null; detail?: string }> {
   const params = new URLSearchParams({
     "filter[externalSite]": "anilist/anime",
     "filter[externalId]": String(anilistId),
   });
-  const data = await kitsuJson<KitsuMappingResponse>(`/mappings?${params}`);
+  const { data, detail } = await kitsuJson<KitsuMappingResponse>(
+    `/mappings?${params}`,
+  );
   const item = data?.data?.[0]?.relationships?.item?.data;
-  if (!item || item.type !== "anime" || !item.id) return null;
-  return item.id;
+  if (!item || item.type !== "anime" || !item.id) {
+    return { id: null, detail: detail || "no kitsu mapping" };
+  }
+  return { id: item.id };
 }
 
 function kitsuEpisodesPath(kitsuId: string, offset: number): string {
@@ -1190,33 +1258,44 @@ function collectKitsuEpisodes(
  */
 async function kitsuEpisodeMetadata(
   anilistId: number,
-): Promise<Map<number, KitsuEpisodeMeta>> {
+): Promise<MetadataSourceResult<KitsuEpisodeMeta>> {
   const cacheKey = String(anilistId);
   const cached = readCachedPayload(
     kitsuEpisodeThumbsCache,
     cacheKey,
-    KITSU_EPISODE_THUMBS_CACHE_TTL_MS,
+    // A hit that found nothing expires in minutes, not a day. Caching a
+    // failure for 24 hours is how a brief upstream outage turned into a full
+    // day of thumbnail-less episode lists that looked like a broken feature.
+    (kitsuEpisodeThumbsCache.get(cacheKey)?.payload as unknown[] | undefined)
+      ?.length
+      ? KITSU_EPISODE_THUMBS_CACHE_TTL_MS
+      : METADATA_FAILURE_CACHE_TTL_MS,
   ) as Array<[number, KitsuEpisodeMeta]> | null;
-  if (cached) return new Map(cached);
+  if (cached) {
+    return {
+      entries: new Map(cached),
+      outcome: cached.length ? "success" : "miss",
+    };
+  }
 
   const result = new Map<number, KitsuEpisodeMeta>();
+  let detail: string | undefined;
   try {
-    const kitsuId = await kitsuAnimeIdForAnilist(anilistId);
-    if (!kitsuId) {
-      // Cached as empty too: an unmapped series would otherwise re-run the
-      // mapping lookup on every episode-list request.
+    const mapping = await kitsuAnimeIdForAnilist(anilistId);
+    if (!mapping.id) {
       writeCachedPayload(kitsuEpisodeThumbsCache, cacheKey, []);
-      return result;
+      return { entries: result, outcome: "miss", detail: mapping.detail };
     }
 
     // The first page doubles as the count probe — `meta.count` is what says
     // how many more pages there are to ask for.
     const first = await kitsuJson<KitsuEpisodesResponse>(
-      kitsuEpisodesPath(kitsuId, 0),
+      kitsuEpisodesPath(mapping.id, 0),
     );
-    collectKitsuEpisodes(first, result);
+    detail = first.detail;
+    collectKitsuEpisodes(first.data, result);
 
-    const total = Math.min(first?.meta?.count ?? 0, KITSU_MAX_EPISODES);
+    const total = Math.min(first.data?.meta?.count ?? 0, KITSU_MAX_EPISODES);
     const offsets: number[] = [];
     for (
       let offset = KITSU_PAGE_SIZE;
@@ -1231,14 +1310,14 @@ async function kitsuEpisodeMetadata(
       const pages = await Promise.all(
         batch.map((offset) =>
           kitsuJson<KitsuEpisodesResponse>(
-            kitsuEpisodesPath(kitsuId, offset),
-          ).catch(() => null),
+            kitsuEpisodesPath(mapping.id!, offset),
+          ),
         ),
       );
-      for (const page of pages) collectKitsuEpisodes(page, result);
+      for (const page of pages) collectKitsuEpisodes(page.data, result);
     }
-  } catch {
-    // best-effort — an empty map just means no gap filling
+  } catch (error) {
+    detail = error instanceof Error ? error.message : "kitsu request failed";
   }
 
   writeCachedPayload(
@@ -1246,7 +1325,11 @@ async function kitsuEpisodeMetadata(
     cacheKey,
     Array.from(result.entries()),
   );
-  return result;
+  return {
+    entries: result,
+    outcome: result.size > 0 ? "success" : detail ? "error" : "miss",
+    detail,
+  };
 }
 
 /** Jikan asks for no more than a few requests a second. */
@@ -1270,38 +1353,65 @@ type JikanEpisodesResponse = {
  * (anime-filler-list-api.vercel.app) is dead — its deployment returns 404 —
  * so this reads MyAnimeList's own data instead.
  */
-async function jikanFillerEpisodes(malId: number): Promise<Set<number>> {
+async function jikanFillerEpisodes(
+  malId: number,
+): Promise<{ filler: Set<number>; outcome: TraceOutcome; detail?: string }> {
   const cacheKey = String(malId);
   const cached = readCachedPayload(
     jikanFillerCache,
     cacheKey,
     JIKAN_FILLER_CACHE_TTL_MS,
-  ) as number[] | null;
-  if (cached) return new Set(cached);
+  ) as { episodes: number[]; answered: boolean } | null;
+  if (cached) {
+    return {
+      filler: new Set(cached.episodes),
+      outcome: cached.answered ? "success" : "miss",
+    };
+  }
 
   const filler = new Set<number>();
+  // A series with no filler at all is a perfectly normal answer, so an empty
+  // set is not evidence of a problem — whether Jikan answered at all is.
+  // Without this distinction a failing request cached "no filler" for a day.
+  let answered = false;
+  let detail: string | undefined;
   try {
     // Sequential on purpose: Jikan rate-limits aggressively, and this runs
     // at most once a day per series.
     for (let page = 1; page <= JIKAN_MAX_PAGES; page += 1) {
-      const response = await fetch(
-        `https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`,
-      );
-      if (!response.ok) break;
-      const json = (await response.json()) as JikanEpisodesResponse;
-      for (const episode of json.data || []) {
+      const { data, detail: pageDetail } =
+        await metadataJson<JikanEpisodesResponse>(
+          `https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`,
+          { Accept: "application/json" },
+        );
+      if (!data) {
+        detail = pageDetail;
+        break;
+      }
+      answered = true;
+      for (const episode of data.data || []) {
         if (episode.filler && typeof episode.mal_id === "number") {
           filler.add(episode.mal_id);
         }
       }
-      if (!json.pagination?.has_next_page) break;
+      if (!data.pagination?.has_next_page) break;
     }
-  } catch {
-    // best-effort — no filler badges is the status quo, not a regression
+  } catch (error) {
+    detail = error instanceof Error ? error.message : "jikan request failed";
   }
 
-  writeCachedPayload(jikanFillerCache, cacheKey, Array.from(filler));
-  return filler;
+  if (answered) {
+    writeCachedPayload(jikanFillerCache, cacheKey, {
+      episodes: Array.from(filler),
+      answered,
+    });
+  }
+
+  return {
+    filler,
+    outcome: answered ? "success" : "error",
+    detail: answered ? undefined : detail,
+  };
 }
 
 type EpisodeWithMeta = {
@@ -1323,16 +1433,46 @@ const isBlank = (value: string | null | undefined): boolean =>
 async function fillEpisodeMetadata<T extends EpisodeWithMeta>(
   anilistId: number,
   episodes: T[],
+  trace?: ResolutionTraceEvent[],
 ): Promise<T[]> {
   if (episodes.length === 0) return episodes;
 
   const needsImage = (list: T[]) => list.some((ep) => !ep.image);
   const needsTitle = (list: T[]) => list.some((ep) => isBlank(ep.title));
 
+  const note = (
+    provider: string,
+    outcome: TraceOutcome,
+    detail?: string,
+  ): void => {
+    if (!trace) return;
+    pushResolutionEvent(trace, {
+      stage: "episode-metadata",
+      provider,
+      outcome,
+      detail,
+    });
+  };
+
+  /** Applies a source's entries without ever overwriting what is already set. */
+  const merge = (
+    list: T[],
+    entries: Map<number, { image: string | null; title: string | null }>,
+  ): T[] =>
+    list.map((ep) => {
+      const meta = entries.get(ep.number);
+      if (!meta) return ep;
+      const image = ep.image || meta.image;
+      const title = isBlank(ep.title) ? meta.title : ep.title;
+      if (image === ep.image && title === ep.title) return ep;
+      return { ...ep, image, title };
+    });
+
   let filled = episodes;
   if (needsImage(filled)) {
     try {
       const thumbs = await anilistEpisodeThumbnails(anilistId);
+      note("anilist", thumbs.size > 0 ? "success" : "miss");
       if (thumbs.size > 0) {
         filled = filled.map((ep) =>
           !ep.image && thumbs.has(ep.number)
@@ -1340,27 +1480,32 @@ async function fillEpisodeMetadata<T extends EpisodeWithMeta>(
             : ep,
         );
       }
-    } catch {
-      // best-effort
+    } catch (error) {
+      note(
+        "anilist",
+        "error",
+        error instanceof Error ? error.message : "thumbnail lookup failed",
+      );
     }
   }
 
+  // AniList only carries the episodes streaming sites have been linked
+  // against an entry, which for a long run is a small prefix of it — Bleach
+  // exposes 20 of 366 — so the gap is the normal case, not the exception.
   if (needsImage(filled) || needsTitle(filled)) {
-    try {
-      const kitsu = await kitsuEpisodeMetadata(anilistId);
-      if (kitsu.size > 0) {
-        filled = filled.map((ep) => {
-          const meta = kitsu.get(ep.number);
-          if (!meta) return ep;
-          const image = ep.image || meta.image;
-          const title = isBlank(ep.title) ? meta.title : ep.title;
-          if (image === ep.image && title === ep.title) return ep;
-          return { ...ep, image, title };
-        });
-      }
-    } catch {
-      // best-effort
-    }
+    const kitsu = await kitsuEpisodeMetadata(anilistId);
+    note("kitsu", kitsu.outcome, kitsu.detail);
+    if (kitsu.entries.size > 0) filled = merge(filled, kitsu.entries);
+  }
+
+  // A second source on a different host, so one of them being unreachable
+  // does not leave the list bare. It costs a single request for a whole
+  // series and carries titles for the full run even where its images are
+  // sparse, which is worth having on its own.
+  if (needsImage(filled) || needsTitle(filled)) {
+    const mapping = await animeIdMappings(anilistId);
+    note("anizip", mapping.outcome, mapping.detail);
+    if (mapping.episodes.size > 0) filled = merge(filled, mapping.episodes);
   }
 
   // Only ever sets the flag, never clears it: where a bridge supplied its own
@@ -1370,7 +1515,8 @@ async function fillEpisodeMetadata<T extends EpisodeWithMeta>(
       const media = await anilistMediaDetail(anilistId);
       const malId = media?.idMal;
       if (malId) {
-        const filler = await jikanFillerEpisodes(malId);
+        const { filler, outcome, detail } = await jikanFillerEpisodes(malId);
+        note("jikan", outcome, detail);
         if (filler.size > 0) {
           filled = filled.map((ep) =>
             !ep.isFiller && filler.has(ep.number)
@@ -1378,9 +1524,15 @@ async function fillEpisodeMetadata<T extends EpisodeWithMeta>(
               : ep,
           );
         }
+      } else {
+        note("jikan", "miss", "no MAL id on the AniList entry");
       }
-    } catch {
-      // best-effort
+    } catch (error) {
+      note(
+        "jikan",
+        "error",
+        error instanceof Error ? error.message : "filler lookup failed",
+      );
     }
   }
 
@@ -1674,6 +1826,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               const animepaheEpisodes = await fillEpisodeMetadata(
                 Number(id),
                 animepahe.episodes,
+                resolutionTrace,
               );
               pushResolutionEvent(resolutionTrace, {
                 stage: "animepahe-episodes",
@@ -1787,7 +1940,11 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        episodes = await fillEpisodeMetadata(Number(id), episodes);
+        episodes = await fillEpisodeMetadata(
+          Number(id),
+          episodes,
+          resolutionTrace,
+        );
 
         if (!usedProvider) {
           usedProvider = bridgeAvailable
