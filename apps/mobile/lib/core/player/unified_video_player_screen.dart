@@ -14,6 +14,7 @@ import 'local_progress_cache.dart';
 import 'pip_service.dart';
 import 'playback_source.dart';
 import 'progress_recorder.dart';
+import 'subtitles_api.dart';
 import 'watch_progress_api.dart';
 import 'youtube_resolver.dart';
 import '../../features/content/anime/data/anime_models.dart';
@@ -169,14 +170,18 @@ class _UnifiedVideoPlayerScreenState
 
       await player.open(Media(mediaUrl, httpHeaders: httpHeaders), play: true);
 
-      if (widget.subtitles != null && widget.subtitles!.isNotEmpty) {
-        for (final s in widget.subtitles!.reversed) {
-          if (s.url != null && s.lang != null) {
-            player.setSubtitleTrack(
-              SubtitleTrack.uri(s.url!, title: s.lang, language: s.lang),
-            );
-          }
-        }
+      // Only the first track, which is the best-ranked one the server found.
+      // The previous version applied every track in reverse so that the first
+      // ended up active; since setting a track just replaces the active one,
+      // that did the same thing while fetching all of them — and an
+      // OpenSubtitles fetch costs part of a shared daily quota. The rest stay
+      // one tap away in the subtitle sheet, fetched when actually chosen.
+      final firstTrack = widget.subtitles?.firstWhere(
+        (s) => s.url != null && s.url!.isNotEmpty,
+        orElse: () => AnimeWatchSubtitle(),
+      );
+      if (firstTrack?.url != null) {
+        unawaited(_applyExternalSubtitle(player, firstTrack!));
       }
 
       if (!mounted) {
@@ -785,6 +790,38 @@ class _UnifiedVideoPlayerScreenState
     );
   }
 
+  /// Loads an external track, fetching it first when it is one this app has
+  /// to download on the player's behalf.
+  Future<void> _applyExternalSubtitle(
+    Player player,
+    AnimeWatchSubtitle subtitle,
+  ) async {
+    final url = subtitle.url;
+    if (url == null || url.isEmpty) return;
+    final resolved = await ref.read(subtitleTrackResolverProvider).resolve(url);
+    if (resolved == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not load the ${subtitle.lang ?? 'selected'} subtitles.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    // The player may have been torn down while the file was downloading.
+    if (!mounted || _player != player) return;
+    await player.setSubtitleTrack(
+      SubtitleTrack.uri(
+        resolved,
+        title: subtitle.lang,
+        language: subtitle.lang,
+      ),
+    );
+  }
+
   SubtitleViewConfiguration _buildSubtitleConfig() {
     final List<Shadow> shadows = [];
     final double o = _subtitleOutlineWidth;
@@ -874,13 +911,10 @@ class _UnifiedVideoPlayerScreenState
                               label: Text(sub.lang ?? 'External'),
                               selected: isSelected,
                               onSelected: (_) {
-                                if (sub.url != null) {
-                                  _player?.setSubtitleTrack(
-                                    SubtitleTrack.uri(
-                                      sub.url!,
-                                      title: sub.lang,
-                                      language: sub.lang,
-                                    ),
+                                final player = _player;
+                                if (sub.url != null && player != null) {
+                                  unawaited(
+                                    _applyExternalSubtitle(player, sub),
                                   );
                                 }
                                 setSheetState(() {});

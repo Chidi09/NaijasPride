@@ -71,6 +71,15 @@ class EmbedWebViewScreen extends ConsumerStatefulWidget {
   /// history the native player writes, and resumes where it left off.
   final ProgressTarget? progressTarget;
 
+  /// Shown on the next-episode control. Null for a title with no next episode.
+  final String? nextEpisodeLabel;
+
+  /// Advancing to the next episode. Needed here and not only in the native
+  /// player because embed playback is where most series actually land — the
+  /// native player is reached only when a stream can be sniffed out of the
+  /// embed, which for TV shows is the exception.
+  final VoidCallback? onNextEpisode;
+
   const EmbedWebViewScreen({
     super.key,
     required this.sources,
@@ -78,6 +87,8 @@ class EmbedWebViewScreen extends ConsumerStatefulWidget {
     required this.title,
     this.subtitles,
     this.progressTarget,
+    this.nextEpisodeLabel,
+    this.onNextEpisode,
   });
 
   @override
@@ -344,6 +355,8 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
           title: widget.title,
           subtitles: _effectiveSubtitles,
           progressTarget: widget.progressTarget,
+          nextEpisodeLabel: widget.nextEpisodeLabel,
+          onNextEpisode: widget.onNextEpisode,
         ),
       ),
     );
@@ -388,6 +401,12 @@ class _EmbedWebViewScreenState extends ConsumerState<EmbedWebViewScreen> {
         backgroundColor: Colors.transparent,
         title: Text(widget.title),
         actions: [
+          if (widget.onNextEpisode != null)
+            IconButton(
+              icon: const Icon(Icons.skip_next),
+              tooltip: widget.nextEpisodeLabel ?? 'Next episode',
+              onPressed: widget.onNextEpisode,
+            ),
           _strictAdBlockingToggle(),
           if (widget.sources.length > 1) _serverMenu(),
         ],

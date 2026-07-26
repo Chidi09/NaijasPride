@@ -25,6 +25,12 @@ export type SubtitleQuery = {
   year?: number | null;
   /** ISO-639-1 codes, most preferred first. */
   languages: string[];
+  /**
+   * Return tracks in languages that were not asked for, ranked after the ones
+   * that were. Off by default: a viewer who asked for English and is handed a
+   * Japanese track has been given noise, not a fallback.
+   */
+  anyLanguage?: boolean;
 };
 
 export type SubtitleTrack = {
@@ -53,6 +59,17 @@ export interface SubtitleProvider {
   isConfigured(): boolean;
   /** False when the query lacks the identifiers this provider needs. */
   supports(query: SubtitleQuery): boolean;
+  /**
+   * The languages this provider can actually serve, where that is a fixed and
+   * narrow set. A provider that carries everything leaves this undefined and
+   * is queried for any language.
+   *
+   * This exists so a single-language catalogue is not queried for a language
+   * it will never have. Without it, Jimaku answered every anime request —
+   * it is the only provider that accepts an AniList id — and the response was
+   * Japanese regardless of what was asked for.
+   */
+  readonly languages?: readonly string[];
   search(query: SubtitleQuery): Promise<SubtitleTrack[]>;
 }
 
@@ -82,35 +99,83 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   });
 }
 
+/** Normalises `en-US`, `EN`, `eng` and friends to a comparable base code. */
+function baseLanguage(code: string): string {
+  const lower = code.trim().toLowerCase();
+  const base = lower.split(/[-_]/)[0];
+  // The three-letter forms the providers mix in for the languages this
+  // catalogue actually asks for.
+  const alias: Record<string, string> = {
+    eng: "en",
+    jpn: "ja",
+    fra: "fr",
+    fre: "fr",
+    spa: "es",
+    por: "pt",
+    ara: "ar",
+    deu: "de",
+    ger: "de",
+  };
+  return alias[base] || base;
+}
+
 /**
- * Orders by the caller's language preference first, then by provider rank.
- * A track in a language the caller didn't ask for sorts after every one they
- * did, rather than being dropped — a Japanese track is still worth offering
- * when it is the only thing that exists for an episode.
+ * Orders by the caller's language preference first, then by provider rank,
+ * and drops languages that were not asked for unless the caller opted in.
+ *
+ * The earlier version kept every language and merely sorted the unasked-for
+ * ones last, on the theory that a Japanese track beats no track. In practice
+ * that is what a viewer saw: for anime the only provider able to answer an
+ * AniList id serves Japanese, so "sorted last" and "the entire list" were the
+ * same thing, and the player's subtitle menu offered nothing else.
  */
-function rankTracks(
+function selectTracks(
   tracks: SubtitleTrack[],
   languages: string[],
+  anyLanguage: boolean,
 ): SubtitleTrack[] {
   const preference = new Map(
-    languages.map((lang, index) => [lang.toLowerCase(), index]),
+    languages.map((lang, index) => [baseLanguage(lang), index]),
   );
-  return [...tracks].sort((a, b) => {
+  const kept = anyLanguage
+    ? [...tracks]
+    : tracks.filter((track) => preference.has(baseLanguage(track.language)));
+  return kept.sort((a, b) => {
     const aLang =
-      preference.get(a.language.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      preference.get(baseLanguage(a.language)) ?? Number.MAX_SAFE_INTEGER;
     const bLang =
-      preference.get(b.language.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      preference.get(baseLanguage(b.language)) ?? Number.MAX_SAFE_INTEGER;
     if (aLang !== bLang) return aLang - bLang;
     return b.rank - a.rank;
   });
 }
 
+export type SkipReason = "unconfigured" | "unsupported-query" | "language";
+
+export type SkippedProvider = { provider: string; reason: SkipReason };
+
 export type SubtitleResolution = {
   tracks: SubtitleTrack[];
   /** Providers actually queried, for debugging a thin result. */
   providersQueried: string[];
-  providersSkipped: string[];
+  /**
+   * Providers left out and why. Worth returning rather than logging: an
+   * unset API key is invisible from the outside and otherwise looks exactly
+   * like a provider that had no match.
+   */
+  providersSkipped: SkippedProvider[];
 };
+
+/** Whether a provider's fixed catalogue can serve any requested language. */
+function servesRequestedLanguage(
+  provider: SubtitleProvider,
+  languages: string[],
+  anyLanguage: boolean,
+): boolean {
+  if (anyLanguage || !provider.languages?.length) return true;
+  const wanted = new Set(languages.map(baseLanguage));
+  return provider.languages.some((lang) => wanted.has(baseLanguage(lang)));
+}
 
 export async function resolveSubtitles(
   providers: SubtitleProvider[],
@@ -119,15 +184,20 @@ export async function resolveSubtitles(
   const languages = query.languages.length
     ? query.languages
     : DEFAULT_SUBTITLE_LANGUAGES;
-  const normalised: SubtitleQuery = { ...query, languages };
+  const anyLanguage = query.anyLanguage === true;
+  const normalised: SubtitleQuery = { ...query, languages, anyLanguage };
 
   const usable: SubtitleProvider[] = [];
-  const skipped: string[] = [];
+  const skipped: SkippedProvider[] = [];
   for (const provider of providers) {
-    if (provider.isConfigured() && provider.supports(normalised)) {
-      usable.push(provider);
+    if (!provider.isConfigured()) {
+      skipped.push({ provider: provider.name, reason: "unconfigured" });
+    } else if (!provider.supports(normalised)) {
+      skipped.push({ provider: provider.name, reason: "unsupported-query" });
+    } else if (!servesRequestedLanguage(provider, languages, anyLanguage)) {
+      skipped.push({ provider: provider.name, reason: "language" });
     } else {
-      skipped.push(provider.name);
+      usable.push(provider);
     }
   }
 
@@ -149,7 +219,10 @@ export async function resolveSubtitles(
   }
 
   return {
-    tracks: rankTracks(tracks, languages).slice(0, SUBTITLE_RESULT_LIMIT),
+    tracks: selectTracks(tracks, languages, anyLanguage).slice(
+      0,
+      SUBTITLE_RESULT_LIMIT,
+    ),
     providersQueried: usable.map((p) => p.name),
     providersSkipped: skipped,
   };

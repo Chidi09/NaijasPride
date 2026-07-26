@@ -7,6 +7,7 @@ import '../../../../core/player/embed_playback_resolver.dart';
 import '../../../../core/player/embed_webview_screen.dart';
 import '../../../../core/player/videasy_player_screen.dart';
 import '../../../../core/player/playback_source.dart';
+import '../../../../core/player/subtitles_api.dart';
 import '../../../../core/player/unified_video_player_screen.dart';
 import '../../../../core/player/watch_progress_api.dart';
 import '../../../../core/build_flavor.dart';
@@ -36,8 +37,8 @@ class TvShowDetailScreen extends ConsumerStatefulWidget {
 
 class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
   int _selectedSeason = 1;
-  Map<String, ({int progress, int duration, String? status})>
-  _episodeProgress = {};
+  Map<String, ({int progress, int duration, String? status})> _episodeProgress =
+      {};
   bool _hasCheckedProgress = false;
 
   Future<void> _fetchProgress(String showId) async {
@@ -47,6 +48,38 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
   }
 
   Future<void> _onEpisodeTap(TvShow show, TvEpisode episode) async {
+    final seasonEpisodes =
+        show.seasons
+            .where((s) => s.seasonNumber == _selectedSeason)
+            .firstOrNull
+            ?.episodes ??
+        const <TvEpisode>[];
+    final index = seasonEpisodes.indexWhere((e) => e.id == episode.id);
+    final nextEpisode = index >= 0 && index + 1 < seasonEpisodes.length
+        ? seasonEpisodes[index + 1]
+        : null;
+    // Deliberately within the season only: crossing into the next season
+    // would need the season list re-selected underneath the player, and
+    // "next" meaning something other than the next row on screen is worse
+    // than the control simply not appearing on a finale.
+    final nextLabel = nextEpisode != null
+        ? 'Episode ${nextEpisode.episodeNumber}'
+        : null;
+    void Function()? onNext;
+    if (nextEpisode != null) {
+      onNext = () {
+        Navigator.of(context).pop();
+        _onEpisodeTap(show, nextEpisode);
+      };
+    }
+
+    final progressTarget = TvProgressTarget(
+      showId: show.id,
+      episodeId: episode.id,
+      seasonNumber: _selectedSeason,
+      episodeNumber: episode.episodeNumber,
+    );
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -62,6 +95,18 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
         season: _selectedSeason,
         episode: episode.episodeNumber,
       );
+      // Not every embed carries a subtitle track, and plenty carry none at
+      // all — asking the server covers the gap the same way it does for
+      // anime, which is where this was previously wired up and nowhere else.
+      final subtitles = await ref
+          .read(subtitlesApiProvider)
+          .search(
+            imdbId: show.imdbId,
+            tmdbId: show.tmdbId,
+            season: _selectedSeason,
+            episode: episode.episodeNumber,
+            title: show.title,
+          );
       final result = await resolveTvEpisodePlayback(
         api: api,
         slug: show.slug,
@@ -80,12 +125,10 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
               builder: (_) => UnifiedVideoPlayerScreen(
                 source: source,
                 title: episode.title,
-                progressTarget: TvProgressTarget(
-                  showId: show.id,
-                  episodeId: episode.id,
-                  seasonNumber: _selectedSeason,
-                  episodeNumber: episode.episodeNumber,
-                ),
+                progressTarget: progressTarget,
+                subtitles: subtitles,
+                nextEpisodeLabel: nextLabel,
+                onNextEpisode: onNext,
               ),
             ),
           );
@@ -96,12 +139,10 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
                 videasyUrl: url,
                 title: episode.title,
                 alternates: alternates,
-                progressTarget: TvProgressTarget(
-                  showId: show.id,
-                  episodeId: episode.id,
-                  seasonNumber: _selectedSeason,
-                  episodeNumber: episode.episodeNumber,
-                ),
+                progressTarget: progressTarget,
+                subtitles: subtitles,
+                nextEpisodeLabel: nextLabel,
+                onNextEpisode: onNext,
               ),
             ),
           );
@@ -113,12 +154,10 @@ class _TvShowDetailScreenState extends ConsumerState<TvShowDetailScreen> {
                     .map((s) => EmbedSource(url: s.url, label: s.label))
                     .toList(),
                 title: episode.title,
-                progressTarget: TvProgressTarget(
-                  showId: show.id,
-                  episodeId: episode.id,
-                  seasonNumber: _selectedSeason,
-                  episodeNumber: episode.episodeNumber,
-                ),
+                progressTarget: progressTarget,
+                subtitles: subtitles,
+                nextEpisodeLabel: nextLabel,
+                onNextEpisode: onNext,
               ),
             ),
           );
