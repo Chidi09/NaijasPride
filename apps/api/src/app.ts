@@ -34,6 +34,7 @@ import { downloadRequestRoutes } from "./modules/downloads/download-requests.rou
 import { tvShowRoutes } from "./modules/tv-shows/tv-shows.routes";
 import { animeRoutes } from "./modules/anime/anime.routes";
 import { adRoutes } from "./modules/ads/ads.routes";
+import { subtitleSearchRoutes } from "./modules/subtitles/subtitles.routes";
 
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./shared/plugins/auth.plugin";
@@ -262,6 +263,9 @@ const buildServer = async () => {
   await app.register(authRoutes, { prefix: `${apiPrefix}/auth` });
   await app.register(movieRoutes, { prefix: `${apiPrefix}/movies` });
   await app.register(subtitleRoutes, { prefix: `${apiPrefix}/movies` });
+  await app.register(subtitleSearchRoutes, {
+    prefix: `${apiPrefix}/subtitles`,
+  });
   await app.register(bookRoutes, { prefix: `${apiPrefix}/books` });
   await app.register(paymentRoutes, { prefix: `${apiPrefix}/payments` });
   await app.register(profileRoutes, { prefix: `${apiPrefix}/profile` });
