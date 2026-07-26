@@ -88,20 +88,47 @@ class HomeScreen extends ConsumerWidget {
       extendBodyBehindAppBar: !isTvBuild,
       appBar: isTvBuild
           ? AppBar(title: const Text('NaijaSpride'))
-          : AppBar(
-              title: const Text('NaijaSpride'),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.person_outline),
-                onPressed: () => context.push('/profile'),
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.download_outlined),
-                  onPressed: () => context.push('/downloads'),
+          : PreferredSize(
+              preferredSize: const Size.fromHeight(kToolbarHeight),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withAlpha(200),
+                      Colors.black.withAlpha(100),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
-              ],
+                child: AppBar(
+                  title: Text(
+                    'NaijaSpride',
+                    style: TextStyle(
+                      fontFamily: 'Cinzel',
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: colors.textStrong,
+                      shadows: const [
+                        Shadow(color: Colors.black, blurRadius: 8),
+                      ],
+                    ),
+                  ),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.person_outline),
+                    onPressed: () => context.push('/profile'),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.download_outlined),
+                      onPressed: () => context.push('/downloads'),
+                    ),
+                  ],
+                ),
+              ),
             ),
       body: SingleChildScrollView(
         child: Column(

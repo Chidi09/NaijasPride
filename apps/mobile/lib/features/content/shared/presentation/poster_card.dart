@@ -165,33 +165,41 @@ class _PosterCardState extends State<PosterCard> {
                           Positioned(
                             top: 6,
                             right: 6,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black.withAlpha(140),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.star_rounded,
-                                    size: 12,
-                                    color: Color(0xFFD6B87A),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withAlpha(160),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: const Color(0xFFD6B87A).withAlpha(90),
+                                    width: 0.8,
                                   ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    widget.ratingLabel!,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2.5,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      size: 13,
+                                      color: Color(0xFFD6B87A),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      widget.ratingLabel!,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -250,14 +258,31 @@ class _ProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
       height: 4,
-      color: Colors.black.withAlpha(80),
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(120),
+      ),
       child: FractionallySizedBox(
         alignment: Alignment.centerLeft,
         widthFactor: fraction,
-        child: Container(color: theme.colorScheme.primary),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF800020), Color(0xFFA31535)],
+            ),
+            borderRadius: BorderRadius.horizontal(
+              right: Radius.circular(fraction >= 0.98 ? 0 : 2),
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x99800020),
+                blurRadius: 4,
+                spreadRadius: 0.5,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
